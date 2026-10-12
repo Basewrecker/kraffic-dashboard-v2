@@ -1,0 +1,366 @@
+@import "tailwindcss";
+
+/* All fonts + colors live here so the restyle is a one-place swap. */
+@theme {
+  --font-sans: 'Manrope Variable', ui-sans-serif, system-ui, sans-serif;
+
+  /* type scale v3 (sidebar + main section). Sizes <= 15px carry no letter-spacing. */
+  --text-caption: 13px;           /* chart axis ticks + "Last sync" meta only */
+  --text-caption--line-height: 18px;
+  --text-small: 14px;             /* secondary: subtitles, KPI links, legend, table headers */
+  --text-small--line-height: 20px;
+  --text-body: 15px;              /* everything people read */
+  --text-body--line-height: 22px;
+  --text-title: 18px;
+  --text-title--line-height: 26px;
+  --text-title--letter-spacing: -0.01em;
+  --text-title--font-weight: 600;
+  --text-h1: 30px;
+  --text-h1--line-height: 36px;
+  --text-h1--letter-spacing: -0.025em;
+  --text-h1--font-weight: 600;
+  --text-kpi: 40px;
+  --text-kpi--line-height: 44px;
+  --text-kpi--letter-spacing: -0.03em;
+  --text-kpi--font-weight: 600;
+
+  /* legacy sizes, still used by the prompt tables + sync history below the main section */
+  --text-micro: 11px;
+  --text-micro--line-height: 16px;
+  --text-micro--letter-spacing: 0.06em;
+  --text-micro--font-weight: 600;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 20px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+
+  /* surfaces */
+  --color-page: #fafaf9;        /* stone-50 */
+  --color-surface: #ffffff;
+  --color-line: #e7e5e4;        /* stone-200: card borders, dividers */
+  --color-line-soft: #f5f5f4;   /* stone-100 */
+  --color-line-strong: #d6d3d1; /* stone-300: hovered card borders */
+  /* barely-there boxes inside a card (Sync history gained / lost) */
+  --subtle-border: #E2DFDC;
+  --subtle-bg: color-mix(in srgb, var(--tint) 45%, transparent);
+  --dashed-border: #D6D3D1; /* dashed "add" rows */
+  --div: #EFEDEB; /* row dividers inside settings cards */
+
+  /* text */
+  --color-ink: var(--ink);      /* graphite system: see :root below */
+  --color-ink-hover: var(--ink-hover);
+  --color-on-ink: var(--on-ink);
+  --color-tint: var(--tint);
+  --color-negative: var(--negative);
+  --color-ink-2: #57534e;       /* stone-600 */
+  --color-ink-3: #78716c;       /* stone-500: lightest text allowed */
+
+  /* surfaces + UI roles that need their own dark values (light values match the current look) */
+  --color-raised: #ffffff;            /* selects, popovers, tooltips */
+  --color-overlay: #ffffff;           /* detail sheet, modals */
+  --color-sidebar: var(--color-stone-50);
+  --color-selected: var(--tint);   /* active sidebar item */
+  --color-focus: color-mix(in oklab, var(--ink) 35%, transparent);
+  --color-scrim-sheet: color-mix(in oklab, var(--color-stone-900) 20%, transparent);
+  --color-scrim-modal: color-mix(in oklab, var(--color-stone-900) 30%, transparent);
+  --modal-scrim: rgba(0,0,0,0.4); /* ui/Modal overlay */
+  --color-icon-mono: #000000;         /* black platform glyphs (ChatGPT, Grok) */
+
+
+}
+
+html { scroll-behavior: smooth; }
+:root { color-scheme: light; }
+body {
+  font-family: var(--font-sans);
+  background: var(--color-page);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+  transition: background-color 200ms ease-out, color 200ms ease-out;
+}
+
+
+/* Graphite system: warm ink + grey steps, no hues (platform brand logos excepted).
+   Light values here; the same names flip in the dark block below. Mirrored in src/theme/chart.js. */
+:root {
+  --ink: #171412;          /* primary data, primary buttons, active states */
+  --ink-hover: #0C0A09;
+  --on-ink: #FFFFFF;       /* text on ink buttons */
+  --data-you: var(--ink);
+  --data-c1: #78716C;      /* largest competitor */
+  --data-c2: #A8A29E;
+  --data-c3: #D6D3D1;      /* smallest competitor */
+  /* marketplace donut: every slice must read on the card, even dimmed (c3 was too close to white) */
+  --donut-yours: #171412;
+  --donut-others: #78716C;
+  --donut-none: #A8A29E;
+  /* Kraffic mark (components/ui/Logo.jsx): the accent blue is for the logo dot only, never UI */
+  /* pie slice labels: readable on each fill (ink / c1 / c2 / c3 / track) */
+  --pie-on-c1: #FFFFFF;
+  --pie-on-c2: #171412;
+  --pie-on-c3: #171412;
+  --brand-tile: #171412;
+  --brand-k: #FFFFFF;
+  --brand-accent: #3B9CF0;
+  --data-track: #F1F0EE;
+  --tint: #F5F5F4;         /* soft backgrounds: chips, active nav, pills */
+  --negative: #DC2626;     /* ONLY drops / failures */
+  /* Visibility history, LINE chart only: you = ink, competitors by share rank. Bar/Growth keep --data-c1..c3. */
+  --line-you: var(--ink);
+  --line-1: #6366DB;       /* indigo → cerave.com */
+  --line-2: #E5484D;       /* red    → theordinary.com (shares only, never a drop: no clash with --negative) */
+  --line-3: #3FCF9C;       /* mint   → paulaschoice.com */
+  --line-4: #C026D3;       /* fuchsia → dermasuri.com, only when viewing as a competitor */
+  --line-check: #FFFFFF;   /* check mark on a filled legend box */
+}
+
+/* ---------------------------------------------------------------------------
+   Dark theme (Material 2 dark principles). Light theme values live in @theme above.
+   html[data-theme="dark"] = explicit choice; the media query covers "System" / no JS.
+   Generated from one table, so both copies stay identical.
+   --------------------------------------------------------------------------- */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #F5F5F4;
+  --ink-hover: #FFFFFF;
+  --on-ink: #141312;
+  --data-c1: #A8A29E;
+  --data-c2: #78716C;
+  --data-c3: #57534E;
+  --donut-yours: #F5F5F4;
+  --donut-others: #A8A29E;
+  --donut-none: #78716C;
+  --pie-on-c1: #141312;
+  --pie-on-c2: #FFFFFF;
+  --pie-on-c3: #FFFFFF;
+  --brand-tile: #FFFFFF;
+  --brand-k: #171412;
+  --brand-accent: #4AA8F5;
+  --data-track: rgba(255,255,255,0.06);
+  --tint: rgba(255,255,255,0.06);
+  --negative: #F87171;
+  --line-1: #8B8DF5;
+  --line-2: #F27370;
+  --line-3: #6EE7B7;
+  --line-4: #E879F9;
+  --line-check: #141312;
+  --color-page: #141312;
+  --color-surface: #1C1B1A;
+  --color-sidebar: #1C1B1A;
+  --color-raised: #232120;
+  --color-overlay: #2A2826;
+  --color-white: #1C1B1A;
+  --color-line: rgba(255,255,255,0.08);
+  --color-line-soft: rgba(255,255,255,0.06);
+  --color-line-strong: rgba(255,255,255,0.16);
+  --subtle-border: rgba(255,255,255,0.06);
+  --subtle-bg: rgba(255,255,255,0.02);
+  --dashed-border: var(--color-line);
+  --div: rgba(255,255,255,0.06);
+  --color-stone-50: #232120;
+  --color-stone-100: rgba(255,255,255,0.06);
+  --color-stone-200: rgba(255,255,255,0.08);
+  --color-stone-300: rgba(255,255,255,0.16);
+  --color-stone-400: rgba(250,250,249,0.38);
+  --color-stone-500: rgba(250,250,249,0.6);
+  --color-stone-600: rgba(250,250,249,0.6);
+  --color-stone-700: rgba(250,250,249,0.87);
+  --color-stone-800: rgba(250,250,249,0.87);
+  --color-stone-900: rgba(250,250,249,0.87);
+  --color-ink-2: rgba(250,250,249,0.6);
+  --color-ink-3: rgba(250,250,249,0.6);
+  --color-scrim-sheet: rgba(0,0,0,0.5);
+  --color-scrim-modal: rgba(0,0,0,0.6);
+  --modal-scrim: rgba(0,0,0,0.6);
+  --color-icon-mono: rgba(250,250,249,0.87);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ink: #F5F5F4;
+    --ink-hover: #FFFFFF;
+    --on-ink: #141312;
+    --data-c1: #A8A29E;
+    --data-c2: #78716C;
+    --data-c3: #57534E;
+    --donut-yours: #F5F5F4;
+    --donut-others: #A8A29E;
+    --donut-none: #78716C;
+    --pie-on-c1: #141312;
+    --pie-on-c2: #FFFFFF;
+    --pie-on-c3: #FFFFFF;
+    --brand-tile: #FFFFFF;
+    --brand-k: #171412;
+    --brand-accent: #4AA8F5;
+    --data-track: rgba(255,255,255,0.06);
+    --tint: rgba(255,255,255,0.06);
+    --negative: #F87171;
+    --line-1: #8B8DF5;
+    --line-2: #F27370;
+    --line-3: #6EE7B7;
+    --line-4: #E879F9;
+    --line-check: #141312;
+    --color-page: #141312;
+    --color-surface: #1C1B1A;
+    --color-sidebar: #1C1B1A;
+    --color-raised: #232120;
+    --color-overlay: #2A2826;
+    --color-white: #1C1B1A;
+    --color-line: rgba(255,255,255,0.08);
+    --color-line-soft: rgba(255,255,255,0.06);
+    --color-line-strong: rgba(255,255,255,0.16);
+    --subtle-border: rgba(255,255,255,0.06);
+    --subtle-bg: rgba(255,255,255,0.02);
+    --dashed-border: var(--color-line);
+    --div: rgba(255,255,255,0.06);
+    --color-stone-50: #232120;
+    --color-stone-100: rgba(255,255,255,0.06);
+    --color-stone-200: rgba(255,255,255,0.08);
+    --color-stone-300: rgba(255,255,255,0.16);
+    --color-stone-400: rgba(250,250,249,0.38);
+    --color-stone-500: rgba(250,250,249,0.6);
+    --color-stone-600: rgba(250,250,249,0.6);
+    --color-stone-700: rgba(250,250,249,0.87);
+    --color-stone-800: rgba(250,250,249,0.87);
+    --color-stone-900: rgba(250,250,249,0.87);
+    --color-ink-2: rgba(250,250,249,0.6);
+    --color-ink-3: rgba(250,250,249,0.6);
+    --color-scrim-sheet: rgba(0,0,0,0.5);
+    --color-scrim-modal: rgba(0,0,0,0.6);
+    --modal-scrim: rgba(0,0,0,0.6);
+    --color-icon-mono: rgba(250,250,249,0.87);
+  }
+}
+
+/* no shadows in dark: elevation is shown by surface lightness (rings are unaffected) */
+html[data-theme="dark"] * { --tw-shadow-color: transparent; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) * { --tw-shadow-color: transparent; } }
+
+@utility num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Prompts overview gauge: segments draw in once on load */
+@keyframes gauge-draw {
+  from { stroke-dashoffset: 1.05; }
+  to { stroke-dashoffset: 0; }
+}
+.gauge-seg {
+  stroke-dasharray: 1 1.1; /* gap > 1 so no zero-length dash (round-cap dot) shows before the draw */
+  animation: gauge-draw 800ms cubic-bezier(.22, 1, .36, 1) both;
+}
+.gauge-seg-late { animation-delay: 150ms; } /* missed starts after visible */
+@media (prefers-reduced-motion: reduce) {
+  .gauge-seg { animation: none; }
+}
+
+/* Visibility history: legend hover dims the other series smoothly */
+#history .recharts-bar-rectangle path, #history .recharts-curve, #history .recharts-area-area, #history .recharts-dot, #history .recharts-line-dots circle { transition: fill-opacity 150ms ease-out, stroke-opacity 150ms ease-out, opacity 150ms ease-out; }
+
+/* Marketplace visibility: the donut dims inactive segments smoothly */
+.recharts-pie-sector path { transition: fill-opacity 200ms ease-out; }
+
+/* goToSection(): 2px ink/15 ring on the target card that fades out */
+@keyframes section-flash {
+  from { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink) 15%, transparent); }
+  to { box-shadow: 0 0 0 2px transparent; }
+}
+.section-flash { animation: section-flash 1200ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .section-flash { animation-duration: 1ms; } }
+
+/* Prompts page: the add-prompt row grows in instead of popping */
+/* overflow is clipped only while it grows (inside the keyframes), so the focus ring isn't cut off afterwards */
+@keyframes row-in {
+  from { height: 0; opacity: 0; overflow: hidden; }
+  to { height: 43px; opacity: 1; overflow: hidden; } /* 43 + the row's 1px border = 44, like every other row */
+}
+.row-in { animation: row-in 150ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .row-in { animation: none; } }
+
+/* skeleton shimmer (research results loading) */
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.shimmer {
+  background: linear-gradient(90deg, var(--tint) 25%, color-mix(in srgb, var(--tint) 40%, transparent) 50%, var(--tint) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+/* modal step crossfade (import: upload → preview → done) */
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.fade-in { animation: fade-in 150ms ease-out; }
+/* add-prompt row leaving */
+@keyframes row-out { from { height: 43px; opacity: 1; } to { height: 0; opacity: 0; } }
+.row-out { animation: row-out 150ms ease-out forwards; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .shimmer, .fade-in, .row-out { animation: none; } }
+
+/* ---- theme switching ---------------------------------------------------------------------- */
+/* View Transitions: the new theme is revealed by a growing circle (clip-path set from JS) */
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+/* fallback: a 200ms colour fade, only while .theme-transition is on <html> (removed after 250ms) */
+.theme-transition *, .theme-transition *::before, .theme-transition *::after {
+  transition: background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out,
+              fill 200ms ease-out, stroke 200ms ease-out !important;
+}
+/* theme toggle: the newly active icon turns in */
+@keyframes theme-icon-in { from { opacity: 0; transform: rotate(-90deg); } to { opacity: 1; transform: rotate(0); } }
+.theme-icon-in { animation: theme-icon-in 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .theme-icon-in { animation: none; } }
+
+/* Setup: a newly added brand card arrives */
+@keyframes card-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.card-in { animation: card-in 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .card-in { animation: none; } }
+/* chip input: an existing chip shakes when a duplicate is typed */
+@keyframes chip-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+.chip-shake { animation: chip-shake 150ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .chip-shake { animation: none; } }
+/* Setup card chips: added / removed */
+@keyframes chip-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes chip-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.94); } }
+.chip-in { animation: chip-in 150ms ease-out; }
+.chip-out { animation: chip-out 150ms ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .chip-in, .chip-out { animation: none; } }
+
+/* Setup brand card ------------------------------------------------------------------------- */
+/* status dot: a soft ring that breathes every 2s */
+@keyframes status-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ink) 30%, transparent); } 70%, 100% { box-shadow: 0 0 0 6px transparent; } }
+.status-pulse { animation: status-pulse 2s ease-out infinite; }
+/* panel rows: added / removed (height + opacity, 200ms) */
+@keyframes row-enter { from { max-height: 0; opacity: 0; } to { max-height: 72px; opacity: 1; } }
+@keyframes row-leave { from { max-height: 72px; opacity: 1; } to { max-height: 0; opacity: 0; } }
+.row-enter { animation: row-enter 200ms ease-out; overflow: hidden; }
+.row-leave { animation: row-leave 200ms ease-out forwards; overflow: hidden; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .status-pulse, .row-enter, .row-leave { animation: none; } }
+
+/* Insight explain mode (ui/Insight.jsx): data the insight came from stays, the rest of the card dims */
+[data-insight-key] { transition: opacity 200ms ease-out, background-color 200ms ease-out; }
+[data-hl="off"] { opacity: 0.35; }
+[data-hl-row] { border-radius: 6px; }
+[data-hl-row=""] { margin-inline: -8px; padding-inline: 8px; } /* inset for the tint without moving the text */
+[data-hl="on"][data-hl-row] { background-color: var(--tint); }
+@media (prefers-reduced-motion: reduce) { [data-insight-key] { transition: none; } }
+
+/* Top cited pages: rows added when the card grows (48px "Not cited yet" rows; the section fades in) */
+@keyframes row-in-12 { from { height: 0; opacity: 0; overflow: hidden; } to { height: 47px; opacity: 1; overflow: hidden; } }
+.row-in-12 { animation: row-in-12 150ms ease-out; }
+.row-in-section { animation: fade-in 150ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .row-in-12, .row-in-section { animation: none; } }
+
+/* Setup settings rows: added / removed (height + opacity, 150ms) */
+@keyframes srow-in { from { max-height: 0; opacity: 0; } to { max-height: 60px; opacity: 1; } }
+@keyframes srow-out { from { max-height: 60px; opacity: 1; } to { max-height: 0; opacity: 0; } }
+.srow-in { animation: srow-in 150ms ease-out; overflow: hidden; }
+.srow-out { animation: srow-out 150ms ease-out forwards; overflow: hidden; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .srow-in, .srow-out { animation: none; } }
+
+/* Answer drawer: "Ranked 1st of 5" pulses the focal brand once (tint → ink/10 → tint) */
+@keyframes focal-pulse { 0%, 100% { background-color: var(--tint); } 50% { background-color: color-mix(in srgb, var(--ink) 10%, transparent); } }
+.focal-pulse { animation: focal-pulse 600ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .focal-pulse { animation: none; } }

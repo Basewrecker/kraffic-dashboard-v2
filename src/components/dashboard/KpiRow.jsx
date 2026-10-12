@@ -1,0 +1,52 @@
+import { Eye, EyeOff, Gauge, Link } from 'lucide-react'
+import KpiCard from './KpiCard'
+import { chart } from '../../theme/chart'
+import { useBrandView, useCountUp } from '../../hooks/useBrandView'
+import { goToSection } from '../../utils/navigate'
+import { openEngineDrawer } from '../answer/EngineDrawer'
+
+function ScoreRing({ value, size = 64, stroke = 6 }) {
+  const shown = useCountUp(value)
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  return (
+    <svg width={size} height={size} className="-rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={chart.track} strokeWidth={stroke} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none" stroke={chart.you} strokeWidth={stroke}
+        strokeDasharray={c} strokeDashoffset={c * (1 - shown / 100)} strokeLinecap="round"
+      />
+      <text x="50%" y="50%" transform={`rotate(90 ${size / 2} ${size / 2})`} textAnchor="middle" dominantBaseline="central"
+        className="proportional-nums fill-stone-900 text-[22px] font-semibold">{shown}</text>
+    </svg>
+  )
+}
+
+const Num = ({ value }) => <div className="proportional-nums text-kpi text-stone-900">{useCountUp(value)}</div>
+const Count = ({ value }) => useCountUp(value)
+
+export default function KpiRow() {
+  const { kpis, isOwnBrand, engine } = useBrandView()
+  const d = kpis.scoreDelta
+  return (
+      <div className="grid grid-cols-4 gap-4">
+        <KpiCard label="Visibility score" icon={Gauge} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} footer={<><Count value={kpis.visible} />/{kpis.total} prompts visible</>}>
+          <div className="flex items-center gap-3">
+            <ScoreRing value={kpis.score} />
+            <span className="text-small font-semibold text-stone-600 tabular-nums">
+              {d === 0 ? <span className="text-stone-500">No change vs last sync</span> : <><span className={d > 0 ? 'text-ink' : 'text-negative'}>{d > 0 ? '▲' : '▼'}</span> {Math.abs(d)} vs last sync</>}
+            </span>
+          </div>
+        </KpiCard>
+        <KpiCard label="Visible prompts" icon={Eye} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} link="View prompts" onOpen={() => goToSection('visible-prompts')}>
+          <Num value={kpis.visible} />
+        </KpiCard>
+        <KpiCard label="Missed prompts" icon={EyeOff} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} link="View opportunities" onOpen={() => goToSection('missed-prompts', isOwnBrand ? { sort: { key: 'appearingFor', dir: 'desc' } } : undefined)}>
+          <Num value={kpis.missed} />
+        </KpiCard>
+        <KpiCard label="Cited sources" icon={Link} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} link="View top pages" onOpen={(e) => openEngineDrawer({ engine, tab: 'pages', opener: e?.currentTarget })}>
+          <Num value={kpis.citedSources} />
+        </KpiCard>
+      </div>
+  )
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visibility Overview · Kraffic</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Resolve the theme before anything paints (no white flash in dark mode). Mirrors src/theme/theme.js. -->
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem('theme')
+          if (v !== 'light' && v !== 'dark' && v !== 'system') {
+            var old = localStorage.getItem('kraffic-theme') // pre-rename key
+            v = old === 'light' || old === 'dark' ? old : 'system'
+          }
+          var dark = v === 'dark' || (v === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          var el = document.documentElement
+          el.dataset.theme = dark ? 'dark' : 'light'
+          el.style.colorScheme = dark ? 'dark' : 'light'
+        } catch (e) {}
+      })()
+    </script>
+    <!-- page colour until the stylesheet arrives (same values as --color-page) -->
+    <style>html[data-theme='light'] { background: #fafaf9; } html[data-theme='dark'] { background: #141312; }</style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
