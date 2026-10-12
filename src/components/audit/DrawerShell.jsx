@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
 import { ArrowUpRight, X } from 'lucide-react'
 import { closeDrawer, useParams } from './parts'
 import ErrorBoundary from '../ui/ErrorBoundary'
@@ -67,20 +68,21 @@ export default function DrawerShell({ drawer, title, meta, footer, children }) {
         aria-modal="true"
         aria-labelledby="detail-drawer-title"
         tabIndex={-1}
-        className={`absolute inset-y-0 right-0 flex w-[min(560px,100vw)] flex-col border-l border-line bg-surface shadow-xl outline-none transition-[transform,opacity] duration-[250ms] ease-out motion-reduce:transition-none ${shown ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0'}`}
+        className={`${SHEET_BASE} md:w-[min(560px,100vw)] ${shown ? SHEET_IN : SHEET_OUT}`}
       >
-        <header className="shrink-0 border-b border-line px-6 pb-4 pt-5">
+        <SheetHandle panelRef={panel} onClose={close} />
+        <header className="shrink-0 border-b border-line px-4 pb-4 pt-2 md:px-6 md:pt-5">
           <div className="flex items-start justify-between gap-3">
             <h2 id="detail-drawer-title" className="min-w-0 text-[20px] leading-7 font-semibold text-stone-900">{title}</h2>
             <button type="button" onClick={close} aria-label="Close"
-              className="-mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
+              className="-mr-1 grid h-10 w-10 md:h-7 md:w-7 shrink-0 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
               <X size={16} />
             </button>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] leading-[18px] text-stone-600 tabular-nums">{meta}</div>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6"><ErrorBoundary name={`Drawer · ${title}`}>{children}</ErrorBoundary></div>
-        {footer && <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-6 py-3 text-[13px] leading-[18px] text-stone-600">{footer}</footer>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 md:px-6"><ErrorBoundary name={`Drawer · ${title}`}>{children}</ErrorBoundary></div>
+        {footer && <footer className={`flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-line px-4 pt-3 text-[13px] leading-[18px] text-stone-600 md:px-6 ${SHEET_FOOTER_PAD}`}>{footer}</footer>}
       </div>
     </div>
   )

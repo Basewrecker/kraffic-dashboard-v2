@@ -72,7 +72,7 @@ export const schemas = [
     doc: gdoc('organization'),
     snippet: ld('Organization', { name: 'Dermasuri', url: 'https://dermasuri.com', logo: 'https://dermasuri.com/logo.png', sameAs: ['https://www.instagram.com/dermasuri'] }),
     problems: [{
-      id: 'logo-404', text: 'Logo URL returns 404', code: 'logo → URL returns 404', lastValid: 'Aug 30', level: 'error', impact: 'high', test: any,
+      id: 'logo-404', action: 'Fix the broken logo link', text: 'Logo URL returns 404', code: 'logo → URL returns 404', lastValid: 'Aug 30', level: 'error', impact: 'high', test: any,
       why: 'Engines show your logo next to brand answers and knowledge panels. A logo that 404s is dropped, so answers show a blank or another site’s image.',
       fix: ['Upload a square logo at least 112×112 px.', 'Point `logo` to https://dermasuri.com/assets/logo-512.png.', 'Re-run the analysis to confirm the URL returns 200.'],
       snippet: ld('Organization', { name: 'Dermasuri', url: 'https://dermasuri.com', logo: 'https://dermasuri.com/assets/logo-512.png', sameAs: ['https://www.instagram.com/dermasuri', 'https://www.tiktok.com/@dermasuri'] }),
@@ -94,13 +94,13 @@ export const schemas = [
     snippet: ld('Product', { name: 'Vitamin C Serum 15%', image: 'https://dermasuri.com/img/vitamin-c-serum.jpg', brand: { '@type': 'Brand', name: 'Dermasuri' }, sku: 'DS-VC15', gtin13: '0850012345678' }),
     problems: [
       {
-        id: 'review-count', text: 'aggregateRating is missing reviewCount', code: 'aggregateRating → reviewCount is missing', lastValid: 'Sep 28', level: 'error', impact: 'high', test: (p) => [0, 4, 8, 12].includes(p.i),
+        id: 'review-count', action: 'Add review counts to product ratings', text: 'aggregateRating is missing reviewCount', code: 'aggregateRating → reviewCount is missing', lastValid: 'Sep 28', level: 'error', impact: 'high', test: (p) => [0, 4, 8, 12].includes(p.i),
         why: 'A rating without a review count fails Google’s rules, so the stars are dropped from search and shopping answers on these pages.',
         fix: ['Add `reviewCount` (or `ratingCount`) next to `ratingValue` in each aggregateRating.', 'Use the number of reviews shown on the page.', 'Re-run the analysis to confirm the 4 pages pass.'],
         snippet: ld('Product', { name: 'Vitamin C Serum 15%', image: 'https://dermasuri.com/img/vitamin-c-serum.jpg', brand: { '@type': 'Brand', name: 'Dermasuri' }, aggregateRating: { '@type': 'AggregateRating', ratingValue: '4.6', reviewCount: '212' } }),
       },
       {
-        id: 'price-valid-until', text: 'priceValidUntil date is in the past', level: 'warning', impact: 'medium', test: (p) => [1, 2, 3, 5, 6, 7].includes(p.i),
+        id: 'price-valid-until', action: 'Update expired product prices', text: 'priceValidUntil date is in the past', level: 'warning', impact: 'medium', test: (p) => [1, 2, 3, 5, 6, 7].includes(p.i),
         why: 'An expired price date tells engines the price may be out of date, so they’re less likely to quote it in shopping answers.',
         fix: ['Remove `priceValidUntil` from offers with no end date.', 'For sales, set it to the real end date of the sale.', 'Generate the date from your store platform so it never goes stale.'],
         snippet: ld('Product', { name: 'Niacinamide Booster 10%', offers: { '@type': 'Offer', url: 'https://dermasuri.com/products/niacinamide-booster', price: '28.00', priceCurrency: 'USD', priceValidUntil: '2026-12-31', availability: 'https://schema.org/InStock' } }),
@@ -108,14 +108,14 @@ export const schemas = [
     ],
   },
   {
-    id: 'breadcrumb', name: 'BreadcrumbList', importance: 'recommended', applies: (p) => p.kind !== 'home',
+    id: 'breadcrumb', action: 'Add breadcrumbs to products, blog and collections', name: 'BreadcrumbList', importance: 'recommended', applies: (p) => p.kind !== 'home',
     has: (p) => (p.kind === 'product' ? p.i >= 10 : p.kind === 'blog' ? p.i >= 13 : p.kind === 'collection' ? p.i < 5 : true),
     desc: 'Where the page sits in your site',
     why: 'Shows where a page sits in your site. Helps AI understand how products and guides connect.',
     how: ['Add BreadcrumbList to the product, blog and collection templates.', 'List each level from the collection down to the page, with full https URLs.', 'Match the breadcrumb trail shown on the page.'],
     warnings: [['Last item has no URL', (p) => p.kind === 'blog']],
     problems: [{
-      id: 'http-urls', text: 'Item URLs use http:// not https://', level: 'warning', impact: 'low', test: (p) => p.kind === 'product' || p.kind === 'blog',
+      id: 'http-urls', action: 'Switch breadcrumb links to https', text: 'Item URLs use http:// not https://', level: 'warning', impact: 'low', test: (p) => p.kind === 'product' || p.kind === 'blog',
       why: 'Engines treat http:// and https:// as different pages, so the trail points to URLs that redirect instead of the page itself.',
       fix: ['Change every `item` URL in the trail to https://.', 'Fix it in the theme’s breadcrumb snippet, not page by page.', 'Re-run the analysis to confirm the 12 pages pass.'],
       snippet: ld('BreadcrumbList', { itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://dermasuri.com/' }, { '@type': 'ListItem', position: 2, name: 'Serums', item: 'https://dermasuri.com/collections/serums' }, { '@type': 'ListItem', position: 3, name: 'Vitamin C Serum', item: 'https://dermasuri.com/products/vitamin-c-serum' }] }),
@@ -124,7 +124,7 @@ export const schemas = [
     snippet: ld('BreadcrumbList', { itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://dermasuri.com/' }, { '@type': 'ListItem', position: 2, name: 'Serums', item: 'https://dermasuri.com/collections/serums' }, { '@type': 'ListItem', position: 3, name: 'Vitamin C Serum', item: 'https://dermasuri.com/products/vitamin-c-serum' }] }),
   },
   {
-    id: 'merchant-listing', name: 'Google Merchant listing', importance: 'recommended', impact: 'high', applies: is('product'), has: (p) => p.i >= 8,
+    id: 'merchant-listing', action: 'Add shipping and returns to product offers', name: 'Google Merchant listing', importance: 'recommended', impact: 'high', applies: is('product'), has: (p) => p.i >= 8,
     desc: 'Shipping and return details on each offer',
     why: 'Products with shipping and return policies are eligible for merchant listings in Google and get shown with delivery details in shopping answers.',
     how: ['Add shippingDetails and hasMerchantReturnPolicy to each product’s Offer.', 'Use the same values as your shipping and returns pages.', 'Re-run the analysis to confirm the 8 pages pass.'],
@@ -136,7 +136,7 @@ export const schemas = [
     }),
   },
   {
-    id: 'review-snippet', name: 'Review snippet', importance: 'recommended', impact: 'high', applies: is('product'), has: (p) => p.i % 4 === 0 || p.i >= 18,
+    id: 'review-snippet', action: 'Add star ratings to product pages', name: 'Review snippet', importance: 'recommended', impact: 'high', applies: is('product'), has: (p) => p.i % 4 === 0 || p.i >= 18,
     desc: 'Star ratings and review counts',
     why: 'Ratings are one of the first things AI shopping answers compare. Without markup, your reviews are invisible to them.',
     how: ['Add aggregateRating (ratingValue, reviewCount) to each Product.', 'Only mark up reviews that are shown on the page.', 'Pull the numbers from your reviews app so they stay current.'],
@@ -162,7 +162,7 @@ export const schemas = [
   { id: 'brand', name: 'Brand', importance: 'optional', applies: is('product'), has: (p) => p.i >= 11, desc: 'The brand behind each product', why: 'Links each product back to the Dermasuri brand, so engines count every product mention toward your brand.', doc: 'https://schema.org/Brand', snippet: ld('Brand', { name: 'Dermasuri' }) },
   { id: 'image-object', name: 'ImageObject', importance: 'optional', applies: is('product'), has: (p) => p.i >= 14, desc: 'Product photos with captions', why: 'Gives image answers a caption and licence for your photos, so they can show them with credit.', doc: gdoc('image-license-metadata'), snippet: ld('ImageObject', { contentUrl: 'https://dermasuri.com/img/vitamin-c-serum.jpg', caption: 'Vitamin C Serum 15%, 30 ml' }) },
   {
-    id: 'item-list', name: 'ItemList', importance: 'optional', suggest: true, impact: 'low', applies: is('collection'), has: () => false,
+    id: 'item-list', action: 'List the products on collection pages', name: 'ItemList', importance: 'optional', suggest: true, impact: 'low', applies: is('collection'), has: () => false,
     desc: 'The products on a collection page',
     why: 'Lets engines read collection pages as ordered product lists. That’s the shape of “best serums for…” answers.',
     how: ['Add ItemList to the collection template.', 'List the products in the order the page shows them, each with its URL.', 'Keep it to the products visible on the first page.'],
@@ -171,7 +171,7 @@ export const schemas = [
   },
   { id: 'collection-page', name: 'CollectionPage', importance: 'optional', applies: is('collection'), has: any, desc: 'Marks a page as a product collection', why: 'Tells engines the page is a category, not a single product, so they don’t quote it as one.', doc: 'https://schema.org/CollectionPage', snippet: ld('CollectionPage', { name: 'Serums' }) },
   {
-    id: 'article', name: 'Article', importance: 'optional', suggest: true, impact: 'high', applies: is('blog'), has: () => false,
+    id: 'article', action: 'Add authors and dates to blog posts', name: 'Article', importance: 'optional', suggest: true, impact: 'high', applies: is('blog'), has: () => false,
     desc: 'Headline, author and dates for posts',
     why: 'Adds author and publish/update dates. AI uses these to judge freshness and expertise.',
     how: ['Add Article markup to the blog post template.', 'Fill `author`, `datePublished` and `dateModified` from the post.', 'Re-run the analysis to confirm all 15 posts pass.'],
@@ -179,7 +179,7 @@ export const schemas = [
     snippet: ld('Article', { headline: 'Vitamin C vs niacinamide: can you use them together?', image: 'https://dermasuri.com/img/journal/vitamin-c-niacinamide.jpg', author: { '@type': 'Person', name: 'Dr. Lena Ortiz', url: 'https://dermasuri.com/pages/about' }, datePublished: '2026-03-02', dateModified: '2026-10-02', description: 'Yes. Modern formulas are stable together. Here’s how to layer them morning and night without irritation.' }),
   },
   {
-    id: 'faq', name: 'FAQPage', importance: 'optional', suggest: true, impact: 'medium', applies: (p) => p.kind === 'blog' || p.slug === 'faq', has: (p) => p.slug === 'faq',
+    id: 'faq', action: 'Mark up the Q&As on blog posts', name: 'FAQPage', importance: 'optional', suggest: true, impact: 'medium', applies: (p) => p.kind === 'blog' || p.slug === 'faq', has: (p) => p.slug === 'faq',
     desc: 'Questions and answers on a page',
     why: 'Question-and-answer pairs are the format AI answers are built from. Your posts already answer questions; markup makes them easy to lift.',
     how: ['Add FAQPage markup to posts that end with a Q&A section.', 'Keep each answer under 60 words and identical to the visible text.', 'Don’t mark up questions that aren’t shown on the page.'],
@@ -187,7 +187,7 @@ export const schemas = [
     snippet: ld('FAQPage', { mainEntity: [{ '@type': 'Question', name: 'Can I use vitamin C with niacinamide?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. Modern formulas are stable together. Apply vitamin C first, then niacinamide.' } }, { '@type': 'Question', name: 'Is mineral sunscreen better for sensitive skin?', acceptedAnswer: { '@type': 'Answer', text: 'Often, yes. Zinc oxide is less likely to sting than chemical filters.' } }] }),
   },
   {
-    id: 'person', name: 'Person', importance: 'optional', suggest: true, impact: 'medium', applies: is('blog'), has: () => false,
+    id: 'person', action: 'Name the experts behind each guide', name: 'Person', importance: 'optional', suggest: true, impact: 'medium', applies: is('blog'), has: () => false,
     desc: 'Authors and reviewers',
     why: 'Names the dermatologist or writer behind each guide. Builds trust signals for health topics.',
     how: ['Add a Person block for each author and reviewer.', 'Include `jobTitle` and a link to their bio page.', 'Reference it from each post’s Article `author`.'],
@@ -196,7 +196,7 @@ export const schemas = [
   },
   { id: 'video', name: 'VideoObject', importance: 'optional', applies: is('blog'), has: (p) => p.i < 1, desc: 'How-to and routine videos', why: 'Makes your routine videos eligible for video results. AI answers can then link the clip next to the steps.', doc: gdoc('video'), snippet: ld('VideoObject', { name: 'Morning routine in 3 steps', thumbnailUrl: 'https://dermasuri.com/img/routine.jpg', uploadDate: '2026-04-01' }) },
   {
-    id: 'howto', name: 'HowTo', importance: 'optional', suggest: true, impact: 'medium', applies: (p) => p.kind === 'blog' && p.i % 3 === 0, has: () => false,
+    id: 'howto', action: 'Mark up the steps in routine posts', name: 'HowTo', importance: 'optional', suggest: true, impact: 'medium', applies: (p) => p.kind === 'blog' && p.i % 3 === 0, has: () => false,
     desc: 'Step-by-step routines',
     why: 'Step-by-step routines can appear as numbered steps in AI answers.',
     how: ['Add HowTo markup to the routine posts.', 'Give each step a short name and one sentence of text.', 'Keep the steps in the same order as the post.'],
@@ -267,7 +267,7 @@ export function analyze(page = null, kind = null) {
     const kinds = [...new Set(applicable.filter((p) => missing.includes(p.path) || invalid.includes(p.path)).map((p) => KINDS[p.kind]))]
     const usedOn = usedOnLabel(applicable, list.length)
     const fixes = problems.map((pr) => ({
-      id: `${s.id}--${pr.id}`, kind: 'fix', schemaId: s.id, name: `${s.name} · ${pr.text}`, title: pr.text, level: pr.level,
+      id: `${s.id}--${pr.id}`, kind: 'fix', schemaId: s.id, name: `${s.name} · ${pr.text}`, title: pr.text, action: pr.action, level: pr.level,
       status: pr.level === 'error' ? 'invalid' : 'warning', importance: s.importance, impact: pr.impact, desc: pr.text,
       why: pr.why, how: pr.fix, snippet: pr.snippet, doc: s.doc, type: s.name,
       affected: pr.on.map((p) => p.path), applicable: applicable.length, usedOn: usedOnLabel(pr.on, list.length),

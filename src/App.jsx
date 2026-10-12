@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import Sidebar from './components/dashboard/Sidebar'
+import MobileNav from './components/dashboard/MobileNav'
 import PageHeader from './components/dashboard/PageHeader'
 import KpiRow from './components/dashboard/KpiRow'
 import VisibilityHistory from './components/dashboard/VisibilityHistory'
@@ -68,8 +69,9 @@ export default function App() {
       <div className="flex min-h-screen">
         <Sidebar path={PAGES[path] ? path : '/overview'} />
         <div className="min-w-0 flex-1">
-          {/* same content container on every page */}
-          <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-4 px-6 pb-10 pt-8"><Page /></main>
+          <MobileNav path={PAGES[path] ? path : '/overview'} />
+          {/* same content container on every page (16px gutters on phones, 24px from md) */}
+          <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 pb-10 pt-4 md:gap-4 md:px-6 lg:pt-8"><Page /></main>
         </div>
       </div>
     </TrackingProvider>

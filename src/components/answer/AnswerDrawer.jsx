@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
 import { ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronUp, Hash, Minus, Plus, X } from 'lucide-react'
 import Segmented from '../dashboard/Segmented'
 import { brandName } from '../../utils/brand'
@@ -555,8 +556,9 @@ export default function AnswerDrawer() {
         aria-modal="true"
         aria-label={`AI answer: ${a.prompt}`}
         tabIndex={-1}
-        className={`absolute inset-y-0 right-0 flex ${back ? 'w-[min(720px,100vw)]' : 'w-[min(760px,100vw)]'} flex-col border-l border-line bg-surface shadow-xl outline-none transition-[transform,opacity] duration-[250ms] ease-out motion-reduce:transition-none ${shown ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0'}`}
+        className={`${SHEET_BASE} ${back ? 'md:w-[min(720px,100vw)]' : 'md:w-[min(760px,100vw)]'} ${shown ? SHEET_IN : SHEET_OUT}`}
       >
+        <SheetHandle panelRef={panel} onClose={close} />
         {/* header */}
         <header className="shrink-0 border-b border-line px-6 pb-0 pt-5">
           {back && (

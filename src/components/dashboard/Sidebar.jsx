@@ -8,7 +8,7 @@ import SiteLogo from '../ui/SiteLogo'
 
 // grouped nav, each group ordered longest → shortest label; items without an href have no page yet.
 // Old routes redirect (see router.js REDIRECTS).
-const groups = [
+export const groups = [
   { label: 'Insights', items: [
     { label: 'Visibility Overview', icon: BarChart3, href: '/overview' },
     { label: 'Prompt Hub', icon: MessageSquareText, href: '/tracker' },
@@ -26,11 +26,11 @@ const groups = [
 ]
 
 // the superadmin home lives outside this app: a full page load, not an in-app route
-const HOME = '/superadmin'
+export const HOME = '/superadmin'
 
 // Workspace switcher (sidebar footer): the current client; its menu opens upward with Home and the agency's brands.
 // ↑/↓ move, Enter picks, Esc or a click outside closes. Opens / closes with opacity + a 4px rise, 150ms.
-function WorkspaceSwitcher() {
+export function WorkspaceSwitcher() {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false) // kept mounted for the closing fade
   const [shown, setShown] = useState(false)
@@ -98,38 +98,46 @@ function WorkspaceSwitcher() {
   )
 }
 
+// the grouped nav links (sidebar on desktop, the drawer on phones); onNavigate runs before an in-app link navigates
+export function NavLinks({ path, onNavigate }) {
+  return (
+    <nav className="flex flex-col" aria-label="Main">
+      {groups.map((g, gi) => (
+      <div key={g.label} role="group" aria-labelledby={`nav-${g.label}`} className="flex flex-col gap-0.5">
+      <div id={`nav-${g.label}`} className={`mb-1.5 px-3 text-[12px] leading-4 font-medium text-stone-500 ${gi ? 'mt-6' : ''}`}>{g.label}</div>
+      {g.items.map(({ label, icon: Icon, href }) => {
+        const active = href === path
+        return (
+        <a
+          key={label}
+          href={href ?? '#'}
+          onClick={href ? (e) => { onNavigate?.(); linkClick(href)(e) } : (e) => e.preventDefault()}
+          aria-current={active ? 'page' : undefined}
+          className={`relative flex h-11 items-center gap-3 rounded-lg px-3 text-body font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus lg:h-10 ${
+            active ? 'bg-tint text-ink' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+          }`}
+        >
+          {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-ink" aria-hidden />}
+          <Icon size={18} strokeWidth={2} className={active ? 'text-ink' : undefined} />
+          {label}
+        </a>
+        )
+      })}
+      </div>
+      ))}
+    </nav>
+  )
+}
+
 export default function Sidebar({ path = '/overview' }) {
   return (
-    <aside className="sticky top-0 flex h-screen w-[248px] shrink-0 flex-col border-r border-stone-200 bg-stone-50">
+    // below lg the sidebar is replaced by the top bar + drawer (MobileNav)
+    <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-stone-200 bg-stone-50 lg:flex">
       {/* top: the logo (a link home). px-3 everywhere: logo, nav icons and the footer blocks share one x */}
       <div className="shrink-0 px-3 pt-4">
         <a href={HOME} title="Home" aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
       </div>
-      <nav className="mt-6 flex flex-col px-3" aria-label="Main">
-        {groups.map((g, gi) => (
-        <div key={g.label} role="group" aria-labelledby={`nav-${g.label}`} className="flex flex-col gap-0.5">
-        <div id={`nav-${g.label}`} className={`mb-1.5 px-3 text-[12px] leading-4 font-medium text-stone-500 ${gi ? 'mt-6' : ''}`}>{g.label}</div>
-        {g.items.map(({ label, icon: Icon, href }) => {
-          const active = href === path
-          return (
-          <a
-            key={label}
-            href={href ?? '#'}
-            onClick={href ? linkClick(href) : (e) => e.preventDefault()}
-            aria-current={active ? 'page' : undefined}
-            className={`relative flex h-10 items-center gap-3 rounded-lg px-3 text-body font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
-              active ? 'bg-tint text-ink' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
-            }`}
-          >
-            {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-ink" aria-hidden />}
-            <Icon size={18} strokeWidth={2} className={active ? 'text-ink' : undefined} />
-            {label}
-          </a>
-          )
-        })}
-        </div>
-        ))}
-      </nav>
+      <div className="mt-6 px-3"><NavLinks path={path} /></div>
       {/* footer: theme, then the workspace (its menu holds Home) */}
       <div className="mt-auto flex flex-col gap-2 px-3 pb-3">
         <ThemeToggle />

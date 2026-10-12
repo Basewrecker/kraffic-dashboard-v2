@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* touch: devices without hover (phones, tablets). Hover-revealed affordances use touch:opacity-100 so they're always visible there. */
+@custom-variant touch (@media (hover: none));
+
 /* All fonts + colors live here so the restyle is a one-place swap. */
 @theme {
   --font-sans: 'Manrope Variable', ui-sans-serif, system-ui, sans-serif;
@@ -364,3 +367,27 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
 @keyframes focal-pulse { 0%, 100% { background-color: var(--tint); } 50% { background-color: color-mix(in srgb, var(--ink) 10%, transparent); } }
 .focal-pulse { animation: focal-pulse 600ms ease-out; }
 @media (prefers-reduced-motion: reduce) { .focal-pulse { animation: none; } }
+
+/* Structured Data → Schema status ring (SchemaRing.jsx) */
+@keyframes ring-draw { from { stroke-dashoffset: var(--len); } to { stroke-dashoffset: 0; } }
+@keyframes slice-in { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes center-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes icon-pop { from { transform: scale(.6); } to { transform: none; } }
+@keyframes count-pop { 0%, 100% { transform: none; } 50% { transform: scale(1.15); } }
+@media (prefers-reduced-motion: reduce) {
+  .ring-motion { animation: none !important; }
+}
+
+/* ---- mobile (below md): tighter page rhythm. Cards use p-5 / px-5 / pt-5 on desktop; on phones they get 16px. */
+@media (max-width: 767px) {
+  main .p-5 { padding: 1rem; }
+  main .px-5 { padding-left: 1rem; padding-right: 1rem; }
+  main .pt-5 { padding-top: 1rem; }
+  main .pb-5 { padding-bottom: 1rem; }
+  main .py-5 { padding-top: 1rem; padding-bottom: 1rem; }
+  main .p-6 { padding: 1rem; }
+  main > .gap-4, main .gap-4 { gap: 0.75rem; }
+}
+/* hide a scrollbar on sideways-scrolling rows (tabs, chips) but keep them scrollable */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

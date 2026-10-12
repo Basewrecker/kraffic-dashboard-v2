@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
 import { ArrowRight, ChevronRight, X } from 'lucide-react'
 import { PlatformIcon } from '../dashboard/icons'
 import { ENGINES, getBrandView } from '../../data/brandViews'
@@ -141,8 +142,9 @@ export default function SyncDrawer() {
         aria-modal="true"
         aria-label={`Changes on ${shortDate(row.date)}`}
         tabIndex={-1}
-        className={`absolute inset-y-0 right-0 flex w-[min(720px,100vw)] flex-col border-l border-line bg-surface shadow-xl outline-none transition-[transform,opacity] duration-[250ms] ease-out motion-reduce:transition-none ${shown ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0'}`}
+        className={`${SHEET_BASE} md:w-[min(720px,100vw)] ${shown ? SHEET_IN : SHEET_OUT}`}
       >
+        <SheetHandle panelRef={panel} onClose={close} />
         <header className="shrink-0 border-b border-line px-6 pb-0 pt-5">
           <div className="flex items-center justify-between gap-3">
             <div role="tablist" aria-label="Engine" onKeyDown={arrows(chips.map((c) => c.id), engine, (id) => set({ engine: id }), 'data-chip')}
@@ -199,7 +201,7 @@ export default function SyncDrawer() {
           )}
         </div>
 
-        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-6 py-3 text-[13px] leading-[18px] text-stone-600">
+        <footer className={`flex shrink-0 items-center justify-between gap-3 border-t border-line px-4 pt-3 text-[13px] leading-[18px] text-stone-600 md:px-6 ${SHEET_FOOTER_PAD}`}>
           <span className="min-w-0 truncate tabular-nums">{plural(counts[tab], 'prompt')} {tab}{prev ? ` since ${shortDate(prev.date)}` : ''}</span>
           {focal.you && (
             <button type="button" onClick={() => { pushed.current = false; setState(null); navigate(`/tracker?sync=${slugOf(row.date)}&change=${tab}`) }} // Back from there returns here

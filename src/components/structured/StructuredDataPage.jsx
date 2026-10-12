@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, AlertTriangle, ArrowRight, Braces, Check, ChevronDown, ChevronRight, Info, RefreshCw, Share2, X, XCircle } from 'lucide-react'
-import { Pie, PieChart, Sector } from 'recharts'
+import { AlertCircle, AlertTriangle, ArrowRight, Braces, Check, ChevronDown, ChevronRight, CircleDashed, Copy, Info, Plus, RefreshCw, Share2, X, XCircle } from 'lucide-react'
 import Card from '../dashboard/Card'
 import PromptTable from '../dashboard/PromptTable'
 import Segmented from '../dashboard/Segmented'
@@ -11,8 +10,9 @@ import ActionMenu from '../audit/ActionMenu'
 import { ImpactMeter, RowIcon, ViewFix, openDrawer, rowBtn, setParams, useTab } from '../audit/parts'
 import SchemaDrawer, { setSchemaSection } from './SchemaDrawer'
 import SettingsTab from './SettingsTab'
+import SchemaRing, { RING_COLORS } from './SchemaRing'
 import { groupPages, useSettings } from './settings'
-import { ImpactText, PendingCheck, StatusIcon, StatusLabel, pagesLine, usePending } from './parts'
+import { PendingCheck, StatusIcon, StatusLabel, pagesLine, usePending } from './parts'
 import { IMPORTANCE, KINDS, PAGE_COUNT, SD, STATUS, analyze, isPageType, pageFor, schemas } from '../../data/structuredData'
 import ErrorBoundary from '../ui/ErrorBoundary'
 
@@ -180,6 +180,9 @@ function Kpi({ label, children, first }) {
 const Big = ({ children }) => <span className="text-[32px] leading-10 font-semibold text-stone-900 tabular-nums">{children}</span>
 const cardTitle = 'text-[15px] leading-5 font-semibold text-stone-900'
 const linkCls = 'inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus'
+// What to do next: [icon] Action · Schema · Pages · Impact · ›
+const NEXT_COLS = 'grid grid-cols-[20px_minmax(0,1fr)_140px_80px_96px_16px] items-center gap-4'
+const actionOf = (s) => s.action ?? (s.kind === 'fix' ? `Fix ${s.name}` : `Add ${s.name} schema`)
 // "Affects 4 pages · Product pages" / "Missing on 8 pages · Product pages"
 const whereLine = (s) => [pagesLine(s), s.kinds.join(', ')].filter(Boolean).join(' · ')
 
@@ -199,7 +202,6 @@ function Change({ now, before, lowerIsBetter = false }) {
 const RecIcon = ({ s }) => (
   <RowIcon>{s.kind === 'fix' ? (s.level === 'error' ? <AlertCircle size={16} className="text-negative" /> : <AlertTriangle size={16} className="text-ink" />) : <Braces size={16} />}</RowIcon>
 )
-const recTitle = (s) => (s.kind === 'fix' ? s.name : `Add ${s.name} schema`)
 
 function Overview({ r, setTab, site }) {
   const prev = SD.previous
@@ -240,25 +242,34 @@ function Overview({ r, setTab, site }) {
             <button type="button" onClick={() => setTab('recommendations')} className={linkCls}>View all <ArrowRight size={14} aria-hidden /></button>
           </div>
           {next.length === 0 ? (
-            <p className="mt-3 flex h-14 items-center gap-2 text-[14px] leading-5 text-stone-900"><Check size={16} className="text-ink" aria-hidden />Everything required is in place.</p>
+            <p className="mt-3 flex h-12 items-center gap-2 text-[14px] leading-5 text-stone-900"><Check size={16} className="text-ink" aria-hidden />Everything required is in place.</p>
           ) : (
-            // two columns on lg; a divider under every row except each column's last
-            <ul className="mt-2 grid grid-cols-1 gap-x-8 lg:grid-cols-2 [&>li]:border-b [&>li]:border-[var(--div)] [&>li:last-child]:border-0 lg:[&>li:nth-last-child(2):nth-child(odd)]:border-0">
-              {next.map((s) => (
-                <li key={s.id}>
-                  {/* the whole row is the button */}
-                  <button type="button" onClick={() => openSchema(s.id)} className={`${rowBtn} h-14`}>
-                    <RecIcon s={s} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[14px] leading-5 font-medium text-stone-900" title={recTitle(s)}>{recTitle(s)}</span>
-                      <span className={`block truncate text-[13px] leading-[18px] ${t3} tabular-nums`}>{whereLine(s)}</span>
-                    </span>
-                    {pending.has(s.id) ? <PendingCheck /> : <ImpactText impact={s.impact} />}
-                    <ChevronRight size={14} className="shrink-0 text-stone-500" aria-hidden />
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-3">
+              <div className={`${NEXT_COLS} h-8 border-b border-[var(--div)] px-2 text-[12px] leading-4 font-medium ${t3}`} aria-hidden>
+                <span /><span>Action</span><span>Schema</span><span className="text-right">Pages</span><span className="text-right">Impact</span><span />
+              </div>
+              <ul>
+                {next.map((s) => {
+                  const n = s.affected.length
+                  return (
+                    <li key={s.id} className="border-b border-[var(--div)] last:border-0">
+                      {/* the whole row is the button */}
+                      <button type="button" onClick={() => openSchema(s.id)} aria-label={`${actionOf(s)}. ${s.kind === 'fix' ? s.type : s.name}, ${n} pages, ${s.impact} impact`}
+                        className={`${NEXT_COLS} h-12 w-full px-2 text-left outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus`}>
+                        {s.kind === 'fix'
+                          ? (s.level === 'error' ? <AlertCircle size={16} className="text-negative" aria-hidden /> : <AlertTriangle size={16} className="text-stone-600" aria-hidden />)
+                          : <Plus size={16} className="text-stone-500" aria-hidden />}
+                        <span className="truncate text-[14px] leading-5 font-medium text-stone-900" title={actionOf(s)}>{actionOf(s)}</span>
+                        <span className={`truncate text-[13px] leading-[18px] ${t3}`}>{s.kind === 'fix' ? s.type : s.name}</span>
+                        <span className={`text-right text-[13px] leading-[18px] ${t2} tabular-nums`}>{pending.has(s.id) ? 'Pending' : `${n} ${n === 1 ? 'page' : 'pages'}`}</span>
+                        <span className={`text-right text-[13px] leading-[18px] ${s.impact === 'high' ? 'font-medium text-ink' : s.impact === 'medium' ? t2 : t3}`}>{s.impact[0].toUpperCase() + s.impact.slice(1)}</span>
+                        <ChevronRight size={14} className="text-stone-500" aria-hidden />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
           )}
       </Card>
 
@@ -325,21 +336,18 @@ function CoverageMap({ r }) {
   return (
     <Card className="min-w-0 p-5">
       <h2 className={cardTitle}>Coverage map</h2>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[840px] table-fixed border-collapse">
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[760px] table-fixed border-collapse">
           <thead>
             <tr className="h-10 border-b border-[var(--div)]">
-              <th className="w-56 text-left"><span className="sr-only">Page type</span></th>
+              <th className="w-44 text-left"><span className="sr-only">Page type</span></th>
               {MAP_COLS.map(([id, short]) => <th key={id} scope="col" className="min-w-[88px] text-center text-[13px] leading-[18px] font-medium text-stone-600">{short}</th>)}
             </tr>
           </thead>
           <tbody>
             {groups.map((g, gi) => (
-              <tr key={g.id} className="h-12 border-b border-[var(--div)] transition-colors duration-150 last:border-0 hover:bg-[var(--tint)]">
-                <th scope="row" className="pl-2 text-left font-normal">
-                  <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{g.name}</span>
-                  <span className={`block text-[13px] leading-[18px] ${t3} tabular-nums`}>{g.pages.length} {g.pages.length === 1 ? 'page' : 'pages'}</span>
-                </th>
+              <tr key={g.id} className="h-11 border-b border-[var(--div)] transition-colors duration-150 last:border-0 hover:bg-[var(--tint)]">
+                <th scope="row" className="truncate pl-2 text-left text-[14px] leading-5 font-medium text-stone-900" title={`${g.name} · ${g.pages.length} ${g.pages.length === 1 ? 'page' : 'pages'}`}>{g.name}</th>
                 {cells[gi].map((c) => <td key={c.id} className="px-1"><MapCell c={c} short={c.short} group={g} /></td>)}
               </tr>
             ))}
@@ -367,76 +375,75 @@ const GROUPS = [
   { st: 'missing', label: 'Missing', color: 'var(--data-c2)', note: 'Not on your pages yet, sorted by pages affected.' },
   { st: 'valid', label: 'Valid', color: 'var(--ink)', note: 'Working as expected.' },
 ]
-const COLOR = Object.fromEntries(GROUPS.map((g) => [g.st, g.color]))
 const pagesOf = (x) => (x.status === 'invalid' ? x.invalid.length : x.status === 'missing' ? x.missing.length : x.found.length)
-const RAD = Math.PI / 180
+
+const TABLE_ROWS = 7 // fits beside the ring column
 
 function SchemaStatus({ r, setTab }) {
   const rank = (a, b) => IMP_ORDER[a.importance] - IMP_ORDER[b.importance] || pagesOf(b) - pagesOf(a)
   const by = Object.fromEntries(GROUPS.map((g) => [g.st, r.rows.filter((x) => x.status === g.st).sort(rank)]))
   const ring = GROUPS.flatMap((g) => by[g.st]) // clockwise from 12 o'clock
-  const [filter, setFilter] = useState(() => (by.invalid.length ? 'invalid' : 'missing'))
+  // 'issues' (Invalid + Missing) by default; a legend row narrows it, clicking the active row again widens it back
+  const [filter, setFilter] = useState('issues')
+  const [pinned, setPinned] = useState(null) // the slice clicked in the ring: its row stays highlighted
   const [hover, setHover] = useState(null) // index into ring
+  const [legendGroup, setLegendGroup] = useState(null)
+  const tableRef = useRef(null)
+  const issues = [...by.invalid, ...by.missing] // Invalid first, then Missing (each Required → Optional, then pages)
+  const list = filter === 'issues' ? issues : by[filter]
+  const label = filter === 'issues' ? 'Needs attention' : GROUPS.find((g) => g.st === filter).label
   const hovered = hover != null ? ring[hover] : null
-  const group = GROUPS.find((g) => g.st === filter)
-  const list = by[filter]
-  const valid = by.valid.length
 
-  // a slice: required schemas sit 4px further out; hovered pushes out 4px; the rest fade
-  const shape = (props) => {
-    const x = props.payload
-    const i = ring.indexOf(x)
-    const lit = hover != null ? i === hover : x.status === filter
-    const push = i === hover ? 4 : 0
-    const dx = Math.cos(-props.midAngle * RAD) * push, dy = Math.sin(-props.midAngle * RAD) * push
-    return (
-      <Sector {...props} cx={props.cx + dx} cy={props.cy + dy} outerRadius={x.importance === 'required' ? 116 : 112}
-        fill={COLOR[x.status]} fillOpacity={lit ? 1 : 0.4} stroke="none"
-        style={{ transition: 'fill-opacity 200ms ease-out', cursor: 'pointer', outline: 'none' }} />
-    )
-  }
+  // always 7 rows: the filter's own rows (the 7th becomes "Show all" when there are more), topped up when there are
+  // fewer with the next most important schemas from the other groups, under a "Next up" sub-header
+  const more = list.length > TABLE_ROWS
+  let rows = list.slice(0, more ? TABLE_ROWS - 1 : TABLE_ROWS)
+  const pin = list.find((x) => x.id === pinned)
+  if (pin && !rows.includes(pin)) rows = [...rows.slice(0, -1), pin]
+  const rest = ['invalid', 'missing', 'valid'].flatMap((st) => by[st]).filter((x) => !list.includes(x))
+  const nextUp = !more && rows.length < TABLE_ROWS ? rest.slice(0, TABLE_ROWS - rows.length - 1) : []
+  const nextLabel = nextUp[0] && GROUPS.find((g) => g.st === nextUp[0].status).label
+  const topPages = list.slice(0, 3).reduce((n, x) => n + pagesOf(x), 0)
+  const meta = filter === 'valid' ? `last checked ${SD.lastRun}` : list.length ? `fixing the top ${Math.min(3, list.length)} covers ${topPages} ${topPages === 1 ? 'page' : 'pages'}` : null
+  const toggle = (st) => { setFilter((f) => (f === st && st !== 'issues' ? 'issues' : st)); setPinned(null) }
+
+  const select = (x) => { setFilter(x.status); setPinned(x.id) }
+  useEffect(() => {
+    if (!pinned) return
+    requestAnimationFrame(() => tableRef.current?.querySelector(`[data-row="${pinned}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }))
+  }, [pinned, filter])
+
+  const open = (x) => openSchema(x.id)
 
   return (
     <Card className="p-6">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className={cardTitle}>Schema status</h2>
-        <button type="button" onClick={() => setTab('schemas', { status: null, set: null, type: null })} className={linkCls}>View all {r.rows.length} <ArrowRight size={14} aria-hidden /></button>
-      </div>
+      <h2 className={cardTitle}>Schema status</h2>
 
-      <div className="mt-4 grid grid-cols-1 items-center gap-10 lg:grid-cols-[280px_1fr]">
-        {/* the ring + its legend (the legend is the filter) */}
+      <div className="mt-4 grid grid-cols-1 items-start gap-10 lg:grid-cols-[280px_1fr]">
         <div className="flex flex-col items-center">
-          <div className="relative h-[240px] w-[240px]" onMouseLeave={() => setHover(null)}>
-            <PieChart width={240} height={240}>
-              <Pie data={ring} dataKey={() => 1} nameKey="name" cx="50%" cy="50%" innerRadius={84} outerRadius={112}
-                paddingAngle={1.5} cornerRadius={3} startAngle={90} endAngle={-270} isAnimationActive={false} rootTabIndex={-1}
-                shape={shape}
-                onMouseEnter={(_, i) => setHover(i)} onClick={(_, i) => openSchema(ring[i].id)} />
-            </PieChart>
-            <div className="pointer-events-none absolute inset-0 grid place-content-center justify-items-center px-14 text-center" aria-live="polite">
-              {hovered ? (
-                <>
-                  <span className="line-clamp-2 text-[15px] leading-5 font-semibold text-stone-900">{hovered.name}</span>
-                  <span className={`mt-1 text-[13px] leading-[18px] ${t2} tabular-nums`}>{pagesLine(hovered)}</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-[32px] leading-10 font-semibold text-stone-900 tabular-nums">{valid}/{ring.length}</span>
-                  <span className={`text-[13px] leading-[18px] ${t2}`}>schemas valid</span>
-                </>
-              )}
-            </div>
-          </div>
+          <SchemaRing ring={ring} hover={hover} setHover={setHover} pinnedId={pinned} legendGroup={legendGroup} onSelect={select} pagesOf={pagesOf} />
+          {/* the legend is the filter; hovering a row lifts its group in the ring */}
           <ul className="mt-5 w-full" role="radiogroup" aria-label="Show schemas">
+            <li>
+              <button type="button" role="radio" aria-checked={filter === 'issues'} onClick={() => toggle('issues')}
+                className={`flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${filter === 'issues' ? 'bg-[var(--tint)]' : 'hover:bg-[var(--tint)]'}`}>
+                {/* half Invalid, half Missing */}
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: `linear-gradient(90deg, ${RING_COLORS.invalid} 50%, ${RING_COLORS.missing} 50%)` }} aria-hidden />
+                <span className="flex-1 text-[14px] leading-5 text-stone-900">All issues</span>
+                <span className="text-[14px] leading-5 font-semibold text-stone-900 tabular-nums">{issues.length}</span>
+              </button>
+            </li>
             {GROUPS.map((g) => {
               const on = filter === g.st
+              const lit = hovered?.status === g.st
               return (
                 <li key={g.st}>
-                  <button type="button" role="radio" aria-checked={on} onClick={() => setFilter(g.st)}
-                    className={`flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'bg-[var(--tint)]' : 'hover:bg-[var(--tint)]'}`}>
-                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: g.color }} aria-hidden />
+                  <button type="button" role="radio" aria-checked={on} onClick={() => toggle(g.st)}
+                    onMouseEnter={() => setLegendGroup(g.st)} onMouseLeave={() => setLegendGroup(null)} onFocus={() => setLegendGroup(g.st)} onBlur={() => setLegendGroup(null)}
+                    className={`flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on || lit ? 'bg-[var(--tint)]' : 'hover:bg-[var(--tint)]'}`}>
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: RING_COLORS[g.st] }} aria-hidden />
                     <span className="flex-1 text-[14px] leading-5 text-stone-900">{g.label}</span>
-                    <span className="text-[14px] leading-5 font-semibold text-stone-900 tabular-nums">{by[g.st].length}</span>
+                    <span key={lit ? hovered.id : 'rest'} className={`text-[14px] leading-5 font-semibold text-stone-900 tabular-nums ${lit ? 'ring-motion motion-safe:animate-[count-pop_200ms_ease-out]' : ''}`}>{by[g.st].length}</span>
                   </button>
                 </li>
               )
@@ -444,39 +451,68 @@ function SchemaStatus({ r, setTab }) {
           </ul>
         </div>
 
-        {/* the chosen group (crossfades on switch) */}
-        <div key={filter} className="min-w-0 self-start motion-safe:animate-[fade-in_150ms_ease-out]">
-          <h3 className="text-[14px] leading-5 font-semibold text-stone-900 tabular-nums">{group.label} · {list.length} {list.length === 1 ? 'schema' : 'schemas'}</h3>
-          <p className={`mt-0.5 text-[13px] leading-[18px] ${t2}`}>{group.note}</p>
-          {list.length === 0 ? (
-            <p className={`mt-4 text-[14px] leading-5 ${t2}`}>None.</p>
-          ) : (
-            <ul className="mt-3 border-t border-[var(--div)]">
-              {list.slice(0, LIST_MAX).map((x) => (
-                <li key={x.id} className="border-b border-[var(--div)]">
-                  <button type="button" onClick={() => openSchema(x.id)} onMouseEnter={() => setHover(ring.indexOf(x))} onMouseLeave={() => setHover(null)}
-                    onFocus={() => setHover(ring.indexOf(x))} onBlur={() => setHover(null)}
-                    className="flex h-14 w-full items-center gap-3 px-2 text-left outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
-                    <StatusIcon status={x.status} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{x.name}</span>
-                      <span className={`block truncate text-[13px] leading-[18px] ${t3}`}>{IMPORTANCE[x.importance]} · {(x.status === 'valid' ? '' : x.kinds.join(', ')) || x.usedOn}</span>
-                    </span>
-                    <span className="shrink-0 tabular-nums">
-                      <span className="text-[16px] leading-5 font-semibold text-stone-900">{pagesOf(x)}</span>
-                      <span className={`text-[13px] leading-[18px] ${t3}`}> {pagesOf(x) === 1 ? 'page' : 'pages'}</span>
-                    </span>
-                    <ChevronRight size={14} className="shrink-0 text-stone-500" aria-hidden />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {list.length > LIST_MAX && (
-            <button type="button" onClick={() => setTab('schemas', { status: filter, set: null, type: null })} className={`${linkCls} mt-3`}>
-              Show all {list.length} {group.label.toLowerCase()} <ArrowRight size={14} aria-hidden />
-            </button>
-          )}
+        {/* the chosen group as a compact table */}
+        <div className="min-w-0">
+          <div className="flex h-8 items-center justify-between gap-3">
+            <h3 className="min-w-0 truncate text-[14px] leading-5 tabular-nums">
+              <span className="font-semibold text-stone-900">{label} · {list.length} {list.length === 1 ? 'schema' : 'schemas'}</span>
+              {meta && <span className={`font-normal text-[13px] ${t3}`}> · {meta}</span>}
+            </h3>
+            <button type="button" onClick={() => setTab('schemas', { status: null, set: null, type: null })} className={linkCls}>View all {r.rows.length} <ArrowRight size={14} aria-hidden /></button>
+          </div>
+            <table ref={tableRef} className="mt-3 w-full table-fixed">
+              <thead>
+                <tr className={`h-9 border-b border-[var(--div)] text-left text-[12px] leading-4 font-medium ${t3}`}>
+                  <th className="w-[26%] pl-2 font-medium">Schema</th>
+                  <th className="px-3 font-medium">Issue</th>
+                  <th className="w-32 px-3 font-medium">Page type</th>
+                  <th className="w-16 px-3 text-right font-medium">Pages</th>
+                  <th className="w-20 px-3 text-right font-medium">Impact</th>
+                  <th className="w-8"><span className="sr-only">Open</span></th>
+                </tr>
+              </thead>
+              <tbody key={filter} className="motion-safe:animate-[fade-in_150ms_ease-out]">
+                {[...rows.map((x) => ({ x })), ...(nextUp.length ? [{ sub: nextLabel }] : []), ...nextUp.map((x) => ({ x }))].map(({ x, sub }) => {
+                  if (sub) return <tr key="next-up" className="h-8 border-b border-[var(--div)]"><td colSpan={6} className={`pl-2 text-[12px] leading-4 font-medium ${t3}`}>Next up · {sub}</td></tr>
+                  const lit = hovered?.id === x.id || pinned === x.id
+                  const issue = x.status === 'invalid' ? x.error?.code ?? 'Invalid markup' : x.status === 'missing' ? 'Not added yet' : 'No issues'
+                  const where = (x.status === 'valid' ? '' : x.kinds.join(', ')) || x.usedOn
+                  return (
+                    <tr key={x.id} data-row={x.id} tabIndex={0} onClick={() => open(x)} onKeyDown={(e) => { if (e.key === 'Enter') open(x) }}
+                      onMouseEnter={() => setHover(ring.indexOf(x))} onMouseLeave={() => setHover(null)} onFocus={() => setHover(ring.indexOf(x))} onBlur={() => setHover(null)}
+                      aria-label={`${x.name}: ${STATUS[x.status]}. ${issue}. ${where}, ${pagesOf(x)} pages`}
+                      className={`group h-11 cursor-pointer border-b border-[var(--div)] outline-none transition-colors duration-150 last:border-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus ${lit ? 'bg-[var(--tint)]' : 'hover:bg-[var(--tint)]'}`}>
+                      <td className="pl-2">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <StatusIcon status={x.status} size={14} />
+                          <span className="min-w-0 truncate text-[14px] leading-5 font-medium text-stone-900">{x.name}</span>
+                          {x.importance === 'required' && <span className={`ml-0.5 shrink-0 text-[11px] leading-4 font-medium ${t3}`}>Required</span>}
+                        </span>
+                      </td>
+                      <td className="truncate px-3" title={issue}>
+                        {x.status === 'invalid'
+                          ? <span className="font-mono text-[12.5px] leading-5 text-stone-900">{issue}</span>
+                          : <span className={`text-[13px] leading-[18px] ${t3}`}>{issue}</span>}
+                      </td>
+                      <td className={`truncate px-3 text-[13px] leading-[18px] ${t2}`} title={where}>{where}</td>
+                      <td className="px-3 text-right text-[14px] leading-5 font-semibold text-stone-900 tabular-nums">{pagesOf(x)}</td>
+                      <td className={`px-3 text-right text-[13px] leading-[18px] ${x.impact === 'high' ? 'font-medium text-ink' : x.impact === 'medium' ? t2 : t3}`}>{x.impact[0].toUpperCase() + x.impact.slice(1)}</td>
+                      <td><ChevronRight size={14} className={`text-stone-500 transition-opacity duration-150 ${lit ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`} aria-hidden /></td>
+                    </tr>
+                  )
+                })}
+                {more && (
+                  <tr>
+                    <td colSpan={6} className="p-0">
+                      <button type="button" onClick={() => setTab('schemas', { status: filter === 'issues' ? null : filter, set: null, type: null })}
+                        className={`flex h-11 w-full items-center gap-1 px-2 text-left text-[13px] leading-[18px] font-medium ${t2} outline-none transition-colors duration-150 hover:bg-[var(--tint)] hover:text-ink focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus`}>
+                        Show all {list.length} <ArrowRight size={14} aria-hidden />
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
         </div>
       </div>
     </Card>

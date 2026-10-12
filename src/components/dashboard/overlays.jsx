@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
 import { X } from 'lucide-react'
 import SiteLogo from '../ui/SiteLogo'
 import { brandName } from '../../utils/brand'
@@ -72,17 +73,18 @@ export function Sheet({ open, onClose, label, children, footer }) {
         aria-modal="true"
         aria-label={label}
         tabIndex={-1}
-        className={`absolute right-0 top-0 flex h-full w-[480px] flex-col border-l border-line bg-overlay shadow-xl outline-none transition-transform duration-[250ms] ease-out motion-reduce:transition-none ${shown ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`${SHEET_BASE} bg-overlay md:w-[480px] ${shown ? SHEET_IN : SHEET_OUT}`}
       >
+        <SheetHandle panelRef={ref} onClose={onClose} />
         <button
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-5 top-5 grid h-8 w-8 place-items-center rounded-md text-stone-500 transition-colors duration-150 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+          className="absolute right-3 top-4 z-10 grid h-10 w-10 md:right-5 md:top-5 md:h-8 md:w-8 place-items-center rounded-md text-stone-500 transition-colors duration-150 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
         >
           <X size={18} />
         </button>
         <div className="flex-1 overflow-y-auto">{children}</div>
-        {footer && <div className="sticky bottom-0 border-t border-stone-100 bg-overlay px-7 py-4">{footer}</div>}
+        {footer && <div className={`sticky bottom-0 border-t border-stone-100 bg-overlay px-4 pt-4 md:px-7 ${SHEET_FOOTER_PAD} md:pb-4`}>{footer}</div>}
       </aside>
     </div>
   )
@@ -95,7 +97,7 @@ export function Modal({ open, onClose, title, children, footer }) {
   useFocusTrap(ref, mounted && open, onClose)
   if (!mounted) return null
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-6">
+    <div className="fixed inset-0 z-50 grid place-items-end md:place-items-center md:p-6">
       <div onClick={onClose} className={`absolute inset-0 bg-scrim-modal transition-opacity duration-200 motion-reduce:transition-none ${shown ? 'opacity-100' : 'opacity-0'}`} />
       <div
         ref={ref}
@@ -103,16 +105,17 @@ export function Modal({ open, onClose, title, children, footer }) {
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className={`relative flex max-h-[85vh] w-full max-w-[640px] flex-col rounded-2xl border border-line bg-overlay shadow-xl outline-none transition duration-200 ease-out motion-reduce:transition-none ${shown ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'}`}
+        className={`relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl border border-line bg-overlay shadow-xl outline-none transition duration-200 ease-out motion-reduce:transition-none md:max-h-[85vh] md:max-w-[640px] md:rounded-2xl ${shown ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-100 md:translate-y-2 md:opacity-0'}`}
       >
-        <div className="flex items-center justify-between px-7 pt-6">
+        <SheetHandle panelRef={ref} onClose={onClose} />
+        <div className="flex items-center justify-between px-4 pt-2 md:px-7 md:pt-6">
           <h2 className="text-title font-semibold text-stone-900">{title}</h2>
           <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-md text-stone-500 transition-colors duration-150 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none">
             <X size={18} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-7 py-5">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-stone-100 px-7 py-4">{footer}</div>}
+        <div className="flex-1 overflow-y-auto px-4 py-5 md:px-7">{children}</div>
+        {footer && <div className={`flex justify-end gap-2 border-t border-stone-100 px-4 pt-4 md:px-7 md:pb-4 ${SHEET_FOOTER_PAD} [&>*]:max-md:flex-1`}>{footer}</div>}
       </div>
     </div>
   )
