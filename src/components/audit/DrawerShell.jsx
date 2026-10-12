@@ -79,7 +79,7 @@ export default function DrawerShell({ drawer, title, meta, footer, children }) {
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] leading-[18px] text-stone-600 tabular-nums">{meta}</div>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6"><ErrorBoundary name={`Drawer · ${title}`}><div className="pt-px">{children}</div></ErrorBoundary></div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6"><ErrorBoundary name={`Drawer · ${title}`}>{children}</ErrorBoundary></div>
         {footer && <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-6 py-3 text-[13px] leading-[18px] text-stone-600">{footer}</footer>}
       </div>
     </div>

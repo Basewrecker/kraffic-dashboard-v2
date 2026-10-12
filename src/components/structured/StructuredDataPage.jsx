@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, Info, Plus, PlusCircle, RefreshCw, Share2, X, XCircle } from 'lucide-react'
+import { AlertCircle, AlertTriangle, ArrowRight, Braces, Check, ChevronDown, ChevronRight, Info, RefreshCw, Share2, X, XCircle } from 'lucide-react'
+import { Pie, PieChart, Sector } from 'recharts'
 import Card from '../dashboard/Card'
 import PromptTable from '../dashboard/PromptTable'
 import Segmented from '../dashboard/Segmented'
@@ -7,9 +8,11 @@ import Modal from '../ui/Modal'
 import { useToast } from '../dashboard/overlays'
 import { downloadCsv } from '../dashboard/csv'
 import ActionMenu from '../audit/ActionMenu'
-import { ImpactMeter, openDrawer, setParams, useTab } from '../audit/parts'
+import { ImpactMeter, RowIcon, ViewFix, openDrawer, rowBtn, setParams, useTab } from '../audit/parts'
 import SchemaDrawer, { setSchemaSection } from './SchemaDrawer'
-import { StatusIcon, StatusLabel, pagesLine } from './parts'
+import SettingsTab from './SettingsTab'
+import { groupPages, useSettings } from './settings'
+import { ImpactText, PendingCheck, StatusIcon, StatusLabel, pagesLine, usePending } from './parts'
 import { IMPORTANCE, KINDS, PAGE_COUNT, SD, STATUS, analyze, isPageType, pageFor, schemas } from '../../data/structuredData'
 import ErrorBoundary from '../ui/ErrorBoundary'
 
@@ -19,13 +22,12 @@ import ErrorBoundary from '../ui/ErrorBoundary'
 const t2 = 'text-stone-600'
 const t3 = 'text-stone-500'
 const TAB_IDS = ['overview', 'schemas', 'recommendations', 'settings']
-const SETTINGS_KEY = 'kraffic:structured-data:settings'
 const selectCls = 'h-9 rounded-lg border border-line bg-raised px-2.5 text-small font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus'
 const inkBtn = 'inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-ink px-3.5 text-small font-medium text-on-ink outline-none transition-colors duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-60'
 const lineBtn = 'inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg border border-line px-3 text-small font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus'
 const today = () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 // section: 'issues' scrolls the drawer to its Issues section once it's open
-const openSchema = (id, section) => { setSchemaSection(section); openDrawer('schema', id) }
+const openSchema = (id, section, extra) => { setSchemaSection(section); openDrawer('schema', id, extra) }
 const Bar = ({ value, className = 'h-1.5 w-full' }) => (
   <span className={`block overflow-hidden rounded-full bg-[var(--data-track)] ${className}`} aria-hidden>
     <span className="block h-full rounded-full bg-ink" style={{ width: `${Math.min(100, value)}%` }} />
@@ -123,19 +125,19 @@ export default function StructuredDataPage() {
 
       <div id="sd-panel" role="tabpanel" aria-labelledby={`sd-tab-${tab}`} className="mt-2 flex flex-col gap-4">
         <ErrorBoundary resetKey={`${tab}|${scope}|${url}|${type}`} name={`Structured Data · ${tab}`}>
-        {tab === 'settings' ? <SettingsTab onRun={rerun} running={running} />
+        {tab === 'settings' ? <SettingsTab onRun={rerun} running={running} lastRun={lastRun} />
           : !result ? (
             <Card className="px-5 py-10 text-center">
               <p className={`text-[14px] leading-5 ${t2}`}>{page?.error ?? `Enter a page on ${SD.domain} above and press Analyze.`}</p>
             </Card>
-          ) : tab === 'overview' ? <Overview r={result} setTab={setTab} />
+          ) : tab === 'overview' ? <Overview r={result} setTab={setTab} site={scope === 'site'} />
             : tab === 'schemas' ? <SchemasTab r={typeResult ?? result} type={type} set={q.get('set')} status={q.get('status')} />
               : <RecommendationsTab r={result} />}
         </ErrorBoundary>
       </div>
 
       <HowModal open={howOpen} onClose={() => setHowOpen(false)} />
-      <ErrorBoundary name="Schema drawer" floating><SchemaDrawer rows={result?.rows} /></ErrorBoundary>
+      <ErrorBoundary name="Schema drawer" floating><SchemaDrawer result={result} scope={scope} /></ErrorBoundary>
       {toastNode}
     </>
   )
@@ -176,56 +178,63 @@ function Kpi({ label, children, first }) {
   )
 }
 const Big = ({ children }) => <span className="text-[32px] leading-10 font-semibold text-stone-900 tabular-nums">{children}</span>
-const Sub = ({ children }) => <div className={`mt-1 text-[13px] leading-[18px] ${t2} tabular-nums`}>{children}</div>
 const cardTitle = 'text-[15px] leading-5 font-semibold text-stone-900'
 const linkCls = 'inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus'
-// "Missing on 8 pages · Product pages"
+// "Affects 4 pages · Product pages" / "Missing on 8 pages · Product pages"
 const whereLine = (s) => [pagesLine(s), s.kinds.join(', ')].filter(Boolean).join(' · ')
-const STATUS_BAR = [
-  ['valid', 'Valid', 'var(--ink)'],
-  ['invalid', 'Invalid', 'var(--negative)'],
-  ['missing', 'Missing', 'var(--data-c1)'],
-  ['irrelevant', 'Not relevant', 'var(--data-track)'],
-]
-// the status grid: problems first, then A→Z
-const STATUS_ORDER = { invalid: 0, missing: 1, valid: 2 }
 
-function Overview({ r, setTab }) {
-  const next = [...r.fix.map((s) => ({ s, verb: 'Fix' })), ...r.toAdd.map((s) => ({ s, verb: 'Add' }))].slice(0, 4)
-  const req = r.required
-  const total = schemas.length
-  const counts = { valid: 0, invalid: 0, missing: 0, irrelevant: r.notRelevant }
-  r.rows.forEach((x) => { counts[x.status]++ })
-  const relevant = [...r.rows].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name))
+// "▲ 5 since May 16": arrow direction = the number's direction; ink when that's good, --negative when it's worse
+function Change({ now, before, lowerIsBetter = false }) {
+  const d = now - before
+  if (!d) return <span className={t3}>No change</span>
+  const better = lowerIsBetter ? d < 0 : d > 0
+  return (
+    <span className={t2}>
+      <span className={better ? 'text-ink' : 'text-negative'}>{d > 0 ? '▲' : '▼'}</span> {Math.abs(d)} since {SD.previous.date}
+    </span>
+  )
+}
 
+// the row icon for a recommendation: a broken schema (error / warning) or one to add
+const RecIcon = ({ s }) => (
+  <RowIcon>{s.kind === 'fix' ? (s.level === 'error' ? <AlertCircle size={16} className="text-negative" /> : <AlertTriangle size={16} className="text-ink" />) : <Braces size={16} />}</RowIcon>
+)
+const recTitle = (s) => (s.kind === 'fix' ? s.name : `Add ${s.name} schema`)
+
+function Overview({ r, setTab, site }) {
+  const prev = SD.previous
+  const pending = usePending()
+  const next = [...r.fix, ...r.toAdd].slice(0, 4) // Fix items first
+  const reqPct = r.required.total ? Math.round((r.required.valid * 100) / r.required.total) : null
   return (
     <>
-      {/* KPI strip: four columns, dividers, no title */}
+      {/* KPI strip: numbers and how they moved since the last run */}
       <Card className="p-5">
         <div className="grid grid-cols-2 gap-y-4 md:grid-cols-4 md:divide-x md:divide-[var(--div)]">
           <Kpi label="Required schemas" first>
-            <Big>{req.total ? `${Math.round((req.valid * 100) / req.total)}%` : '—'}</Big>
-            <Sub>{req.total ? `${req.valid} of ${req.total} valid` : 'None apply here'}</Sub>
+            <Big>{reqPct == null ? '—' : `${reqPct}%`}</Big>
+            <div className="mt-1 text-[13px] leading-[18px] tabular-nums">{reqPct == null ? <span className={t3}>None apply here</span> : site ? <Change now={reqPct} before={prev.required} /> : <span className={t2}>{r.required.valid} of {r.required.total} valid</span>}</div>
           </Kpi>
           <Kpi label="Schema coverage">
             <Big>{r.coverage}%</Big>
-            <Bar value={r.coverage} className="mt-2 h-1.5 w-full" />
-            <Sub>across {r.pageCount} {r.pageCount === 1 ? 'page' : 'pages'}</Sub>
+            <div className="mt-1 text-[13px] leading-[18px] tabular-nums">{site ? <Change now={r.coverage} before={prev.coverage} /> : <span className={t2}>across this page</span>}</div>
           </Kpi>
           <Kpi label="Pages fully valid">
-            <Big>{r.fullyValid}</Big>
-            <Bar value={(r.fullyValid / r.pageCount) * 100} className="mt-2 h-1.5 w-full" />
-            <Sub>of {r.pageCount}</Sub>
+            <div className="flex items-baseline gap-1.5"><Big>{r.fullyValid}</Big><span className={`text-[13px] leading-[18px] ${t3} tabular-nums`}>of {r.pageCount}</span></div>
+            <div className="mt-1 text-[13px] leading-[18px] tabular-nums">{site ? <Change now={r.fullyValid} before={prev.fullyValid} /> : <span className={t3}>—</span>}</div>
           </Kpi>
           <Kpi label="Warnings">
             <Big>{r.warnings}</Big>
-            <Sub><span className={r.critical ? 'text-negative' : undefined}>{r.critical} critical</span></Sub>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[13px] leading-[18px] tabular-nums">
+              {r.critical > 0 && <span className="text-negative">{r.critical} critical</span>}
+              {site && <Change now={r.warnings} before={prev.warnings} lowerIsBetter />}
+              {r.warnings + r.critical > 0 && <button type="button" onClick={() => setTab('recommendations')} className={linkCls}>View</button>}
+            </div>
           </Kpi>
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[7fr_5fr]">
-        <Card className="flex min-w-0 flex-col p-5">
+      <Card className="flex min-w-0 flex-col p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className={cardTitle}>What to do next</h2>
             <button type="button" onClick={() => setTab('recommendations')} className={linkCls}>View all <ArrowRight size={14} aria-hidden /></button>
@@ -233,87 +242,244 @@ function Overview({ r, setTab }) {
           {next.length === 0 ? (
             <p className="mt-3 flex h-14 items-center gap-2 text-[14px] leading-5 text-stone-900"><Check size={16} className="text-ink" aria-hidden />Everything required is in place.</p>
           ) : (
-            <ul className="mt-2 divide-y divide-[var(--div)]">
-              {next.map(({ s, verb }) => (
-                <li key={s.id} className="flex h-14 items-center gap-3">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-tint" aria-hidden>
-                    {verb === 'Fix' ? <XCircle size={16} className="text-negative" /> : <Plus size={16} className="text-stone-900" />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{verb} {s.name} schema</span>
-                    <span className={`block truncate text-[13px] leading-[18px] ${t3} tabular-nums`}>{whereLine(s)}</span>
-                  </span>
-                  <ImpactMeter impact={s.impact} />
-                  <button type="button" onClick={() => openSchema(s.id)}
-                    className="-mr-2 inline-flex h-8 shrink-0 items-center rounded-md px-2 text-[13px] leading-[18px] font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
-                    View fix
+            // two columns on lg; a divider under every row except each column's last
+            <ul className="mt-2 grid grid-cols-1 gap-x-8 lg:grid-cols-2 [&>li]:border-b [&>li]:border-[var(--div)] [&>li:last-child]:border-0 lg:[&>li:nth-last-child(2):nth-child(odd)]:border-0">
+              {next.map((s) => (
+                <li key={s.id}>
+                  {/* the whole row is the button */}
+                  <button type="button" onClick={() => openSchema(s.id)} className={`${rowBtn} h-14`}>
+                    <RecIcon s={s} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] leading-5 font-medium text-stone-900" title={recTitle(s)}>{recTitle(s)}</span>
+                      <span className={`block truncate text-[13px] leading-[18px] ${t3} tabular-nums`}>{whereLine(s)}</span>
+                    </span>
+                    {pending.has(s.id) ? <PendingCheck /> : <ImpactText impact={s.impact} />}
+                    <ChevronRight size={14} className="shrink-0 text-stone-500" aria-hidden />
                   </button>
                 </li>
               ))}
             </ul>
           )}
-        </Card>
+      </Card>
 
-        <Card className="flex min-w-0 flex-col p-5">
-          <h2 className={cardTitle}>Coverage by page type</h2>
-          <ul className="mt-2 flex flex-col">
-            {r.byKind.map((k) => (
-              <li key={k.kind}>
-                <button type="button" onClick={() => setTab('schemas', { type: k.kind, set: null, status: null })} aria-label={`${k.label}: ${k.coverage}% coverage across ${k.pages} pages. View schemas`}
-                  className="group -mx-2 flex h-10 w-[calc(100%+16px)] cursor-pointer items-center gap-3 rounded-md px-2 text-left outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus">
-                  <span className="min-w-0 flex-1 truncate">
-                    <span className="text-[14px] leading-5 text-stone-900">{k.label}</span>
-                    <span className={`ml-2 text-[13px] leading-[18px] ${t3} tabular-nums`}>{k.pages} {k.pages === 1 ? 'page' : 'pages'}</span>
-                  </span>
-                  <Bar value={k.coverage} className="h-1.5 w-28 shrink-0" />
-                  <span className="w-10 shrink-0 text-right text-[13px] leading-[18px] font-semibold text-stone-900 tabular-nums">{k.coverage}%</span>
-                  <ChevronRight size={14} className="-ml-1 shrink-0 text-stone-500 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
-                </button>
-              </li>
+      <CoverageMap r={r} />
+
+      <SchemaStatus r={r} setTab={setTab} />
+    </>
+  )
+}
+
+// ---- Coverage map: page types (the Settings rules) × the schemas that matter for them
+const MAP_COLS = [['product', 'Product'], ['offer', 'Offer'], ['review-snippet', 'Review'], ['merchant-listing', 'Merchant'], ['article', 'Article'], ['faq', 'FAQ'], ['breadcrumb', 'Breadcrumb']]
+const lower = (name) => name.charAt(0).toLowerCase() + name.slice(1)
+// the rule id when it's one of the built-in page types (the drawer can filter to those); custom rules open unfiltered
+const BUILT_IN = new Set(['product', 'blog', 'collection', 'home'])
+
+// coverage marker: ● all pages (ink + check) · ◔ some (ring, ink arc = share, from 12 o'clock) · ◌ none (dashed ring)
+function Marker({ found, applies, size = 20 }) {
+  const sw = 2.5
+  const r = (size - sw) / 2
+  const len = 2 * Math.PI * r
+  if (applies && found === applies) {
+    return <span className="grid shrink-0 place-items-center rounded-full bg-ink" style={{ width: size, height: size }} aria-hidden><Check size={size * 0.6} strokeWidth={2.5} className="text-[var(--color-surface)]" /></span>
+  }
+  if (!found) {
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={(size - 1.5) / 2} fill="none" stroke="var(--color-line-strong)" strokeWidth={1.5} strokeDasharray="3 2.5" />
+      </svg>
+    )
+  }
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0 -rotate-90" aria-hidden>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--data-track)" strokeWidth={sw} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ink)" strokeWidth={sw} strokeLinecap="round"
+        strokeDasharray={len} strokeDashoffset={len * (1 - found / applies)} />
+    </svg>
+  )
+}
+
+function MapCell({ c, short, group }) {
+  if (!c.applies) return <span className="block text-center text-[13px] leading-[18px] text-[var(--data-c3)]" aria-label={`${short} doesn't apply to ${lower(group.name)}`}>—</span>
+  const all = c.found === c.applies
+  const tip = `${short} · ${c.found} of ${c.applies} ${lower(group.name)} have it`
+  const area = 'mx-auto flex w-fit items-center gap-2 rounded-md px-2 py-1 tabular-nums transition-colors duration-150 hover:bg-[var(--tint)]'
+  if (all) return <span title={tip} role="img" aria-label={tip} className={area}><Marker found={c.found} applies={c.applies} /></span>
+  return (
+    <button type="button" title={tip} aria-label={`${tip}. Open ${short}`}
+      onClick={() => openSchema(c.id, null, BUILT_IN.has(group.id) ? { schemaType: group.id } : {})}
+      className={`${area} outline-none focus-visible:ring-2 focus-visible:ring-focus`}>
+      <Marker found={c.found} applies={c.applies} />
+      <span className={`text-[13px] leading-[18px] ${c.found ? 'font-medium text-ink' : 'text-stone-500'}`}>{c.found}/{c.applies}</span>
+    </button>
+  )
+}
+
+function CoverageMap({ r }) {
+  const settings = useSettings()
+  const groups = groupPages(settings.pageTypes, r.list).filter((g) => g.pages.length)
+  const cells = groups.map((g) => MAP_COLS.map(([id, short]) => ({ id, short, ...r.cellFor(id, g.pages) })))
+  // biggest gap: the cell with the most pages missing the schema
+  let gap = null
+  groups.forEach((g, gi) => cells[gi].forEach((c) => { const miss = c.applies - c.found; if (miss > 0 && (!gap || miss > gap.miss)) gap = { miss, short: c.short, where: lower(g.name) } }))
+  return (
+    <Card className="min-w-0 p-5">
+      <h2 className={cardTitle}>Coverage map</h2>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[840px] table-fixed border-collapse">
+          <thead>
+            <tr className="h-10 border-b border-[var(--div)]">
+              <th className="w-56 text-left"><span className="sr-only">Page type</span></th>
+              {MAP_COLS.map(([id, short]) => <th key={id} scope="col" className="min-w-[88px] text-center text-[13px] leading-[18px] font-medium text-stone-600">{short}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((g, gi) => (
+              <tr key={g.id} className="h-12 border-b border-[var(--div)] transition-colors duration-150 last:border-0 hover:bg-[var(--tint)]">
+                <th scope="row" className="pl-2 text-left font-normal">
+                  <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{g.name}</span>
+                  <span className={`block text-[13px] leading-[18px] ${t3} tabular-nums`}>{g.pages.length} {g.pages.length === 1 ? 'page' : 'pages'}</span>
+                </th>
+                {cells[gi].map((c) => <td key={c.id} className="px-1"><MapCell c={c} short={c.short} group={g} /></td>)}
+              </tr>
             ))}
-          </ul>
-        </Card>
+          </tbody>
+        </table>
+      </div>
+      <div className={`mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-[13px] leading-[18px] ${t2}`}>
+        <ul className="flex flex-wrap items-center gap-x-5 gap-y-1">
+          <li className="flex items-center gap-1.5"><Marker found={1} applies={1} size={14} />All pages</li>
+          <li className="flex items-center gap-1.5"><Marker found={1} applies={3} size={14} />Some</li>
+          <li className="flex items-center gap-1.5"><Marker found={0} applies={1} size={14} />None</li>
+          <li className="flex items-center gap-1.5"><span className="text-[var(--data-c3)]" aria-hidden>—</span>Not relevant</li>
+        </ul>
+        {gap && <p className="tabular-nums">Biggest gap: {gap.short} on {gap.where} ({gap.miss} missing).</p>}
+      </div>
+    </Card>
+  )
+}
+
+// ---- Schema status: one ring slice per schema (Invalid → Missing → Valid) + the list for the chosen group
+const IMP_ORDER = { required: 0, recommended: 1, optional: 2 }
+const LIST_MAX = 6
+const GROUPS = [
+  { st: 'invalid', label: 'Invalid', color: 'var(--negative)', note: 'Broken markup Google will ignore. Fix these first.' },
+  { st: 'missing', label: 'Missing', color: 'var(--data-c2)', note: 'Not on your pages yet, sorted by pages affected.' },
+  { st: 'valid', label: 'Valid', color: 'var(--ink)', note: 'Working as expected.' },
+]
+const COLOR = Object.fromEntries(GROUPS.map((g) => [g.st, g.color]))
+const pagesOf = (x) => (x.status === 'invalid' ? x.invalid.length : x.status === 'missing' ? x.missing.length : x.found.length)
+const RAD = Math.PI / 180
+
+function SchemaStatus({ r, setTab }) {
+  const rank = (a, b) => IMP_ORDER[a.importance] - IMP_ORDER[b.importance] || pagesOf(b) - pagesOf(a)
+  const by = Object.fromEntries(GROUPS.map((g) => [g.st, r.rows.filter((x) => x.status === g.st).sort(rank)]))
+  const ring = GROUPS.flatMap((g) => by[g.st]) // clockwise from 12 o'clock
+  const [filter, setFilter] = useState(() => (by.invalid.length ? 'invalid' : 'missing'))
+  const [hover, setHover] = useState(null) // index into ring
+  const hovered = hover != null ? ring[hover] : null
+  const group = GROUPS.find((g) => g.st === filter)
+  const list = by[filter]
+  const valid = by.valid.length
+
+  // a slice: required schemas sit 4px further out; hovered pushes out 4px; the rest fade
+  const shape = (props) => {
+    const x = props.payload
+    const i = ring.indexOf(x)
+    const lit = hover != null ? i === hover : x.status === filter
+    const push = i === hover ? 4 : 0
+    const dx = Math.cos(-props.midAngle * RAD) * push, dy = Math.sin(-props.midAngle * RAD) * push
+    return (
+      <Sector {...props} cx={props.cx + dx} cy={props.cy + dy} outerRadius={x.importance === 'required' ? 116 : 112}
+        fill={COLOR[x.status]} fillOpacity={lit ? 1 : 0.4} stroke="none"
+        style={{ transition: 'fill-opacity 200ms ease-out', cursor: 'pointer', outline: 'none' }} />
+    )
+  }
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className={cardTitle}>Schema status</h2>
+        <button type="button" onClick={() => setTab('schemas', { status: null, set: null, type: null })} className={linkCls}>View all {r.rows.length} <ArrowRight size={14} aria-hidden /></button>
       </div>
 
-      <Card className="p-5">
-        <h2 className={cardTitle}>Schema status</h2>
-        <div className="mt-4 flex h-2.5 w-full overflow-hidden rounded-full bg-[var(--data-track)]" role="img"
-          aria-label={STATUS_BAR.map(([k, label]) => `${label} ${counts[k]}`).join(', ')}>
-          {STATUS_BAR.filter(([k]) => counts[k]).map(([k, , color], i) => (
-            <span key={k} className={`h-full ${i ? 'ml-px' : ''}`} style={{ width: `${(counts[k] / total) * 100}%`, background: color }} />
-          ))}
+      <div className="mt-4 grid grid-cols-1 items-center gap-10 lg:grid-cols-[280px_1fr]">
+        {/* the ring + its legend (the legend is the filter) */}
+        <div className="flex flex-col items-center">
+          <div className="relative h-[240px] w-[240px]" onMouseLeave={() => setHover(null)}>
+            <PieChart width={240} height={240}>
+              <Pie data={ring} dataKey={() => 1} nameKey="name" cx="50%" cy="50%" innerRadius={84} outerRadius={112}
+                paddingAngle={1.5} cornerRadius={3} startAngle={90} endAngle={-270} isAnimationActive={false} rootTabIndex={-1}
+                shape={shape}
+                onMouseEnter={(_, i) => setHover(i)} onClick={(_, i) => openSchema(ring[i].id)} />
+            </PieChart>
+            <div className="pointer-events-none absolute inset-0 grid place-content-center justify-items-center px-14 text-center" aria-live="polite">
+              {hovered ? (
+                <>
+                  <span className="line-clamp-2 text-[15px] leading-5 font-semibold text-stone-900">{hovered.name}</span>
+                  <span className={`mt-1 text-[13px] leading-[18px] ${t2} tabular-nums`}>{pagesLine(hovered)}</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-[32px] leading-10 font-semibold text-stone-900 tabular-nums">{valid}/{ring.length}</span>
+                  <span className={`text-[13px] leading-[18px] ${t2}`}>schemas valid</span>
+                </>
+              )}
+            </div>
+          </div>
+          <ul className="mt-5 w-full" role="radiogroup" aria-label="Show schemas">
+            {GROUPS.map((g) => {
+              const on = filter === g.st
+              return (
+                <li key={g.st}>
+                  <button type="button" role="radio" aria-checked={on} onClick={() => setFilter(g.st)}
+                    className={`flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'bg-[var(--tint)]' : 'hover:bg-[var(--tint)]'}`}>
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: g.color }} aria-hidden />
+                    <span className="flex-1 text-[14px] leading-5 text-stone-900">{g.label}</span>
+                    <span className="text-[14px] leading-5 font-semibold text-stone-900 tabular-nums">{by[g.st].length}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
         </div>
-        <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5">
-          {STATUS_BAR.map(([k, label, color]) => (
-            <li key={k} className={`flex items-center gap-1.5 text-[13px] leading-[18px] ${t2} tabular-nums`}>
-              <span className={`h-2 w-2 shrink-0 rounded-full ${k === 'irrelevant' ? 'border border-line' : ''}`} style={{ background: color }} aria-hidden />
-              {label}<span className="font-medium text-stone-900">{counts[k]}</span>
-            </li>
-          ))}
-        </ul>
 
-        <ul className="mt-4 grid grid-cols-1 gap-x-6 border-t border-[var(--div)] pt-2 sm:grid-cols-2 lg:grid-cols-3">
-          {relevant.map((x) => {
-            const n = x.status === 'valid' ? x.found.length : x.status === 'invalid' ? x.invalid.length : x.missing.length
-            const what = x.status === 'valid' ? (n === 1 ? 'page' : 'pages') : x.status === 'invalid' ? 'invalid' : 'missing'
-            return (
-              <li key={x.id}>
-                <button type="button" onClick={() => openSchema(x.id)} aria-label={`${x.name}: ${STATUS[x.status]}, ${pagesLine(x)}`}
-                  className="group -mx-2 flex h-10 w-[calc(100%+16px)] items-center gap-2.5 rounded-lg px-2 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
-                  <StatusIcon status={x.status} />
-                  <span className="min-w-0 flex-1 truncate text-[14px] leading-5 text-stone-900">{x.name}</span>
-                  <span className={`shrink-0 text-[13px] leading-[18px] ${t3} tabular-nums`}>{n} {what}</span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-
-        <div className="mt-2 border-t border-[var(--div)] pt-3">
-          <button type="button" onClick={() => setTab('schemas')} className={linkCls}>View all {r.rows.length} schemas <ArrowRight size={14} aria-hidden /></button>
+        {/* the chosen group (crossfades on switch) */}
+        <div key={filter} className="min-w-0 self-start motion-safe:animate-[fade-in_150ms_ease-out]">
+          <h3 className="text-[14px] leading-5 font-semibold text-stone-900 tabular-nums">{group.label} · {list.length} {list.length === 1 ? 'schema' : 'schemas'}</h3>
+          <p className={`mt-0.5 text-[13px] leading-[18px] ${t2}`}>{group.note}</p>
+          {list.length === 0 ? (
+            <p className={`mt-4 text-[14px] leading-5 ${t2}`}>None.</p>
+          ) : (
+            <ul className="mt-3 border-t border-[var(--div)]">
+              {list.slice(0, LIST_MAX).map((x) => (
+                <li key={x.id} className="border-b border-[var(--div)]">
+                  <button type="button" onClick={() => openSchema(x.id)} onMouseEnter={() => setHover(ring.indexOf(x))} onMouseLeave={() => setHover(null)}
+                    onFocus={() => setHover(ring.indexOf(x))} onBlur={() => setHover(null)}
+                    className="flex h-14 w-full items-center gap-3 px-2 text-left outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
+                    <StatusIcon status={x.status} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{x.name}</span>
+                      <span className={`block truncate text-[13px] leading-[18px] ${t3}`}>{IMPORTANCE[x.importance]} · {(x.status === 'valid' ? '' : x.kinds.join(', ')) || x.usedOn}</span>
+                    </span>
+                    <span className="shrink-0 tabular-nums">
+                      <span className="text-[16px] leading-5 font-semibold text-stone-900">{pagesOf(x)}</span>
+                      <span className={`text-[13px] leading-[18px] ${t3}`}> {pagesOf(x) === 1 ? 'page' : 'pages'}</span>
+                    </span>
+                    <ChevronRight size={14} className="shrink-0 text-stone-500" aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {list.length > LIST_MAX && (
+            <button type="button" onClick={() => setTab('schemas', { status: filter, set: null, type: null })} className={`${linkCls} mt-3`}>
+              Show all {list.length} {group.label.toLowerCase()} <ArrowRight size={14} aria-hidden />
+            </button>
+          )}
         </div>
-      </Card>
-    </>
+      </div>
+    </Card>
   )
 }
 
@@ -342,6 +508,7 @@ function HowModal({ open, onClose }) {
 // ---- Schemas tab
 const SETS = { required: 'required', additional: 'recommended' }
 function SchemasTab({ r, type, set, status }) {
+  const pending = usePending()
   const which = SETS[set] ? set : 'all'
   const st = STATUS[status] ? status : 'all'
   const rows = useMemo(() => r.rows.filter((x) => (!type || x.pageTypes.includes(type)) && (which === 'all' || x.importance === SETS[which]) && (st === 'all' || x.status === st)), [r, type, which, st])
@@ -363,33 +530,24 @@ function SchemasTab({ r, type, set, status }) {
       ),
     },
     // Invalid → Missing → Valid, then A→Z
-    { key: 'status', label: 'Status', width: 128, sort: { value: (x) => ST_RANK[x.status], first: 'asc', tie: (x) => x.name }, csv: (x) => STATUS[x.status], cell: (x) => <StatusLabel status={x.status} /> },
+    {
+      key: 'status', label: 'Status', width: 128, sort: { value: (x) => ST_RANK[x.status], first: 'asc', tie: (x) => x.name }, csv: (x) => STATUS[x.status],
+      cell: (x) => <span className="flex flex-col items-start"><StatusLabel status={x.status} />{pending.has(x.id) && <span className="text-[12px] leading-4 text-stone-500">Pending check</span>}</span>,
+    },
     // only in "All": under Required / Additional it would repeat the filter
     ...(which === 'all' ? [{ key: 'importance', label: 'Importance', width: 136, sort: { value: (x) => IMP_RANK[x.importance], first: 'asc', tie: (x) => x.name }, csv: (x) => IMPORTANCE[x.importance], cell: (x) => <span className={`text-[13px] leading-[18px] ${t2}`}>{IMPORTANCE[x.importance]}</span> }] : []),
     {
-      key: 'usedOn', label: 'Used on', width: 224, sort: { value: (x) => x.usedOn, first: 'asc', tie: (x) => x.name }, csv: (x) => `${x.usedOn} (${x.applicable})`,
+      // fixed grid, so every bar starts at the same x: [count 112px][coverage bar 96px]; the where-label is the tooltip
+      key: 'usedOn', label: 'Used on', width: 244, sort: { value: (x) => x.found.length / x.applicable, first: 'asc', tie: (x) => x.name }, csv: (x) => `${x.found.length} of ${x.applicable} (${x.usedOn})`,
       cell: (x) => {
-        const gap = x.status === 'invalid' ? x.invalid.length : x.missing.length
+        const n = x.found.length, of = x.applicable, miss = of - n
         return (
-          <span className="block min-w-0 tabular-nums">
-            {/* filtered to one page type: that type's numbers ("17 of 20 pages") */}
-            {type ? (
-              <span className="flex items-center gap-2 text-[14px] leading-5 text-stone-900">
-                {x.found.length} of {x.applicable} {x.applicable === 1 ? 'page' : 'pages'}
-                {gap > 0 && <MissingBar gap={gap} of={x.applicable} />}
-              </span>
-            ) : (
-            <span className="block truncate text-[14px] leading-5 text-stone-900">
-              {x.usedOn}{x.applicable > 1 && <span className={`text-[13px] ${t3}`}> · {x.applicable}</span>}
+          <span className="grid grid-cols-[112px_96px] items-center gap-3" title={x.usedOn}>
+            <span className="min-w-0">
+              <span className="block whitespace-nowrap text-[14px] leading-5 text-stone-900 tabular-nums">{n} of {of} {of === 1 ? 'page' : 'pages'}</span>
+              {miss > 0 && <span className="block text-[12px] leading-4 text-negative tabular-nums">{miss} missing</span>}
             </span>
-            )}
-            {/* incomplete coverage only: how much is missing, with the missing share in --negative */}
-            {!type && gap > 0 && (
-              <span className="flex items-center gap-2 text-[13px] leading-[18px] text-ink">
-                {gap} of {x.applicable} {x.status === 'invalid' ? 'invalid' : 'missing'}
-                <MissingBar gap={gap} of={x.applicable} />
-              </span>
-            )}
+            {miss > 0 ? <Bar value={(n / of) * 100} className="h-1.5 w-full" /> : <span aria-hidden />}
           </span>
         )
       },
@@ -444,15 +602,27 @@ function SchemasTab({ r, type, set, status }) {
   )
 }
 
-// the missing share of a schema's pages, in --negative
-const MissingBar = ({ gap, of }) => (
-  <span className="h-1 w-20 shrink-0 overflow-hidden rounded-full bg-[var(--data-track)]" aria-hidden>
-    <span className="block h-full rounded-full bg-negative" style={{ width: `${(gap / of) * 100}%` }} />
-  </span>
-)
+// ---- Recommendations: Fix (broken markup) + Add (missing schemas). Rows span the card edge to edge, so no bleed.
+const recRow = 'group flex w-full items-center gap-3 px-5 text-left outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus'
+function RecRow({ s, pending }) {
+  return (
+    <li>
+      <button type="button" onClick={() => openSchema(s.id)} className={`${recRow} h-16`}>
+        <RecIcon s={s} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{s.name}</span>
+          <span className={`block truncate text-[13px] leading-[18px] ${t2}`} title={s.why}>{s.kind === 'fix' ? whereLine(s) : s.why}</span>
+        </span>
+        <span className={`shrink-0 text-[13px] leading-[18px] ${t3} tabular-nums`}>{s.affected.length} {s.affected.length === 1 ? 'page' : 'pages'}</span>
+        <ImpactMeter impact={s.impact} />
+        {pending ? <PendingCheck /> : <ViewFix />}
+      </button>
+    </li>
+  )
+}
 
-// ---- Recommendations: Fix (broken markup) + Add (missing schemas)
 function RecommendationsTab({ r }) {
+  const pending = usePending()
   return (
     <>
       <section aria-labelledby="sd-fix">
@@ -463,22 +633,7 @@ function RecommendationsTab({ r }) {
               <Check size={16} className="shrink-0 text-ink" aria-hidden />No broken schemas. Everything on your pages passes validation.
             </p>
           ) : (
-            <ul className="divide-y divide-[var(--div)]">
-              {r.fix.map((s) => (
-                <li key={s.id}>
-                  <button type="button" onClick={() => openSchema(s.id)}
-                    className="group flex h-[52px] w-full items-center gap-3 px-5 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{s.name}</span>
-                      <span className={`block truncate text-[12.5px] leading-[18px] ${t3}`}>{s.desc}</span>
-                    </span>
-                    <span className="w-28 shrink-0"><StatusLabel status={s.status} /></span>
-                    <span className={`w-36 shrink-0 text-[13px] leading-[18px] ${t2} tabular-nums`}>{pagesLine(s)}</span>
-                    <ChevronRight size={14} className="shrink-0 text-stone-500 transition-colors group-hover:text-stone-900" aria-hidden />
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <ul className="divide-y divide-[var(--div)]">{r.fix.map((s) => <RecRow key={s.id} s={s} pending={pending.has(s.id)} />)}</ul>
           )}
         </Card>
       </section>
@@ -489,85 +644,11 @@ function RecommendationsTab({ r }) {
           {r.toAdd.length === 0 ? (
             <p className="flex h-12 items-center gap-2 px-5 text-[14px] leading-5 text-stone-900"><Check size={16} className="shrink-0 text-ink" aria-hidden />Everything required is in place.</p>
           ) : (
-            <ul className="divide-y divide-[var(--div)]">
-              {r.toAdd.map((s) => (
-                <li key={s.id} className="flex h-14 items-center gap-3 px-5">
-                  <PlusCircle size={16} className="shrink-0 text-stone-600" aria-hidden />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{s.name}</span>
-                    <span className={`block truncate text-[13px] leading-[18px] ${t2}`} title={s.why}>{s.why}</span>
-                  </span>
-                  <span className={`shrink-0 text-[13px] leading-[18px] ${t3} tabular-nums`}>{s.missing.length} {s.missing.length === 1 ? 'page' : 'pages'}</span>
-                  <button type="button" onClick={() => openSchema(s.id)}
-                    className="-mr-2 inline-flex h-8 shrink-0 items-center rounded-md px-2 text-[13px] leading-[18px] font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
-                    View fix
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <ul className="divide-y divide-[var(--div)]">{r.toAdd.map((s) => <RecRow key={s.id} s={s} pending={pending.has(s.id)} />)}</ul>
           )}
         </Card>
       </section>
     </>
-  )
-}
-
-// ---- Settings (same row style as /tracking)
-function readSettings() {
-  try { return { sitemap: '', maxPages: 50, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') } } catch { return { sitemap: '', maxPages: 50 } }
-}
-const Saved = ({ show }) => (
-  <span aria-live="polite" className={`inline-flex items-center gap-1 text-[12px] leading-4 text-stone-600 transition-opacity duration-200 ease-out ${show ? 'opacity-100' : 'opacity-0'}`}>
-    {show && <><Check size={12} aria-hidden /> Saved</>}
-  </span>
-)
-function SettingRow({ name, meta, saved, children }) {
-  return (
-    <li className="flex h-[60px] items-center justify-between gap-4 px-5">
-      <span className="min-w-0">
-        <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{name}</span>
-        <span className={`block truncate text-[12.5px] leading-[18px] ${t2}`}>{meta}</span>
-      </span>
-      <span className="flex shrink-0 items-center gap-3"><Saved show={saved} />{children}</span>
-    </li>
-  )
-}
-function SettingsTab({ onRun, running }) {
-  const [s, setS] = useState(readSettings)
-  const [saved, setSaved] = useState(null)
-  const timer = useRef(null)
-  useEffect(() => () => clearTimeout(timer.current), [])
-  const save = (patch, key) => {
-    const next = { ...s, ...patch }
-    setS(next)
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)) } catch { /* private mode: keep it for this visit */ }
-    setSaved(key); clearTimeout(timer.current); timer.current = setTimeout(() => setSaved(null), 1500)
-  }
-  return (
-    <section aria-label="Crawl settings" className="overflow-hidden rounded-[14px] border border-line bg-surface">
-      <header className="border-b border-[var(--div)] px-5 pb-3.5 pt-[18px]">
-        <h2 className="text-[15px] leading-5 font-semibold text-stone-900">Crawl settings</h2>
-        <p className={`mt-0.5 text-[13px] leading-[18px] ${t2}`}>How Kraffic finds the pages to analyze. Changes apply on the next run.</p>
-      </header>
-      <ul className="divide-y divide-[var(--div)]">
-        <SettingRow name="Sitemap URL" meta="Only used if robots.txt has no sitemap" saved={saved === 'sitemap'}>
-          <input aria-label="Sitemap URL" defaultValue={s.sitemap} placeholder={`https://${SD.domain}/sitemap.xml`}
-            onBlur={(e) => { if (e.target.value.trim() !== s.sitemap) save({ sitemap: e.target.value.trim() }, 'sitemap') }}
-            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-            className="h-9 w-80 rounded-lg border border-line bg-raised px-3 text-small text-stone-900 outline-none placeholder:text-stone-500 focus:border-stone-400" />
-        </SettingRow>
-        <SettingRow name="Max pages" meta="The crawl stops after this many pages" saved={saved === 'max'}>
-          <select aria-label="Max pages" value={s.maxPages} onChange={(e) => save({ maxPages: Number(e.target.value) }, 'max')} className={selectCls}>
-            {[25, 50, 100, 200].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </SettingRow>
-      </ul>
-      <div className="flex justify-end bg-tint px-5 py-3">
-        <button type="button" onClick={onRun} disabled={running} className={inkBtn}>
-          <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />Re-run audit
-        </button>
-      </div>
-    </section>
   )
 }
 

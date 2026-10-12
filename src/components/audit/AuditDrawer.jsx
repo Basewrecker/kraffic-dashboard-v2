@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle, ArrowUpRight, Check, ChevronRight, Copy, Download, Sparkles, Wrench } from 'lucide-react'
 import { downloadCsv } from '../dashboard/csv'
-import { AUDIT, CATEGORIES, IMPACT, PAGE_COUNT, STATUS, checkById, groupBySection, pageByPath } from '../../data/audit'
+import { AUDIT, CATEGORIES, PAGE_COUNT, STATUS, checkById, groupBySection, pageByPath } from '../../data/audit'
 import DrawerShell, { Dot, SectionTitle, useDrawer } from './DrawerShell'
 import { CheckIcon, ImpactMeter, StatusLabel, pct, plural, swapDrawer } from './parts'
 
@@ -63,7 +63,7 @@ export default function AuditDrawer() {
         <span className="flex flex-wrap items-center gap-3">
           <StatusLabel status={c.status} /><Dot />
           <span>{CATEGORIES[c.category]}</span><Dot />
-          <span className="inline-flex items-center gap-1.5"><ImpactMeter impact={c.impact} />{IMPACT[c.impact].label} impact</span>
+          <ImpactMeter impact={c.impact} fixed={false} />
         </span>
       )}
       footer={!passing && (

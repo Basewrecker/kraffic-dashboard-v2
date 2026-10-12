@@ -12,7 +12,7 @@ import { useToast } from '../dashboard/overlays'
 import { downloadCsv } from '../dashboard/csv'
 import AuditDrawer, { PageDrawer } from './AuditDrawer'
 import ActionMenu from './ActionMenu'
-import { CheckIcon, ImpactMeter, StatusLabel, openDrawer, openIssue, pct, plural, setParams, useTab } from './parts'
+import { CheckIcon, ImpactMeter, RowIcon, StatusLabel, ViewFix, openDrawer, rowBtn, openIssue, pct, plural, setParams, useTab } from './parts'
 import {
   AUDIT, BUCKETS, CATEGORIES, IMPACT, PAGE_COUNT, STATUS, STATUS_CODES, byStatus, checks, contentChecks, crawl, open as isOpen, pageProblems, pages, priority, readiness, technicalChecks,
 } from '../../data/audit'
@@ -156,7 +156,6 @@ function ApiModal({ open, onClose }) {
 const cardTitle = 'text-[15px] leading-5 font-semibold text-stone-900'
 const linkCls = 'inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus'
 const fmtMs = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${ms} ms`)
-const impactTitle = (c) => `${IMPACT[c.impact].label} impact`
 
 function Overview({ setTab }) {
   return (
@@ -275,15 +274,14 @@ function FixFirst({ setTab }) {
       <ul className="mt-3 flex flex-col">
         {rows.map((c) => (
           <li key={c.id}>
-            <button type="button" onClick={() => openIssue(c.id)}
-              className="group -mx-2 flex h-12 w-[calc(100%+16px)] items-center gap-3 rounded-lg px-2 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
-              <CheckIcon status={c.status} />
-              <span className="min-w-0 flex-1 truncate">
-                <span className="text-[14px] leading-5 font-medium text-stone-900">{c.name}</span>
-                <span className={`ml-2 text-[13px] leading-[18px] ${t3} tabular-nums`}>{plural(c.pages.length, 'page')}</span>
+            <button type="button" onClick={() => openIssue(c.id)} className={`${rowBtn} h-14`}>
+              <RowIcon><CheckIcon status={c.status} /></RowIcon>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{c.name}</span>
+                <span className={`block truncate text-[13px] leading-[18px] ${t3} tabular-nums`}>{plural(c.pages.length, 'page')} · {STATUS[c.status].label}</span>
               </span>
-              <span title={impactTitle(c)} className="flex"><ImpactMeter impact={c.impact} /></span>
-              <ChevronRight size={14} className="shrink-0 text-stone-500 transition-colors group-hover:text-stone-900" aria-hidden />
+              <ImpactMeter impact={c.impact} />
+              <ViewFix />
             </button>
           </li>
         ))}
@@ -407,8 +405,8 @@ function IssuesTab({ status }) {
       ) : <span className={`text-[13px] ${t3}`}>—</span>),
     },
     {
-      key: 'impact', label: 'Impact', width: 140, sort: { value: (r) => IMPACT[r.impact].level, first: 'desc' }, csv: (r) => IMPACT[r.impact].label,
-      cell: (r) => <span className="flex items-center gap-2"><ImpactMeter impact={r.impact} /><span className={`text-[13px] leading-[18px] ${t2}`}>{IMPACT[r.impact].label}</span></span>,
+      key: 'impact', label: 'Impact', width: 150, sort: { value: (r) => IMPACT[r.impact].level, first: 'desc' }, csv: (r) => IMPACT[r.impact].label,
+      cell: (r) => <ImpactMeter impact={r.impact} />,
     },
     { key: 'open', label: '', width: 48, csv: false, cell: () => <ChevronRight size={14} className="ml-auto text-stone-500 transition-colors group-hover:text-stone-900" aria-hidden /> },
   ]
@@ -460,7 +458,7 @@ function ContentTab() {
                       <span className="text-[14px] leading-5 font-medium text-stone-900">{c.name}</span>
                       <span className={`ml-2 text-[13px] leading-[18px] ${t3}`}>{c.finding}</span>
                     </span>
-                    <ImpactMeter impact={c.impact} label />
+                    <ImpactMeter impact={c.impact} />
                     <ChevronRight size={14} className="shrink-0 text-stone-500 transition-colors group-hover:text-stone-900" aria-hidden />
                   </button>
                 </li>
