@@ -391,3 +391,12 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
 /* hide a scrollbar on sideways-scrolling rows (tabs, chips) but keep them scrollable */
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+/* KPI strips (4 columns + dividers on md+): a 2×2 grid with 1px lines on phones */
+@media (max-width: 767px) {
+  .kpi-grid { gap: 0 !important; margin: -1rem; }
+  .kpi-grid > * { padding: 0.875rem 1rem !important; min-width: 0; }
+  .kpi-grid > :nth-child(odd) { border-right: 1px solid var(--div); }
+  .kpi-grid > :nth-child(-n+2) { border-bottom: 1px solid var(--div); }
+  .kpi-grid .text-\[32px\] { font-size: 24px; line-height: 32px; }
+  .kpi-grid .text-\[13px\] { font-size: 12px; line-height: 16px; }
+}

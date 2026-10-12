@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Bar, BarChart as RBarChart, CartesianGrid, LabelList, Line, LineChart as RLineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useIsMobile } from '../../hooks/useMedia'
 import { BarChart3, Check, ChevronDown, LineChart, TrendingUp } from 'lucide-react'
 import Card from './Card'
 import { chart } from '../../theme/chart'
@@ -194,6 +195,7 @@ function InsideValueLabel({ x, y, width = 0, height = 0, value }) {
 }
 
 export default function VisibilityHistory() {
+  const mobile = useIsMobile()
   const { focal, isOwnBrand, engine } = useBrandView()
   FOCAL = { key: focal.key, domain: focal.domain }
   const YOU = focal.key
@@ -242,8 +244,9 @@ export default function VisibilityHistory() {
   // ---- shared plot furniture; returned as a keyed array so Recharts sees direct children
   const furniture = ({ yDomain, yTicks, yFormat, tooltip, cursor, xPadding }) => [
     <CartesianGrid key="grid" vertical={false} stroke={chart.track} strokeWidth={1} />,
-    <XAxis key="x" dataKey="date" tickMargin={12} tickLine={false} axisLine={false} tick={tick} padding={xPadding} />,
-    <YAxis key="y" width={36} tickMargin={8} domain={yDomain} ticks={yTicks} tickFormatter={yFormat} allowDataOverflow tickLine={false} axisLine={false} tick={tick} />,
+    // phones: at most 4 date labels, a 28px Y axis
+    <XAxis key="x" dataKey="date" tickMargin={12} tickLine={false} axisLine={false} tick={tick} padding={xPadding} interval={mobile ? Math.max(0, Math.ceil(points.length / 4) - 1) : 'preserveEnd'} />,
+    <YAxis key="y" width={mobile ? 30 : 36} tickMargin={mobile ? 4 : 8} domain={yDomain} ticks={yTicks} tickFormatter={yFormat} allowDataOverflow tickLine={false} axisLine={false} tick={tick} />,
     <Tooltip key="tip" cursor={cursor} content={tooltip} />,
   ]
   // Line view: label inside the plot, right-aligned above the line. Bar/Growth: the last column reaches the right edge,
@@ -373,8 +376,9 @@ export default function VisibilityHistory() {
       </div>
 
       {/* legend = filter */}
-      <div className="mt-3 flex flex-wrap items-center gap-y-2">
-        <Switch checked={compare} onChange={setCompare}>Compare</Switch>
+      {/* phones: one sideways-scrolling row */}
+      <div className="no-scrollbar mt-3 flex items-center gap-y-2 max-md:-mx-4 max-md:overflow-x-auto max-md:px-4 md:flex-wrap">
+        <Switch checked={compare} onChange={setCompare} className="shrink-0">Compare</Switch>
         <span className="mx-3 h-5 w-px bg-stone-200" aria-hidden />
         {/* focal brand: a toggle like the others while comparing (hide it to see the rest alone); fixed otherwise */}
         {compare ? chip(historySeries.find((s) => s.key === YOU)) : isLine ? (
@@ -397,7 +401,7 @@ export default function VisibilityHistory() {
       {/* summary strip slides in when Compare is off */}
       <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${compare ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`} aria-hidden={compare}>
         <div className="overflow-hidden">
-          <div className="flex gap-8 pt-3">
+          <div className="flex flex-wrap gap-x-8 gap-y-2 pt-3">
             <Stat label="Current">{stats.current}%</Stat>
             <Stat label="Change">
               {stats.change != null && (
@@ -423,7 +427,8 @@ export default function VisibilityHistory() {
       </div>
 
       {/* grows with the row (Prompt coverage beside it), so there's no empty space under the x-axis */}
-      <div className="mt-3 min-h-[300px] flex-1">
+      {/* fixed height on phones (reserved, so nothing shifts when it draws) */}
+      <div className="mt-3 h-[220px] md:h-auto md:min-h-[300px] md:flex-1">
         <ResponsiveContainer key={`${view.chart}-${view.granularity}-${view.compare}`} width="100%" height="100%">
           {renderChart()}
         </ResponsiveContainer>

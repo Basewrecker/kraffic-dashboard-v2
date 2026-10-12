@@ -12,13 +12,15 @@ const triggerClass = (size) =>
   `inline-flex ${size === 'sm' ? 'h-8 rounded-md px-3 text-[13px]' : 'h-10 rounded-lg px-3.5 text-small'} shrink-0 items-center gap-2 whitespace-nowrap border border-line bg-raised outline-none focus-visible:ring-2 focus-visible:ring-focus`
 
 const score = (domain) => getBrandView(domain).kpis.score
+// header selects: full width, 40px tall below lg; exactly the old h-8 trigger from lg
+const MOBILE_TRIGGER = `${triggerClass('sm')} max-lg:h-10 max-lg:w-full max-lg:rounded-lg max-lg:text-[14px] [&>svg:last-child]:max-lg:ml-auto`
 
 // Header dropdown: trigger like the other selects ("Prefix  Value ▾"), grouped listbox, optional footer.
 // ↓ opens; ↑/↓ move, Enter/Space pick, Esc closes and returns focus to the trigger.
 // groups: [{ label?, items: [{ id, label, short?, icon?, meta }] }] (short: the trigger's text, if shorter); prefix optional (aria-label falls back to listLabel);
 // showIcon puts the current item's icon in the trigger; align 'left' opens the menu from the trigger's left edge.
 // triggerClassName replaces the trigger's size / shape classes (e.g. to match a toolbar's h-9 selects).
-export function MenuSelect({ prefix = '', value, onChange, groups, footer, title, listLabel, showIcon, align = 'right', triggerClassName }) {
+export function MenuSelect({ prefix = '', value, onChange, groups, footer, title, listLabel, showIcon, align = 'right', triggerClassName, className = '' }) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const wrap = useRef(null)
@@ -50,7 +52,7 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
   }
 
   return (
-    <div ref={wrap} className="relative">
+    <div ref={wrap} className={`relative ${className}`}>
       <button
         ref={trigger}
         type="button"
@@ -75,7 +77,7 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
           aria-label={listLabel}
           aria-activedescendant={`${uid}-opt-${active}`}
           onKeyDown={onKey}
-          className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full z-30 mt-1 w-64 rounded-lg border border-line bg-raised p-1 shadow-md outline-none`}
+          className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full z-30 mt-1 w-64 max-lg:left-0 max-lg:right-0 max-lg:w-auto rounded-lg border border-line bg-raised p-1 shadow-md outline-none`}
         >
           {groups.map((g, gi) => (
             <div key={g.label ?? gi} role="group" aria-label={g.label}>
@@ -129,9 +131,10 @@ export default function PageHeader() {
   return (
     // mb-2: with the page gap-4 this gives header → KPI row = 24px
     <div className="mb-2">
-      <div className="flex items-start justify-between gap-6">
+      {/* phones / tablets: title, subtitle, then the two filters full width (one row each) */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div className="min-w-0">
-          <h1 className="text-h1 font-semibold text-stone-900">Visibility Overview</h1>
+          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Visibility Overview</h1>
           {/* the only competitor-view indicator: same line, same height */}
           <p className="mt-1 text-body font-normal text-stone-600">
             {isOwnBrand ? (
@@ -145,12 +148,17 @@ export default function PageHeader() {
               </>
             )}
           </p>
+          <p className="mt-1 inline-flex items-center gap-1.5 text-[13px] leading-[18px] text-stone-600 lg:hidden">
+            <span className="h-2 w-2 rounded-full bg-ink" /> {tracking.syncing ? 'Syncing…' : `Updated ${fmtDay(tracking.schedule.lastSync)}`}
+          </p>
         </div>
-        <div className="relative flex shrink-0 items-center gap-2.5 pt-1">
+        <div className="relative flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:gap-2.5 lg:pt-1">
           {/* engine filter chip sits just above the KPI row's right edge; absolute, so nothing shifts */}
-          <PlatformFilterPill className="absolute right-0 top-full mt-1.5" />
-          <MenuSelect prefix="Engine" value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" footer="Filters every card to answers from this engine." />
+          <PlatformFilterPill className="self-start lg:absolute lg:right-0 lg:top-full lg:mt-1.5" />
+          <MenuSelect prefix="Engine" value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" footer="Filters every card to answers from this engine."
+            className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER} />
           <MenuSelect
+            className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER}
             prefix="Viewing as"
             value={focal.domain}
             onChange={setView}
@@ -159,7 +167,7 @@ export default function PageHeader() {
             title="See the dashboard from a competitor’s point of view"
           />
           {/* from the tracking store, so a sync on /tracking or /brands shows here too */}
-          <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[13px] leading-[18px] font-normal text-stone-600">
+          <span className="hidden items-center gap-1.5 whitespace-nowrap text-[13px] leading-[18px] font-normal text-stone-600 lg:inline-flex">
             <span className="h-2 w-2 rounded-full bg-ink" /> {tracking.syncing ? 'Syncing…' : `Updated ${fmtDay(tracking.schedule.lastSync)}`}
           </span>
         </div>

@@ -38,6 +38,7 @@ const promptCol = ({ tagNew }) => ({
   key: 'prompt',
   label: 'Prompt',
   skeleton: '60%',
+  mobileText: (r) => r.prompt,
   sort: { value: (r) => r.prompt.toLowerCase(), first: 'asc' },
   cell: (r) => (
     <div className="flex min-w-0 items-center">
@@ -80,6 +81,7 @@ const answerKey = (r) => (typeof r.id === 'number' ? `v${r.id}` : r.id)
 const actionCol = (label, icon) => ({
   key: 'action',
   label: '',
+  mobile: false, // phones: the row tap opens the answer
   width: 148, // spec 120; 'View answer ↗' needs 148 incl. padding
   align: 'right',
   skeleton: '90px',
@@ -116,6 +118,7 @@ export function VisiblePromptsTable() {
       csvName={isOwnBrand ? 'visible-prompts.csv' : `${focal.key}-visible-prompts.csv`}
       loading={loading}
       defaultSort={{ key: 'firstVisible', dir: 'desc' }}
+      mobileRowClick={(r, el) => openAnswer({ key: answerKey(r), list: rows.map(answerKey), opener: el })}
       columns={[promptCol({ tagNew: isOwnBrand }), foundInCol, firstVisibleCol, actionCol('View answer', ArrowUpRight)]}
     />
   )

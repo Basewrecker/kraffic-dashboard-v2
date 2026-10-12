@@ -134,7 +134,7 @@ function MarketplaceCard() {
           aria-label={`Marketplace segments: ${segs.find((s) => s.key === selectedKey).label} selected. Use the arrow keys to change.`}
           onKeyDown={onDonutKey}
           onMouseLeave={() => preview(null)}
-          className="relative h-[128px] w-[128px] shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-4"
+          className="relative h-[128px] w-[128px] shrink-0 rounded-full max-sm:mx-auto outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-4"
         >
           <PieChart width={128} height={128} className="cursor-pointer">
             <RPie
@@ -189,7 +189,7 @@ function MarketplaceCard() {
         </div>
 
         {/* all panels share one grid cell, so the card is always as tall as the tallest panel */}
-        <div className="grid min-w-[200px] flex-1" aria-live="polite">
+        <div className="grid min-w-[200px] flex-1 max-sm:w-full" aria-live="polite">
           {segs.map((s) => {
             const on = activeKey === s.key
             return (

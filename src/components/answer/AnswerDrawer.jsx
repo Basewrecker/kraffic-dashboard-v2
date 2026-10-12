@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useIsMobile } from '../../hooks/useMedia'
 import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
 import { ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronUp, Hash, Minus, Plus, X } from 'lucide-react'
 import Segmented from '../dashboard/Segmented'
@@ -130,7 +131,7 @@ function SourceRow({ s, prompt, own }) {
         <SiteLogo domain={s.domain} name={brandName(s.domain)} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" />
         <span className={`shrink-0 text-[14px] leading-5 ${own ? 'font-semibold text-ink' : 'font-medium text-stone-900'}`}>{brandName(s.domain)}</span>
         <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] text-stone-500">{cleanPath(s.path, prompt)}</span>
-        <ArrowUpRight size={14} className="shrink-0 text-stone-500 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
+        <ArrowUpRight size={14} className="shrink-0 text-stone-500 opacity-0 transition-opacity duration-150 group-hover:opacity-100 touch:opacity-100 group-focus-visible:opacity-100" aria-hidden />
       </a>
     </li>
   )
@@ -221,7 +222,7 @@ function ChangeRow({ kind, logo, name, meta, href }) {
         <span className={`shrink-0 text-[14px] leading-5 font-medium ${added ? 'text-stone-900' : 'text-stone-600'}`}>{name}</span>
         {meta && <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] text-stone-500">{meta}</span>}
         <span className={`ml-auto shrink-0 text-[12px] leading-4 ${added ? 'font-medium text-stone-900' : 'text-stone-500'}`}>{added ? 'Added' : 'Dropped'}</span>
-        <ArrowUpRight size={14} className="shrink-0 text-stone-500 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
+        <ArrowUpRight size={14} className="shrink-0 text-stone-500 opacity-0 transition-opacity duration-150 group-hover:opacity-100 touch:opacity-100 group-focus-visible:opacity-100" aria-hidden />
       </a>
     </li>
   )
@@ -351,6 +352,22 @@ function FullAnswers({ cur, prev, focalName }) {
   const keys = [...new Set([...a.keys(), ...b.keys()])].sort((x, y) => parseFloat(x) - parseFloat(y) || (x.endsWith('h') ? -1 : 1))
   const same = (x = [], y = []) => x.map((u) => u.text).join('|') === y.map((u) => u.text).join('|')
   const text = 'text-[14px] leading-[1.6] text-stone-900'
+  // phones: one version at a time behind a [Oct 5 | Sep 16] toggle; changed sections stay tinted
+  const mobile = useIsMobile()
+  const [side, setSide] = useState('cur')
+  if (mobile) {
+    const units = side === 'cur' ? a : b
+    return (
+      <div>
+        <Segmented full label="Answer version" value={side} onChange={setSide} options={[{ value: 'cur', label: short(cur.date) }, { value: 'prev', label: short(prev.date) }]} />
+        <div className="mt-3 flex flex-col gap-1">
+          {keys.map((k) => (
+            <div key={k} className={`rounded-md px-2 py-1.5 ${!same(a.get(k), b.get(k)) ? 'bg-[var(--tint)]' : ''}`}><BlockText units={units.get(k) ?? []} focalName={focalName} className={text} /></div>
+          ))}
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="grid grid-cols-2 gap-x-4">
       {[short(cur.date), short(prev.date)].map((d) => (
@@ -377,7 +394,7 @@ function ChangesTab({ a, prevDate, setPrevDate, focalDomain, focalName, state, s
 
   return (
     <div>
-      <div className="flex h-9 items-center justify-between gap-3 pt-0">
+      <div className="flex min-h-9 flex-wrap items-center justify-between gap-3 pt-0">
         <div className="flex items-center gap-2 text-[13px] leading-[18px] text-stone-600">
           {short(a.date)} vs
           <span className="relative inline-flex">

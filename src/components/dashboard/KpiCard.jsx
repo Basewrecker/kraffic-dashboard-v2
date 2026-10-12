@@ -13,22 +13,22 @@ export default function KpiCard({ label, icon: Icon, tone, children, footer, lin
   return (
     <Card
       {...(interactive && { role: 'link', tabIndex: 0, onClick: onOpen, onKeyDown, 'aria-label': `${label}: ${link}` })}
-      className={`group flex h-full min-h-[148px] flex-col p-5 ${
+      className={`group flex h-full flex-col p-4 md:p-5 lg:min-h-[148px] ${
         interactive ? 'cursor-pointer outline-none transition-[border-color,box-shadow] duration-150 ease-out hover:border-[var(--color-line-strong)] hover:shadow-sm focus-visible:ring-2 focus-visible:ring-focus' : ''
       }`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="pt-1.5 text-body font-medium text-stone-600">{label}</div>
-        {Icon && <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${tone.bg} ${tone.fg}`} aria-hidden><Icon size={16} /></span>}
+        <div className="pt-1.5 text-[12px] leading-4 font-medium text-stone-600 md:text-body">{label}</div>
+        {Icon && <span className={`hidden h-8 w-8 shrink-0 md:grid place-items-center rounded-lg ${tone.bg} ${tone.fg}`} aria-hidden><Icon size={16} /></span>}
       </div>
       <div className="mt-1">{children}</div>
       {interactive ? (
-        <div className="mt-auto inline-flex items-center gap-1 pt-4 text-[13px] leading-[18px] font-medium text-stone-600 transition-colors duration-150 ease-out group-hover:text-ink group-focus-visible:text-ink">
+        <div className="mt-auto inline-flex min-h-6 items-center gap-1 pt-3 text-[12px] leading-4 md:pt-4 md:text-[13px] md:leading-[18px] font-medium text-stone-600 transition-colors duration-150 ease-out group-hover:text-ink group-focus-visible:text-ink">
           {link}
           <ArrowRight size={14} className="transition-transform duration-150 ease-out group-hover:translate-x-0.5 group-focus-visible:translate-x-0.5 motion-reduce:transition-none" aria-hidden />
         </div>
       ) : (
-        footer && <div className="mt-auto pt-4 text-small font-normal text-stone-500">{footer}</div>
+        footer && <div className="mt-auto pt-3 text-[12px] leading-4 font-normal text-stone-500 md:pt-4 md:text-small">{footer}</div>
       )}
     </Card>
   )

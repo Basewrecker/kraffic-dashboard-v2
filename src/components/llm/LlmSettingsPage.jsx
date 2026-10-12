@@ -96,18 +96,19 @@ export default function LlmSettingsPage() {
   return (
     // settings read better narrow: labels stay close to their controls
     <div className="mx-auto flex w-full max-w-[880px] flex-col gap-4 pt-2">
-      <div className="mb-2 flex flex-wrap items-start justify-between gap-4">
+      <div className="mb-2 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-4">
         <div>
-          <h1 className="text-[28px] leading-9 font-semibold text-stone-900">Tracking</h1>
-          <p className="mt-1 text-[14px] leading-5 text-stone-600">How Kraffic checks AI answers for {account.domain}</p>
+          <h1 className="text-[22px] leading-7 font-semibold text-stone-900 lg:text-[28px] lg:leading-9">Tracking</h1>
+          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">How Kraffic checks AI answers for {account.domain}</p>
+          <p className="mt-1 text-[13px] leading-[18px] text-stone-500 tabular-nums md:hidden">{t.syncing ? 'Syncing…' : `Updated ${fmtDay(t.schedule.lastSync)}`}</p>
         </div>
-        <div className="flex items-center gap-3 pt-1">
-          <span className="text-[13px] leading-[18px] text-stone-600 tabular-nums">{t.syncing ? 'Syncing…' : `Updated ${fmtDay(t.schedule.lastSync)}`}</span>
+        <div className="flex items-center gap-3 md:pt-1">
+          <span className="hidden text-[13px] leading-[18px] text-stone-600 tabular-nums md:inline">{t.syncing ? 'Syncing…' : `Updated ${fmtDay(t.schedule.lastSync)}`}</span>
           <button
             type="button"
             onClick={syncNow}
             disabled={t.syncing}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-small font-medium text-stone-700 outline-none transition-colors duration-150 ease-out hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-small font-medium text-stone-700 max-md:flex-1 md:h-9 outline-none transition-colors duration-150 ease-out hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-60"
           >
             <RefreshCw size={14} className={t.syncing ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />
             Sync now

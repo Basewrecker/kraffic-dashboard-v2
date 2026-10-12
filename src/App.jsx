@@ -34,19 +34,20 @@ function DashboardPage() {
           <PageHeader />
           <KpiRow />
           {/* equal-height rows: cards are h-full flex-col, bodies flex-1, insight footers mt-auto */}
-          <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
             <VisibilityHistory />
             <PromptCoverage />
           </div>
-          <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-2">
             <CitationsMentions />
             <MarketplaceVisibility />
           </div>
-          <VisiblePromptsTable />
-          <MissedPromptsTable />
-          <CompetitorPromptsTable />
-          <MarketplacePrompts />
-          <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+          {/* phones / tablets reorder (desktop keeps this order): … Sync history → Top cited pages → Prompt mix → the other tables */}
+          <div className="max-lg:order-3"><VisiblePromptsTable /></div>
+          <div className="max-lg:order-4"><MissedPromptsTable /></div>
+          <div className="max-lg:order-2"><CompetitorPromptsTable /></div>
+          <div className="max-lg:order-5"><MarketplacePrompts /></div>
+          <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-2 max-lg:order-1">
             <SyncHistory />
             <TopCitedPages />
           </div>

@@ -80,7 +80,7 @@ export default function TopCitedPages() {
         subtitle={`${isOwnBrand ? 'Your' : `${focal.name}`} URLs that AI answers cite · ${total} citations`}
         right={(
           <button type="button" onClick={openAll} aria-label={`All ${citedAll.length} cited pages`}
-            className="inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus tabular-nums">
+            className="inline-flex shrink-0 items-center whitespace-nowrap gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus tabular-nums">
             All {citedAll.length} <ArrowRight size={14} aria-hidden />
           </button>
         )}
@@ -101,7 +101,7 @@ export default function TopCitedPages() {
                 >
                   {/* fills its column so the path truncates; underline sits on the text only */}
                   <span className="truncate underline-offset-4 group-hover/link:underline">{p.path}</span>
-                  <ArrowUpRight size={12} className="shrink-0 text-stone-500 opacity-0 transition-opacity duration-150 group-hover/link:opacity-100 group-focus-visible/link:opacity-100" aria-hidden />
+                  <ArrowUpRight size={12} className="shrink-0 text-stone-500 opacity-0 transition-opacity duration-150 group-hover/link:opacity-100 touch:opacity-100 group-focus-visible/link:opacity-100" aria-hidden />
                 </a>
                 <span className="flex items-center justify-end gap-1">
                   {p.platforms.map((x) => <span key={x} title={platformNames[x]} className="flex"><PlatformIcon id={iconId(x)} size={14} /></span>)}
@@ -114,7 +114,7 @@ export default function TopCitedPages() {
               <li className={`${ROW} h-11`} {...hl(explain, 'page:other', { row: true })}>
                 <button type="button" onClick={openAll} className="group/other flex min-w-0 items-center gap-1 rounded text-left text-[14px] leading-5 text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">
                   <span className="truncate">{other.label}</span>
-                  <ArrowRight size={12} className="shrink-0 opacity-0 transition-opacity duration-150 group-hover/other:opacity-100 group-focus-visible/other:opacity-100" aria-hidden />
+                  <ArrowRight size={12} className="shrink-0 opacity-0 transition-opacity duration-150 group-hover/other:opacity-100 touch:opacity-100 group-focus-visible/other:opacity-100" aria-hidden />
                 </button>
                 <span />
                 <span className="text-right text-[14px] leading-5 font-semibold text-ink tabular-nums">{other.count}</span>
@@ -137,7 +137,7 @@ export default function TopCitedPages() {
                     <button
                       type="button"
                       onClick={() => showPromptSets(u.keys, `Relevant to ${u.path}`)}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[13px] leading-[18px] font-medium text-stone-600 opacity-0 outline-none transition-[opacity,color] duration-150 hover:text-ink focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-focus group-hover:opacity-100"
+                      className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[13px] leading-[18px] font-medium text-stone-600 opacity-0 outline-none transition-[opacity,color] duration-150 hover:text-ink focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-focus group-hover:opacity-100 touch:opacity-100"
                     >
                       View prompts <ArrowRight size={14} aria-hidden />
                     </button>

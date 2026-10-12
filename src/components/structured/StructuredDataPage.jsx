@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, AlertTriangle, ArrowRight, Braces, Check, ChevronDown, ChevronRight, CircleDashed, Copy, Info, Plus, RefreshCw, Share2, X, XCircle } from 'lucide-react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useIsMobile } from '../../hooks/useMedia'
+import { AlertCircle, AlertTriangle, ArrowRight, Braces, Check, ChevronDown, ChevronRight, CircleDashed, Copy, Download, FileText, Info, Plus, RefreshCw, Share2, X, XCircle } from 'lucide-react'
 import Card from '../dashboard/Card'
 import PromptTable from '../dashboard/PromptTable'
 import Segmented from '../dashboard/Segmented'
@@ -7,6 +8,7 @@ import Modal from '../ui/Modal'
 import { useToast } from '../dashboard/overlays'
 import { downloadCsv } from '../dashboard/csv'
 import ActionMenu from '../audit/ActionMenu'
+import MobileActions from '../ui/MobileActions'
 import { ImpactMeter, RowIcon, ViewFix, openDrawer, rowBtn, setParams, useTab } from '../audit/parts'
 import SchemaDrawer, { setSchemaSection } from './SchemaDrawer'
 import SettingsTab from './SettingsTab'
@@ -37,6 +39,8 @@ const Bar = ({ value, className = 'h-1.5 w-full' }) => (
 export default function StructuredDataPage() {
   useEffect(() => { document.title = 'Structured Data · Kraffic' }, [])
   const [tab, setTab, q] = useTab(TAB_IDS)
+  const tabsRef = useRef(null)
+  useEffect(() => { tabsRef.current?.querySelector('[aria-selected=true]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [tab])
   const scope = q.get('scope') === 'page' ? 'page' : 'site'
   const url = q.get('url') ?? ''
   const page = scope === 'page' && url ? pageFor(url) : null
@@ -85,42 +89,52 @@ export default function StructuredDataPage() {
 
   return (
     <>
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.02em] text-stone-900">Structured Data</h1>
+            <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Structured Data</h1>
             <button type="button" onClick={() => setHowOpen(true)} aria-label="How this analysis works" title="How this analysis works"
               className="grid h-7 w-7 place-items-center rounded-md text-stone-500 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
               <Info size={16} aria-hidden />
             </button>
           </div>
-          <p className="mt-1 text-[14px] leading-5 text-stone-600">Which schemas Google and AI engines can read · detected as {SD.detected.join(', ')}</p>
+          <p className="mt-1 line-clamp-2 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Which schemas Google and AI engines can read · detected as {SD.detected.join(', ')}</p>
+          <p className={`mt-1 text-[13px] leading-[18px] ${t3} tabular-nums lg:hidden`}>{running ? 'Running…' : `${PAGE_COUNT} pages · last run ${lastRun}`}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 pt-1">
-          <span className={`mr-1 whitespace-nowrap text-[13px] leading-[18px] ${t3} tabular-nums`}>{running ? 'Running…' : `${PAGE_COUNT} pages · last run ${lastRun}`}</span>
-          <ActionMenu label="Export" items={[{ label: 'CSV', onClick: exportCsv }, { label: 'Client report', onClick: exportReport }]} className={lineBtn}>
-            Export <ChevronDown size={14} className="text-stone-500" aria-hidden />
-          </ActionMenu>
-          <button type="button" onClick={share} className={lineBtn}><Share2 size={14} aria-hidden />Share</button>
-          <button type="button" onClick={rerun} disabled={running} className={inkBtn}>
+        <div className="flex shrink-0 items-center gap-2 lg:pt-1">
+          <span className={`mr-1 hidden whitespace-nowrap lg:inline text-[13px] leading-[18px] ${t3} tabular-nums`}>{running ? 'Running…' : `${PAGE_COUNT} pages · last run ${lastRun}`}</span>
+          <span className="hidden items-center gap-2 lg:flex">
+            <ActionMenu label="Export" items={[{ label: 'CSV', onClick: exportCsv }, { label: 'Client report', onClick: exportReport }]} className={lineBtn}>
+              Export <ChevronDown size={14} className="text-stone-500" aria-hidden />
+            </ActionMenu>
+            <button type="button" onClick={share} className={lineBtn}><Share2 size={14} aria-hidden />Share</button>
+          </span>
+          <button type="button" onClick={rerun} disabled={running} className={`${inkBtn} justify-center max-lg:h-10 max-lg:flex-1`}>
             <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />Re-run
           </button>
+          <MobileActions items={[
+            { label: 'Export CSV', icon: Download, onClick: exportCsv },
+            { label: 'Client report', icon: FileText, onClick: exportReport },
+            { label: 'Share link', icon: Share2, onClick: share },
+          ]} />
         </div>
       </div>
 
       {/* tabs, with the scope toggle on the same row (right) */}
-      <div className="mt-2 flex items-end justify-between gap-4 border-b border-line">
-      <div role="tablist" aria-label="Structured Data" onKeyDown={tabKeys} className="flex gap-6">
+      {/* phones: tabs scroll sideways edge to edge; the scope toggle gets its own row under them */}
+      <div className="mt-2 flex items-end justify-between gap-4 border-b border-line max-md:-mx-4 max-md:px-4">
+      <div role="tablist" aria-label="Structured Data" onKeyDown={tabKeys} ref={tabsRef} className="no-scrollbar flex snap-x gap-6 overflow-x-auto max-md:-mr-4 max-md:pr-4">
         {tabs.map(([id, label]) => (
           <button key={id} data-sd-tab={id} type="button" role="tab" id={`sd-tab-${id}`} aria-controls="sd-panel" aria-selected={tab === id} tabIndex={tab === id ? 0 : -1}
             onClick={() => setTab(id, { set: null, status: null, type: null })}
-            className={`-mb-px inline-flex h-10 items-center gap-1.5 border-b-2 text-[14px] leading-5 font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${tab === id ? 'border-ink text-stone-900' : 'border-transparent text-stone-600 hover:text-stone-900'}`}>
+            className={`-mb-px inline-flex h-11 shrink-0 snap-start items-center gap-1.5 whitespace-nowrap border-b-2 text-[14px] leading-5 font-medium outline-none md:h-10 transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${tab === id ? 'border-ink text-stone-900' : 'border-transparent text-stone-600 hover:text-stone-900'}`}>
             {label}{counts[id] != null && <span className="text-[13px] leading-[18px] font-normal text-stone-500 tabular-nums">{counts[id]}</span>}
           </button>
         ))}
       </div>
-        <div className="mb-1 shrink-0"><ScopeToggle scope={scope} url={url} /></div>
+        <div className="mb-1 hidden shrink-0 md:block"><ScopeToggle scope={scope} url={url} /></div>
       </div>
+      <div className="md:hidden"><ScopeToggle scope={scope} url={url} full /></div>
       {scope === 'page' && <UrlRow url={url} error={page?.error} />}
 
       <div id="sd-panel" role="tabpanel" aria-labelledby={`sd-tab-${tab}`} className="mt-2 flex flex-col gap-4">
@@ -144,12 +158,12 @@ export default function StructuredDataPage() {
 }
 
 // ---- scope: whole site, or one page typed in (the toggle sits on the tabs row; the URL row opens under the tabs)
-function ScopeToggle({ scope, url }) {
+function ScopeToggle({ scope, url, full = false }) {
   const setScope = (v) => {
     setParams({ scope: v === 'page' ? 'page' : null, url: v === 'page' ? url || null : null })
     if (v === 'page') requestAnimationFrame(() => document.getElementById('sd-url')?.focus())
   }
-  return <Segmented size="sm" label="Scope" value={scope} onChange={setScope} options={[{ value: 'site', label: 'Whole site' }, { value: 'page', label: 'One page' }]} />
+  return <Segmented size={full ? 'md' : 'sm'} full={full} label="Scope" value={scope} onChange={setScope} options={[{ value: 'site', label: 'Whole site' }, { value: 'page', label: 'One page' }]} />
 }
 function UrlRow({ url, error }) {
   const [draft, setDraft] = useState(url)
@@ -180,8 +194,6 @@ function Kpi({ label, children, first }) {
 const Big = ({ children }) => <span className="text-[32px] leading-10 font-semibold text-stone-900 tabular-nums">{children}</span>
 const cardTitle = 'text-[15px] leading-5 font-semibold text-stone-900'
 const linkCls = 'inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus'
-// What to do next: [icon] Action · Schema · Pages · Impact · ›
-const NEXT_COLS = 'grid grid-cols-[20px_minmax(0,1fr)_140px_80px_96px_16px] items-center gap-4'
 const actionOf = (s) => s.action ?? (s.kind === 'fix' ? `Fix ${s.name}` : `Add ${s.name} schema`)
 // "Affects 4 pages · Product pages" / "Missing on 8 pages · Product pages"
 const whereLine = (s) => [pagesLine(s), s.kinds.join(', ')].filter(Boolean).join(' · ')
@@ -205,14 +217,12 @@ const RecIcon = ({ s }) => (
 
 function Overview({ r, setTab, site }) {
   const prev = SD.previous
-  const pending = usePending()
-  const next = [...r.fix, ...r.toAdd].slice(0, 4) // Fix items first
   const reqPct = r.required.total ? Math.round((r.required.valid * 100) / r.required.total) : null
   return (
     <>
       {/* KPI strip: numbers and how they moved since the last run */}
       <Card className="p-5">
-        <div className="grid grid-cols-2 gap-y-4 md:grid-cols-4 md:divide-x md:divide-[var(--div)]">
+        <div className="kpi-grid grid grid-cols-2 gap-y-4 md:grid-cols-4 md:divide-x md:divide-[var(--div)]">
           <Kpi label="Required schemas" first>
             <Big>{reqPct == null ? '—' : `${reqPct}%`}</Big>
             <div className="mt-1 text-[13px] leading-[18px] tabular-nums">{reqPct == null ? <span className={t3}>None apply here</span> : site ? <Change now={reqPct} before={prev.required} /> : <span className={t2}>{r.required.valid} of {r.required.total} valid</span>}</div>
@@ -236,47 +246,132 @@ function Overview({ r, setTab, site }) {
         </div>
       </Card>
 
-      <Card className="flex min-w-0 flex-col p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className={cardTitle}>What to do next</h2>
-            <button type="button" onClick={() => setTab('recommendations')} className={linkCls}>View all <ArrowRight size={14} aria-hidden /></button>
-          </div>
-          {next.length === 0 ? (
-            <p className="mt-3 flex h-12 items-center gap-2 text-[14px] leading-5 text-stone-900"><Check size={16} className="text-ink" aria-hidden />Everything required is in place.</p>
-          ) : (
-            <div className="mt-3">
-              <div className={`${NEXT_COLS} h-8 border-b border-[var(--div)] px-2 text-[12px] leading-4 font-medium ${t3}`} aria-hidden>
-                <span /><span>Action</span><span>Schema</span><span className="text-right">Pages</span><span className="text-right">Impact</span><span />
-              </div>
-              <ul>
-                {next.map((s) => {
-                  const n = s.affected.length
-                  return (
-                    <li key={s.id} className="border-b border-[var(--div)] last:border-0">
-                      {/* the whole row is the button */}
-                      <button type="button" onClick={() => openSchema(s.id)} aria-label={`${actionOf(s)}. ${s.kind === 'fix' ? s.type : s.name}, ${n} pages, ${s.impact} impact`}
-                        className={`${NEXT_COLS} h-12 w-full px-2 text-left outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus`}>
-                        {s.kind === 'fix'
-                          ? (s.level === 'error' ? <AlertCircle size={16} className="text-negative" aria-hidden /> : <AlertTriangle size={16} className="text-stone-600" aria-hidden />)
-                          : <Plus size={16} className="text-stone-500" aria-hidden />}
-                        <span className="truncate text-[14px] leading-5 font-medium text-stone-900" title={actionOf(s)}>{actionOf(s)}</span>
-                        <span className={`truncate text-[13px] leading-[18px] ${t3}`}>{s.kind === 'fix' ? s.type : s.name}</span>
-                        <span className={`text-right text-[13px] leading-[18px] ${t2} tabular-nums`}>{pending.has(s.id) ? 'Pending' : `${n} ${n === 1 ? 'page' : 'pages'}`}</span>
-                        <span className={`text-right text-[13px] leading-[18px] ${s.impact === 'high' ? 'font-medium text-ink' : s.impact === 'medium' ? t2 : t3}`}>{s.impact[0].toUpperCase() + s.impact.slice(1)}</span>
-                        <ChevronRight size={14} className="text-stone-500" aria-hidden />
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )}
-      </Card>
+      <ActionPlan r={r} setTab={setTab} />
 
       <CoverageMap r={r} />
 
       <SchemaStatus r={r} setTab={setTab} />
     </>
+  )
+}
+
+// ---- What to do next: a numbered plan. Fix items first, each group ordered by impact ÷ effort (quick wins first).
+// Tick a step's number to mark it done (kept in this browser); done steps sink to the end.
+const PLAN_STEPS = 4
+const DONE_KEY = `kraffic:structured-data:done:${SD.domain}`
+const IMPACT_N = { high: 3, medium: 2, low: 1 }
+const fmtMin = (m) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} hr${m % 60 ? ` ${m % 60} min` : ''}`)
+const PAGE_WORD = { 'Product pages': 'product page', 'Blog posts': 'blog post', Collections: 'collection', Home: 'home page', Other: 'page' }
+const pagesPhrase = (s) => {
+  const n = s.affected.length
+  const word = s.kinds.length === 1 ? PAGE_WORD[s.kinds[0]] ?? 'page' : 'page'
+  return `${n} ${word}${n === 1 ? '' : 's'}`
+}
+const readDone = () => { try { return new Set(JSON.parse(localStorage.getItem(DONE_KEY) ?? '[]')) } catch { return new Set() } }
+
+function ActionPlan({ r, setTab }) {
+  const [done, setDone] = useState(readDone)
+  const [toastNode, toast] = useToast({ position: 'center' })
+  const listRef = useRef(null)
+  const before = useRef(null) // row positions before a reorder (FLIP)
+  const score = (s) => IMPACT_N[s.impact] / (s.effort ?? 30)
+  const byScore = (a, b) => score(b) - score(a)
+  const plan = [...[...r.fix].sort(byScore), ...[...r.toAdd].sort(byScore)].slice(0, PLAN_STEPS)
+  const steps = [...plan.filter((s) => !done.has(s.id)), ...plan.filter((s) => done.has(s.id))]
+  const open = plan.filter((s) => !done.has(s.id))
+  const total = open.reduce((n, s) => n + (s.effort ?? 30), 0)
+  const all = r.fix.length + r.toAdd.length
+
+  // the rows below a newly done step slide up into place
+  useLayoutEffect(() => {
+    if (!before.current || !listRef.current) return
+    const prev = before.current
+    before.current = null
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    listRef.current.querySelectorAll('[data-step]').forEach((el) => {
+      const was = prev.get(el.dataset.step)
+      const now = el.getBoundingClientRect().top
+      if (was == null || was === now) return
+      el.style.transition = 'none'
+      el.style.transform = `translateY(${was - now}px)`
+      requestAnimationFrame(() => { el.style.transition = 'transform 220ms cubic-bezier(.2,.8,.2,1)'; el.style.transform = '' })
+    })
+  })
+  const toggle = (s) => {
+    before.current = new Map([...listRef.current.querySelectorAll('[data-step]')].map((el) => [el.dataset.step, el.getBoundingClientRect().top]))
+    const next = new Set(done)
+    const was = next.has(s.id)
+    was ? next.delete(s.id) : next.add(s.id)
+    setDone(next)
+    try { localStorage.setItem(DONE_KEY, JSON.stringify([...next])) } catch { /* private mode: this visit only */ }
+    if (!was) toast('Marked done · we’ll verify on the next run')
+  }
+
+  return (
+    <Card className="flex min-w-0 flex-col p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className={cardTitle}>What to do next</h2>
+          <p className={`mt-0.5 text-[13px] leading-[18px] ${t2} tabular-nums`}>
+            {open.length ? `${open.length} ${open.length === 1 ? 'step' : 'steps'} · about ${fmtMin(total)} total` : 'All done. We’ll verify on the next run.'}
+          </p>
+        </div>
+        <button type="button" onClick={() => setTab('recommendations')} className={`${linkCls} max-md:h-10`}>View all {all} <ArrowRight size={14} aria-hidden /></button>
+      </div>
+
+      <ol ref={listRef} className="mt-3 flex flex-col">
+        {steps.map((s, i) => {
+          const isDone = done.has(s.id)
+          const n = plan.indexOf(s) + 1
+          const status = s.kind === 'fix' ? (s.level === 'error' ? ['Error', 'text-negative'] : ['Warning', t2]) : ['Missing', t3]
+          const circle = s.impact === 'high' ? 'bg-ink text-[var(--color-surface)]' : s.impact === 'medium' ? 'border border-ink text-ink' : 'border border-line text-stone-500'
+          const impactCls = s.impact === 'high' ? 'font-semibold text-ink' : s.impact === 'medium' ? `font-semibold ${t2}` : `font-semibold ${t3}`
+          const impactWord = s.impact[0].toUpperCase() + s.impact.slice(1)
+          return (
+            <li key={s.id} data-step={s.id} className={`relative transition-opacity duration-200 ${isDone ? 'opacity-50' : ''}`}>
+              {/* the thread between the step circles */}
+              {i < steps.length - 1 && <span className="pointer-events-none absolute left-[25.5px] top-[calc(50%+14px)] h-[calc(100%-28px)] w-px bg-[var(--div)] max-md:left-[13.5px]" aria-hidden />}
+              <div role="button" tabIndex={0} onClick={() => openSchema(s.id)} onKeyDown={(e) => { if (e.key === 'Enter') openSchema(s.id) }}
+                aria-label={`Step ${n}: ${actionOf(s)}. ${impactWord} impact, ${fmtMin(s.effort ?? 30)}. Open fix`}
+                className="group/step -mx-3 grid min-h-16 cursor-pointer grid-cols-[28px_minmax(0,1fr)] items-center gap-4 rounded-lg px-3 py-2 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus max-md:mx-0 max-md:px-0 md:grid-cols-[28px_minmax(0,1fr)_auto]">
+                {/* the number; hover shows it's a checkbox */}
+                <button type="button" onClick={(e) => { e.stopPropagation(); toggle(s) }} aria-pressed={isDone} aria-label={isDone ? `Mark step ${n} not done` : `Mark step ${n} done`}
+                  className={`group/num relative grid h-7 w-7 place-items-center rounded-full text-[13px] leading-none font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-focus ${isDone ? 'bg-ink text-[var(--color-surface)]' : circle}`}>
+                  <span className={`transition-opacity duration-150 ${isDone ? 'opacity-0' : 'group-hover/num:opacity-0'}`}>{n}</span>
+                  <Check size={14} strokeWidth={2.5} className={`absolute transition-opacity duration-150 ${isDone ? 'opacity-100' : 'opacity-0 group-hover/num:opacity-100'}`} aria-hidden />
+                </button>
+                <div className="min-w-0">
+                  <div className={`truncate text-[14px] leading-5 font-medium ${isDone ? `line-through ${t3}` : 'text-stone-900'}`} title={actionOf(s)}>{actionOf(s)}</div>
+                  <div className={`mt-1 flex min-w-0 items-center gap-2 text-[13px] leading-[18px] ${t3}`}>
+                    <code className="inline-flex h-5 shrink-0 items-center rounded bg-tint px-1.5 font-mono text-[12px] text-stone-700">{s.kind === 'fix' ? s.type : s.name}</code>
+                    <span aria-hidden>·</span><span className="truncate tabular-nums">{pagesPhrase(s)}</span>
+                    <span aria-hidden>·</span><span className={`shrink-0 ${status[1]}`}>{status[0]}</span>
+                  </div>
+                  {/* phones: the right cluster as one meta line */}
+                  <div className={`mt-0.5 text-[13px] leading-[18px] ${t2} md:hidden tabular-nums`}><span className={s.impact === 'high' ? 'font-medium text-ink' : ''}>{impactWord} impact</span> · {fmtMin(s.effort ?? 30)}</div>
+                </div>
+                <div className="hidden items-center gap-6 md:flex">
+                  <div className="w-20">
+                    <div className={`text-[11px] leading-4 font-medium ${t3}`}>Impact</div>
+                    <div className={`text-[13px] leading-[18px] ${impactCls}`}>{impactWord}</div>
+                  </div>
+                  <div className="w-20">
+                    <div className={`text-[11px] leading-4 font-medium ${t3}`}>Effort</div>
+                    <div className={`text-[13px] leading-[18px] ${t2} tabular-nums`}>{fmtMin(s.effort ?? 30)}</div>
+                  </div>
+                  <div className="flex w-24 justify-end">
+                    <span className="inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg px-0 text-[13px] leading-[18px] font-medium text-ink transition-[background-color,color,padding] duration-150 group-hover/step:bg-ink group-hover/step:px-3 group-hover/step:text-on-ink">
+                      Open fix <ArrowRight size={14} aria-hidden />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+      {toastNode}
+    </Card>
   )
 }
 
@@ -328,6 +423,8 @@ function MapCell({ c, short, group }) {
 
 function CoverageMap({ r }) {
   const settings = useSettings()
+  // phones: the matrix scrolls sideways under a sticky first column; the hint goes once you've scrolled
+  const [scrolled, setScrolled] = useState(false)
   const groups = groupPages(settings.pageTypes, r.list).filter((g) => g.pages.length)
   const cells = groups.map((g) => MAP_COLS.map(([id, short]) => ({ id, short, ...r.cellFor(id, g.pages) })))
   // biggest gap: the cell with the most pages missing the schema
@@ -336,24 +433,25 @@ function CoverageMap({ r }) {
   return (
     <Card className="min-w-0 p-5">
       <h2 className={cardTitle}>Coverage map</h2>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[760px] table-fixed border-collapse">
+      <div className="no-scrollbar mt-4 overflow-x-auto max-md:-mx-4" onScroll={(e) => setScrolled(e.currentTarget.scrollLeft > 4)}>
+        <table className="w-full min-w-[600px] table-fixed border-collapse md:min-w-[760px]">
           <thead>
             <tr className="h-10 border-b border-[var(--div)]">
-              <th className="w-44 text-left"><span className="sr-only">Page type</span></th>
-              {MAP_COLS.map(([id, short]) => <th key={id} scope="col" className="min-w-[88px] text-center text-[13px] leading-[18px] font-medium text-stone-600">{short}</th>)}
+              <th className="sticky left-0 z-10 w-36 bg-surface text-left md:static md:w-44"><span className="sr-only">Page type</span></th>
+              {MAP_COLS.map(([id, short]) => <th key={id} scope="col" className="w-16 text-center text-[13px] leading-[18px] font-medium text-stone-600 md:w-auto md:min-w-[88px]">{short}</th>)}
             </tr>
           </thead>
           <tbody>
             {groups.map((g, gi) => (
               <tr key={g.id} className="h-11 border-b border-[var(--div)] transition-colors duration-150 last:border-0 hover:bg-[var(--tint)]">
-                <th scope="row" className="truncate pl-2 text-left text-[14px] leading-5 font-medium text-stone-900" title={`${g.name} · ${g.pages.length} ${g.pages.length === 1 ? 'page' : 'pages'}`}>{g.name}</th>
+                <th scope="row" className={`sticky left-0 z-10 truncate bg-surface pl-4 text-left text-[14px] leading-5 font-medium text-stone-900 transition-shadow duration-150 md:static md:bg-transparent md:pl-2 ${scrolled ? 'max-md:shadow-[6px_0_8px_-6px_rgb(0_0_0/0.18)]' : ''}`} title={`${g.name} · ${g.pages.length} ${g.pages.length === 1 ? 'page' : 'pages'}`}>{g.name}</th>
                 {cells[gi].map((c) => <td key={c.id} className="px-1"><MapCell c={c} short={c.short} group={g} /></td>)}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {!scrolled && <p className={`mt-2 text-[12px] leading-4 ${t3} md:hidden`}>Swipe to see more →</p>}
       <div className={`mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-[13px] leading-[18px] ${t2}`}>
         <ul className="flex flex-wrap items-center gap-x-5 gap-y-1">
           <li className="flex items-center gap-1.5"><Marker found={1} applies={1} size={14} />All pages</li>
@@ -380,6 +478,7 @@ const pagesOf = (x) => (x.status === 'invalid' ? x.invalid.length : x.status ===
 const TABLE_ROWS = 7 // fits beside the ring column
 
 function SchemaStatus({ r, setTab }) {
+  const mobile = useIsMobile()
   const rank = (a, b) => IMP_ORDER[a.importance] - IMP_ORDER[b.importance] || pagesOf(b) - pagesOf(a)
   const by = Object.fromEntries(GROUPS.map((g) => [g.st, r.rows.filter((x) => x.status === g.st).sort(rank)]))
   const ring = GROUPS.flatMap((g) => by[g.st]) // clockwise from 12 o'clock
@@ -421,12 +520,13 @@ function SchemaStatus({ r, setTab }) {
 
       <div className="mt-4 grid grid-cols-1 items-start gap-10 lg:grid-cols-[280px_1fr]">
         <div className="flex flex-col items-center">
-          <SchemaRing ring={ring} hover={hover} setHover={setHover} pinnedId={pinned} legendGroup={legendGroup} onSelect={select} pagesOf={pagesOf} />
+          {/* phones: the ring drawn at 200px (the SVG keeps its padding for the pop-out) */}
+          <SchemaRing ring={ring} hover={hover} setHover={setHover} pinnedId={pinned} legendGroup={legendGroup} onSelect={select} pagesOf={pagesOf} size={mobile ? 250 : 280} />
           {/* the legend is the filter; hovering a row lifts its group in the ring */}
-          <ul className="mt-5 w-full" role="radiogroup" aria-label="Show schemas">
+          <ul className="mt-5 grid w-full grid-cols-2 gap-1 md:block" role="radiogroup" aria-label="Show schemas">
             <li>
               <button type="button" role="radio" aria-checked={filter === 'issues'} onClick={() => toggle('issues')}
-                className={`flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${filter === 'issues' ? 'bg-[var(--tint)]' : 'hover:bg-[var(--tint)]'}`}>
+                className={`flex h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus md:h-9 ${filter === 'issues' ? 'bg-[var(--tint)]' : 'hover:bg-[var(--tint)]'}`}>
                 {/* half Invalid, half Missing */}
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: `linear-gradient(90deg, ${RING_COLORS.invalid} 50%, ${RING_COLORS.missing} 50%)` }} aria-hidden />
                 <span className="flex-1 text-[14px] leading-5 text-stone-900">All issues</span>
@@ -440,7 +540,7 @@ function SchemaStatus({ r, setTab }) {
                 <li key={g.st}>
                   <button type="button" role="radio" aria-checked={on} onClick={() => toggle(g.st)}
                     onMouseEnter={() => setLegendGroup(g.st)} onMouseLeave={() => setLegendGroup(null)} onFocus={() => setLegendGroup(g.st)} onBlur={() => setLegendGroup(null)}
-                    className={`flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on || lit ? 'bg-[var(--tint)]' : 'hover:bg-[var(--tint)]'}`}>
+                    className={`flex h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus md:h-9 ${on || lit ? 'bg-[var(--tint)]' : 'hover:bg-[var(--tint)]'}`}>
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: RING_COLORS[g.st] }} aria-hidden />
                     <span className="flex-1 text-[14px] leading-5 text-stone-900">{g.label}</span>
                     <span key={lit ? hovered.id : 'rest'} className={`text-[14px] leading-5 font-semibold text-stone-900 tabular-nums ${lit ? 'ring-motion motion-safe:animate-[count-pop_200ms_ease-out]' : ''}`}>{by[g.st].length}</span>
@@ -460,6 +560,40 @@ function SchemaStatus({ r, setTab }) {
             </h3>
             <button type="button" onClick={() => setTab('schemas', { status: null, set: null, type: null })} className={linkCls}>View all {r.rows.length} <ArrowRight size={14} aria-hidden /></button>
           </div>
+            {mobile ? (
+              <ul ref={tableRef} className="mt-2 divide-y divide-[var(--div)] border-t border-[var(--div)]">
+                {[...rows.map((x) => ({ x })), ...(nextUp.length ? [{ sub: nextLabel }] : []), ...nextUp.map((x) => ({ x }))].map(({ x, sub }) => {
+                  if (sub) return <li key="next-up" className={`flex h-8 items-end pb-1 text-[12px] leading-4 font-medium ${t3}`}>Next up · {sub}</li>
+                  const issue = x.status === 'invalid' ? x.error?.code ?? 'Invalid markup' : x.status === 'missing' ? 'Not added yet' : 'No issues'
+                  const where = (x.status === 'valid' ? '' : x.kinds.join(', ')) || x.usedOn
+                  return (
+                    <li key={x.id} data-row={x.id}>
+                      <button type="button" onClick={() => open(x)} className={`flex min-h-16 w-full items-start gap-3 py-3 text-left outline-none active:bg-tint focus-visible:bg-tint ${pinned === x.id ? 'bg-[var(--tint)]' : ''}`}>
+                        <span className="mt-0.5"><StatusIcon status={x.status} size={16} /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="truncate text-[14px] leading-5 font-medium text-stone-900">{x.name}</span>
+                            {x.importance === 'required' && <span className={`shrink-0 text-[11px] leading-4 font-medium ${t3}`}>Required</span>}
+                          </span>
+                          <span className={`mt-1 block text-[13px] leading-[18px] ${t2}`}>
+                            {x.status === 'invalid' ? <span className="font-mono text-[12.5px] text-stone-900">{issue}</span> : issue} · {where} · {pagesOf(x)} {pagesOf(x) === 1 ? 'page' : 'pages'} · {x.impact[0].toUpperCase() + x.impact.slice(1)}
+                          </span>
+                        </span>
+                        <ChevronRight size={14} className="mt-1 shrink-0 text-stone-500" aria-hidden />
+                      </button>
+                    </li>
+                  )
+                })}
+                {more && (
+                  <li>
+                    <button type="button" onClick={() => setTab('schemas', { status: filter === 'issues' ? null : filter, set: null, type: null })}
+                      className={`flex h-11 w-full items-center gap-1 text-left text-[13px] leading-[18px] font-medium ${t2} outline-none active:bg-tint`}>
+                      Show all {list.length} <ArrowRight size={14} aria-hidden />
+                    </button>
+                  </li>
+                )}
+              </ul>
+            ) : (
             <table ref={tableRef} className="mt-3 w-full table-fixed">
               <thead>
                 <tr className={`h-9 border-b border-[var(--div)] text-left text-[12px] leading-4 font-medium ${t3}`}>
@@ -497,7 +631,7 @@ function SchemaStatus({ r, setTab }) {
                       <td className={`truncate px-3 text-[13px] leading-[18px] ${t2}`} title={where}>{where}</td>
                       <td className="px-3 text-right text-[14px] leading-5 font-semibold text-stone-900 tabular-nums">{pagesOf(x)}</td>
                       <td className={`px-3 text-right text-[13px] leading-[18px] ${x.impact === 'high' ? 'font-medium text-ink' : x.impact === 'medium' ? t2 : t3}`}>{x.impact[0].toUpperCase() + x.impact.slice(1)}</td>
-                      <td><ChevronRight size={14} className={`text-stone-500 transition-opacity duration-150 ${lit ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`} aria-hidden /></td>
+                      <td><ChevronRight size={14} className={`text-stone-500 transition-opacity duration-150 ${lit ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 touch:opacity-100 group-focus-visible:opacity-100'}`} aria-hidden /></td>
                     </tr>
                   )
                 })}
@@ -513,6 +647,7 @@ function SchemaStatus({ r, setTab }) {
                 )}
               </tbody>
             </table>
+            )}
         </div>
       </div>
     </Card>
@@ -617,8 +752,10 @@ function SchemasTab({ r, type, set, status }) {
       pagination={false}
       resetKey={`${which}|${st}|${type}`}
       onRowClick={(x) => openSchema(x.id)}
-      toolbar={({ search }) => (
-        <div className="flex items-center gap-2">
+      toolbar={({ search, sortButton }) => (
+        // phones: search + Sort, then the set / page type / status filters scrolling sideways
+        <div className="flex items-center gap-2 max-md:flex-wrap">
+          <div className="no-scrollbar flex items-center gap-2 max-md:order-last max-md:-mx-4 max-md:w-[calc(100%+32px)] max-md:overflow-x-auto max-md:px-4 md:contents">
           <Segmented label="Schema set" value={which} onChange={(v) => setParams({ set: v === 'all' ? null : v })} options={options} />
           {type && (
             <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md bg-tint pl-2.5 pr-1 text-[13px] leading-[18px] font-medium text-stone-900">
@@ -627,11 +764,16 @@ function SchemasTab({ r, type, set, status }) {
                 className="grid h-6 w-6 place-items-center rounded text-stone-500 outline-none transition-colors duration-150 hover:bg-surface hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><X size={12} aria-hidden /></button>
             </span>
           )}
-          {search}
+          </div>
+          {/* desktop order: set · page type · search · status; phones: search + Sort on top */}
+          <div className="max-md:order-first max-md:flex max-md:flex-1 md:contents">{search}</div>
+          <div className="max-md:order-first md:contents">{sortButton}</div>
+          <div className="no-scrollbar max-md:order-last max-md:-mx-4 max-md:mt-0 max-md:w-[calc(100%+32px)] max-md:overflow-x-auto max-md:px-4 md:contents">
           <select aria-label="Status" value={st} onChange={(e) => setParams({ status: e.target.value === 'all' ? null : e.target.value })} className={selectCls}>
             <option value="all">All statuses</option>
             {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
+          </div>
         </div>
       )}
     />

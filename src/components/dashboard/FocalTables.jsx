@@ -87,10 +87,11 @@ export function FocalMissedTable() {
       emptyMessage={platform ? `No missed prompts on ${label}` : `No missed prompts in ${topic ?? 'this view'}`}
       onClearFilters={() => { setTopic(null); setPlatform(null); syncF.clear(); set.clear() }}
       columns={[
-        { key: 'prompt', label: 'Prompt', skeleton: '60%', sort: { value: (r) => r.prompt.toLowerCase(), first: 'asc' }, cell: promptCell(!topic) },
+        { key: 'prompt', label: 'Prompt', skeleton: '60%', mobileText: (r) => r.prompt, sort: { value: (r) => r.prompt.toLowerCase(), first: 'asc' }, cell: promptCell(!topic) },
         {
           key: 'winners',
           label: 'Appearing for',
+          mobile: 'extra',
           width: 240,
           skeleton: '96px',
           // most contested first; Dermasuri wins break ties
@@ -101,6 +102,7 @@ export function FocalMissedTable() {
         {
           key: 'missing',
           label: 'Missed by',
+          mobile: false,
           width: 124,
           skeleton: '56px',
           // the brand being viewed first
@@ -142,10 +144,11 @@ export function FocalRivalsTable() {
         </div>
       )}
       columns={[
-        { key: 'prompt', label: 'Prompt', skeleton: '60%', sort: { value: (r) => r.prompt.toLowerCase(), first: 'asc' }, cell: promptCell() },
+        { key: 'prompt', label: 'Prompt', skeleton: '60%', mobileText: (r) => r.prompt, sort: { value: (r) => r.prompt.toLowerCase(), first: 'asc' }, cell: promptCell() },
         {
           key: 'winners',
           label: 'Appears',
+          mobile: 'extra',
           width: 240,
           skeleton: '96px',
           sort: { value: (r) => r.winners.length, first: 'desc' },

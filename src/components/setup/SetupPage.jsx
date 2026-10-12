@@ -130,7 +130,7 @@ function Row({ logo, name, meta, value, valueTitle, muted, onEdit, onRemove, sta
         <span className="flex shrink-0 items-center gap-3">
           {value && <span title={valueTitle} className="whitespace-nowrap text-[13px] leading-[18px] text-stone-600 tabular-nums">{value}</span>}
           {(onEdit || onRemove) && (
-            <span className="flex gap-0.5 opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+            <span className="flex gap-0.5 opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 touch:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
               {onEdit && <button type="button" aria-label={`Edit ${name}`} onClick={onEdit} className={iconBtn}><Pencil size={14} aria-hidden /></button>}
               {onRemove && <button type="button" aria-label={`Remove ${name}`} onClick={onRemove} className={iconBtn}><X size={14} aria-hidden /></button>}
             </span>
@@ -313,7 +313,7 @@ const SuggestChip = ({ label, reason, shape, onPick }) => (
 )
 
 // a removable chip: X slides in on hover / focus
-const removeBtn = '-ml-1 grid h-6 w-0 place-items-center overflow-hidden rounded text-stone-500 opacity-0 outline-none transition-[width,opacity,margin] duration-150 hover:text-stone-900 focus-visible:ml-0 focus-visible:w-6 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-focus group-hover:ml-0 group-hover:w-6 group-hover:opacity-100 [@media(hover:none)]:ml-0 [@media(hover:none)]:w-6 [@media(hover:none)]:opacity-100'
+const removeBtn = '-ml-1 grid h-6 w-0 place-items-center overflow-hidden rounded text-stone-500 opacity-0 outline-none transition-[width,opacity,margin] duration-150 hover:text-stone-900 focus-visible:ml-0 focus-visible:w-6 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-focus group-hover:ml-0 group-hover:w-6 group-hover:opacity-100 touch:opacity-100 [@media(hover:none)]:ml-0 [@media(hover:none)]:w-6 [@media(hover:none)]:opacity-100'
 const animClass = (state) => (state === 'enter' ? 'chip-in' : state === 'leaving' ? 'chip-out' : '')
 
 // "Also counts as": one line of chips — aliases (with how many answers used them), suggestions, "+ Add alias"
@@ -614,12 +614,12 @@ export default function SetupPage() {
   return (
     // same frame as /llm-settings: narrow column, cards stacked gap-4
     <div className="mx-auto flex w-full max-w-[880px] flex-col gap-4 pt-2">
-      <div className="mb-2 flex flex-wrap items-start justify-between gap-4">
+      <div className="mb-2 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-4">
         <div>
-          <h1 className="text-[28px] leading-9 font-semibold text-stone-900">Brand Setup</h1>
-          <p className="mt-1 text-[14px] leading-5 text-stone-600">What Kraffic tracks for your brand</p>
+          <h1 className="text-[22px] leading-7 font-semibold text-stone-900 lg:text-[28px] lg:leading-9">Brand Setup</h1>
+          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">What Kraffic tracks for your brand</p>
         </div>
-        <div className="pt-1">
+        <div className="md:pt-1 max-md:[&>button]:h-10 max-md:[&>button]:w-full max-md:[&>button]:justify-center">
           <PrimaryButton size="sm" icon={Plus} onClick={() => setModal({ brand: null })}>Add brand</PrimaryButton>
         </div>
       </div>

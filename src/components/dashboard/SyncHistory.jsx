@@ -11,7 +11,8 @@ import { useBrandView } from '../../hooks/useBrandView'
 const PREVIEW = 5
 const short = (d) => d.replace(/, \d{4}$/, '') // "Oct 5, 2026" → "Oct 5"
 // chevron | date | visibility | prompts split
-const ROW = 'grid grid-cols-[20px_112px_96px_minmax(0,1fr)] items-center gap-x-3'
+// phones: narrower date / % columns and no bar (the count says it)
+const ROW = 'grid grid-cols-[20px_92px_84px_minmax(0,1fr)] items-center gap-x-3 sm:grid-cols-[20px_112px_96px_minmax(0,1fr)]'
 
 // ▲ ink · ▼ negative (the only hue in the system) · — muted
 export function Delta({ d, className = 'text-[12px] leading-4' }) {
@@ -127,8 +128,8 @@ export default function SyncHistory() {
                   <span className="text-[14px] leading-5 font-semibold text-ink tabular-nums">{r.visibility}%</span>
                   <Delta d={r.delta} />
                 </span>
-                <span className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-1.5 w-full max-w-[160px] min-w-[48px] overflow-hidden rounded-full" style={{ background: 'var(--data-track)' }} aria-hidden>
+                <span className="flex min-w-0 items-center justify-end gap-3 sm:justify-start">
+                  <span className="hidden h-1.5 w-full max-w-[160px] min-w-[48px] overflow-hidden rounded-full sm:flex" style={{ background: 'var(--data-track)' }} aria-hidden>
                     <span className="h-full rounded-full bg-ink" style={{ width: `${(r.visible / r.total) * 100}%` }} />
                   </span>
                   <span className="shrink-0 text-[13px] leading-[18px] text-stone-600 tabular-nums" title={`${r.visible} visible · ${r.missed} missed`}>{r.visible} / {r.total}</span>

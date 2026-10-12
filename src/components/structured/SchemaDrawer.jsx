@@ -176,7 +176,7 @@ function PageRows({ paths }) {
       <a href={`https://${SD.domain}${p}`} target="_blank" rel="noreferrer"
         className="group -mx-2 flex h-10 items-center gap-2 rounded-md px-2 outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
         <span className="min-w-0 flex-1 truncate text-[14px] leading-5 text-stone-900">{p}</span>
-        <ArrowUpRight size={14} className="shrink-0 text-stone-500 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
+        <ArrowUpRight size={14} className="shrink-0 text-stone-500 opacity-0 transition-opacity duration-150 group-hover:opacity-100 touch:opacity-100 group-focus-visible:opacity-100" aria-hidden />
         <span className="sr-only">(opens in a new tab)</span>
       </a>
     </li>

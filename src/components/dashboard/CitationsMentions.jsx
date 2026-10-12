@@ -15,12 +15,12 @@ import { useTracking } from '../../store/trackingSettings'
 // "Citations and Mentions": three headline stats (AI visibility gauge, mentions, citations), the per-engine
 // breakdown under them in the same three columns, and a brand toggle that's local to this card.
 // Rows come from citationsMentions (mock); every total is summed from them.
-const COLS = 'grid grid-cols-[1.2fr_1fr_1fr] gap-6'
+const COLS = 'grid grid-cols-[1.2fr_1fr_1fr] gap-3 md:gap-6'
 const TOTAL = trackedPrompts.length
 
 // every number opens the Engine drawer: a quiet button (tint on hover, a chevron fades in); 0 is plain text
 const cell = 'group -mx-2 inline-flex max-w-full cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-left outline-none transition-colors duration-150 ease-out hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--ink)_20%,transparent)]'
-const Chevron = () => <ChevronRight size={14} className="shrink-0 -translate-x-0.5 text-stone-500 opacity-0 transition duration-150 ease-out group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100" aria-hidden />
+const Chevron = () => <ChevronRight size={14} className="shrink-0 -translate-x-0.5 text-stone-500 opacity-0 transition duration-150 ease-out group-hover:translate-x-0 group-hover:opacity-100 touch:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100" aria-hidden />
 function Clickable({ value, label, onOpen, children }) {
   if (!value) return <span className="text-stone-500">{children}</span>
   return <button type="button" onClick={onOpen} aria-label={label} className={cell}>{children}<Chevron /></button>
@@ -32,7 +32,7 @@ const Stat = ({ label, children, gap = 'mt-1' }) => (
     <div className={`${gap} flex items-end gap-3`}>{children}</div>
   </div>
 )
-const Big = ({ value }) => <span className="text-[32px] leading-8 font-semibold tabular-nums">{useCountUp(value)}</span>
+const Big = ({ value }) => <span className="text-[24px] leading-8 font-semibold tabular-nums md:text-[32px]">{useCountUp(value)}</span>
 const Num = ({ value }) => <span className="text-[14px] leading-5 font-medium tabular-nums">{useCountUp(value)}</span>
 
 // "Claude and Grok" / "Claude, Grok and Perplexity"
@@ -92,7 +92,7 @@ export default function CitationsMentions() {
         {/* 8px clear above the arc; the number sits level with the arc's bottom */}
         <Stat label="AI Visibility" gap="mt-2">
           <Gauge value={shownScore} />
-          <span className="text-[32px] leading-none font-semibold text-stone-900 tabular-nums">{Math.round(shownScore)}</span>
+          <span className="text-[24px] leading-none font-semibold text-stone-900 tabular-nums md:text-[32px]">{Math.round(shownScore)}</span>
         </Stat>
         <Stat label="Mentions">
           <Clickable value={mentions} label={`View all ${mentions} ${brand?.name} mentions`} onOpen={(e) => open('all', 'mentions', e)}>
@@ -111,7 +111,22 @@ export default function CitationsMentions() {
         {rows.length === 0 ? (
           <p className="py-6 text-[14px] leading-5 text-stone-600">No engine mentions {brand?.name} yet</p>
         ) : (
-          <ul aria-label={`${brand?.name} by engine`}>
+          <>
+          {/* phones: one list row per engine, the whole row opens the engine sheet */}
+          <ul aria-label={`${brand?.name} by engine`} className="-mx-1 md:hidden">
+            {rows.map((r) => (
+              <li key={r.id} className="border-b border-[var(--div)] last:border-0">
+                <button type="button" onClick={(e) => open(r.id, 'mentions', e)} aria-label={`${r.name}: ${r.mentions} mentions, ${r.citations} citations`}
+                  className="flex h-12 w-full items-center gap-2.5 px-1 text-left outline-none active:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
+                  <PlatformIcon id={r.id} size={18} />
+                  <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-stone-900">{r.name}</span>
+                  <span className="shrink-0 text-[13px] leading-[18px] text-stone-600 tabular-nums">{r.mentions} mentions · {r.citations} citations</span>
+                  <ChevronRight size={14} className="shrink-0 text-stone-500" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <ul aria-label={`${brand?.name} by engine`} className="hidden md:block">
             {rows.map((r) => (
               <li key={r.id} {...hl(explain, `engine:${r.id}`, { row: true, flush: true })} className={`${COLS} h-8 items-center`}>
                 <span className="min-w-0">
@@ -128,6 +143,7 @@ export default function CitationsMentions() {
               </li>
             ))}
           </ul>
+          </>
         )}
       </div>
 

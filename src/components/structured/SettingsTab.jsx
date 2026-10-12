@@ -41,14 +41,15 @@ function SettingsCard({ title, description, children }) {
   )
 }
 // label + meta on the left (with the Saved tick), the control on the right; grows past 64px when the control does
-function Row({ name, meta, saved, children, top = false }) {
+// stack: phones put the label above a wide control (inputs, chip lists, segmented rows); toggles stay on the right
+function Row({ name, meta, saved, children, top = false, stack = top }) {
   return (
-    <li className={`flex min-h-16 justify-between gap-6 px-5 py-3 ${top ? 'items-start' : 'items-center'}`}>
+    <li className={`flex min-h-16 justify-between gap-6 px-5 py-3 ${top ? 'items-start' : 'items-center'} ${stack ? 'max-md:flex-col max-md:items-stretch max-md:gap-3' : ''}`}>
       <span className="min-w-0">
         <span className="flex items-center gap-2 text-[14px] leading-5 font-medium text-stone-900">{name}<Saved show={saved} /></span>
         {meta && <span className={`block text-[13px] leading-[18px] ${t3}`}>{meta}</span>}
       </span>
-      <span className="flex min-w-0 shrink-0 flex-col items-end gap-1.5">{children}</span>
+      <span className={`flex min-w-0 shrink-0 flex-col items-end gap-1.5 ${stack ? 'max-md:items-stretch' : ''}`}>{children}</span>
     </li>
   )
 }
@@ -63,7 +64,7 @@ function PathChips({ label, value, onChange }) {
     setDraft(''); setAdding(false)
   }
   return (
-    <span className="flex max-w-[420px] flex-wrap items-center justify-end gap-1.5">
+    <span className="flex max-w-[420px] flex-wrap items-center justify-end gap-1.5 max-md:max-w-none max-md:justify-start">
       {value.map((p) => (
         <span key={p} className="inline-flex h-7 items-center gap-1 rounded-md bg-tint pl-2 pr-1 font-mono text-[12px] text-stone-900">
           {p}
@@ -140,7 +141,18 @@ export default function SettingsTab({ onRun, running, lastRun }) {
   const sched = s.schedule
 
   return (
-    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6">
+      {/* phones / tablets: the last run as one row at the top */}
+      <Card className="flex items-center gap-3 px-4 py-3 lg:hidden">
+        <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] tabular-nums">
+          <span className="font-semibold text-stone-900">Last run {lastRun}</span><span className={t2}> · {run.pages} pages · {run.errors} errors</span>
+        </span>
+        <button type="button" onClick={() => openDrawer('runs', 'all')} className={`${textBtn} h-10`}>History</button>
+        <button type="button" onClick={onRun} disabled={running} aria-label="Re-run now"
+          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-ink px-3 text-[13px] font-medium text-on-ink outline-none disabled:opacity-60">
+          <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />Re-run
+        </button>
+      </Card>
       <div className="flex min-w-0 flex-col gap-4">
         <SettingsCard title="Crawl" description="How Kraffic finds the pages to analyze. Changes apply on the next run.">
           <Row name="Sitemap URL" meta="Only used if robots.txt has no sitemap" saved={savedKey === 'sitemap'} top>
@@ -148,7 +160,7 @@ export default function SettingsTab({ onRun, running, lastRun }) {
               <input aria-label="Sitemap URL" value={sitemap} onChange={(e) => setSitemap(e.target.value)} placeholder={`https://${SD.domain}/sitemap.xml`}
                 onBlur={() => { if (sitemap.trim() !== s.sitemap) set({ sitemap: sitemap.trim(), sitemapCheck: null }, 'sitemap') }}
                 onKeyDown={(e) => { if (e.key === 'Enter') test() }}
-                className={`${input} w-96 max-w-[50vw]`} />
+                className={`${input} w-96 max-w-[50vw] max-md:h-10 max-md:min-w-0 max-md:max-w-none max-md:flex-1`} />
               <button type="button" onClick={test} disabled={testing || !sitemap.trim()} className={textBtn}>{testing ? 'Testing…' : 'Test'}</button>
             </span>
             {s.sitemapCheck && (
@@ -157,7 +169,7 @@ export default function SettingsTab({ onRun, running, lastRun }) {
               </span>
             )}
           </Row>
-          <Row name="Max pages" meta="Larger crawls take longer" saved={savedKey === 'max'}>
+          <Row name="Max pages" meta="Larger crawls take longer" saved={savedKey === 'max'} stack>
             <Segmented label="Max pages" size="sm" value={s.maxPages} onChange={(v) => set({ maxPages: v }, 'max')} options={[25, 50, 100, 200].map((n) => ({ value: n, label: String(n) }))} />
           </Row>
           <Row name="Include paths" meta="Only crawl these (empty = the whole site)" saved={savedKey === 'include'} top>
@@ -188,8 +200,8 @@ export default function SettingsTab({ onRun, running, lastRun }) {
         </SettingsCard>
 
         <SettingsCard title="Schedule">
-          <Row name="Auto re-run" meta={sched.auto ? `Next run ${nextRun(sched)}` : 'Off · runs only when you press Re-run'} saved={savedKey === 'schedule'}>
-            <span className="flex items-center gap-3">
+          <Row name="Auto re-run" meta={sched.auto ? `Next run ${nextRun(sched)}` : 'Off · runs only when you press Re-run'} saved={savedKey === 'schedule'} stack>
+            <span className="flex items-center gap-3 max-md:flex-wrap">
               {sched.auto && (
                 <>
                   <Segmented label="How often" size="sm" value={sched.freq}
@@ -220,7 +232,7 @@ export default function SettingsTab({ onRun, running, lastRun }) {
       </div>
 
       {/* the last run */}
-      <Card className="p-5 lg:sticky lg:top-6">
+      <Card className="hidden p-5 lg:sticky lg:top-6 lg:block">
         <div className={`text-[13px] leading-[18px] ${t2}`}>Last run</div>
         <div className="mt-1 text-[15px] leading-5 font-semibold text-stone-900 tabular-nums">{running ? 'Running…' : `${lastRun} · ${lastRun === run.date ? run.time : new Date().toTimeString().slice(0, 5)}`}</div>
         <div className={`mt-0.5 text-[13px] leading-[18px] ${t2} tabular-nums`}>Took {run.took} · {run.pages} pages</div>

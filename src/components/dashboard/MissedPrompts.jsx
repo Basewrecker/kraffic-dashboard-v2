@@ -105,6 +105,7 @@ export default function MissedPrompts() {
       key: 'prompt',
       label: 'Prompt',
       skeleton: '60%',
+      mobileText: (r) => r.prompt,
       sort: { value: (r) => r.prompt.toLowerCase(), first: 'asc' },
       cell: (r) => (
         <div className="min-w-0">
@@ -123,9 +124,12 @@ export default function MissedPrompts() {
         </div>
       ),
     },
+    // phones: the topic + engines line the desktop shows under the prompt
+    { key: 'facts', label: 'Facts', desktop: false, csv: false, mobileText: (r) => `${r.topic} · ${r.platforms.length} ${r.platforms.length === 1 ? 'engine' : 'engines'}`, cell: () => null },
     {
       key: 'appearingFor',
       label: 'Appearing for',
+      mobile: 'extra',
       width: 168, // 3 logos + "+N" and the header with its sort icon
       skeleton: '56px',
       csv: (r) => r.competitors.join(' '),
@@ -135,6 +139,7 @@ export default function MissedPrompts() {
     {
       key: 'missedBy',
       label: 'Missed by',
+      mobile: false,
       width: 168,
       pad: 'pl-6 pr-3', // clear of "Appearing for"
       csv: (r) => alsoMissing(`m${r.id}`, r.competitors).map(brandName).join(' '),
@@ -145,6 +150,7 @@ export default function MissedPrompts() {
     {
       key: 'status',
       label: 'Status',
+      mobile: 'extra', // phones: line 3, next to the logos
       align: 'right',
       width: 176, // spec 140; 'Create content ✦' / 'Waiting for sync' pill need up to 176
       skeleton: '110px',

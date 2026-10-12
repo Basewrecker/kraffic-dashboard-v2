@@ -67,6 +67,7 @@ function MarketplacePromptsTable() {
       key: 'prompt',
       label: 'Prompt',
       skeleton: '60%',
+      mobileText: (r) => r.prompt,
       sort: { value: (r) => r.prompt.toLowerCase(), first: 'asc' },
       cell: (r) => <span title={r.prompt} className="block truncate text-body text-stone-900">{r.prompt}</span>,
     },
@@ -99,6 +100,7 @@ function MarketplacePromptsTable() {
     {
       key: 'page',
       label: 'Cited page',
+      mobile: false,
       width: 240,
       skeleton: '160px',
       csv: (r) => `https://${r.page.domain}${r.page.path}`,
@@ -120,6 +122,7 @@ function MarketplacePromptsTable() {
     {
       key: 'action',
       label: '',
+      mobile: false, // phones: the row tap opens the answer
       width: 148, // spec 88; 'View answer' needs 148 incl. padding (same as Visible prompts)
       align: 'right',
       skeleton: '72px',
@@ -139,6 +142,7 @@ function MarketplacePromptsTable() {
       csvName="marketplace-prompts.csv"
       loading={loading}
       filterBar={filterBar}
+      mobileRowClick={(r, el) => openAnswer({ key: `mp${r.id}`, list: rows.map((x) => `mp${x.id}`), opener: el })}
     />
   )
 }

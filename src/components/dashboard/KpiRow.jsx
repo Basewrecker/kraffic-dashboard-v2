@@ -22,16 +22,17 @@ function ScoreRing({ value, size = 64, stroke = 6 }) {
   )
 }
 
-const Num = ({ value }) => <div className="proportional-nums text-kpi text-stone-900">{useCountUp(value)}</div>
+const Num = ({ value }) => <div className="proportional-nums text-[24px] leading-8 font-semibold tracking-[-0.03em] text-stone-900 lg:text-kpi">{useCountUp(value)}</div>
 const Count = ({ value }) => useCountUp(value)
 
 export default function KpiRow() {
   const { kpis, isOwnBrand, engine } = useBrandView()
   const d = kpis.scoreDelta
   return (
-      <div className="grid grid-cols-4 gap-4">
+      // phones / tablets: 2 × 2
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
         <KpiCard label="Visibility score" icon={Gauge} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} footer={<><Count value={kpis.visible} />/{kpis.total} prompts visible</>}>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <ScoreRing value={kpis.score} />
             <span className="text-small font-semibold text-stone-600 tabular-nums">
               {d === 0 ? <span className="text-stone-500">No change vs last sync</span> : <><span className={d > 0 ? 'text-ink' : 'text-negative'}>{d > 0 ? '▲' : '▼'}</span> {Math.abs(d)} vs last sync</>}

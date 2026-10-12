@@ -128,7 +128,7 @@ function PageRow({ page, domain, onOpen }) {
       <div className="flex items-center gap-2">
         <span title={page.path} className="min-w-0 truncate text-[14px] leading-5 font-medium text-stone-900">{middle(page.path)}</span>
         <a href={`https://${domain}${page.path}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${domain}${page.path}`}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-stone-500 opacity-0 outline-none transition-[opacity,color,background-color] duration-150 hover:bg-tint hover:text-stone-900 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-focus group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-stone-500 opacity-0 outline-none transition-[opacity,color,background-color] duration-150 hover:bg-tint hover:text-stone-900 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-focus group-hover:opacity-100 touch:opacity-100 [@media(hover:none)]:opacity-100">
           <ArrowUpRight size={14} aria-hidden />
         </a>
       </div>

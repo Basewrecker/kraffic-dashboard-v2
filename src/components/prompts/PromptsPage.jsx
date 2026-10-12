@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, FlaskConical, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
+import { ChevronDown, Download, FlaskConical, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
 import PromptTable from '../dashboard/PromptTable'
+import { useIsMobile } from '../../hooks/useMedia'
+import MobileActions, { exportTable } from '../ui/MobileActions'
 import Segmented from '../dashboard/Segmented'
 import { brandName } from '../../utils/brand'
 import { PrimaryButton, SecondaryButton, useToast } from '../dashboard/overlays'
@@ -72,6 +74,7 @@ function initialFilters() {
 }
 
 export default function PromptsPage() {
+  const mobile = useIsMobile()
   useEffect(() => { document.title = 'Prompt Hub · Kraffic' }, [])
   const [prompts, setPrompts] = useState(trackedPrompts)
   const [initial] = useState(initialFilters)
@@ -285,7 +288,7 @@ export default function PromptsPage() {
         ? <CategorySelect value={editing.category} onChange={(c) => setEditing((e) => ({ ...e, category: c }))} counts={totalCounts} triggerClassName={cellTrigger} {...categoryEvents} />
         : <span className="inline-flex h-6 max-w-full items-center truncate rounded-md bg-tint px-2 text-[12px] leading-none text-stone-700">{r.category}</span>),
     },
-    { key: 'list', label: 'List', width: 140, cell: (r) => <span className="block truncate text-[13px] leading-[18px] text-stone-600" title={r.list}>{r.list}</span> },
+    { key: 'list', label: 'List', width: 140, mobileText: (r) => r.list, cell: (r) => <span className="block truncate text-[13px] leading-[18px] text-stone-600" title={r.list}>{r.list}</span> },
     {
       key: 'status',
       label: 'AI visibility',
@@ -297,6 +300,7 @@ export default function PromptsPage() {
       key: 'added',
       label: 'Added',
       width: 112,
+      mobileText: (r) => `Added ${shortDate(r.added)}`,
       sort: { value: (r) => Date.parse(r.added), first: 'desc' },
       csv: (r) => r.added,
       cell: (r) => <span className="text-[13px] leading-[18px] text-stone-600 tabular-nums">{shortDate(r.added)}</span>,
@@ -304,13 +308,15 @@ export default function PromptsPage() {
     {
       key: 'actions',
       label: '',
+      mobile: 'extra',
+      stopRowClick: true,
       width: 72,
       pad: 'pl-0 pr-4',
       align: 'right',
       csv: false,
       // hidden until the row is hovered or something in it has focus
       cell: (r) => (
-        <span className="inline-flex items-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+        <span className="inline-flex items-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 touch:opacity-100 group-focus-within:opacity-100 touch:opacity-100 max-md:opacity-100">
           <button
             type="button"
             aria-label={`Edit “${r.prompt}”`}
@@ -396,14 +402,18 @@ export default function PromptsPage() {
     { value: 'pending', label: `Pending ${counts.pending}` },
   ]
 
-  const toolbar = ({ search, exportButton, selectedCount }) => {
+  const toolbar = ({ search, exportButton, selectedCount, sortButton }) => {
     const bulk = selectedCount > 0
+    const hideTools = bulk && !mobile // phones keep the filters; the bulk actions sit in a bar at the bottom
     const ids = [...selected]
     return (
       // toolbar and bulk bar share one grid cell and crossfade, so the row height never changes
-      <div className="grid">
-        <div inert={bulk ? '' : undefined} aria-hidden={bulk} className={`[grid-area:1/1] flex items-center gap-2 transition-opacity duration-150 ${bulk ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
+      // phones: search + Sort on row 1, the filters scroll sideways on row 2 (minmax(0,1fr): the scrolling row can't widen it)
+      <div className="grid grid-cols-[minmax(0,1fr)]">
+        <div inert={hideTools ? '' : undefined} aria-hidden={hideTools} className={`[grid-area:1/1] flex items-center gap-2 transition-opacity duration-150 max-md:flex-wrap ${hideTools ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
           {search}
+          {sortButton}
+          <div className="no-scrollbar flex items-center gap-2 max-md:-mx-4 max-md:w-[calc(100%+32px)] max-md:overflow-x-auto max-md:px-4 md:contents">
           <Segmented label="Status" value={status} onChange={setStatus} options={statusOptions} />
           <CategorySelect value={category} onChange={setCategory} allLabel="All categories" counts={categoryCounts} usage={totalCounts}
             triggerClassName="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-line bg-raised px-2.5 text-small font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus" {...categoryEvents} />
@@ -424,21 +434,22 @@ export default function PromptsPage() {
             </span>
           )}
           {topic && (
-            <span className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-tint pl-2.5 pr-1 text-[13px] font-medium text-stone-900">
+            <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-line bg-tint pl-2.5 pr-1 text-[13px] font-medium text-stone-900">
               <span className="font-normal text-stone-500">Topic</span> {topic}
               <button type="button" aria-label={`Clear topic ${topic}`} onClick={() => setTopic(null)} className="grid h-6 w-6 place-items-center rounded text-stone-500 outline-none hover:bg-surface hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><X size={12} aria-hidden /></button>
             </span>
           )}
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex shrink-0 items-center gap-3">
             {filtered && (
-              <button type="button" onClick={clearFilters} className="rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">
+              <button type="button" onClick={clearFilters} className="whitespace-nowrap rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus max-md:h-10">
                 Clear filters
               </button>
             )}
             {exportButton}
           </div>
+          </div>
         </div>
-        <div inert={bulk ? undefined : ''} aria-hidden={!bulk} className={`[grid-area:1/1] flex items-center gap-1 transition-opacity duration-150 ${bulk ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+        <div inert={bulk ? undefined : ''} aria-hidden={!bulk} className={`[grid-area:1/1] flex items-center gap-1 transition-opacity duration-150 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:overflow-x-auto max-md:border-t max-md:border-line max-md:bg-surface max-md:px-4 max-md:pt-2 max-md:pb-[max(8px,env(safe-area-inset-bottom))] max-md:shadow-[0_-4px_12px_rgb(0_0_0/0.06)] ${bulk ? 'opacity-100' : 'pointer-events-none opacity-0 max-md:hidden'}`}>
           <span className="mr-2 text-[14px] leading-5 font-medium text-stone-900 tabular-nums">{selectedCount} selected</span>
           {/* fixed width: a native select is otherwise as wide as its longest option */}
           <label className="relative inline-flex">
@@ -487,18 +498,25 @@ export default function PromptsPage() {
   return (
     <>
       {/* header: title + domain on the left, actions on the right (one row, like the dashboard) */}
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div>
-          <h1 className="text-h1 font-semibold text-stone-900">Prompt Hub</h1>
-          <p className="mt-1 text-[14px] leading-5 text-stone-600">Manage the prompts tracked for {brandName(account.domain)}</p>
+          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Prompt Hub</h1>
+          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Manage the prompts tracked for {brandName(account.domain)}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 pt-1">
-          <SecondaryButton size="sm" icon={FlaskConical} onClick={() => setModal('research')}>Research</SecondaryButton>
-          <SecondaryButton size="sm" icon={Upload} onClick={() => setModal('import')}>Import</SecondaryButton>
+        <div className="flex shrink-0 items-center gap-2 lg:pt-1">
+          <span className="hidden items-center gap-2 lg:flex">
+            <SecondaryButton size="sm" icon={FlaskConical} onClick={() => setModal('research')}>Research</SecondaryButton>
+            <SecondaryButton size="sm" icon={Upload} onClick={() => setModal('import')}>Import</SecondaryButton>
+          </span>
           {/* a second click closes the open row (span: the button doesn't forward refs) */}
-          <span ref={addBtnRef} className="inline-flex">
+          <span ref={addBtnRef} className="inline-flex max-lg:flex-1 max-lg:[&>button]:h-10 max-lg:[&>button]:w-full max-lg:[&>button]:justify-center">
             <PrimaryButton size="sm" icon={Plus} aria-expanded={isAdding} onClick={() => (isAdding ? closeAdd() : startAdd())}>Add prompt</PrimaryButton>
           </span>
+          <MobileActions items={[
+            { label: 'Research prompts', icon: FlaskConical, onClick: () => setModal('research') },
+            { label: 'Import prompts', icon: Upload, onClick: () => setModal('import') },
+            { label: 'Export CSV', icon: Download, onClick: () => exportTable('tracked-prompts') },
+          ]} />
         </div>
       </div>
 

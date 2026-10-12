@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { SECTION_EVENT } from '../../utils/navigate'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Search } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Search } from 'lucide-react'
+import Sheet, { SheetItem } from '../ui/Sheet'
+import { useIsMobile } from '../../hooks/useMedia'
+import { EXPORT_EVENT } from '../ui/MobileActions'
 import Card from './Card'
 import { downloadCsv } from './csv'
 
@@ -23,6 +26,13 @@ import { downloadCsv } from './csv'
 //   (px-5 py-3, border-b); it gets the table's own search input and Export button to place,
 //   topRow: a <tr> rendered above the data rows (e.g. an inline "add prompt" editor),
 //   rowHover: the row hover class.
+// Phones (below md): the same rows as a stacked list — no column headers, the sort moves to a "Sort" sheet,
+// pagination becomes "Load 10 more", and long-press enters select mode (when `selection` is set).
+//   column.mobile: 'primary' (line 1; default = the first data column) · 'meta' (line 2, joined with " · ", default)
+//                  · 'extra' (line 3: logos, chips) · false (hidden on phones)
+//   column.mobileText(row): plain text for the meta line instead of rendering the cell (on the primary: 2-line text)
+//   column.desktop: false → a phones-only column (e.g. a meta fact the desktop shows inside another cell)
+//   mobileRowClick(row, el): what a tap does on phones when the desktop row has no click (its action button is hidden)
 export default function PromptTable({
   id, title, subtitle, rows, columns: dataColumns, filterKeys = ['prompt'], csvName,
   count = rows.length,
@@ -50,8 +60,11 @@ export default function PromptTable({
   searchLabel = 'Search prompts',
   emptyQuery = (q) => <>No prompts match “{q}”</>,
   pagination = true, // false: every row on one page, no footer (short lists)
+  mobileRowClick = null,
 }) {
+  const mobile = useIsMobile()
   const [query, setQuery] = useState('')
+  const [sortSheet, setSortSheet] = useState(false)
   const [ownSize, setOwnSize] = useState(pageSizes[0])
   const pageSize = pagination ? controlledSize ?? ownSize : Math.max(1, rows.length)
   const setPageSize = (n) => { setOwnSize(n); onPageSize?.(n) }
@@ -89,6 +102,10 @@ export default function PromptTable({
       return d || (tie ? tie(a).localeCompare(tie(b)) : 0)
     })
   }, [filtered, sort, dataColumns])
+
+  // phones: "Load 10 more" instead of pages
+  const [shownCount, setShownCount] = useState(10)
+  useEffect(() => setShownCount(10), [resetKey, query, sort?.key, sort?.dir])
 
   const pages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const current = Math.min(page, pages)
@@ -147,7 +164,8 @@ export default function PromptTable({
       />
     ),
   }
-  const columns = selectCol ? [selectCol, ...dataColumns] : dataColumns
+  const desktopColumns = dataColumns.filter((c) => c.desktop !== false)
+  const columns = selectCol ? [selectCol, ...desktopColumns] : desktopColumns
   const selectedCount = selection?.selected.size ?? 0
 
   const openRow = (e, r) => {
@@ -157,6 +175,14 @@ export default function PromptTable({
 
   const exportCsv = () =>
     downloadCsv(csvName, sorted, columns.filter((c) => c.csv !== false).map((c) => ({ label: c.label, key: c.key, csv: c.csv })))
+  // phones: the page's ⋯ menu asks for the export (see ui/MobileActions exportTable)
+  const exportRef = useRef(exportCsv)
+  exportRef.current = exportCsv
+  useEffect(() => {
+    const on = (e) => { if (e.detail?.id === id) exportRef.current() }
+    window.addEventListener(EXPORT_EVENT, on)
+    return () => window.removeEventListener(EXPORT_EVENT, on)
+  }, [id])
 
   // cells: 12px; first/last cells keep the card's 20px inner padding (the table bleeds to the card edge so row hover spans it)
   const pad = (i) =>
@@ -166,30 +192,64 @@ export default function PromptTable({
   const align = (c) => (c.align === 'right' ? 'text-right' : 'text-left')
 
   const searchInput = (
-    <label className="relative">
+    <label className="relative min-w-0 max-md:flex-1">
       <span className="sr-only">{searchLabel}</span>
       <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
       <input
         value={query}
         onChange={(e) => { setQuery(e.target.value); setPage(1) }}
         placeholder={searchLabel}
-        className="h-9 w-64 rounded-lg border border-line bg-raised pl-9 pr-3 text-small text-stone-900 outline-none placeholder:text-stone-500 focus:border-stone-400"
+        className="h-10 w-full rounded-lg border border-line bg-raised pl-9 pr-3 text-small text-stone-900 outline-none placeholder:text-stone-500 focus:border-stone-400 md:h-9 md:w-64"
       />
     </label>
+  )
+  const sortable = dataColumns.filter((c) => c.sort)
+  const sortButton = sortable.length > 0 && (
+    <button type="button" onClick={() => setSortSheet(true)} aria-label={`Sort${sort ? `: ${dataColumns.find((c) => c.key === sort.key)?.label}` : ''}`}
+      className="inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-surface px-3 text-small font-medium text-stone-700 outline-none focus-visible:ring-2 focus-visible:ring-focus md:hidden">
+      <ArrowUpDown size={14} aria-hidden /> Sort
+    </button>
   )
   const exportButton = (
     <button
       onClick={exportCsv}
-      className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg border border-line bg-surface px-3 text-small font-medium text-stone-600 transition-colors duration-150 hover:bg-stone-50 hover:text-stone-900"
+      className="hidden h-9 items-center gap-2 whitespace-nowrap rounded-lg border border-line bg-surface px-3 text-small font-medium text-stone-600 transition-colors duration-150 hover:bg-stone-50 hover:text-stone-900 md:inline-flex"
     >
       <Download size={16} /> Export{toolbar ? '' : ' CSV'}
     </button>
   )
 
+  const sortSheetNode = (
+    <Sheet open={sortSheet} onClose={() => setSortSheet(false)} title="Sort by">
+      {sortable.map((c) => {
+        const on = sort?.key === c.key
+        return (
+          <SheetItem key={c.key} active={on} onClick={() => toggleSort(c)}
+            meta={on ? (sort.dir === 'asc' ? <ArrowUp size={16} className="text-ink" aria-label="ascending" /> : <ArrowDown size={16} className="text-ink" aria-label="descending" />) : null}>
+            {c.label}
+          </SheetItem>
+        )
+      })}
+    </Sheet>
+  )
+
+  if (mobile) {
+    return (
+      <MobileList
+        id={id} title={title} subtitle={subtitle} count={count} notice={notice} toolbar={toolbar} filterBar={filterBar}
+        search={searchInput} sortButton={sortButton} exportButton={exportButton} selectedCount={selectedCount} bulkBar={bulkBar}
+        rows={sorted.slice(0, shownCount)} total={sorted.length} onMore={() => setShownCount((n) => n + 10)}
+        columns={dataColumns} selection={selection} toggleRow={toggleRow} onRowClick={onRowClick ?? mobileRowClick} rowClass={rowClass}
+        loading={loading} query={query} emptyMessage={emptyMessage} emptyQuery={emptyQuery} onClear={(query || onClearFilters) ? clearSearch : null} clearLabel={onClearFilters ? 'Clear filters' : 'Clear search'}
+        topRow={topRow} footnote={footnote} sortSheet={sortSheetNode}
+      />
+    )
+  }
+
   return (
     <Card id={id} className={`scroll-mt-6 overflow-hidden ${toolbar ? '' : 'pt-5'}`}>
       {toolbar ? (
-        <div className="border-b border-stone-100 px-5 py-3">{toolbar({ search: searchInput, exportButton, selectedCount })}</div>
+        <div className="border-b border-stone-100 px-5 py-3">{toolbar({ search: searchInput, exportButton, selectedCount, sortButton: null })}</div>
       ) : (
       <div className="flex items-start justify-between gap-4 px-5">
         <div className="min-w-0">
@@ -362,5 +422,111 @@ export function GhostButton({ children, onClick, icon: Icon }) {
       {Icon && <Icon size={16} aria-hidden />}
       {children}
     </button>
+  )
+}
+
+
+// ---- phones: the rows as a stacked list
+function MobileList({
+  id, title, subtitle, count, notice, toolbar, filterBar, search, sortButton, exportButton, selectedCount, bulkBar,
+  rows, total, onMore, columns, selection, toggleRow, onRowClick, rowClass, loading, query, emptyMessage, emptyQuery, onClear, clearLabel,
+  topRow, footnote, sortSheet,
+}) {
+  const primary = columns.find((c) => c.mobile === 'primary') ?? columns.find((c) => c.mobile !== false && c.label)
+  const meta = columns.filter((c) => c !== primary && c.mobile !== false && c.mobile !== 'extra' && (c.mobile === 'meta' || c.label))
+  const extra = columns.filter((c) => c.mobile === 'extra')
+  const press = useRef(null)
+  const selecting = selection && selectedCount > 0
+
+  // long-press (500ms) enters select mode; in select mode a tap toggles the row
+  const startPress = (r) => { if (!selection) return; press.current = { id: r.id, fired: false, t: setTimeout(() => { press.current.fired = true; toggleRow(r.id); navigator.vibrate?.(10) }, 500) } }
+  const endPress = () => { if (press.current) clearTimeout(press.current.t) }
+  const tap = (e, r) => {
+    if (press.current?.fired) { press.current = null; return }
+    press.current = null
+    if (e.target.closest('[data-stop-row]')) return
+    if (selecting) toggleRow(r.id)
+    else onRowClick?.(r, e.currentTarget)
+  }
+
+  return (
+    <div id={id} className="scroll-mt-20 overflow-hidden rounded-2xl border border-line bg-surface">
+      {toolbar ? (
+        <div className="border-b border-stone-100 px-4 py-3">{toolbar({ search, exportButton, selectedCount, sortButton })}</div>
+      ) : (
+        <div className="px-4 pt-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[15px] leading-5 font-semibold text-stone-900">{title}</h2>
+            <span className="inline-flex h-6 items-center rounded-full bg-stone-100 px-2 text-[13px] leading-none font-medium text-stone-600 tabular-nums">{count}</span>
+          </div>
+          {subtitle && <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600">{subtitle}</p>}
+          {notice && <div className="mt-0.5 text-[13px] leading-[18px] text-stone-600">{notice}</div>}
+          <div className="mt-3 flex items-center gap-2">{search}{sortButton}</div>
+        </div>
+      )}
+      {filterBar && <div className="mt-3 px-4">{filterBar}</div>}
+      {topRow && <table className="mt-2 w-full"><tbody>{topRow}</tbody></table>}
+
+      <ul className={`divide-y divide-[var(--div)] ${toolbar ? '' : 'mt-3 border-t border-[var(--div)]'}`} aria-busy={loading || undefined}>
+        {loading
+          ? Array.from({ length: 5 }, (_, i) => <li key={i} className="px-4 py-3"><div className="h-4 w-3/4 animate-pulse rounded bg-stone-100" /><div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-stone-100" /></li>)
+          : rows.map((r) => {
+            const on = selection?.selected.has(r.id)
+            return (
+              <li key={r.id}>
+                <div role={onRowClick || selection ? 'button' : undefined} tabIndex={onRowClick || selection ? 0 : undefined}
+                  onClick={(e) => tap(e, r)} onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) tap(e, r) }}
+                  onTouchStart={() => startPress(r)} onTouchEnd={endPress} onTouchMove={endPress} onContextMenu={(e) => selection && e.preventDefault()}
+                  aria-pressed={selection ? Boolean(on) : undefined}
+                  className={`flex min-h-16 select-none items-start gap-3 px-4 py-3 outline-none transition-colors duration-150 focus-visible:bg-tint ${on ? 'bg-tint' : ''} ${onRowClick || selection ? 'cursor-pointer active:bg-tint' : ''} ${rowClass?.(r) ?? ''}`}>
+                  {selecting && (
+                    <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border ${on ? 'border-ink bg-ink text-on-ink' : 'border-[var(--color-line-strong)]'}`} aria-hidden>
+                      {on && <Check size={14} />}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    {primary?.mobileText
+                      ? <div className="line-clamp-2 text-[14px] leading-5 font-medium text-stone-900">{primary.mobileText(r)}</div>
+                      : <div className="min-w-0 text-[14px] leading-5 font-medium text-stone-900">{primary?.cell(r, rows)}</div>}
+                    {meta.length > 0 && (
+                      <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] leading-[18px] text-stone-600">
+                        {meta.map((c, i) => (
+                          <span key={c.key} className="inline-flex min-w-0 items-center gap-1.5" data-stop-row={c.stopRowClick || undefined}>
+                            {i > 0 && <span className="text-stone-400" aria-hidden>·</span>}
+                            {c.mobileText ? c.mobileText(r) : c.cell(r, rows)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {extra.length > 0 && <div className="mt-2 flex flex-wrap items-center gap-1.5">{extra.map((c) => <span key={c.key} data-stop-row={c.stopRowClick || undefined}>{c.cell(r, rows)}</span>)}</div>}
+                  </div>
+                  {onRowClick && !selecting && <ChevronRight size={14} className="mt-1 shrink-0 text-stone-500" aria-hidden />}
+                </div>
+              </li>
+            )
+          })}
+        {!loading && rows.length === 0 && (
+          <li className="px-4 py-10 text-center">
+            <p className="text-small text-stone-600">{query ? emptyQuery(query) : emptyMessage}</p>
+            {onClear && <button onClick={onClear} className="mt-2 inline-flex h-10 items-center rounded-md px-3 text-small font-medium text-stone-600 hover:bg-stone-100">{clearLabel}</button>}
+          </li>
+        )}
+      </ul>
+      {!loading && total > rows.length && (
+        <div className="border-t border-[var(--div)] p-3">
+          <button type="button" onClick={onMore} className="flex h-11 w-full items-center justify-center rounded-lg border border-line text-small font-medium text-stone-700 outline-none active:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
+            Load {Math.min(10, total - rows.length)} more <span className="ml-1.5 font-normal text-stone-500 tabular-nums">· {rows.length} of {total}</span>
+          </button>
+        </div>
+      )}
+      {footnote && <p className="px-4 pb-4 text-[12px] leading-4 text-stone-500">{footnote}</p>}
+      {/* select mode: the bulk actions in a sticky bar at the bottom */}
+      {selecting && bulkBar && !toolbar && (
+        <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-1 overflow-x-auto border-t border-line bg-surface px-4 pt-2 pb-[max(8px,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgb(0_0_0/0.06)]">
+          {bulkBar(selectedCount)}
+        </div>
+      )}
+      {sortSheet}
+    </div>
   )
 }

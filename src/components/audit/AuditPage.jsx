@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bar as RBar, BarChart as RBarChart, Cell, LabelList, Pie as RPie, PieChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from 'recharts'
-import { ArrowRight, Check, ChevronDown, ChevronRight, Copy, Download, MoreHorizontal, RefreshCw } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, ChevronRight, Code2, Copy, Download, MoreHorizontal, RefreshCw } from 'lucide-react'
 import Card from '../dashboard/Card'
 import PromptTable from '../dashboard/PromptTable'
 import Segmented from '../dashboard/Segmented'
@@ -12,6 +12,7 @@ import { useToast } from '../dashboard/overlays'
 import { downloadCsv } from '../dashboard/csv'
 import AuditDrawer, { PageDrawer } from './AuditDrawer'
 import ActionMenu from './ActionMenu'
+import MobileActions from '../ui/MobileActions'
 import { CheckIcon, ImpactMeter, RowIcon, StatusLabel, ViewFix, openDrawer, rowBtn, openIssue, pct, plural, setParams, useTab } from './parts'
 import {
   AUDIT, BUCKETS, CATEGORIES, IMPACT, PAGE_COUNT, STATUS, STATUS_CODES, byStatus, checks, contentChecks, crawl, open as isOpen, pageProblems, pages, priority, readiness, technicalChecks,
@@ -33,6 +34,9 @@ const today = () => new Date().toLocaleDateString('en-US', { month: 'short', day
 export default function AuditPage() {
   useEffect(() => { document.title = 'Site Audit · Kraffic' }, [])
   const [tab, setTab, q] = useTab()
+  // phones: bring the active tab into view in the sideways-scrolling row
+  const tabsRef = useRef(null)
+  useEffect(() => { tabsRef.current?.querySelector('[aria-selected=true]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [tab])
   const [lastRun, setLastRun] = useState(AUDIT.lastRun)
   const [running, setRunning] = useState(false)
   const [api, setApi] = useState(false)
@@ -67,35 +71,41 @@ export default function AuditPage() {
 
   return (
     <>
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div className="min-w-0">
-          <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.02em] text-stone-900">Site Audit</h1>
-          <p className="mt-1 text-[14px] leading-5 text-stone-600">
+          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Site Audit</h1>
+          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">
             How ready {AUDIT.domain} is for AI answers
           </p>
+          <p className={`mt-1 text-[13px] leading-[18px] ${t3} tabular-nums lg:hidden`} title={AUDIT.note}>{running ? 'Running…' : `Last run ${lastRun} · ${PAGE_COUNT} pages`}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 pt-1">
-          <span title={AUDIT.note} className={`mr-1 cursor-default whitespace-nowrap text-[13px] leading-[18px] ${t3} tabular-nums`}>
+        <div className="flex shrink-0 items-center gap-2 lg:pt-1">
+          <span title={AUDIT.note} className={`mr-1 hidden cursor-default whitespace-nowrap text-[13px] leading-[18px] ${t3} tabular-nums lg:inline`}>
             {running ? 'Running…' : `Last run ${lastRun} · ${PAGE_COUNT} pages`}
           </span>
           <button type="button" onClick={run} disabled={running}
-            className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-ink px-3.5 text-small font-medium text-on-ink outline-none transition-colors duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-60">
+            className="inline-flex h-10 items-center justify-center gap-2 max-lg:flex-1 lg:h-9 whitespace-nowrap rounded-lg bg-ink px-3.5 text-small font-medium text-on-ink outline-none transition-colors duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-60">
             <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />
             Run audit
           </button>
+          <MobileActions items={[{ label: 'API access', icon: Code2, onClick: () => setApi(true) }, { label: 'Export all (CSV)', icon: Download, onClick: exportAll }]} />
+          <span className="hidden lg:inline-flex">
           <ActionMenu label="More actions" items={[{ label: 'API access', onClick: () => setApi(true) }, { label: 'Export all (CSV)', onClick: exportAll }]}
             className="grid h-9 w-9 place-items-center rounded-lg border border-line text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
             <MoreHorizontal size={16} aria-hidden />
           </ActionMenu>
+          </span>
         </div>
       </div>
 
       {/* underline tabs (same as the drawers) */}
-      <div role="tablist" aria-label="Site Audit" onKeyDown={tabKeys} className="mt-2 flex gap-6 border-b border-line">
+      {/* phones: the tabs scroll sideways edge to edge (snap), the active one scrolled into view */}
+      <div role="tablist" aria-label="Site Audit" onKeyDown={tabKeys} ref={tabsRef}
+        className="no-scrollbar -mx-4 mt-2 flex snap-x gap-6 overflow-x-auto border-b border-line px-4 md:mx-0 md:px-0">
         {TABS.map(([id, label, n]) => (
           <button key={id} data-audit-tab={id} type="button" role="tab" id={`audit-tab-${id}`} aria-controls="audit-panel" aria-selected={tab === id} tabIndex={tab === id ? 0 : -1}
             onClick={() => setTab(id, { status: null, check: null })}
-            className={`-mb-px inline-flex h-10 items-center gap-1.5 border-b-2 text-[14px] leading-5 font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${tab === id ? 'border-ink text-stone-900' : 'border-transparent text-stone-600 hover:text-stone-900'}`}>
+            className={`-mb-px inline-flex h-11 shrink-0 snap-start items-center gap-1.5 whitespace-nowrap border-b-2 text-[14px] leading-5 font-medium outline-none md:h-10 transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${tab === id ? 'border-ink text-stone-900' : 'border-transparent text-stone-600 hover:text-stone-900'}`}>
             {label}{n != null && <span className="text-[13px] leading-[18px] font-normal text-stone-500 tabular-nums">{n}</span>}
           </button>
         ))}
@@ -278,10 +288,12 @@ function FixFirst({ setTab }) {
               <RowIcon><CheckIcon status={c.status} /></RowIcon>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{c.name}</span>
-                <span className={`block truncate text-[13px] leading-[18px] ${t3} tabular-nums`}>{plural(c.pages.length, 'page')} · {STATUS[c.status].label}</span>
+                <span className={`block truncate text-[13px] leading-[18px] ${t3} tabular-nums`}>{plural(c.pages.length, 'page')} · {STATUS[c.status].label}<span className="md:hidden"> · {IMPACT[c.impact].label} impact</span></span>
               </span>
-              <ImpactMeter impact={c.impact} />
-              <ViewFix />
+              {/* phones: impact moves into the meta line, the row's chevron replaces "View fix" */}
+              <span className="max-md:hidden"><ImpactMeter impact={c.impact} /></span>
+              <span className="max-md:hidden"><ViewFix /></span>
+              <ChevronRight size={14} className="shrink-0 text-stone-500 md:hidden" aria-hidden />
             </button>
           </li>
         ))}
@@ -427,10 +439,14 @@ function IssuesTab({ status }) {
         pagination={false}
         resetKey={filter}
         onRowClick={(r) => openIssue(r.id)}
-        toolbar={({ search, exportButton }) => (
-          <div className="flex items-center gap-2">
-            <Segmented label="Status" value={filter} onChange={(v) => setParams({ status: v === 'all' ? null : v })} options={options} />
+        toolbar={({ search, exportButton, sortButton }) => (
+          // phones: search + Sort, then the status filter scrolling sideways
+          <div className="flex items-center gap-2 max-md:flex-wrap">
+            <div className="no-scrollbar flex items-center gap-2 max-md:order-last max-md:-mx-4 max-md:w-[calc(100%+32px)] max-md:overflow-x-auto max-md:px-4 md:contents">
+              <Segmented label="Status" value={filter} onChange={(v) => setParams({ status: v === 'all' ? null : v })} options={options} />
+            </div>
             {search}
+            {sortButton}
             <div className="ml-auto">{exportButton}</div>
           </div>
         )}
@@ -488,7 +504,7 @@ function CrawlTab() {
   return (
     <>
       <Card className="mt-2 p-5">
-        <div className="grid grid-cols-2 gap-y-4 md:grid-cols-4 md:divide-x md:divide-[var(--div)]">
+        <div className="kpi-grid grid grid-cols-2 gap-y-4 md:grid-cols-4 md:divide-x md:divide-[var(--div)]">
           {kpis.map((k, i) => (
             <div key={k.label} className={`min-w-0 ${i ? 'md:pl-6' : ''} md:pr-6`} title={k.title}>
               <div className={`text-[13px] leading-[18px] ${t2}`}>{k.label}</div>

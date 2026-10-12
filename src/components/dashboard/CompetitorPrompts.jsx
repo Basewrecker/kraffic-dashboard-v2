@@ -125,6 +125,7 @@ export default function CompetitorPrompts() {
       key: 'prompt',
       label: 'Prompt',
       skeleton: '60%',
+      mobileText: (r) => r.prompt,
       sort: { value: (r) => r.prompt.toLowerCase(), first: 'asc' },
       csv: (r) => r.prompt,
       cell: (r) => (
@@ -164,6 +165,7 @@ export default function CompetitorPrompts() {
     {
       key: 'theirPage',
       label: 'Cited page',
+      mobile: false,
       width: 240,
       skeleton: '180px',
       csv: (r) => (r.theirPage ? `https://${r.theirPage.domain}${r.theirPage.path}` : 'Mentioned, not linked'),
@@ -195,6 +197,7 @@ export default function CompetitorPrompts() {
     {
       key: 'action',
       label: '',
+      mobile: false, // phones: the row tap does it
       width: 104, // spec 88; 'Compare' needs 104
       align: 'right',
       skeleton: '72px',
