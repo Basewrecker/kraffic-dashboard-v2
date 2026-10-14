@@ -31,6 +31,7 @@ import AnswerDrawer from './components/answer/AnswerDrawer'
 import EngineDrawer from './components/answer/EngineDrawer'
 import SyncDrawer from './components/answer/SyncDrawer'
 import { AppLoading, PageError, PageLoading, PageNotFound } from './components/ui/PageState'
+import { CardGate } from './components/ui/CardState'
 import CookieBanner from './components/ui/CookieBanner'
 
 
@@ -41,24 +42,25 @@ function DashboardPage() {
           <DashboardViewProvider>
           <PlatformFilterProvider>
           <PageHeader />
-          <KpiRow />
+          {/* each card loads on its own (data/cards.js): its skeleton or error keeps the card's height */}
+          <CardGate card="kpis" height="h-[308px] lg:h-[174px]" label="Loading the numbers"><KpiRow /></CardGate>
           {/* equal-height rows: cards are h-full flex-col, bodies flex-1, insight footers mt-auto */}
           <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <VisibilityHistory />
-            <PromptCoverage />
+            <CardGate card="history" height="h-[443px] lg:h-[457px]" label="Loading visibility history"><VisibilityHistory /></CardGate>
+            <CardGate card="coverage" height="h-[453px] lg:h-[457px]" label="Loading prompt coverage"><PromptCoverage /></CardGate>
           </div>
           <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-2">
-            <CitationsMentions />
-            <MarketplaceVisibility />
+            <CardGate card="citations" height="h-[389px] lg:h-[364px]" label="Loading citations and mentions"><CitationsMentions /></CardGate>
+            <CardGate card="marketplace" height="h-[564px] lg:h-[364px]" label="Loading marketplace visibility"><MarketplaceVisibility /></CardGate>
           </div>
           {/* phones / tablets reorder (desktop keeps this order): … Sync history → Top cited pages → Prompt mix → the other tables */}
-          <div className="max-lg:order-3"><VisiblePromptsTable /></div>
-          <div className="max-lg:order-4"><MissedPromptsTable /></div>
-          <div className="max-lg:order-2"><CompetitorPromptsTable /></div>
-          <div className="max-lg:order-5"><MarketplacePrompts /></div>
+          <div className="max-lg:order-3"><CardGate card="visiblePrompts" height="h-[945px] lg:h-[605px]" label="Loading visible prompts"><VisiblePromptsTable /></CardGate></div>
+          <div className="max-lg:order-4"><CardGate card="missedPrompts" height="h-[1305px] lg:h-[729px]" label="Loading missed prompts"><MissedPromptsTable /></CardGate></div>
+          <div className="max-lg:order-2"><CardGate card="competitorPrompts" height="h-[969px] lg:h-[729px]" label="Loading prompt mix"><CompetitorPromptsTable /></CardGate></div>
+          <div className="max-lg:order-5"><CardGate card="marketplacePrompts" height="h-[987px] lg:h-[649px]" label="Loading marketplace prompts"><MarketplacePrompts /></CardGate></div>
           <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-2 max-lg:order-1">
-            <SyncHistory />
-            <TopCitedPages />
+            <CardGate card="syncHistory" height="h-[367px] lg:h-[415px]" label="Loading sync history"><SyncHistory /></CardGate>
+            <CardGate card="citedPages" height="h-[407px] lg:h-[415px]" label="Loading top cited pages"><TopCitedPages /></CardGate>
           </div>
           <AnswerDrawer />
           <EngineDrawer />
