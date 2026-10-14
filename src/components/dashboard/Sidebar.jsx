@@ -12,12 +12,12 @@ export const groups = [
   { label: 'Insights', items: [
     { label: 'Visibility Overview', icon: BarChart3, href: '/overview' },
     { label: 'Prompt Hub', icon: MessageSquareText, href: '/tracker' },
-    { label: 'Trends', icon: TrendingUp },
+    { label: 'Trends', icon: TrendingUp, href: '/trends' },
   ] },
   { label: 'Optimize', items: [
     { label: 'Structured Data', icon: Code2, href: '/structured-data' },
     { label: 'Site Audit', icon: ScanSearch, href: '/audit' },
-    { label: 'Toolkit', icon: Puzzle },
+    { label: 'Toolkit', icon: Puzzle, href: '/more-tools' },
   ] },
   { label: 'Settings', items: [
     { label: 'Brand Setup', icon: Settings2, href: '/brands' },

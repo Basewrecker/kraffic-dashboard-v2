@@ -25,6 +25,7 @@ import { downloadCsv } from './csv'
 //   toolbar({ search, exportButton, selectedCount }) replaces the title row with one toolbar row
 //   (px-5 py-3, border-b); it gets the table's own search input and Export button to place,
 //   topRow: a <tr> rendered above the data rows (e.g. an inline "add prompt" editor),
+//   bottomRow: ({ mobile }) => node after the data rows (a <tr> on desktop, any node on phones),
 //   rowHover: the row hover class.
 // Phones (below md): the same rows as a stacked list — no column headers, the sort moves to a "Sort" sheet,
 // pagination becomes "Load 10 more", and long-press enters select mode (when `selection` is set).
@@ -50,6 +51,7 @@ export default function PromptTable({
   onClearFilters = null,
   toolbar = null,
   topRow = null,
+  bottomRow = null, // a node after the data rows: a <tr> on desktop, rendered as-is under the list on phones (e.g. a collapsed group)
   rowHover = 'hover:bg-stone-50',
   rowClass = null, // optional (row) → extra classes, e.g. a tint on the account's own rows
   sort: controlledSort, // optional controlled sort ({ key, dir } | null, with onSortChange), e.g. kept in the URL
@@ -238,10 +240,10 @@ export default function PromptTable({
       <MobileList
         id={id} title={title} subtitle={subtitle} count={count} notice={notice} toolbar={toolbar} filterBar={filterBar}
         search={searchInput} sortButton={sortButton} exportButton={exportButton} selectedCount={selectedCount} bulkBar={bulkBar}
-        rows={sorted.slice(0, shownCount)} total={sorted.length} onMore={() => setShownCount((n) => n + 10)}
+        rows={pagination ? sorted.slice(0, shownCount) : sorted} total={sorted.length} onMore={() => setShownCount((n) => n + 10)}
         columns={dataColumns} selection={selection} toggleRow={toggleRow} onRowClick={onRowClick ?? mobileRowClick} rowClass={rowClass}
         loading={loading} query={query} emptyMessage={emptyMessage} emptyQuery={emptyQuery} onClear={(query || onClearFilters) ? clearSearch : null} clearLabel={onClearFilters ? 'Clear filters' : 'Clear search'}
-        topRow={topRow} footnote={footnote} sortSheet={sortSheetNode}
+        topRow={topRow} bottomRow={bottomRow?.({ mobile: true })} footnote={footnote} sortSheet={sortSheetNode}
       />
     )
   }
@@ -327,7 +329,8 @@ export default function PromptTable({
                   ))}
                 </tr>
               ))}
-          {!loading && visible.length === 0 && !topRow && (
+          {!loading && bottomRow?.({ mobile: false })}
+          {!loading && visible.length === 0 && !topRow && !bottomRow && (
             <tr className="h-32">
               <td colSpan={columns.length} className="px-5 text-center">
                 <p className="text-small text-stone-600">{query ? emptyQuery(query) : emptyMessage}</p>
@@ -430,7 +433,7 @@ export function GhostButton({ children, onClick, icon: Icon }) {
 function MobileList({
   id, title, subtitle, count, notice, toolbar, filterBar, search, sortButton, exportButton, selectedCount, bulkBar,
   rows, total, onMore, columns, selection, toggleRow, onRowClick, rowClass, loading, query, emptyMessage, emptyQuery, onClear, clearLabel,
-  topRow, footnote, sortSheet,
+  topRow, bottomRow, footnote, sortSheet,
 }) {
   const primary = columns.find((c) => c.mobile === 'primary') ?? columns.find((c) => c.mobile !== false && c.label)
   const meta = columns.filter((c) => c !== primary && c.mobile !== false && c.mobile !== 'extra' && (c.mobile === 'meta' || c.label))
@@ -505,7 +508,8 @@ function MobileList({
               </li>
             )
           })}
-        {!loading && rows.length === 0 && (
+        {!loading && bottomRow && <li>{bottomRow}</li>}
+        {!loading && rows.length === 0 && !bottomRow && (
           <li className="px-4 py-10 text-center">
             <p className="text-small text-stone-600">{query ? emptyQuery(query) : emptyMessage}</p>
             {onClear && <button onClick={onClear} className="mt-2 inline-flex h-10 items-center rounded-md px-3 text-small font-medium text-stone-600 hover:bg-stone-100">{clearLabel}</button>}

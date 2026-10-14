@@ -862,3 +862,622 @@ export const setupBrands = [
     marketplaces: brandMarketplaces,
   },
 ]
+
+// ---------------------------------------------------------------------------------------------------------------
+// Site Audit (/audit). Shaped like the production API (harshranjandas/kraffic.ai, apps/api):
+//   GET  /projects/:id/pages/checks   → { checks: CheckDefinition[] }  { id, group, label, rule, fix, heuristic }
+//   GET  /projects/:id/pages/sync     → { running, lastFinished: SyncView, website, found, read }
+//   GET  /projects/:id/pages          → { items: [{ id, url, path, title, pageType, state, words, failedChecks, … }] }
+//   GET  /projects/:id/crawl/pages    → WebPage { status (HTTP), crawlDepth } + snapshots[0].responseTimeMs
+//   GET  /projects/:id/technical-geo/audits/latest → site-level results (llms.txt, robots), not per page
+// Fields marked GAP don't exist in the API today (see the Site Audit report): the UI needs them, the mock invents them.
+// States: full · first (no previous run) · clean (0 failing, all 200) · never (no audit yet) · errors (three 404s). /audit?mock=<state>.
+// redirectTarget: SiteUrl.redirectTarget (where a 3xx address points).
+
+// CheckDefinition + GAP fields: category (API has group seo|geo only), impact, effort (minutes), problem / action
+// (UI copy), pageBased (false = a site-level result), finding(n, total) (API evidence is per page), why, example.
+// fix is a list of steps (API: one string). appliesTo: page types the check runs on (elsewhere the API reports status 'na').
+export const auditChecks = [
+  // technical
+  {
+    id: 'seo.meta_description', group: 'seo', category: 'technical', impact: 'high', effort: 30, heuristic: false, pageBased: true,
+    label: 'Meta descriptions', problem: 'Missing meta descriptions', action: (n) => `Add meta descriptions to ${n} pages`,
+    rule: 'The page has a meta description of 70–160 characters.',
+    finding: (n, of) => `${n} of ${of} pages have no meta description`,
+    why: 'Answer engines often quote the meta description as the page summary. Without one they pick a random paragraph, which can be a shipping note or a cookie banner.',
+    example: '<meta name="description"\n  content="A 15% vitamin C serum for dull, uneven skin. Fragrance-free, 30 ml.">',
+    fix: ['In the theme template, fall back to the first 155 characters of the product description.', 'Then rewrite the top sellers by hand: lead with what the page answers, e.g. “A 15% vitamin C serum for dull, uneven skin.”'],
+  },
+  {
+    id: 'seo.image_alt', group: 'seo', category: 'technical', impact: 'medium', effort: 60, heuristic: false, pageBased: true,
+    label: 'Image alt text', problem: 'Images without alt text', action: (n) => `Describe the product photos on ${n} pages`,
+    rule: 'At least 90% of images have a text description.',
+    finding: (n) => `Product photos on ${n} pages have no description AI can read`,
+    why: 'Multimodal answers and shopping results describe products from their images. Alt text is the only description they can rely on.',
+    fix: ['Describe each product photo in one sentence: product, size, texture.', 'Leave decorative images with an empty alt="" on purpose.', 'Add an alt field to the product image upload form.'],
+  },
+  {
+    id: 'crawl.http_errors', group: 'seo', category: 'technical', impact: 'medium', effort: 15, heuristic: false, pageBased: true,
+    label: 'Broken pages', problem: 'Broken pages', action: (n) => `Fix or redirect ${n === 1 ? 'a broken page' : `${n} broken pages`}`,
+    rule: 'Every linked page returns 200 OK (CrawlIssue HTTP_404 / HTTP_5XX).',
+    finding: (n) => `${n === 1 ? 'A linked page returns' : `${n} linked pages return`} 404 Not Found`,
+    why: 'A crawler that hits a dead link stops there. The products it would have found from that page may never be read.',
+    fix: ['Redirect the page to its closest live replacement (301).', 'Or remove the links to it from menus and other pages.'],
+  },
+  {
+    id: 'site.llms_txt', group: 'geo', category: 'technical', impact: 'medium', effort: 20, heuristic: false, pageBased: false,
+    label: 'llms.txt', problem: 'No llms.txt file', action: () => 'Publish an llms.txt file',
+    rule: 'The site serves /llms.txt (technical-geo llmsTxtStatus).',
+    finding: () => 'dermasuri.com/llms.txt returns 404',
+    why: 'llms.txt gives AI crawlers a short map of the site and the pages you most want cited.',
+    fix: ['Create /llms.txt with a one-paragraph brand summary.', 'List your top product, collection and guide pages with one line each.'],
+  },
+  {
+    id: 'seo.unique', group: 'seo', category: 'technical', impact: 'medium', effort: 30, heuristic: false, pageBased: true,
+    label: 'Unique titles', problem: 'Duplicate titles', action: (n) => `Give ${n} pages their own title`,
+    rule: 'The title and main heading are not used on another page.',
+    finding: (n) => `${n} pages share “Dermasuri | Clinical Skincare”`,
+    why: 'When titles repeat, engines can’t tell the pages apart and tend to cite only one of them.',
+    fix: ['Give each page a title that names its subject first, then the brand.', 'Use “Serums | Dermasuri” style titles for collections.'],
+  },
+  {
+    id: 'seo.canonical', group: 'seo', category: 'technical', impact: 'low', effort: 15, heuristic: false, pageBased: true,
+    label: 'Canonical tags', problem: 'Missing canonical tags', action: (n) => `Add canonical tags to ${n} pages`,
+    rule: 'The page names its own official address.',
+    finding: (n) => `${n} pages don’t say which URL is the original`,
+    why: 'Without a canonical URL, mentions and links can be split between duplicates of the same page.',
+    fix: ['Add a self-referencing canonical tag to every page in the theme layout.'],
+  },
+  {
+    id: 'geo.ai_crawlers', group: 'geo', category: 'technical', impact: 'high', effort: 10, heuristic: false, pageBased: true,
+    label: 'AI crawler access', problem: 'AI crawlers blocked', action: (n) => `Let AI crawlers read ${n} pages`,
+    rule: 'robots.txt allows GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot and Google-Extended.',
+    finding: () => 'robots.txt lets GPTBot, ClaudeBot and PerplexityBot in',
+    why: 'If robots.txt blocks AI crawlers, engines can only cite you from second-hand sources.',
+    fix: ['Nothing to fix. Re-check after any robots.txt change.'],
+  },
+  {
+    id: 'site.sitemap', group: 'seo', category: 'technical', impact: 'medium', effort: 20, heuristic: false, pageBased: false,
+    label: 'XML sitemap', problem: 'Incomplete sitemap', action: () => 'Regenerate the XML sitemap',
+    rule: 'The sitemap lists every live page.',
+    finding: () => 'The sitemap lists every live page',
+    why: 'A complete sitemap is how crawlers find pages that few links point to.',
+    fix: ['Keep the sitemap generated by the store platform.'],
+  },
+  {
+    id: 'site.https', group: 'seo', category: 'technical', impact: 'low', effort: 30, heuristic: false, pageBased: false,
+    label: 'HTTPS', problem: 'Pages served over HTTP', action: () => 'Serve every page over HTTPS',
+    rule: 'Every page is served over HTTPS.',
+    finding: () => 'Every page is served over HTTPS',
+    why: 'Engines distrust pages that load over plain HTTP or mix secure and insecure content.',
+    fix: ['Nothing to fix.'],
+  },
+  // content
+  {
+    id: 'seo.headings', group: 'seo', category: 'content', impact: 'high', effort: 45, heuristic: false, pageBased: true,
+    label: 'Heading order', problem: 'Broken heading order', action: (n) => `Fix the heading order on ${n} pages`,
+    rule: 'One H1, then H2s, with H3s only inside an H2.',
+    finding: (n) => `${n} pages skip from H1 to H3 or have more than one H1`,
+    why: 'Engines use headings to split a page into answerable sections. Broken nesting merges unrelated sections together.',
+    example: 'H1  Vitamin C Serum 15%\n├ H2  What it does\n│ └ H3  Who it’s for\n├ H2  How to use it\n└ H2  Ingredients',
+    fix: ['Use one H1 per page.', 'Use H2 for each section and H3 only inside an H2.'],
+  },
+  {
+    id: 'geo.direct_answers', group: 'geo', category: 'content', appliesTo: ['ARTICLE'], impact: 'high', effort: 120, heuristic: true, pageBased: true,
+    label: 'Direct answers', problem: 'No direct answers', action: (n) => `Open ${n} articles with a direct answer`,
+    rule: 'Questions are answered in the first paragraph under them.',
+    finding: (n) => `${n} articles don’t answer the title question in the first paragraph`,
+    why: 'AI answers quote short, self-contained passages. A 40–60 word answer right under the heading is the easiest thing to cite.',
+    example: 'H1  Can you use vitamin C with niacinamide?\nYes. Modern formulas are stable together, so you can layer them\nin the same routine. Apply vitamin C first, then niacinamide.',
+    fix: ['Open each article with a 2–3 sentence answer to its title.', 'Then go into detail below it.'],
+  },
+  {
+    id: 'geo.author_date', group: 'geo', category: 'content', appliesTo: ['ARTICLE'], impact: 'high', effort: 30, heuristic: false, pageBased: true,
+    label: 'Author & date', problem: 'No author or date', action: (n) => `Add an author and date to ${n} articles`,
+    rule: 'Articles show an author and a published or updated date.',
+    finding: (n) => `${n} articles name no author or reviewer`,
+    why: 'For skincare advice, engines weigh who wrote it and when. Unattributed, undated health content is cited less.',
+    fix: ['Add an author byline to every article.', 'Add a “Reviewed by” line with the dermatologist’s name and credentials.', 'Show “Updated <date>” and set dateModified in the article markup.'],
+  },
+  {
+    id: 'geo.question_headings', group: 'geo', category: 'content', appliesTo: ['ARTICLE'], impact: 'medium', effort: 60, heuristic: true, pageBased: true,
+    label: 'Question headings', problem: 'Few question headings', action: (n) => `Phrase H2s as questions in ${n} articles`,
+    rule: 'Section headings are phrased the way people ask.',
+    finding: () => 'Only 6 of 74 article H2s are phrased as questions',
+    why: 'People ask AI questions. Headings that match the question make the section easy to match to a prompt.',
+    example: 'Before  H2  Layering\nAfter   H2  Can I use vitamin C with niacinamide?',
+    fix: ['Rewrite H2s as the questions customers ask.', 'Keep the answer in the first sentence under each one.'],
+  },
+  {
+    id: 'seo.links_out', group: 'seo', category: 'content', impact: 'low', effort: 45, heuristic: false, pageBased: true,
+    label: 'Internal links', problem: 'No links to guides', action: (n) => `Link ${n} products to their guides`,
+    rule: 'The page links to other pages of your site.',
+    finding: (n) => `${n} product pages link to no related guide`,
+    why: 'Links between products and guides help crawlers see which page is the authority on a topic.',
+    fix: ['Link each product to the one or two guides that explain its main ingredient.'],
+  },
+  {
+    id: 'geo.summary', group: 'geo', category: 'content', impact: 'low', effort: 30, heuristic: true, pageBased: true,
+    label: 'Summary up top', problem: 'No summary up top', action: (n) => `Add a summary to ${n} pages`,
+    rule: 'A short summary near the top of the page.',
+    finding: () => 'Every article opens with a short summary',
+    why: '“What is…” prompts are answered with a one-sentence definition. Put it where it’s found first.',
+    fix: ['Nothing to fix. Keep opening new pages with a one-line summary.'],
+  },
+  {
+    id: 'seo.text_length', group: 'seo', category: 'content', impact: 'low', effort: 60, heuristic: false, pageBased: true,
+    label: 'Enough text', problem: 'Thin pages', action: (n) => `Add text to ${n} thin pages`,
+    rule: 'At least 300 words on the page.',
+    finding: () => 'Every page has at least 300 words',
+    why: 'Thin pages give an engine too little to quote, so it cites a page that says more.',
+    fix: ['Nothing to fix.'],
+  },
+  // speed (GAP: production has no speed checks; response times exist only as CrawlJobPage.responseTimeMs)
+  {
+    id: 'speed.response_time', group: 'seo', category: 'speed', impact: 'high', effort: 60, heuristic: false, pageBased: true,
+    label: 'Response time', problem: 'Slow pages', action: (n) => `Speed up ${n} slow pages`,
+    rule: 'The page responds in 500 ms or less.',
+    finding: (n) => `${n} pages take over 500 ms to respond`,
+    why: 'Slow pages get dropped from crawls before they’re read in full.',
+    fix: ['Compress the hero images on the slowest pages.', 'Cache collection pages at the CDN.'],
+  },
+  {
+    id: 'speed.page_weight', group: 'seo', category: 'speed', impact: 'medium', effort: 60, heuristic: false, pageBased: false,
+    label: 'Page weight', problem: 'Heavy pages', action: () => 'Reduce page weight',
+    rule: 'The median page is under 2 MB.',
+    finding: () => 'The median page is 1.2 MB',
+    why: 'Heavy pages take longer to fetch and are more likely to time out for crawlers.',
+    fix: ['Nothing to fix.'],
+  },
+  {
+    id: 'speed.render_blocking', group: 'seo', category: 'speed', impact: 'low', effort: 90, heuristic: false, pageBased: false,
+    label: 'Render-blocking scripts', problem: 'Render-blocking scripts', action: () => 'Defer render-blocking scripts',
+    rule: 'Main content renders without waiting on scripts.',
+    finding: () => 'Main content renders without waiting on scripts',
+    why: 'Crawlers that don’t run JavaScript only see what renders without it.',
+    fix: ['Nothing to fix.'],
+  },
+]
+
+// ---- crawled pages: WebPage + PageAudit.failedChecks (+ GAP warnChecks: the API has no "needs work" status)
+const auditProducts = ['vitamin-c-serum', 'niacinamide-booster', 'retinol-night-cream', 'hyaluronic-moisturizer', 'mineral-sunscreen-spf-50', 'gentle-gel-cleanser',
+  'azelaic-acid-cream', 'peptide-eye-cream', 'barrier-repair-balm', 'bha-exfoliant', 'tinted-spf-30', 'ceramide-toner',
+  'brightening-mask', 'clarifying-clay-mask', 'overnight-lip-mask', 'squalane-oil', 'snail-mucin-essence', 'sensitive-skin-kit']
+const auditCollections = ['serums', 'moisturizers', 'sunscreen', 'cleansers', 'acne', 'bestsellers']
+const auditPosts = ['vitamin-c-vs-niacinamide', 'how-to-layer-skincare', 'best-sunscreen-for-oily-skin', 'retinol-for-beginners', 'what-is-azelaic-acid',
+  'skin-barrier-guide', 'morning-vs-night-routine', 'fragrance-free-skincare', 'dark-spots-treatment', 'is-mineral-sunscreen-better']
+const auditInfo = [['about', 'ABOUT'], ['shipping', 'OTHER'], ['ingredients', 'OTHER'], ['contact', 'CONTACT']]
+const AUDIT_MS = [142, 188, 171, 165, 120, 199, 156, 133, 181, 177, 149, 160,
+  240, 310, 285, 420, 365, 230, 455, 275, 330, 390, 260, 480, 345, 300, 410, 255, 370, 295, 440, 320, 215, 385, 470,
+  620, 740, 880, 560, 1320]
+
+// broken: extra paths that return 404 (the default full site has one: a discontinued product)
+function auditPages({ clean = false, broken = [] } = {}) {
+  const raw = [
+    { path: '/', pageType: 'HOME', crawlDepth: 0, title: 'Dermasuri | Clinical Skincare' },
+    { path: '/index.html', pageType: 'HOME', crawlDepth: 0, title: null, status: clean ? 200 : 301, redirectTarget: clean ? null : '/' },
+    ...auditProducts.map((s) => ({ path: `/products/${s}`, pageType: 'PRODUCT', crawlDepth: 2, status: !clean && s === 'sensitive-skin-kit' ? 404 : 200 })),
+    ...auditCollections.map((s) => ({ path: `/collections/${s}`, pageType: 'CATEGORY', crawlDepth: 1 })),
+    ...auditPosts.map((s) => ({ path: `/blogs/journal/${s}`, pageType: 'ARTICLE', crawlDepth: 2 })),
+    ...auditInfo.map(([s, t]) => ({ path: `/pages/${s}`, pageType: t, crawlDepth: 1 })),
+  ]
+  // clean site: every page under 500 ms. Full: the slow tail lands on collections, the home redirect and one article.
+  const slowOrder = ['/collections/bestsellers', '/collections/serums', '/blogs/journal/skin-barrier-guide', '/collections/sunscreen', '/collections/moisturizers']
+  return raw.filter((p) => !(clean && p.path === '/index.html')).map((p, i) => { // a clean site has no duplicate home URL
+    let ms = AUDIT_MS[i % 35]
+    const slow = slowOrder.indexOf(p.path)
+    if (slow >= 0) ms = clean ? 280 + slow * 40 : [1320, 880, 740, 620, 560][slow]
+    const status = broken.includes(p.path) ? 404 : p.status ?? 200
+    return {
+      id: `wp_${i + 1}`, url: `https://dermasuri.com${p.path}`, path: p.path, title: p.title ?? null,
+      pageType: p.pageType, state: status === 404 ? 'removed' : 'live',
+      httpStatus: status, redirectTarget: p.redirectTarget ?? null, crawlDepth: p.crawlDepth, responseTimeMs: ms, words: p.pageType === 'ARTICLE' ? 1400 : 380,
+      failedChecks: [], warnChecks: [],
+    }
+  })
+}
+
+// which pages fail / need work on which check
+function applyResults(pages, results) {
+  const live = pages.filter((p) => p.httpStatus === 200)
+  for (const [id, status, test] of results) {
+    for (const p of (id === 'crawl.http_errors' ? pages : live)) if (test(p)) (status === 'fail' ? p.failedChecks : p.warnChecks).push(id)
+  }
+  return pages
+}
+const isType = (t) => (p) => p.pageType === t
+const FULL_RESULTS = [
+  ['seo.meta_description', 'fail', (p) => ['PRODUCT', 'ABOUT', 'CONTACT', 'OTHER'].includes(p.pageType)], // collections + articles get one from their description / excerpt
+  ['seo.image_alt', 'fail', (p) => ['PRODUCT', 'CATEGORY'].includes(p.pageType) || p.path === '/'],
+  ['crawl.http_errors', 'fail', (p) => p.httpStatus === 404],
+  ['seo.unique', 'warn', (p) => p.pageType === 'CATEGORY' || ['/', '/pages/about', '/pages/contact'].includes(p.path)],
+  ['seo.canonical', 'warn', (p) => p.path.startsWith('/pages/')],
+  ['seo.headings', 'fail', (p) => p.pageType === 'CATEGORY' || auditProducts.slice(0, 8).some((s) => p.path === `/products/${s}`)],
+  ['geo.direct_answers', 'fail', (p) => p.pageType === 'ARTICLE' && p.path !== '/blogs/journal/what-is-azelaic-acid'],
+  ['geo.author_date', 'warn', isType('ARTICLE')],
+  ['geo.question_headings', 'warn', isType('ARTICLE')],
+  ['seo.links_out', 'warn', isType('PRODUCT')],
+  ['speed.response_time', 'warn', (p) => p.responseTimeMs > 500],
+]
+const CLEAN_RESULTS = [
+  ['seo.canonical', 'warn', (p) => p.path.startsWith('/pages/')],
+  ['geo.question_headings', 'warn', (p) => p.pageType === 'ARTICLE' && p.path.includes('-vs-')],
+]
+
+// site-level results (technical-geo audit): pageBased: false checks. Page-based checks roll up from the pages.
+const siteResults = (llms) => [
+  { id: 'site.llms_txt', status: llms }, { id: 'site.sitemap', status: 'pass' }, { id: 'site.https', status: 'pass' },
+  { id: 'speed.page_weight', status: 'pass' }, { id: 'speed.render_blocking', status: 'pass' },
+]
+
+// SyncView (GET pages/sync → lastFinished)
+const syncView = (id, startedAt, finishedAt, pages) => ({
+  id, phase: 'done', result: 'finished', trigger: 'manual', message: null, startedAt, finishedAt,
+  pagesReadThisSync: pages, addressesChecked: pages, currentUrl: null, durationSeconds: 412,
+})
+
+// GAP: run history. PageAudit is overwritten each sync, so the API can't say what changed. The mock keeps the previous
+// run's site-level status per check, its score and its page list.
+function previousRun(pages) {
+  const now = new Map(pages.map((p) => [p.path, p]))
+  const paths = [...now.keys()].filter((p) => !['/blogs/journal/dark-spots-treatment', '/blogs/journal/is-mineral-sunscreen-better'].includes(p))
+  return {
+    sync: syncView('sync_0914', '2026-09-14T09:02:00Z', '2026-09-14T09:09:00Z', paths.length + 1),
+    paths: [...paths, '/pages/press'],
+    checkStatus: { 'seo.headings': 'warn', 'crawl.http_errors': 'pass', 'site.sitemap': 'fail', 'seo.text_length': 'warn', 'seo.links_out': 'fail' }, // the rest: as now
+    // GAP: earlier runs' scores (for the sparkline). Production keeps no run history (PageAudit is overwritten).
+    history: [{ finishedAt: '2026-08-03T09:10:00Z', score: 38 }, { finishedAt: '2026-08-17T09:10:00Z', score: 41 }, { finishedAt: '2026-08-31T09:10:00Z', score: 46 }],
+  }
+}
+
+function auditProject(state) {
+  if (state === 'errors') { // the full site with two more dead links (4xx = 3)
+    return { ...auditProject('full'), pages: applyResults(auditPages({ broken: ['/products/overnight-lip-mask', '/blogs/journal/fragrance-free-skincare'] }), FULL_RESULTS) }
+  }
+  if (state === 'never') return { website: 'dermasuri.com', running: false, lastFinished: null, previous: null, checks: auditChecks, pages: [], siteResults: [] }
+  const clean = state === 'clean'
+  const pages = applyResults(auditPages({ clean }), clean ? CLEAN_RESULTS : FULL_RESULTS)
+  return {
+    website: 'dermasuri.com',
+    running: false,
+    lastFinished: syncView('sync_1012', '2026-10-12T09:07:00Z', '2026-10-12T09:14:00Z', pages.length),
+    previous: state === 'first' ? null : clean ? { ...previousRun(pages), checkStatus: { 'seo.canonical': 'fail' } } : previousRun(pages),
+    checks: auditChecks,
+    pages,
+    siteResults: siteResults(clean ? 'pass' : 'fail'),
+  }
+}
+export const siteAudit = { full: auditProject('full'), first: auditProject('first'), clean: auditProject('clean'), never: auditProject('never'), errors: auditProject('errors') }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Trends (/trends): how news and social channels talk about a question. NO production API exists for this yet
+// (harshranjandas/kraffic.ai has no prompt-trend / narrative-analysis module), so every field here is invented,
+// named after the closest house conventions:
+//   run      ← CompetitorStatementRun: status RUNNING | DONE | FAILED, error, startedAt, finishedAt
+//   region   ← ProjectMarket { countryCode, countryName, isPrimary } (+ a state/region label from ProjectLocation.region)
+//   channel  ← SourceType NEWS / SOCIAL, split by platform: NEWS | X | INSTAGRAM
+//   sentiment← CompetitorStatement.sentiment 'positive' | 'neutral' | 'negative'; sentimentDistribution {positive,neutral,negative}
+// States: /trends?mock=empty shows an empty run list.
+export const trendNow = '2026-10-14T12:00:00Z'
+export const trendMarket = { countryCode: 'US', countryName: 'United States', isPrimary: true }
+export const trendRegions = ['United States', 'California', 'New York', 'United Kingdom', 'Canada', 'India']
+
+// [publishedAt day, channel, domain or handle, author, sentiment, stance, title (news) | text (social), snippet?, entities]
+const PROP45 = [
+  ['09-26', 'NEWS', 'calmatters.org', 'CalMatters', 'neutral', 'neutral', 'What is Prop 45? The health insurance rate measure, explained', 'Prop 45 would give California’s insurance commissioner the power to reject health insurance rate hikes. Here is what a yes and a no vote mean.', ['Ricardo Lara']],
+  ['09-26', 'X', '@CalNurses', 'California Nurses', 'positive', 'for', 'Prop 45 puts a check on runaway premiums. Families deserve someone who can say no to a 20% hike. Vote yes https://t.co/a8Kd02', null, []],
+  ['09-27', 'NEWS', 'latimes.com', 'Los Angeles Times', 'neutral', 'neutral', 'Insurers and consumer groups square off over Prop 45', 'Insurers and consumer groups square off over Prop 45', ['Covered California']],
+  ['09-28', 'INSTAGRAM', '@cahealthvoters', 'CA Health Voters', 'positive', 'for', 'Three things Prop 45 changes about your health plan. Swipe for the short version and share with someone who votes. #Prop45', null, []],
+  ['09-29', 'NEWS', 'sacbee.com', 'The Sacramento Bee', 'negative', 'against', 'Opinion: Prop 45 hands one elected official too much power over your coverage', 'An elected commissioner would control rates for 6 million Californians, critics say, and campaign donors would follow.', ['Ricardo Lara']],
+  ['09-30', 'X', '@KFF', 'KFF', 'neutral', 'neutral', 'New explainer: how prior approval of health rates works in 35 states, and what Prop 45 would change in California https://t.co/kx81Lp', null, ['Covered California']],
+  ['09-30', 'X', '@CAInsureWatch', 'Insurance Watch', 'negative', 'against', 'Prop 45 adds a political layer to a system that already works. Covered California negotiates rates today. Why change it?', null, ['Covered California']],
+  ['10-01', 'NEWS', 'politico.com', 'Politico', 'neutral', 'against', 'Business groups pour $30M into fight against Prop 45', 'The No campaign has outraised supporters ten to one, with most of the money from the state’s largest insurers.', ['Anthem Blue Cross', 'Kaiser Permanente']],
+  ['10-02', 'X', '@sfchronicle', 'San Francisco Chronicle', 'neutral', 'neutral', 'Live: the Prop 45 debate is underway in Sacramento. Follow along for the key moments https://t.co/q09Lx1', null, []],
+  ['10-02', 'X', '@DrMaya_Policy', 'Maya Ortiz', 'negative', 'against', 'Watching the Prop 45 debate. Still no answer on how one office reviews thousands of plans without delays.', null, []],
+  ['10-02', 'X', '@CalNurses', 'California Nurses', 'positive', 'for', 'Tonight the Yes side made the case plainly: rate hikes should have to be justified. #Prop45 https://t.co/Lm2k0', null, []],
+  ['10-02', 'X', '@CAInsureWatch', 'Insurance Watch', 'negative', 'against', 'The No side landed it: Prop 45 lets a politician set your premiums. Hard pass.', null, []],
+  ['10-02', 'X', '@votesmartCA', 'VoteSmart CA', 'neutral', 'neutral', 'Debate recap thread: what each side said about Prop 45, in plain English. 1/7', null, []],
+  ['10-02', 'NEWS', 'kqed.org', 'KQED', 'neutral', 'neutral', 'Prop 45 debate: five takeaways', 'Supporters focused on premiums; opponents on who gets the power to approve them.', []],
+  ['10-02', 'INSTAGRAM', '@kqednews', 'KQED News', 'neutral', 'neutral', 'Missed the Prop 45 debate? Here are the 60 seconds that matter. Full recap at the link in bio.', null, []],
+  ['10-03', 'NEWS', 'sfchronicle.com', 'San Francisco Chronicle', 'negative', 'against', 'Editorial: Vote no on Prop 45', 'The measure’s goal is right, but the fix is wrong. It concentrates rate power in one elected office.', []],
+  ['10-03', 'X', '@health_access', 'Health Access CA', 'positive', 'for', 'Fact check: 35 states already let regulators reject unjustified rate hikes. Prop 45 brings California in line https://t.co/Uv0a2', null, []],
+  ['10-04', 'X', '@smallbizCA', 'CA Small Business', 'negative', 'against', 'Our members already struggle with premiums. Prop 45 adds review delays that land on small employers first.', null, []],
+  ['10-04', 'NEWS', 'latimes.com', 'Los Angeles Times', 'neutral', 'against', 'Prop 45 trails in new poll as undecided voters break no', 'Support has slipped to 38% among likely voters, down from 52% in August.', []],
+  ['10-05', 'INSTAGRAM', '@cahealthvoters', 'CA Health Voters', 'positive', 'for', 'Your premium went up 9% this year. Who signed off on that? Nobody had to. That’s what Prop 45 changes.', null, []],
+  ['10-05', 'X', '@KFF', 'KFF', 'neutral', 'neutral', 'Poll: 4 in 10 California voters say they haven’t heard enough about Prop 45 to decide.', null, []],
+  ['10-05', 'X', '@CAInsureWatch', 'Insurance Watch', 'negative', 'against', 'Every major newspaper editorial board in the state now opposes Prop 45. Pay attention.', null, []],
+  ['10-06', 'NEWS', 'calmatters.org', 'CalMatters', 'neutral', 'neutral', 'Who is paying for the Prop 45 campaigns?', 'A look at the donors on both sides of the health insurance rate measure.', ['Anthem Blue Cross', 'Kaiser Permanente']],
+  ['10-06', 'X', '@votesmartCA', 'VoteSmart CA', 'neutral', 'against', 'Prop 45 update: the No campaign has now booked $12M in TV ads through election day.', null, []],
+  ['10-06', 'X', '@DrMaya_Policy', 'Maya Ortiz', 'neutral', 'neutral', 'Reading the Prop 45 fiscal analysis. Admin cost is small; the real question is review capacity. Thread.', null, []],
+  ['10-07', 'NEWS', 'politico.com', 'Politico', 'negative', 'against', 'Prop 45 backers concede an uphill climb', 'Prop 45 backers concede an uphill climb', []],
+  ['10-07', 'X', '@health_access', 'Health Access CA', 'positive', 'for', 'Down in the polls, not in the argument. Rate hikes should be justified. Vote yes on 45.', null, []],
+  ['10-07', 'INSTAGRAM', '@kqednews', 'KQED News', 'neutral', 'neutral', 'Prop 45 in one chart: what you pay now vs. what rate review could change.', null, []],
+]
+// talking points (GAP: no theme/narrative extraction for news or social exists; named after CompetitorStatement
+// { theme, themeKey }). Mention i of PROP45 → its themeKey (null = no clear point).
+export const PROP45_THEMES = [
+  { themeKey: 'rate-review', theme: 'Rate reviews would slow insurance hikes' },
+  { themeKey: 'too-much-power', theme: 'One elected official gets too much power' },
+  { themeKey: 'campaign-money', theme: 'Insurers are outspending supporters' },
+  { themeKey: 'polls-slipping', theme: 'Support is slipping in the polls' },
+  { themeKey: 'voters-unsure', theme: 'Voters don’t know enough to decide' },
+]
+const PROP45_THEME_OF = ['rate-review', 'rate-review', 'campaign-money', 'rate-review', 'too-much-power', 'rate-review', 'too-much-power', 'campaign-money',
+  null, 'too-much-power', 'rate-review', 'too-much-power', null, null, null, 'too-much-power', 'rate-review', 'too-much-power', 'polls-slipping',
+  'rate-review', 'voters-unsure', 'polls-slipping', 'campaign-money', 'campaign-money', 'too-much-power', 'polls-slipping', 'rate-review', 'rate-review']
+const SUN = [
+  ['09-29', 'calmatters.org', 'neutral', 'neutral', 'Mineral vs chemical sunscreen: what the FDA actually says'],
+  ['09-30', 'nytimes.com', 'neutral', 'neutral', 'Are chemical sunscreens safe? Dermatologists weigh in'],
+  ['10-01', 'allure.com', 'positive', 'for', 'Why derms keep recommending mineral SPF for sensitive skin'],
+  ['10-01', 'healthline.com', 'neutral', 'neutral', 'Mineral sunscreen: benefits, drawbacks and how to choose'],
+  ['10-02', 'consumerreports.org', 'negative', 'against', 'Many mineral sunscreens fail SPF claims in new tests'],
+  ['10-03', 'byrdie.com', 'positive', 'for', 'The best mineral sunscreens that don’t leave a white cast'],
+  ['10-03', 'washingtonpost.com', 'neutral', 'neutral', 'The sunscreen ingredient debate, explained'],
+  ['10-04', 'self.com', 'positive', 'for', 'Is mineral sunscreen better for acne-prone skin?'],
+  ['10-04', 'theguardian.com', 'negative', 'against', 'Reef-safe labels on sunscreen are mostly marketing, study finds'],
+]
+const REASONS = {
+  sentiment: { positive: 'Upbeat framing; presents the measure as a fix for rising costs.', neutral: 'Reports facts and quotes both sides without taking a tone.', negative: 'Critical framing; stresses risks, cost or loss of control.' },
+  stance: { for: 'Argues voters should support the measure.', neutral: 'Explains or reports without urging a vote either way.', against: 'Argues the measure should be rejected.' },
+}
+const NEWS_TITLES = { 'calmatters.org': 'CalMatters', 'latimes.com': 'Los Angeles Times', 'sacbee.com': 'The Sacramento Bee', 'politico.com': 'Politico', 'kqed.org': 'KQED', 'sfchronicle.com': 'San Francisco Chronicle' }
+const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60)
+const at = (md, h) => `2026-${md}T${String(h).padStart(2, '0')}:${String((h * 17) % 60).padStart(2, '0')}:00Z`
+// an earlier run of the same question: shifted back in time, without some sources, a few tones milder
+function prop45Mentions({ shiftDays = 0, take = PROP45.length, without = [], milder = 0 } = {}) {
+  let softened = 0
+  return PROP45.map((row, i) => [row, i]).filter(([row]) => !without.includes(row[2])).slice(0, take).map(([[md, channel, src, author, sentimentRaw, stance, body, snippet, entities], i]) => {
+    const sentiment = sentimentRaw === 'negative' && softened < milder ? (softened++, 'neutral') : sentimentRaw
+    const d = new Date(at(md, 8 + (i % 12)))
+    d.setUTCDate(d.getUTCDate() - shiftDays)
+    const handle = src.startsWith('@')
+    const domain = channel === 'NEWS' ? src : channel === 'X' ? 'x.com' : 'instagram.com'
+    return {
+      id: `m_${shiftDays}_${i + 1}`, channel, sourceType: channel === 'NEWS' ? 'NEWS' : 'SOCIAL',
+      domain, handle: handle ? src : null, author: author ?? NEWS_TITLES[src],
+      url: channel === 'NEWS' ? `https://${src}/2026/${slug(body)}` : channel === 'X' ? `https://x.com/${src.slice(1)}/status/18${i}4410${i}` : `https://instagram.com/p/C${i}x45${i}/`,
+      title: channel === 'NEWS' ? body : null, text: channel === 'NEWS' ? snippet : body,
+      publishedAt: d.toISOString(), sentiment, stance,
+      sentimentReason: REASONS.sentiment[sentiment], stanceReason: REASONS.stance[stance], // GAP: no reason fields anywhere in production
+      entities, // GAP: people / organisations named in the mention
+      themeKey: PROP45_THEME_OF[i], // GAP: talking point
+    }
+  })
+}
+const sunMentions = SUN.map(([md, domain, sentiment, stance, title], i) => ({
+  id: `s_${i + 1}`, channel: 'NEWS', sourceType: 'NEWS', domain, handle: null, author: null,
+  url: `https://${domain}/2026/${slug(title)}`, title, text: null, publishedAt: at(md, 9 + i), sentiment, stance, themeKey: null,
+  sentimentReason: REASONS.sentiment[sentiment], stanceReason: { for: 'Recommends mineral sunscreen over chemical filters.', neutral: 'Compares the two without recommending either.', against: 'Questions the claimed benefits of mineral sunscreen.' }[stance], entities: sentiment === 'neutral' ? ['FDA'] : [],
+}))
+
+const distribution = (ms) => ({ positive: ms.filter((m) => m.sentiment === 'positive').length, neutral: ms.filter((m) => m.sentiment === 'neutral').length, negative: ms.filter((m) => m.sentiment === 'negative').length })
+const trendRun = (r, ms = []) => ({
+  countryCode: 'US', previousRunId: null, error: null, phase: r.status === 'DONE' ? 'done' : null,
+  mentionCount: ms.length, sentimentDistribution: distribution(ms), mentions: ms, themes: null, ...r,
+})
+// the run before (Sep 24): no Health Access / KQED yet, and milder tone
+const prevProp = prop45Mentions({ shiftDays: 14, take: 21, without: ['@health_access', 'kqed.org', '@kqednews'], milder: 3 })
+const firstProp = prop45Mentions({ shiftDays: 28, take: 12, without: ['@health_access', 'kqed.org', '@kqednews', '@smallbizCA'], milder: 2 })
+// newest first
+export const trendRuns = [
+  trendRun({ id: 'tr_7', query: 'Will tariffs raise skincare prices?', region: 'United States', status: 'RUNNING', phase: 'reading', startedAt: '2026-10-14T11:58:00Z', finishedAt: null }),
+  trendRun({ id: 'tr_6', query: 'What is California Prop 45?', region: 'California', status: 'DONE', startedAt: '2026-10-08T15:20:00Z', finishedAt: '2026-10-08T15:21:40Z', previousRunId: 'tr_2', themes: PROP45_THEMES }, prop45Mentions()),
+  trendRun({ id: 'tr_5', query: 'Is mineral sunscreen safer than chemical sunscreen?', region: 'United States', status: 'DONE', startedAt: '2026-10-05T10:02:00Z', finishedAt: '2026-10-05T10:03:12Z' }, sunMentions),
+  trendRun({ id: 'tr_4', query: 'Are there new FDA rules for sunscreen filters?', region: 'United States', status: 'FAILED', phase: 'collecting', error: 'The news source didn’t respond after 3 tries, so nothing was saved.', startedAt: '2026-10-03T09:40:00Z', finishedAt: '2026-10-03T09:42:05Z' }),
+  trendRun({ id: 'tr_3', query: 'Is niacinamide safe during pregnancy?', region: 'United Kingdom', countryCode: 'GB', status: 'DONE', startedAt: '2026-09-30T08:10:00Z', finishedAt: '2026-09-30T08:11:02Z' }),
+  trendRun({ id: 'tr_2', query: 'What is California Prop 45?', region: 'California', status: 'DONE', startedAt: '2026-09-24T14:00:00Z', finishedAt: '2026-09-24T14:01:30Z', previousRunId: 'tr_1', themes: PROP45_THEMES }, prevProp),
+  trendRun({ id: 'tr_1', query: 'What is California Prop 45?', region: 'California', status: 'DONE', startedAt: '2026-09-10T13:30:00Z', finishedAt: '2026-09-10T13:31:10Z', themes: PROP45_THEMES }, firstProp),
+]
+
+// ---------------------------------------------------------------------------------------------------------------
+// Toolkit (/more-tools) + Site Kit (/more-tools/site-kit). Production (harshranjandas/kraffic.ai) has the
+// "Search & Analytics Connectors" tool (apps/api/src/modules/integrations): ProjectIntegration rows per provider and
+// SearchPerformanceMetric / AiReferralTrafficMetric rows. Field names below match those models. GAP-marked fields
+// don't exist there. States: /more-tools/site-kit?mock=none (default) | gsc | expired | connected | empty.
+// The tools, as production's more-tools.tsx TOOLS lists them (path = route segment). "Site Kit" is the mock's name for
+// "Search & Analytics Connectors". Technical GEO & Crawlers is left out: /audit covers it.
+export const toolkitTools = [
+  { id: 'integrations', section: 'Connect', name: 'Site Kit', prodName: 'Search & Analytics Connectors', icon: 'plug', href: '/more-tools/site-kit',
+    desc: 'Search Console and Analytics data next to your AI visibility' },
+  { id: 'crm-attribution', href: '/more-tools/crm-attribution', section: 'Connect', name: 'CRM & Revenue Attribution', icon: 'wallet', desc: 'Sales in your CRM linked to the AI answers that started them' },
+  { id: 'content', section: 'Analyze', name: 'Content Intelligence', icon: 'file-search', desc: 'Topics your website doesn’t cover yet, and pages that compete with each other' },
+  { id: 'evidence', section: 'Analyze', name: 'Evidence Vault', icon: 'library', desc: 'Sources that back up the claims your site makes' },
+  { id: 'entity-intelligence', section: 'Analyze', name: 'Entity & Hallucinations', icon: 'shield-alert', desc: 'Claims AI engines make about your brand that are wrong or out of date' },
+  { id: 'competitor-alerts', href: '/more-tools/competitor-alerts', section: 'Analyze', name: 'Competitor Alerts', icon: 'bell', desc: 'Changes on competitor websites: new pages, prices and claims' },
+  { id: 'action-mappings', section: 'Improve', name: 'Action Mappings', icon: 'route', desc: 'Recommendations linked to the prompts and pages they help' },
+  { id: 'experiments', href: '/more-tools/experiments', section: 'Improve', name: 'GEO Experiment Lab', icon: 'flask', desc: 'Before-and-after tests of content changes on AI visibility' },
+  { id: 'executive-reports', section: 'Report', name: 'Executive Reports', icon: 'presentation', desc: 'Branded summary reports for managers and clients' },
+]
+
+// Each tool's summary response, named as in production (…/overview or …/metrics). `lastRunAt` and
+// `lastAcknowledgedAt` are GAP fields: no summary response carries a run date (only integrations.lastSyncAt and
+// executive-reports exports[].createdAt do). null = never run / nothing connected.
+const TK_FULL = {
+  integrations: { connectedProviders: [], lastSyncAt: null }, // SearchPerformanceOverviewStats (not connected: nothing synced)
+  'crm-attribution': { connected: true, totalConversions: 22, totalAttributedRevenue: 31800, lastRunAt: '2026-10-11' }, // CrmAttributionMetrics
+  content: { totalGapsIdentified: 12, coveragePercentage: 64, actionableOpportunitiesCount: 7, lastRunAt: '2026-10-05' }, // ContentOverviewStats
+  evidence: { totalEvidenceCount: 18, userVerifiedCount: 11, lastRunAt: '2026-10-03' }, // EvidenceStatsDto
+  'entity-intelligence': { totalIncidents: 5, contradictedCount: 3, criticalCount: 1, resolvedCount: 2, lastRunAt: '2026-10-09' }, // HallucinationMetrics
+  'competitor-alerts': { totalChangesDetected: 11, unacknowledgedChanges: 4, highImpactChanges: 1, lastRunAt: '2026-10-14', lastAcknowledgedAt: '2026-10-12' }, // CompetitorAlertsMetrics
+  'action-mappings': { coverageMetrics: { totalActionsCount: 9, promptsAddressedCount: 31, coveragePercentage: 20 }, lastRunAt: '2026-10-05' }, // ActionMappingsOverviewDto
+  experiments: { totalExperiments: 0, runningCount: 0, concludedCount: 0, lastRunAt: null }, // ExperimentLabMetrics
+  'executive-reports': { exports: [{ createdAt: '2026-09-30' }] }, // GET …/executive-reports/exports
+}
+const TK_NEW = {
+  integrations: { connectedProviders: [], lastSyncAt: null },
+  'crm-attribution': { connected: false },
+  content: { lastRunAt: null }, evidence: { lastRunAt: null }, 'entity-intelligence': { lastRunAt: null },
+  'competitor-alerts': { lastRunAt: null }, 'action-mappings': { lastRunAt: null }, experiments: { totalExperiments: 0, lastRunAt: null },
+  'executive-reports': { exports: [] },
+}
+const TK_HEALTHY = {
+  ...TK_FULL,
+  integrations: { connectedProviders: [{ provider: 'GOOGLE_SEARCH_CONSOLE', status: 'CONNECTED' }, { provider: 'GOOGLE_ANALYTICS_4', status: 'CONNECTED' }], totalClicks: 1828, lastSyncAt: '2026-10-14' },
+  'entity-intelligence': { totalIncidents: 5, contradictedCount: 0, criticalCount: 0, resolvedCount: 5, lastRunAt: '2026-10-09' },
+  'competitor-alerts': { totalChangesDetected: 11, unacknowledgedChanges: 0, highImpactChanges: 0, lastRunAt: '2026-10-14', lastAcknowledgedAt: '2026-10-14' },
+  experiments: { totalExperiments: 3, runningCount: 2, concludedCount: 1, averageVisibilityLift: 6.4, lastRunAt: '2026-10-08' },
+}
+export const toolkitSummaries = { full: TK_FULL, new: TK_NEW, healthy: TK_HEALTHY }
+
+const SK_TODAY = '2026-10-13' // last full day of data
+const skDays = (n) => Array.from({ length: n }, (_, i) => { const d = new Date(`${SK_TODAY}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - (n - 1 - i)); return d.toISOString().slice(0, 10) })
+const SK_DAYS = skDays(180) // 90 days + the 90 before them (for deltas)
+// [query, landing page, share of clicks, base position]
+const SK_QUERIES = [
+  ['dermasuri', '/', 0.22, 1.2], ['vitamin c serum for dark spots', '/products/vitamin-c-serum', 0.12, 6.8], ['sunscreen without white cast', '/products/mineral-sunscreen-spf-50', 0.09, 8.4],
+  ['dermasuri vitamin c serum review', '/products/vitamin-c-serum', 0.08, 2.9], ['best niacinamide serum for oily skin', '/products/niacinamide-booster', 0.07, 11.2],
+  ['niacinamide vs vitamin c', '/blogs/journal/vitamin-c-vs-niacinamide', 0.07, 5.6], ['how to layer skincare', '/blogs/journal/how-to-layer-skincare', 0.06, 9.1],
+  ['retinol serum for beginners', '/blogs/journal/retinol-for-beginners', 0.06, 12.4], ['mineral sunscreen spf 50', '/products/mineral-sunscreen-spf-50', 0.05, 14.7],
+  ['what is azelaic acid', '/blogs/journal/what-is-azelaic-acid', 0.05, 7.3], ['ceramide moisturizer for dry skin', '/products/barrier-repair-balm', 0.04, 18.9],
+  ['skin barrier repair', '/blogs/journal/skin-barrier-guide', 0.04, 15.2],
+]
+const skRand = mulberry32(2026)
+// daily clicks: ~48/day 90+ days ago, rising to ~70/day now, weekends lower
+const skDaily = SK_DAYS.map((date, i) => {
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay()
+  const trend = 46 + (i / SK_DAYS.length) * 26
+  const clicks = Math.round(trend * (dow === 0 || dow === 6 ? 0.78 : 1.06) * (0.9 + skRand() * 0.2))
+  return { date, clicks, impressions: Math.round(clicks * (24 + skRand() * 6)) }
+})
+// SearchPerformanceMetric rows { date, query, pageUrl, device, country, clicks, impressions, ctr, position }
+export const skSearchMetrics = skDaily.flatMap((d) => SK_QUERIES.map(([query, page, share, pos]) => {
+  const clicks = Math.round(d.clicks * share * (0.8 + skRand() * 0.4))
+  const impressions = Math.max(clicks, Math.round(d.impressions * share * (pos > 10 ? 1.6 : 0.9) * (0.85 + skRand() * 0.3)))
+  return { date: d.date, provider: 'GOOGLE_SEARCH_CONSOLE', query, pageUrl: `https://dermasuri.com${page}`, device: null, country: 'US', clicks, impressions, ctr: impressions ? Math.round((clicks / impressions) * 10000) / 100 : 0, position: Math.round((pos * (0.92 + skRand() * 0.16)) * 10) / 10 }
+}))
+// GAP: GA4 site totals per day (production stores AI-referral rows only)
+export const skGa4Daily = SK_DAYS.map((date, i) => {
+  const sessions = Math.round((220 + (i / SK_DAYS.length) * 70) * (0.88 + skRand() * 0.24))
+  const users = Math.round(sessions * 0.81)
+  return { date, users, sessions, engagedSessions: Math.round(sessions * (0.58 + skRand() * 0.06)), keyEvents: Math.round(sessions * 0.031 * (0.7 + skRand() * 0.6)) }
+})
+// AiReferralTrafficMetric rows { date, aiEngine, sourceDomain, landingPage, sessions, engagedSessions, conversions }
+const SK_AI = [['ChatGPT', 'chatgpt.com', 9.5], ['Perplexity', 'perplexity.ai', 4.2], ['Gemini', 'gemini.google.com', 2.6], ['Copilot', 'copilot.microsoft.com', 1.4], ['Claude', 'claude.ai', 1.1]]
+const SK_AI_PAGES = ['/products/vitamin-c-serum', '/blogs/journal/vitamin-c-vs-niacinamide', '/products/mineral-sunscreen-spf-50', '/blogs/journal/how-to-layer-skincare', '/pages/ingredients', '/products/niacinamide-booster']
+export const skAiReferrals = SK_DAYS.flatMap((date, i) => SK_AI.map(([aiEngine, sourceDomain, base], k) => {
+  const sessions = Math.max(0, Math.round(base * (0.55 + (i / SK_DAYS.length) * 0.9) * (0.7 + skRand() * 0.6)))
+  return { date, aiEngine, sourceDomain, landingPage: SK_AI_PAGES[(i + k * 2) % SK_AI_PAGES.length], sessions, engagedSessions: Math.round(sessions * (0.62 + skRand() * 0.15)), conversions: skRand() < 0.06 ? 1 : 0 }
+}))
+
+// ProjectIntegration rows per state. accountName stands in for the account email (GAP: no email field).
+const skIntegration = (provider, status, accountIdentifier) => ({
+  id: `int_${provider}`, provider, status, accountIdentifier, accountName: status === 'DISCONNECTED' ? null : 'marketing@dermasuri.com',
+  lastSyncAt: status === 'CONNECTED' ? '2026-10-14T06:00:00Z' : null, lastSyncStatus: status === 'CONNECTED' ? 'SUCCESS' : null, lastErrorMessage: null,
+  tokenExpiresAt: status === 'EXPIRED' ? '2026-10-02T09:00:00Z' : null,
+})
+const GSC = 'GOOGLE_SEARCH_CONSOLE', GA4 = 'GOOGLE_ANALYTICS_4'
+export const siteKit = {
+  today: SK_TODAY,
+  states: {
+    none: [skIntegration(GSC, 'DISCONNECTED', null), skIntegration(GA4, 'DISCONNECTED', null)],
+    gsc: [skIntegration(GSC, 'CONNECTED', 'sc-domain:dermasuri.com'), skIntegration(GA4, 'DISCONNECTED', null)],
+    expired: [skIntegration(GSC, 'EXPIRED', 'sc-domain:dermasuri.com'), skIntegration(GA4, 'DISCONNECTED', null)],
+    connected: [skIntegration(GSC, 'CONNECTED', 'sc-domain:dermasuri.com'), skIntegration(GA4, 'CONNECTED', 'properties/318204771')],
+    empty: [skIntegration(GSC, 'CONNECTED', 'sc-domain:dermasuri.com'), skIntegration(GA4, 'CONNECTED', 'properties/318204771')],
+  },
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Toolkit tools, batch 1. Shaped from production (apps/api/src/modules/{crm-attribution,experiments,competitor-alerts});
+// every result there is sample/simulated. GAP = the field doesn't exist in production. ?mock= picks a state per tool.
+
+// ---- CRM & Revenue Attribution: CrmIntegrationConfig + AiConversionEvent
+export const crmProviders = [ // enum CrmProvider (UI shows HubSpot, Salesforce, Pipedrive; Custom webhook in settings)
+  { provider: 'HUBSPOT', name: 'HubSpot', domain: 'hubspot.com' },
+  { provider: 'SALESFORCE', name: 'Salesforce', domain: 'salesforce.com' },
+  { provider: 'PIPEDRIVE', name: 'Pipedrive', domain: 'pipedrive.com' },
+  { provider: 'CUSTOM_WEBHOOK', name: 'Custom webhook', domain: null },
+]
+const CRM_ENGINES = [['chatgpt', 'chatgpt.com', 0.46], ['perplexity', 'perplexity.ai', 0.22], ['gemini', 'gemini.google.com', 0.15], ['copilot', 'copilot.microsoft.com', 0.09], ['claude', 'claude.ai', 0.08]]
+// tracked prompts whose text matches, by id (keeps the mock's links on topic)
+const promptsAbout = (re, n) => trackedPrompts.filter((p) => re.test(p.prompt)).slice(0, n).map((p) => p.id)
+const CRM_PROMPTS = [...promptsAbout(/vitamin c/i, 3), ...promptsAbout(/sunscreen/i, 2), ...promptsAbout(/niacinamide/i, 2), ...promptsAbout(/moisturi/i, 1)] // GAP: no prompt on a conversion
+const crmRand = mulberry32(77)
+// AiConversionEvent { occurredAt, referralEngine, landingPageUrl, conversionType, conversionValue, currency } + promptKey (GAP)
+export const crmConversions = SK_DAYS.slice(-60).flatMap((date, i) => {
+  const n = Math.round((1.2 + i / 30) * (0.5 + crmRand()))
+  return Array.from({ length: n }, (_, k) => {
+    const x = crmRand()
+    let acc = 0
+    const [engine, domain] = CRM_ENGINES.find(([, , w]) => (acc += w) >= x) ?? CRM_ENGINES[0]
+    return {
+      id: `cv_${date}_${k}`, occurredAt: `${date}T${String(9 + k * 3).padStart(2, '0')}:20:00Z`, referralEngine: engine, sourceDomain: domain,
+      landingPageUrl: `https://dermasuri.com${SK_AI_PAGES[Math.floor(crmRand() * SK_AI_PAGES.length)]}`,
+      conversionType: 'PURCHASE', conversionValue: Math.round(32 + crmRand() * 64), currency: 'USD', crmSyncStatus: 'SYNCED',
+      promptKey: CRM_PROMPTS[Math.floor(crmRand() * CRM_PROMPTS.length)],
+    }
+  })
+})
+const crmConfig = (status) => ({ id: 'cfg_hubspot', provider: 'HUBSPOT', status, endpointUrl: null, lastSyncedAt: status === 'ACTIVE' ? '2026-10-14T06:10:00Z' : null })
+export const crmStates = {
+  none: { configs: [], conversions: [] },
+  empty: { configs: [crmConfig('ACTIVE')], conversions: [] }, // connected, nothing synced yet
+  running: { configs: [crmConfig('ACTIVE')], conversions: crmConversions, syncing: { startedAt: '2026-10-14T11:58:20Z' } }, // GAP: no sync status
+  error: { configs: [crmConfig('ERROR')], conversions: [], error: 'HubSpot didn’t accept the API key. Check it in HubSpot, then reconnect.' }, // GAP: status is a free string, only ACTIVE is set
+  full: { configs: [crmConfig('ACTIVE')], conversions: crmConversions },
+}
+
+// ---- GEO Experiment Lab: GeoExperiment (+ GAP: pageUrl, promptKeys, windowDays, changedAt, per-prompt before/after)
+const expSeries = (start, days, changeDay, before, after, seed) => {
+  const r = mulberry32(seed)
+  return Array.from({ length: days }, (_, i) => {
+    const d = new Date(`${start}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + i)
+    const base = i < changeDay ? before : before + (after - before) * Math.min(1, (i - changeDay + 1) / 4)
+    return { recordedAt: d.toISOString().slice(0, 10), visibilityScore: Math.round(base + (r() - 0.5) * 6) }
+  })
+}
+export const experiments = [
+  { id: 'exp_1', name: 'Answer capsule on the vitamin C serum page', status: 'RUNNING', experimentType: 'CONTENT_REVISION',
+    hypothesis: 'A 50-word answer under the H1 gets the page quoted for “best vitamin C serum” prompts.',
+    pageUrl: '/products/vitamin-c-serum', promptKeys: promptsAbout(/vitamin c/i, 6), windowDays: 14,
+    startDate: '2026-10-01', changedAt: '2026-10-08', endDate: null, series: expSeries('2026-10-01', 14, 7, 41, 47, 3) },
+  { id: 'exp_2', name: 'FAQ schema on the sunscreen collection', status: 'CONCLUDED', experimentType: 'SCHEMA_UPDATE',
+    hypothesis: 'FAQ markup lets AI engines lift the answers straight from the collection page.',
+    pageUrl: '/collections/sunscreen', promptKeys: promptsAbout(/sunscreen|spf/i, 8), windowDays: 14,
+    startDate: '2026-09-03', changedAt: '2026-09-10', endDate: '2026-09-24', series: expSeries('2026-09-03', 22, 7, 38, 56, 5),
+    perPrompt: [[34, 58], [41, 62], [29, 51], [44, 60], [36, 49], [40, 55], [52, 50], [33, 33]] }, // GAP: before/after per prompt
+  { id: 'exp_3', name: 'Comparison table on the niacinamide guide', status: 'CONCLUDED', experimentType: 'CONTENT_REVISION',
+    hypothesis: 'A side-by-side table helps “niacinamide vs vitamin C” answers cite the guide.',
+    pageUrl: '/blogs/journal/vitamin-c-vs-niacinamide', promptKeys: promptsAbout(/niacinamide/i, 4), windowDays: 7,
+    startDate: '2026-08-20', changedAt: '2026-08-27', endDate: '2026-09-03', series: expSeries('2026-08-20', 15, 7, 47, 43, 9),
+    perPrompt: [[48, 45], [51, 44], [42, 40], [47, 43]] },
+  { id: 'exp_4', name: 'Author bylines on journal articles', status: 'DRAFT', experimentType: 'CONTENT_REVISION',
+    hypothesis: 'Naming the dermatologist who reviewed each article makes AI engines trust it more.',
+    pageUrl: '/blogs/journal/skin-barrier-guide', promptKeys: promptsAbout(/barrier|ceramide/i, 3), windowDays: 14, startDate: null, changedAt: null, endDate: null, series: [] },
+]
+export const experimentStates = {
+  none: { experiments: [] },
+  running: { experiments, iterating: { startedAt: '2026-10-14T11:59:10Z' } }, // a check round in progress (production: run-iteration)
+  error: { experiments, error: 'The last check round stopped: ChatGPT didn’t answer in time. Nothing was saved.' },
+  full: { experiments },
+}
+
+// ---- Competitor Alerts: CompetitorContentChange (+ GAP: touchesPromptKeys, lastCheckedAt)
+// changeType: NEW_PAGE CONTENT_UPDATE PRICING_CHANGE SCHEMA_UPDATE FACT_ADDITION (no "removed page" in the API)
+export const watchedCompetitors = [ // CompetitorCandidate with isTracked
+  { id: 'cc_cerave', name: 'CeraVe', domain: 'cerave.com' },
+  { id: 'cc_ordinary', name: 'The Ordinary', domain: 'theordinary.com' },
+  { id: 'cc_paulas', name: 'Paula’s Choice', domain: 'paulaschoice.com' },
+]
+export const competitorChanges = [
+  { id: 'chg_1', competitorId: 'cc_ordinary', changeType: 'PRICING_CHANGE', url: 'https://theordinary.com/en-us/niacinamide-10-zinc-1', title: 'Price cut on Niacinamide 10% + Zinc 1%', summary: 'Price dropped from $6.50 to $5.90.', detectedAt: '2026-10-14T07:40:00Z', impactScore: 85, isAcknowledged: false,
+    diffSnippet: '- Price: $6.50\n+ Price: $5.90\n+ Now 10% off in October', touchesPromptKeys: promptsAbout(/niacinamide/i, 3) },
+  { id: 'chg_2', competitorId: 'cc_cerave', changeType: 'NEW_PAGE', url: 'https://cerave.com/skincare/vitamin-c-vs-niacinamide', title: 'New guide: Vitamin C vs niacinamide', summary: 'A new comparison guide with a FAQ section.', detectedAt: '2026-10-13T15:10:00Z', impactScore: 92, isAcknowledged: false,
+    diffSnippet: '+ H1  Vitamin C vs niacinamide: can you use them together?\n+ H2  What does vitamin C do?\n+ H2  What does niacinamide do?\n+ FAQ  6 questions', touchesPromptKeys: [...promptsAbout(/vitamin c/i, 2), ...promptsAbout(/niacinamide/i, 2)] },
+  { id: 'chg_3', competitorId: 'cc_paulas', changeType: 'SCHEMA_UPDATE', url: 'https://paulaschoice.com/skin-perfecting-2pct-bha', title: 'Review markup added to their BHA exfoliant', summary: 'Product page now publishes AggregateRating (4.6, 5,210 reviews).', detectedAt: '2026-10-13T09:25:00Z', impactScore: 74, isAcknowledged: false,
+    diffSnippet: '+ "@type": "AggregateRating"\n+ "ratingValue": 4.6\n+ "reviewCount": 5210', touchesPromptKeys: promptsAbout(/salicylic|exfoliat/i, 2) },
+  { id: 'chg_4', competitorId: 'cc_cerave', changeType: 'CONTENT_UPDATE', url: 'https://cerave.com/sunscreen/hydrating-mineral-sunscreen-spf-50', title: 'Mineral sunscreen page rewritten', summary: 'New “no white cast” claim and a dermatologist quote at the top.', detectedAt: '2026-10-12T18:05:00Z', impactScore: 68, isAcknowledged: false,
+    diffSnippet: '- Gentle mineral protection for sensitive skin.\n+ Sheer, no white cast: tested on all skin tones.\n+ “Our go-to SPF for sensitive skin.” Dr. A. Patel, dermatologist', touchesPromptKeys: promptsAbout(/sunscreen/i, 3) },
+  { id: 'chg_5', competitorId: 'cc_ordinary', changeType: 'FACT_ADDITION', url: 'https://theordinary.com/en-us/azelaic-acid-suspension-10', title: 'New claim on Azelaic Acid 10%', summary: 'Adds “visibly brightens in 4 weeks”.', detectedAt: '2026-10-11T11:30:00Z', impactScore: 61, isAcknowledged: true,
+    diffSnippet: '+ Visibly brightens skin tone in 4 weeks*\n+ *Clinical study, 30 participants', touchesPromptKeys: [] },
+  { id: 'chg_6', competitorId: 'cc_paulas', changeType: 'NEW_PAGE', url: 'https://paulaschoice.com/expert-advice/skincare-advice/basics/retinol-for-beginners', title: 'New guide: Retinol for beginners', summary: 'Step-by-step routine with a weekly schedule table.', detectedAt: '2026-10-10T08:45:00Z', impactScore: 79, isAcknowledged: true,
+    diffSnippet: '+ H1  Retinol for beginners: how to start without irritation\n+ Table  Week 1–8 schedule', touchesPromptKeys: promptsAbout(/retinol/i, 3) },
+  { id: 'chg_7', competitorId: 'cc_cerave', changeType: 'PRICING_CHANGE', url: 'https://cerave.com/moisturizers/daily-moisturizing-lotion', title: 'Price rise on Daily Moisturizing Lotion', summary: 'Price rose from $15.99 to $17.49.', detectedAt: '2026-10-09T13:00:00Z', impactScore: 55, isAcknowledged: true,
+    diffSnippet: '- Price: $15.99\n+ Price: $17.49', touchesPromptKeys: [] },
+]
+export const competitorAlertStates = {
+  none: { competitors: watchedCompetitors, changes: [], lastCheckedAt: null },
+  running: { competitors: watchedCompetitors, changes: competitorChanges, lastCheckedAt: '2026-10-14T07:40:00Z', scanning: { startedAt: '2026-10-14T11:59:40Z' } },
+  error: { competitors: watchedCompetitors, changes: competitorChanges, lastCheckedAt: '2026-10-14T07:40:00Z', error: 'cerave.com blocked our check (HTTP 403). The other two were checked.' },
+  full: { competitors: watchedCompetitors, changes: competitorChanges, lastCheckedAt: '2026-10-14T07:40:00Z' }, // GAP: lastCheckedAt
+}

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useIsMobile } from '../../hooks/useMedia'
 import { AlertCircle, AlertTriangle, ArrowRight, Braces, Check, ChevronDown, ChevronRight, CircleDashed, Copy, Download, FileText, Info, Plus, RefreshCw, Share2, X, XCircle } from 'lucide-react'
 import Card from '../dashboard/Card'
@@ -17,6 +17,7 @@ import { groupPages, useSettings } from './settings'
 import { PendingCheck, StatusIcon, StatusLabel, pagesLine, usePending } from './parts'
 import { IMPORTANCE, KINDS, PAGE_COUNT, SD, STATUS, analyze, isPageType, pageFor, schemas } from '../../data/structuredData'
 import ErrorBoundary from '../ui/ErrorBoundary'
+import ActionSteps, { fmtMin } from '../ui/ActionSteps'
 
 // /structured-data — "Structured Data": which schema.org types the site publishes and what to add.
 // Same system as /audit: header, scope bar (?scope=page&url=), underline tabs (?tab=), rows → Schema drawer (?schema=).
@@ -260,7 +261,6 @@ function Overview({ r, setTab, site }) {
 const PLAN_STEPS = 4
 const DONE_KEY = `kraffic:structured-data:done:${SD.domain}`
 const IMPACT_N = { high: 3, medium: 2, low: 1 }
-const fmtMin = (m) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} hr${m % 60 ? ` ${m % 60} min` : ''}`)
 const PAGE_WORD = { 'Product pages': 'product page', 'Blog posts': 'blog post', Collections: 'collection', Home: 'home page', Other: 'page' }
 const pagesPhrase = (s) => {
   const n = s.affected.length
@@ -272,33 +272,17 @@ const readDone = () => { try { return new Set(JSON.parse(localStorage.getItem(DO
 function ActionPlan({ r, setTab }) {
   const [done, setDone] = useState(readDone)
   const [toastNode, toast] = useToast({ position: 'center' })
-  const listRef = useRef(null)
-  const before = useRef(null) // row positions before a reorder (FLIP)
   const score = (s) => IMPACT_N[s.impact] / (s.effort ?? 30)
   const byScore = (a, b) => score(b) - score(a)
   const plan = [...[...r.fix].sort(byScore), ...[...r.toAdd].sort(byScore)].slice(0, PLAN_STEPS)
-  const steps = [...plan.filter((s) => !done.has(s.id)), ...plan.filter((s) => done.has(s.id))]
   const open = plan.filter((s) => !done.has(s.id))
   const total = open.reduce((n, s) => n + (s.effort ?? 30), 0)
   const all = r.fix.length + r.toAdd.length
-
-  // the rows below a newly done step slide up into place
-  useLayoutEffect(() => {
-    if (!before.current || !listRef.current) return
-    const prev = before.current
-    before.current = null
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    listRef.current.querySelectorAll('[data-step]').forEach((el) => {
-      const was = prev.get(el.dataset.step)
-      const now = el.getBoundingClientRect().top
-      if (was == null || was === now) return
-      el.style.transition = 'none'
-      el.style.transform = `translateY(${was - now}px)`
-      requestAnimationFrame(() => { el.style.transition = 'transform 220ms cubic-bezier(.2,.8,.2,1)'; el.style.transform = '' })
-    })
+  const steps = plan.map((s, i) => {
+    const status = s.kind === 'fix' ? (s.level === 'error' ? ['Error', 'shrink-0 text-negative'] : ['Warning', `shrink-0 ${t2}`]) : ['Missing', `shrink-0 ${t3}`]
+    return { id: s.id, n: i + 1, title: actionOf(s), chip: s.kind === 'fix' ? s.type : s.name, chipMono: true, meta: [pagesPhrase(s), status], impact: s.impact, effort: fmtMin(s.effort ?? 30) }
   })
   const toggle = (s) => {
-    before.current = new Map([...listRef.current.querySelectorAll('[data-step]')].map((el) => [el.dataset.step, el.getBoundingClientRect().top]))
     const next = new Set(done)
     const was = next.has(s.id)
     was ? next.delete(s.id) : next.add(s.id)
@@ -318,58 +302,7 @@ function ActionPlan({ r, setTab }) {
         </div>
         <button type="button" onClick={() => setTab('recommendations')} className={`${linkCls} max-md:h-10`}>View all {all} <ArrowRight size={14} aria-hidden /></button>
       </div>
-
-      <ol ref={listRef} className="mt-3 flex flex-col">
-        {steps.map((s, i) => {
-          const isDone = done.has(s.id)
-          const n = plan.indexOf(s) + 1
-          const status = s.kind === 'fix' ? (s.level === 'error' ? ['Error', 'text-negative'] : ['Warning', t2]) : ['Missing', t3]
-          const circle = s.impact === 'high' ? 'bg-ink text-[var(--color-surface)]' : s.impact === 'medium' ? 'border border-ink text-ink' : 'border border-line text-stone-500'
-          const impactCls = s.impact === 'high' ? 'font-semibold text-ink' : s.impact === 'medium' ? `font-semibold ${t2}` : `font-semibold ${t3}`
-          const impactWord = s.impact[0].toUpperCase() + s.impact.slice(1)
-          return (
-            <li key={s.id} data-step={s.id} className={`relative transition-opacity duration-200 ${isDone ? 'opacity-50' : ''}`}>
-              {/* the thread between the step circles */}
-              {i < steps.length - 1 && <span className="pointer-events-none absolute left-[25.5px] top-[calc(50%+14px)] h-[calc(100%-28px)] w-px bg-[var(--div)] max-md:left-[13.5px]" aria-hidden />}
-              <div role="button" tabIndex={0} onClick={() => openSchema(s.id)} onKeyDown={(e) => { if (e.key === 'Enter') openSchema(s.id) }}
-                aria-label={`Step ${n}: ${actionOf(s)}. ${impactWord} impact, ${fmtMin(s.effort ?? 30)}. Open fix`}
-                className="group/step -mx-3 grid min-h-16 cursor-pointer grid-cols-[28px_minmax(0,1fr)] items-center gap-4 rounded-lg px-3 py-2 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus max-md:mx-0 max-md:px-0 md:grid-cols-[28px_minmax(0,1fr)_auto]">
-                {/* the number; hover shows it's a checkbox */}
-                <button type="button" onClick={(e) => { e.stopPropagation(); toggle(s) }} aria-pressed={isDone} aria-label={isDone ? `Mark step ${n} not done` : `Mark step ${n} done`}
-                  className={`group/num relative grid h-7 w-7 place-items-center rounded-full text-[13px] leading-none font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-focus ${isDone ? 'bg-ink text-[var(--color-surface)]' : circle}`}>
-                  <span className={`transition-opacity duration-150 ${isDone ? 'opacity-0' : 'group-hover/num:opacity-0'}`}>{n}</span>
-                  <Check size={14} strokeWidth={2.5} className={`absolute transition-opacity duration-150 ${isDone ? 'opacity-100' : 'opacity-0 group-hover/num:opacity-100'}`} aria-hidden />
-                </button>
-                <div className="min-w-0">
-                  <div className={`truncate text-[14px] leading-5 font-medium ${isDone ? `line-through ${t3}` : 'text-stone-900'}`} title={actionOf(s)}>{actionOf(s)}</div>
-                  <div className={`mt-1 flex min-w-0 items-center gap-2 text-[13px] leading-[18px] ${t3}`}>
-                    <code className="inline-flex h-5 shrink-0 items-center rounded bg-tint px-1.5 font-mono text-[12px] text-stone-700">{s.kind === 'fix' ? s.type : s.name}</code>
-                    <span aria-hidden>·</span><span className="truncate tabular-nums">{pagesPhrase(s)}</span>
-                    <span aria-hidden>·</span><span className={`shrink-0 ${status[1]}`}>{status[0]}</span>
-                  </div>
-                  {/* phones: the right cluster as one meta line */}
-                  <div className={`mt-0.5 text-[13px] leading-[18px] ${t2} md:hidden tabular-nums`}><span className={s.impact === 'high' ? 'font-medium text-ink' : ''}>{impactWord} impact</span> · {fmtMin(s.effort ?? 30)}</div>
-                </div>
-                <div className="hidden items-center gap-6 md:flex">
-                  <div className="w-20">
-                    <div className={`text-[11px] leading-4 font-medium ${t3}`}>Impact</div>
-                    <div className={`text-[13px] leading-[18px] ${impactCls}`}>{impactWord}</div>
-                  </div>
-                  <div className="w-20">
-                    <div className={`text-[11px] leading-4 font-medium ${t3}`}>Effort</div>
-                    <div className={`text-[13px] leading-[18px] ${t2} tabular-nums`}>{fmtMin(s.effort ?? 30)}</div>
-                  </div>
-                  <div className="flex w-24 justify-end">
-                    <span className="inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg px-0 text-[13px] leading-[18px] font-medium text-ink transition-[background-color,color,padding] duration-150 group-hover/step:bg-ink group-hover/step:px-3 group-hover/step:text-on-ink">
-                      Open fix <ArrowRight size={14} aria-hidden />
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </li>
-          )
-        })}
-      </ol>
+      <ActionSteps steps={steps} done={done} onToggle={toggle} onOpen={(s) => openSchema(s.id)} />
       {toastNode}
     </Card>
   )
