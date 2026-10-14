@@ -28,7 +28,7 @@ const textBtn = 'inline-flex items-center gap-1 rounded text-[13px] leading-[18p
 const smallBtn = 'inline-flex h-8 shrink-0 items-center rounded-md px-3 text-[13px] font-medium outline-none transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40'
 const rowAnim = (state) => (state === 'enter' ? 'srow-in' : state === 'leaving' ? 'srow-out' : '')
 // favicons sit on a white plate in both themes so white / light logos stay visible
-const Logo = ({ domain, name }) => <SiteLogo domain={domain} name={name} className="h-7 w-7 rounded-md" imgPad="p-1" initialClass="text-[12px]" plate />
+const Logo = ({ domain, name }) => <SiteLogo domain={domain} name={name} className="h-7 w-7 rounded-md" imgPad="p-1" initialClass="text-[12px]" plate bordered={false} />
 
 // ---------------------------------------------------------------- frame
 
@@ -250,7 +250,7 @@ function BrandIdentity({ brand, syncing, onEdit, onDelete }) {
     <SettingsCard label={`${brand.name} brand`}>
       <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3">
         <span className="flex min-w-0 items-center gap-3">
-          <SiteLogo domain={brand.domain} name={brand.name} className="h-10 w-10 rounded-lg" imgPad="p-1.5" initialClass="text-[16px]" />
+          <SiteLogo domain={brand.domain} name={brand.name} className="h-10 w-10 rounded-lg" imgPad="p-1.5" initialClass="text-[16px]" bordered={false} />
           <span className="min-w-0">
             <h2 className="truncate text-[16px] leading-6 font-semibold text-stone-900">{brand.name}</h2>
             <span className="flex items-center gap-1 text-[13px] leading-[18px] text-stone-600">
@@ -260,6 +260,8 @@ function BrandIdentity({ brand, syncing, onEdit, onDelete }) {
                 </a>
               )}
             </span>
+            {/* no other names: one muted line here instead of an empty "Also counts as" card */}
+            {!(brand.aliases ?? []).length && <span className="block text-[13px] leading-[18px] text-stone-500">No other names</span>}
           </span>
         </span>
         <span className="flex items-center gap-3">
@@ -326,6 +328,8 @@ const animClass = (state) => (state === 'enter' ? 'chip-in' : state === 'leaving
 // with how many answers counted it when that's known
 function NamesCard({ brand }) {
   const aliases = brand.aliases ?? []
+  // no aliases: the brand card says "No other names" instead of an empty card
+  if (!aliases.length) return null
   const counts = brand.aliasAnswers // null: not known, so no counts
   const shape = 'h-9 rounded-lg text-[14px]'
 
@@ -347,7 +351,6 @@ function NamesCard({ brand }) {
             </span>
             )
           })}
-          {!aliases.length && <span className="text-[13px] leading-[18px] text-stone-500">No other names</span>}
         </div>
       )}
     />
