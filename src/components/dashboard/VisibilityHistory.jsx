@@ -4,7 +4,7 @@ import { useIsMobile } from '../../hooks/useMedia'
 import { BarChart3, Check, ChevronDown, LineChart, TrendingUp } from 'lucide-react'
 import Card from './Card'
 import { chart } from '../../theme/chart'
-import { getCompetitorColor, getLineColor } from '../../theme/colors'
+import { getBarColor, getCompetitorColor, getLineColor } from '../../theme/colors'
 import { defaultRange, getHistory, historyRanges, historySeries } from '../../data/mock'
 import { brandName } from '../../utils/brand'
 import Segmented from './Segmented'
@@ -16,6 +16,7 @@ import { engineName, engineScale } from '../../data/brandViews'
 let FOCAL = { key: 'dermasuri', domain: 'dermasuri.com' }
 const color = (s) => getCompetitorColor(s.label, FOCAL.domain).fill
 const lineColor = (s) => getLineColor(s.label, FOCAL.domain)
+const barColor = (s) => getBarColor(s.label, FOCAL.domain) // { fill, opacity }
 const ANIM = { animationDuration: 500, animationEasing: 'ease-out' }
 
 // no fontFamily: ticks inherit --font-sans so they follow the font switcher
@@ -83,14 +84,14 @@ function LegendBox({ color: c, checked }) {
 
 const fmtDelta = (d) => (d > 0 ? `+${d}` : d < 0 ? `−${Math.abs(d)}` : '0')
 
-function HistoryTooltip({ active, payload, label, series, compare, unit, line = false, byValue = false }) {
+function HistoryTooltip({ active, payload, label, series, compare, unit, line = false, graphite = false }) {
   if (!active || !payload?.length) return null
   const delta = payload[0]?.payload?.delta
   // line mode: vibrant swatches, 8px rounded-[2px], your row first at 500
-  // byValue (bar mode): your row first, then the others by value, highest first
+  // graphite (thin bar view): the same layout, others by value (highest first), swatches in the bars' colours
   const YOU = FOCAL.key
   const value = (s) => payload.find((p) => p.dataKey === s.key)?.value ?? -1
-  const rows = line ? [...series].sort((a, b) => (b.key === YOU) - (a.key === YOU) || (byValue ? value(b) - value(a) : 0)) : series
+  const rows = line ? [...series].sort((a, b) => (b.key === YOU) - (a.key === YOU) || (graphite ? value(b) - value(a) : 0)) : series
   return (
     <div className="rounded-lg border border-stone-200 bg-raised px-3 py-2 text-small shadow-sm">
       <div className="mb-1 font-semibold text-stone-900">{label}</div>
@@ -98,7 +99,7 @@ function HistoryTooltip({ active, payload, label, series, compare, unit, line = 
         <div key={s.key} className="flex items-center justify-between gap-6">
           <span className={`inline-flex items-center gap-1.5 ${line && s.key === YOU ? 'font-medium text-stone-900' : 'text-stone-600'}`}>
             {line
-              ? <span className="h-2 w-2 rounded-[2px]" style={{ background: lineColor(s) }} />
+              ? <span className="h-2 w-2 rounded-[2px]" style={graphite ? { background: barColor(s).fill, opacity: barColor(s).opacity } : { background: lineColor(s) }} />
               : <span className="h-2.5 w-2.5 rounded-sm" style={{ background: color(s) }} />}
             {brandName(s.label)}
           </span>
@@ -186,6 +187,16 @@ function GrowthValueLabel({ x, y, width = 0, height = 0, value }) {
   )
 }
 
+// share value inside the top of a "you" bar (Bar view)
+function InsideValueLabel({ x, y, width = 0, height = 0, value }) {
+  if (value == null || height < 24) return null
+  return (
+    <text x={x + width / 2} y={y + 17} textAnchor="middle" fontSize={12} fontWeight={500} className="num" fill="var(--color-on-ink)">
+      {value}
+    </text>
+  )
+}
+
 export default function VisibilityHistory() {
   const mobile = useIsMobile()
   const { focal, isOwnBrand, engine } = useBrandView()
@@ -194,7 +205,7 @@ export default function VisibilityHistory() {
   const COMPETITORS = historySeries.filter((s) => s.key !== YOU)
   const [view, setView] = useState(readView)
   const [hovered, setHovered] = useState(null) // series key highlighted from the legend
-  const [barGroup, setBarGroup] = useState(null) // bar mode: index of the date group under the pointer
+  const [barGroup, setBarGroup] = useState(null) // thin bar view: index of the date group under the pointer
   useEffect(() => writeView(view), [view])
 
   // the chart reads ONLY this
@@ -277,24 +288,35 @@ export default function VisibilityHistory() {
       )
     }
     if (view.chart === 'bar') {
-      // share per period: one group per date, centred on its tick, in the line colours (same chart, other view).
-      // 8px bars, 2px apart (phones 6 / 1); Compare off: your bars alone, 12px. No value labels: the tooltip has them.
-      // Hovering a group dims the others to 35%.
-      const size = compare ? (mobile ? 6 : 8) : 12
-      const groupOpacity = (i) => (barGroup == null || String(barGroup) === String(i) ? 1 : 0.35)
+      // share per period: grouped (Compare on) / single (off), graphite by share rank (getBarColor).
+      // Up to 4 brands showing: the regular bars, share value inside the top of each "you" bar.
+      // 5 or more: thin bars (8px, 2px apart; phones 6 / 1), no labels; hovering a date group dims the others to 35%
+      // and shows the tooltip. Bars resize over 200ms when the number of brands showing crosses 4 / 5.
+      const thin = series.length >= 5
+      const groupOpacity = (i) => (!thin || barGroup == null || String(barGroup) === String(i) ? 1 : 0.35)
       return (
-        <RBarChart data={points} barSize={size} barGap={mobile ? 1 : 2} margin={margin}
-          onMouseMove={(st) => setBarGroup(st?.isTooltipActive ? st.activeTooltipIndex : null)} onMouseLeave={() => setBarGroup(null)}>
-          {furniture({ yDomain: domain, yTicks: ticks, tooltip: <HistoryTooltip series={series} compare={compare} unit={stats.unit} line byValue />, cursor: false,
-            interval: mobile ? (points.length > 6 ? 1 : 0) : undefined })}
-          {!compare && avgLine(stats.average, `Avg ${stats.average}%`)}
-          {series.map((s) => (
-            <Bar key={s.key} dataKey={s.key} name={s.label} fill={lineColor(s)} radius={[3, 3, 0, 0]} {...ANIM}>
-              {points.map((p, i) => (
-                <Cell key={p.date} fillOpacity={dim(s.key) * groupOpacity(i)} style={{ transition: 'fill-opacity 150ms ease-out' }} />
-              ))}
-            </Bar>
-          ))}
+        <RBarChart data={points} {...(thin ? { barSize: mobile ? 6 : 8, barGap: mobile ? 1 : 2 } : { barCategoryGap: '11%', barGap: 4 })}
+          margin={{ ...margin, right: compare ? margin.right : AVG_GUTTER }}
+          onMouseMove={(st) => setBarGroup(thin && st?.isTooltipActive ? st.activeTooltipIndex : null)} onMouseLeave={() => setBarGroup(null)}>
+          {furniture({
+            yDomain: domain, yTicks: ticks,
+            tooltip: thin ? <HistoryTooltip series={series} compare={compare} unit={stats.unit} line graphite /> : shareTooltip,
+            cursor: thin ? false : { fill: chart.track, fillOpacity: 0.6, radius: 8 },
+            interval: thin && mobile ? (points.length > 6 ? 1 : 0) : undefined,
+          })}
+          {!compare && avgLine(stats.average, `Avg ${stats.average}%`, true)}
+          {series.map((s) => {
+            const c = barColor(s)
+            return (
+              <Bar key={s.key} dataKey={s.key} name={s.label} fill={c.fill} fillOpacity={dim(s.key) * c.opacity} radius={thin ? [3, 3, 0, 0] : [6, 6, 0, 0]}
+                maxBarSize={thin ? undefined : 44} animationDuration={200} animationEasing="ease-out">
+                {thin && points.map((p, i) => (
+                  <Cell key={p.date} fillOpacity={dim(s.key) * c.opacity * groupOpacity(i)} style={{ transition: 'fill-opacity 150ms ease-out' }} />
+                ))}
+                {!thin && s.key === YOU && <LabelList dataKey={s.key} content={InsideValueLabel} />}
+              </Bar>
+            )
+          })}
         </RBarChart>
       )
     }
@@ -333,12 +355,20 @@ export default function VisibilityHistory() {
                 onMouseLeave={() => setHovered(null)}
                 onFocus={() => shown && setHovered(s.key)}
                 onBlur={() => setHovered(null)}
-                className={`inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 text-[14px] leading-5 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
+                className={isLine
+                  ? `inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 text-[14px] leading-5 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'font-medium text-stone-900' : 'font-normal text-stone-600'
+                  }`
+                  : `inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 text-small outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
+                    shown ? 'bg-tint text-stone-900' : 'bg-transparent text-stone-600/60 hover:text-stone-600'
                   }`}
                 title={lastOne ? 'At least one brand stays on the chart' : shown ? `Hide ${brandName(s.label)}` : `Show ${brandName(s.label)}`}
               >
-                <LegendBox color={lineColor(s)} checked={shown} />
+                {isLine
+                  ? <LegendBox color={lineColor(s)} checked={shown} />
+                  : <span className="h-2 w-2 rounded-full" style={view.chart === 'bar'
+                    ? (shown ? { background: barColor(s).fill, opacity: barColor(s).opacity } : { boxShadow: `inset 0 0 0 1.5px ${barColor(s).fill}`, opacity: barColor(s).opacity })
+                    : (shown ? { background: color(s) } : { boxShadow: `inset 0 0 0 1.5px ${color(s)}` })} />}
                 {brandName(s.label)}
               </button>
     )
@@ -376,13 +406,17 @@ export default function VisibilityHistory() {
         <Switch checked={compare} onChange={setCompare} className="shrink-0">Compare</Switch>
         <span className="mx-3 h-5 w-px bg-stone-200" aria-hidden />
         {/* focal brand: a toggle like the others while comparing (hide it to see the rest alone); fixed otherwise */}
-        {compare ? chip(historySeries.find((s) => s.key === YOU)) : (
+        {compare ? chip(historySeries.find((s) => s.key === YOU)) : isLine ? (
           <span className="inline-flex h-8 items-center gap-2 px-1 text-[14px] leading-5 font-medium text-stone-900">
             <LegendBox color={chart.lineYou} checked /> {focal.name}
           </span>
+        ) : (
+          <span className="inline-flex h-8 items-center gap-2 px-1 text-small font-medium text-stone-900">
+            <span className="h-2 w-2 rounded-full" style={{ background: chart.you }} /> {focal.name}
+          </span>
         )}
         <div
-          className={`flex items-center overflow-hidden transition-[max-width,opacity] duration-200 ease-out gap-0.5 ${compare ? 'ml-0.5 max-w-[640px] opacity-100' : 'max-w-0 opacity-0'}`}
+          className={`flex items-center overflow-hidden transition-[max-width,opacity] duration-200 ease-out ${isLine ? 'gap-0.5' : 'gap-1.5'} ${compare ? `${isLine ? 'ml-0.5' : 'ml-2'} max-w-[640px] opacity-100` : 'max-w-0 opacity-0'}`}
           aria-hidden={!compare}
         >
           {COMPETITORS.map((s) => chip(s))}

@@ -98,6 +98,7 @@ body {
   --data-c1: #78716C;      /* largest competitor */
   --data-c2: #A8A29E;
   --data-c3: #D6D3D1;      /* smallest competitor */
+  --data-c4: #E7E5E4;      /* 4th competitor (bar view); 5th+ repeat c1…c4 at 50% */
   /* marketplace donut: every slice must read on the card, even dimmed (c3 was too close to white) */
   --donut-yours: #171412;
   --donut-others: #78716C;
@@ -135,6 +136,7 @@ html[data-theme="dark"] {
   --data-c1: #A8A29E;
   --data-c2: #78716C;
   --data-c3: #57534E;
+  --data-c4: #3F3C39;
   --donut-yours: #F5F5F4;
   --donut-others: #A8A29E;
   --donut-none: #78716C;
@@ -191,6 +193,7 @@ html[data-theme="dark"] {
     --data-c1: #A8A29E;
     --data-c2: #78716C;
     --data-c3: #57534E;
+    --data-c4: #3F3C39;
     --donut-yours: #F5F5F4;
     --donut-others: #A8A29E;
     --donut-none: #78716C;

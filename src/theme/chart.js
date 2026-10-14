@@ -6,7 +6,8 @@ export const tokens = {
   you: '--data-you', // = --ink
   c1: '--data-c1', // largest competitor
   c2: '--data-c2',
-  c3: '--data-c3', // smallest competitor
+  c3: '--data-c3', // 3rd competitor
+  c4: '--data-c4', // 4th competitor (bar view)
   track: '--data-track',
   // Visibility history LINE chart only (vibrant); every other chart keeps the greys above
   lineYou: '--line-you',

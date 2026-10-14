@@ -15,6 +15,15 @@ export function getCompetitorColor(domain, focal = youDomain) {
   return { fill, soft: `color-mix(in oklab, ${fill} 22%, var(--color-surface))`, text: chart.you }
 }
 
+// Bar view (Visibility history): the same graphite ramp by share rank among the non-focal brands, with a 4th step;
+// from the 5th the ramp repeats at 50% opacity. { fill, opacity }.
+const BAR_SLOTS = ['c1', 'c2', 'c3', 'c4']
+export function getBarColor(domain, focal = youDomain) {
+  if (domain === focal) return { fill: chart.you, opacity: 1 }
+  const idx = Math.max(0, byShare.filter((d) => d !== focal).indexOf(domain))
+  return { fill: chart[BAR_SLOTS[idx % BAR_SLOTS.length]], opacity: idx >= BAR_SLOTS.length ? 0.5 : 1 }
+}
+
 // Line-chart colors (Visibility history, line mode only): every brand keeps one fixed hue whoever is focal
 // (cerave indigo, ordinary red, paulas mint, Dermasuri fuchsia); the focal brand is drawn in ink.
 const LINE = { 'cerave.com': 'line1', 'theordinary.com': 'line2', 'paulaschoice.com': 'line3', [youDomain]: 'line4' }
