@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AlertCircle, ArrowRight, Check, ChevronRight } from 'lucide-react'
 import Card from '../dashboard/Card'
 import { ScoreRing } from '../dashboard/KpiRow'
@@ -7,27 +7,25 @@ import { fmtMin } from '../ui/ActionSteps'
 import DrawerShell, { useDrawer } from './DrawerShell'
 import { useAudit } from './context'
 import { CheckIcon, openDrawer, openIssue } from './parts'
-import { CATEGORIES, IMPACT, TARGET_MS, byStatus, groupBySection, planScore, sectionLabel } from '../../data/audit'
+import { CATEGORIES, IMPACT, TARGET_MS, byPlan, groupBySection, impactLevel, sectionLabel } from '../../data/audit'
 
-// Overview: one KPI strip card → a slim "since last run" band → the plan (waterfall beside the numbered list) → where
+// Overview: one KPI strip card → a slim "since last run" band → the plan (a numbered list, highest impact first) → where
 // the problems are (sections × categories + most common problem) beside the pages that fail most.
-// Score weights: data/auditReference.js.
+// Unknown values hide their element: impact / effort columns, the response-time tile, the since band (a.since undefined).
 const t2 = 'text-stone-600'
 const t3 = 'text-stone-500'
 const cardTitle = 'text-[15px] leading-5 font-semibold text-stone-900'
 const subtitle = `mt-0.5 text-[13px] leading-[18px] ${t2}`
 const linkCls = 'inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus'
 const PLAN_STEPS = 5
-const pts = (v) => (Number.isInteger(v) ? `${v}` : v.toFixed(1))
 
 export default function Overview({ setTab }) {
   const { a } = useAudit()
-  const [hover, setHover] = useState(null) // a plan check id: shared by the waterfall and the plan rows
   return (
     <>
       <Kpis setTab={setTab} />
       <SinceBand />
-      <div id="audit-plan" className="min-w-0 scroll-mt-6"><NextSteps setTab={setTab} hover={hover} setHover={setHover} /></div>
+      <div id="audit-plan" className="min-w-0 scroll-mt-6"><NextSteps setTab={setTab} /></div>
       {/* heights follow content: the two cards aren't alike, so they aren't stretched to match */}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
         <div className="min-w-0 lg:col-span-2"><ProblemAreas setTab={setTab} /></div>
@@ -63,132 +61,68 @@ const big = (v) => <span className="text-[32px] leading-10 font-semibold trackin
 function Kpis({ setTab }) {
   const { a } = useAudit()
   const delta = a.since ? a.score - a.since.scoreFrom : null
-  const over = a.pages.filter((p) => p.ms > TARGET_MS).length
+  const over = a.crawl.overTarget
+  const speed = a.crawl.median != null // response times known
+  const scoreMeta = a.since === undefined ? null : delta == null ? 'First audit' : delta === 0 ? `No change since ${a.since.date}` : <><span className={delta > 0 ? 'text-ink' : 'text-negative'}>{delta > 0 ? '▲' : '▼'}</span> {Math.abs(delta)} since {a.since.date}</>
   return (
-    <Card className="grid grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-[var(--div)]">
+    <Card className={`grid grid-cols-2 ${speed ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} lg:divide-x lg:divide-[var(--div)]`}>
       <Section i={0} label="AI readiness" link="View score" onOpen={() => document.getElementById('audit-plan')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         value={<ScoreRing value={a.score} size={56} />}
-        meta={delta == null ? 'First audit' : delta === 0 ? `No change since ${a.since.date}` : <><span className={delta > 0 ? 'text-ink' : 'text-negative'}>{delta > 0 ? '▲' : '▼'}</span> {Math.abs(delta)} since {a.since.date}</>} />
+        meta={scoreMeta} />
       <Section i={1} label="Failing checks" link="View checks" onOpen={() => setTab('checks', { status: 'fail' })} value={big(a.failing.length)} meta={`Of ${a.open.length} to fix`} />
       <Section i={2} label="Pages with issues" link="View pages" onOpen={() => setTab('pages', { status: 'failing' })} value={big(a.failingPages.length)} meta={`Of ${a.pages.length} crawled`} />
-      <Section i={3} label="Median response" link="View crawl" onOpen={() => setTab('crawl')}
+      {speed && <Section i={3} label="Median response" link="View crawl" onOpen={() => setTab('crawl')}
         value={<span className="flex items-baseline gap-1">{big(a.crawl.median)}<span className="text-small font-semibold text-stone-500">ms</span></span>}
-        meta={over ? `${over} ${over === 1 ? 'page' : 'pages'} over ${TARGET_MS} ms` : `Every page under ${TARGET_MS} ms`} />
+        meta={over ? `${over} ${over === 1 ? 'page' : 'pages'} over ${TARGET_MS} ms` : `Every page under ${TARGET_MS} ms`} />}
     </Card>
   )
 }
 
-// ---- What to do next: the waterfall (left, fills its column) beside the numbered plan (right)
-function Waterfall({ score, plan, hover, setHover }) {
-  const box = useRef(null)
-  const [w, setW] = useState(360)
-  useEffect(() => {
-    if (!box.current) return
-    const ro = new ResizeObserver(([e]) => setW(e.contentRect.width))
-    ro.observe(box.current)
-    return () => ro.disconnect()
-  }, [])
-  const H = 220, LABEL = 20, AXIS = 24 // plot = H − LABEL (value labels) − AXIS (x labels)
-  const plot = H - LABEL - AXIS
-  const after = score + plan.reduce((n, c) => n + c.adds, 0)
-  const top = Math.max(after, score)
-  const y = (v) => LABEL + plot - (v / top) * plot
-  let run = score
-  const bars = [
-    { key: 'now', x: 'Now', from: 0, to: score, kind: 'now', top: `${score}` },
-    ...plan.map((c, i) => { const b = { key: c.id, x: String(i + 1), from: run, to: run + c.adds, kind: 'step', top: `+${pts(c.adds)}`, c }; run += c.adds; return b }),
-    { key: 'after', x: 'If fixed', from: 0, to: after, kind: 'after', top: `${Math.round(after)}` },
-  ]
-  const n = bars.length
-  // bars flex to the width (24–48px); the slack goes to the gaps between them
-  const W = Math.max(24, Math.min(48, Math.floor((w * 0.6) / n)))
-  const GAP = n > 1 ? Math.max(8, (w - n * W) / (n - 1)) : 0
-  const left = (i) => i * (W + GAP)
-  const MIN = 6 // the smallest step stays readable
-  const geo = bars.map((b) => {
-    if (b.kind !== 'step') return { top: y(b.to), h: y(b.from) - y(b.to) }
-    const h = Math.max(MIN, y(b.from) - y(b.to))
-    return { top: y(b.from) - h, h }
-  })
-  return (
-    <div ref={box} className="relative w-full" style={{ height: H, minWidth: n * 32 }} onMouseLeave={() => setHover(null)}
-      role="img" aria-label={`Score ${score} now; ${plan.map((c, i) => `step ${i + 1} adds ${pts(c.adds)}`).join(', ')}; ${Math.round(after)} if fixed`}>
-      <div className="absolute inset-x-0 border-t border-line" style={{ top: y(0) }} aria-hidden />
-      {bars.slice(0, -1).map((b, i) => (
-        <div key={`c-${b.key}`} className="absolute border-t border-dashed border-stone-500" style={{ left: left(i) + W, width: GAP, top: geo[i].top + (b.kind === 'step' ? 0 : 0) }} aria-hidden />
-      ))}
-      {bars.map((b, i) => {
-        const on = b.c && hover === b.c.id
-        const style = { left: left(i), width: W, top: geo[i].top, height: Math.max(2, geo[i].h) }
-        return (
-          <div key={b.key}>
-            <span className={`absolute -translate-x-1/2 whitespace-nowrap text-[13px] leading-4 font-semibold tabular-nums ${b.kind === 'now' ? t2 : 'text-stone-900'}`} style={{ left: left(i) + W / 2, top: geo[i].top - LABEL + 2 }}>{b.top}</span>
-            {b.kind === 'step'
-              ? <span onMouseEnter={() => setHover(b.c.id)} className="absolute cursor-default rounded-[3px] transition-colors duration-150 ease-out" style={{ ...style, background: on ? 'var(--ink)' : 'var(--data-c2)' }} />
-              : b.kind === 'now'
-                ? <span className="absolute rounded-[3px] bg-ink" style={style} />
-                : <span className="absolute rounded-[3px] border-[1.5px] border-dashed border-ink" style={style} />}
-            {/* the last label ends at the chart's right edge, so "If fixed" never clips */}
-            <span className={`absolute whitespace-nowrap text-[13px] leading-[18px] ${i === n - 1 ? '' : '-translate-x-1/2'} ${on ? 'font-semibold text-ink' : t3}`}
-              style={i === n - 1 ? { right: Math.max(0, w - left(i) - W), top: H - AXIS + 4 } : { left: left(i) + W / 2, top: H - AXIS + 4 }}>{b.x}</span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function NextSteps({ setTab, hover, setHover }) {
+// ---- What to do next: the numbered plan, highest impact first (Impact / Effort columns when known)
+function NextSteps({ setTab }) {
   const { a } = useAudit()
-  const plan = [...a.open].sort((x, y) => planScore(y) - planScore(x) || byStatus(x, y)).slice(0, PLAN_STEPS)
-  const minutes = plan.reduce((n, c) => n + c.effort, 0)
-  const hovered = plan.find((c) => c.id === hover)
+  const plan = [...a.open].sort(byPlan).slice(0, PLAN_STEPS)
+  const hasImpact = plan.some((c) => c.impact)
+  const hasEffort = plan.length > 0 && plan.every((c) => c.effort != null)
+  const minutes = hasEffort ? plan.reduce((n, c) => n + c.effort, 0) : 0
   const where = (c) => (c.pageBased ? groupBySection(c.pages).slice(0, 2).map((g) => sectionLabel(g.section)).join(', ') + (groupBySection(c.pages).length > 2 ? ' +' : '') : 'Site-wide')
-  const cols = 'grid-cols-[24px_minmax(0,1fr)_44px_16px] md:grid-cols-[24px_minmax(0,1fr)_140px_48px_64px_16px]'
+  const cols = `${hasImpact ? 'grid-cols-[24px_minmax(0,1fr)_64px_16px]' : 'grid-cols-[24px_minmax(0,1fr)_16px]'} ${
+    hasImpact && hasEffort ? 'md:grid-cols-[24px_minmax(0,1fr)_200px_80px_64px_16px]' : hasImpact ? 'md:grid-cols-[24px_minmax(0,1fr)_200px_80px_16px]' : hasEffort ? 'md:grid-cols-[24px_minmax(0,1fr)_200px_64px_16px]' : 'md:grid-cols-[24px_minmax(0,1fr)_200px_16px]'}`
   const footer = (
     <div className="mt-auto flex items-center justify-between gap-3 border-t border-[var(--div)] py-3">
-      <span className={`text-[13px] leading-[18px] ${t3} tabular-nums`}>{plan.length ? `About ${fmtMin(minutes)} of work` : ''}</span>
+      <span className={`text-[13px] leading-[18px] ${t3} tabular-nums`}>{plan.length && hasEffort ? `About ${fmtMin(minutes)} of work` : ''}</span>
       <button type="button" onClick={() => setTab('checks')} className={`${linkCls} max-md:h-10`}>All {a.open.length} checks <ArrowRight size={14} aria-hidden /></button>
     </div>
   )
   return (
-    <Card className="min-w-0 px-5 pt-5 max-md:px-4">
+    <Card className="flex min-w-0 flex-col px-5 pt-5 max-md:px-4">
       <h2 className={cardTitle}>What to do next</h2>
-      <p className={subtitle}>What should we fix first, and what does each fix add to the score?</p>
+      <p className={subtitle}>What should we fix first?</p>
       {plan.length ? (
-        <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[5fr_7fr] lg:gap-8">
-          <div className="min-w-0 lg:pb-5">
-            <div className="no-scrollbar overflow-x-auto"><Waterfall score={a.score} plan={plan} hover={hover} setHover={setHover} /></div>
-            <p className={`mt-2 h-5 truncate text-[13px] leading-5 ${t2} tabular-nums max-md:hidden transition-opacity duration-150 ${hovered ? 'opacity-100' : 'opacity-0'}`} aria-live="polite">
-              {hovered ? `${hovered.action} · +${pts(hovered.adds)}` : ''}
-            </p>
+        <div className="mt-4 flex min-w-0 flex-col">
+          <div className={`grid h-8 ${cols} items-center gap-3 text-[13px] leading-[18px] ${t3}`} aria-hidden>
+            <span /><span>Fix</span><span className="max-md:hidden">Area</span>{hasImpact && <span>Impact</span>}{hasEffort && <span className="max-md:hidden">Effort</span>}<span />
           </div>
-          <div className="flex min-w-0 flex-col lg:border-l lg:border-[var(--div)] lg:pl-8">
-            <div className={`grid h-8 ${cols} items-center gap-3 text-[13px] leading-[18px] ${t3}`} aria-hidden>
-              <span /><span>Fix</span><span className="max-md:hidden">Area</span><span className="text-right">Adds</span><span className="max-md:hidden">Effort</span><span />
-            </div>
-            <ol className="divide-y divide-[var(--div)] border-t border-[var(--div)]">
-              {plan.map((c, i) => (
-                <li key={c.id}>
-                  <button type="button" onClick={() => openIssue(c.id)} onMouseEnter={() => setHover(c.id)} onMouseLeave={() => setHover(null)}
-                    onFocus={() => setHover(c.id)} onBlur={() => setHover(null)}
-                    aria-label={`Step ${i + 1}: ${c.action}. Adds ${pts(c.adds)} points, about ${fmtMin(c.effort)}. Open`}
-                    className={`group -mx-2 grid min-h-12 w-[calc(100%+16px)] py-1.5 md:h-12 md:py-0 ${cols} items-center gap-3 rounded-md px-2 text-left outline-none transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus ${hover === c.id ? 'bg-tint' : 'hover:bg-tint'}`}>
-                    <span className={`grid h-6 w-6 place-items-center rounded-full border text-[13px] leading-none tabular-nums transition-colors duration-150 ${hover === c.id ? 'border-ink bg-ink text-on-ink' : `border-line ${t2}`}`}>{i + 1}</span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-[14px] leading-5 font-medium text-stone-900 max-md:line-clamp-2 max-md:whitespace-normal" title={c.action}>{c.action}</span>
-                      <span className={`block text-[13px] leading-[18px] ${t3} tabular-nums md:hidden`}>{fmtMin(c.effort)}</span>
-                    </span>
-                    <span className={`truncate text-[13px] leading-[18px] ${t3} max-md:hidden`}>{where(c)}</span>
-                    <span className="text-right text-[14px] leading-5 font-semibold text-stone-900 tabular-nums">+{pts(c.adds)}</span>
-                    <span className={`text-[13px] leading-[18px] ${t2} tabular-nums max-md:hidden`}>{fmtMin(c.effort)}</span>
-                    <ChevronRight size={14} className="text-stone-500 transition-colors group-hover:text-stone-900" aria-hidden />
-                  </button>
-                </li>
-              ))}
-            </ol>
-            {footer}
-          </div>
+          <ol className="divide-y divide-[var(--div)] border-t border-[var(--div)]">
+            {plan.map((c, i) => (
+              <li key={c.id}>
+                <button type="button" onClick={() => openIssue(c.id)}
+                  aria-label={`Step ${i + 1}: ${c.action}.${c.impact ? ` ${IMPACT[c.impact].label} impact.` : ''}${c.effort != null ? ` About ${fmtMin(c.effort)}.` : ''} Open`}
+                  className={`group -mx-2 grid min-h-12 w-[calc(100%+16px)] py-1.5 md:h-12 md:py-0 ${cols} items-center gap-3 rounded-md px-2 text-left outline-none transition-colors duration-150 ease-out hover:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus`}>
+                  <span className={`grid h-6 w-6 place-items-center rounded-full border border-line text-[13px] leading-none tabular-nums transition-colors duration-150 group-hover:border-ink group-hover:bg-ink group-hover:text-on-ink ${t2}`}>{i + 1}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[14px] leading-5 font-medium text-stone-900 max-md:line-clamp-2 max-md:whitespace-normal" title={c.action}>{c.action}</span>
+                    {hasEffort && <span className={`block text-[13px] leading-[18px] ${t3} tabular-nums md:hidden`}>{fmtMin(c.effort)}</span>}
+                  </span>
+                  <span className={`truncate text-[13px] leading-[18px] ${t3} max-md:hidden`}>{where(c)}</span>
+                  {hasImpact && <span className={`text-[13px] leading-[18px] ${c.impact ? t2 : t3}`}>{c.impact ? IMPACT[c.impact].label : '—'}</span>}
+                  {hasEffort && <span className={`text-[13px] leading-[18px] ${t2} tabular-nums max-md:hidden`}>{fmtMin(c.effort)}</span>}
+                  <ChevronRight size={14} className="text-stone-500 transition-colors group-hover:text-stone-900" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ol>
+          {footer}
         </div>
       ) : (
         <>
@@ -221,6 +155,7 @@ const STAT_WORDS = { newly: ['newly failing', 'newly failing'], fixed: ['fixed',
 function SinceBand() {
   const { a } = useAudit()
   const s = a.since
+  if (s === undefined) return null // earlier runs exist, but not what they found
   if (!s) {
     return (
       <Card className="flex min-h-16 min-w-0 items-center gap-3 px-5 py-3 max-md:px-4">
@@ -360,9 +295,9 @@ function HeatRow({ r, ri, shown, max, hover, setHover, explain, on, onPick, comm
 // ---- Pages that fail most: the 6 pages with the most failing checks (then the heaviest checks) → the page drawer
 function WorstPages({ setTab }) {
   const { a } = useAudit()
-  const weight = (p) => p.failing.reduce((n, id) => n + (IMPACT[a.checkById(id)?.impact]?.level ?? 0), 0)
-  const rows = [...a.pages].filter((p) => p.failCount).sort((x, y) => y.failCount - x.failCount || weight(y) - weight(x) || y.ms - x.ms).slice(0, 6)
-  const names = (p) => p.failing.map((id) => a.checkById(id)).filter(Boolean).sort((x, y) => IMPACT[y.impact].level - IMPACT[x.impact].level).map((c) => c.label).join(', ')
+  const weight = (p) => p.failing.reduce((n, id) => n + (a.checkById(id) ? impactLevel(a.checkById(id)) : 0), 0)
+  const rows = [...a.pages].filter((p) => p.failCount).sort((x, y) => y.failCount - x.failCount || weight(y) - weight(x) || (y.ms ?? 0) - (x.ms ?? 0)).slice(0, 6)
+  const names = (p) => p.failing.map((id) => a.checkById(id)).filter(Boolean).sort((x, y) => impactLevel(y) - impactLevel(x)).map((c) => c.label).join(', ')
   return (
     <Card className="flex min-w-0 flex-col px-5 pt-5 max-md:px-4">
       <h2 className={cardTitle}>Pages that fail most</h2>

@@ -6,7 +6,7 @@ import { useAudit } from './context'
 import { Chevron, Chips, fmtMs, openDrawer, setParams } from './parts'
 import { CATEGORIES, SLOW_MS, sectionLabel } from '../../data/audit'
 
-// Pages: every crawled URL, worst first. ?section=/products · ?status=failing|warn|clean · ?depth=<clicks> (2xx only). A row opens the Page drawer.
+// Pages: every crawled URL, worst first. Load time shows only when response times are known. ?section=/products · ?status=failing|warn|clean · ?depth=<clicks> (2xx only). A row opens the Page drawer.
 const t2 = 'text-stone-600'
 const t3 = 'text-stone-500'
 const STATUS_TESTS = {
@@ -42,15 +42,15 @@ export default function PagesTab({ q }) {
     .filter((p) => depth == null || (p.depth === depth && p.code >= 200 && p.code < 300))
     .filter((p) => !cat || failsIn(p))
     .filter((p) => (section === 'all' || p.section === section) && (status === 'all' || STATUS_TESTS[status](p)))
-    .sort((x, y) => y.failCount - x.failCount || y.warnCount - x.warnCount || y.ms - x.ms), [a, section, status, depth, cat])
+    .sort((x, y) => y.failCount - x.failCount || y.warnCount - x.warnCount || (y.ms ?? 0) - (x.ms ?? 0)), [a, section, status, depth, cat])
 
   const columns = [
     { key: 'path', label: 'Path', mobile: 'primary', sort: { value: (r) => r.path, first: 'asc' }, csv: (r) => r.path, mobileText: (r) => r.path,
       cell: (r) => <span className="block truncate text-[14px] leading-5 text-stone-900" title={r.path}>{r.path}</span> },
     { key: 'type', label: 'Page type', width: 144, sort: { value: (r) => r.type, first: 'asc' }, csv: (r) => r.type, cell: (r) => <span className={`text-[13px] leading-[18px] ${t2}`}>{r.type}</span> },
     { key: 'problems', label: 'Problems', width: 224, sort: { value: (r) => r.failCount * 100 + r.warnCount, first: 'desc' }, csv: problemsText, cell: (r) => <Problems p={r} /> },
-    { key: 'ms', label: 'Load time', width: 114, align: 'right', sort: { value: (r) => r.ms, first: 'desc' }, csv: (r) => r.ms, mobileText: (r) => <span className={r.ms > SLOW_MS ? 'text-negative' : undefined}>{fmtMs(r.ms)}</span>,
-      cell: (r) => <span className={`text-[14px] leading-5 tabular-nums ${r.ms > SLOW_MS ? 'text-negative' : 'text-stone-900'}`}>{fmtMs(r.ms)}</span> },
+    ...(a.crawl.median == null ? [] : [{ key: 'ms', label: 'Load time', width: 114, align: 'right', sort: { value: (r) => r.ms, first: 'desc' }, csv: (r) => r.ms, mobileText: (r) => (r.ms == null ? '—' : <span className={r.ms > SLOW_MS ? 'text-negative' : undefined}>{fmtMs(r.ms)}</span>),
+      cell: (r) => (r.ms == null ? <span className={`text-[14px] ${t3}`}>—</span> : <span className={`text-[14px] leading-5 tabular-nums ${r.ms > SLOW_MS ? 'text-negative' : 'text-stone-900'}`}>{fmtMs(r.ms)}</span>) }]),
     { key: 'code', label: 'Status', width: 94, align: 'right', sort: { value: (r) => r.code, first: 'desc' }, csv: (r) => r.code, mobileText: (r) => `HTTP ${r.code}`,
       cell: (r) => <span className={`text-[14px] leading-5 tabular-nums ${r.code >= 400 ? 'text-negative' : r.code === 200 ? t2 : 'text-stone-900'}`}>{r.code}</span> },
     { key: 'open', label: '', width: 48, csv: false, mobile: false, cell: () => <Chevron /> },

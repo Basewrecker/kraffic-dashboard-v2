@@ -9,7 +9,8 @@ import { navigate } from '../../router'
 import { SECTIONS, toolkitView } from './toolkit'
 
 // /more-tools — "Toolkit": what needs attention first, then every tool as one table row with its latest result.
-// ?mock=new (new project) | healthy (nothing needs attention); default = the full demo project.
+// ?mock=new (new project) | healthy (nothing needs attention) | soon (tools not available yet: inert "Coming soon" rows);
+// default = the full demo project.
 const t2 = 'text-stone-600'
 const t3 = 'text-stone-500'
 const ICONS = { plug: Plug, wallet: Wallet, 'file-search': FileSearch, library: Library, 'shield-alert': ShieldAlert, bell: Bell, route: Route, flask: FlaskConical, presentation: Presentation }
@@ -80,12 +81,12 @@ function AllTools({ tools, open }) {
         <ul className="divide-y divide-[var(--div)] border-t border-[var(--div)]">
           {rows.map((t) => (
             <li key={t.id}>
-              <div role="button" tabIndex={0} onClick={() => open(t)} onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) open(t) }}
-                className="flex flex-col gap-1 px-4 py-3 outline-none active:bg-tint focus-visible:bg-tint">
+              <div {...(t.action ? { role: 'button', tabIndex: 0, onClick: () => open(t), onKeyDown: (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) open(t) } } : { 'aria-disabled': true })}
+                className={`flex flex-col gap-1 px-4 py-3 outline-none ${t.action ? 'active:bg-tint focus-visible:bg-tint' : ''}`}>
                 <span className="flex items-center gap-3">
                   <Tile icon={t.icon} />
                   <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-stone-900">{t.name}</span>
-                  <span className="shrink-0 text-[13px] font-medium text-stone-900">{t.action}</span>
+                  {t.action && <span className="shrink-0 text-[13px] font-medium text-stone-900">{t.action}</span>}
                 </span>
                 <span className="flex items-center gap-1.5 pl-11 text-[13px] leading-[18px] tabular-nums">
                   <span className={`truncate ${resultCls(t)}`}>{t.result.text}</span>
@@ -109,16 +110,15 @@ function AllTools({ tools, open }) {
           </thead>
           <tbody>
             {rows.map((t) => (
-              <tr key={t.id} tabIndex={0} onClick={() => open(t)} onKeyDown={(e) => { if (e.key === 'Enter') open(t) }}
-                aria-label={`${t.name}: ${t.result.text}. ${t.action}`}
-                className="group h-14 cursor-pointer border-b border-[var(--div)] outline-none transition-colors duration-150 last:border-0 hover:bg-tint focus-visible:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
+              <tr key={t.id} {...(t.action ? { tabIndex: 0, onClick: () => open(t), onKeyDown: (e) => { if (e.key === 'Enter') open(t) }, 'aria-label': `${t.name}: ${t.result.text}. ${t.action}` } : { 'aria-disabled': true })}
+                className={`group h-14 border-b border-[var(--div)] outline-none last:border-0 ${t.action ? 'cursor-pointer transition-colors duration-150 hover:bg-tint focus-visible:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus' : ''}`}>
                 <td className="pl-5 pr-3"><Tile icon={t.icon} /></td>
                 <td className="truncate px-3 text-[14px] leading-5 font-medium text-stone-900">{t.name}</td>
                 <td className={`px-3 text-[13px] leading-[18px] ${t2} max-[1279px]:truncate`} title={t.desc}>{t.desc}</td>
                 <td className={`truncate px-3 text-[14px] leading-5 tabular-nums ${resultCls(t)}`} title={t.result.text}>{t.result.text}</td>
                 <td className={`px-3 text-[13px] leading-[18px] ${t3} tabular-nums`}>{t.when ?? '—'}</td>
                 <td className="pl-3 pr-5 text-right">
-                  <span className="inline-flex h-8 items-center rounded-md px-2 text-[13px] font-medium text-stone-900 transition-colors duration-150 group-hover:bg-[var(--color-line)]">{t.action}</span>
+                  {t.action && <span className="inline-flex h-8 items-center rounded-md px-2 text-[13px] font-medium text-stone-900 transition-colors duration-150 group-hover:bg-[var(--color-line)]">{t.action}</span>}
                 </td>
               </tr>
             ))}

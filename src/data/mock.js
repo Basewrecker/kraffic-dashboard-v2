@@ -1204,6 +1204,16 @@ function auditProject(state) {
   }
 }
 export const siteAudit = { full: auditProject('full'), first: auditProject('first'), clean: auditProject('clean'), never: auditProject('never'), errors: auditProject('errors') }
+// the check groups the page splits checks by (Checks tab chips, the Overview heat grid)
+export const auditCategories = { technical: 'Technical', content: 'Content', speed: 'Speed' }
+// Run audit: resolves when the run has finished (→ the state to show next: the first audit lands on a never-run site);
+// rejects with the reason when it fails
+export const auditActions = {
+  async onRunAudit({ never = false } = {}) {
+    await sleep(1800)
+    return { mock: never ? 'first' : null }
+  },
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Trends (/trends): how news and social channels talk about a question. NO production API exists for this yet
@@ -1375,7 +1385,12 @@ const TK_HEALTHY = {
   'competitor-alerts': { totalChangesDetected: 11, unacknowledgedChanges: 0, highImpactChanges: 0, lastRunAt: '2026-10-14', lastAcknowledgedAt: '2026-10-14' },
   experiments: { totalExperiments: 3, runningCount: 2, concludedCount: 1, averageVisibilityLift: 6.4, lastRunAt: '2026-10-08' },
 }
-export const toolkitSummaries = { full: TK_FULL, new: TK_NEW, healthy: TK_HEALTHY }
+// soon: tools not available yet show as inert "Coming soon" rows (?mock=soon: only Site Kit is live)
+const TK_SOON = {
+  ...Object.fromEntries(Object.keys(TK_NEW).map((id) => [id, { soon: true }])),
+  integrations: { connectedProviders: [], lastSyncAt: null },
+}
+export const toolkitSummaries = { full: TK_FULL, new: TK_NEW, healthy: TK_HEALTHY, soon: TK_SOON }
 
 const SK_TODAY = '2026-10-13' // last full day of data
 const skDays = (n) => Array.from({ length: n }, (_, i) => { const d = new Date(`${SK_TODAY}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - (n - 1 - i)); return d.toISOString().slice(0, 10) })
@@ -1424,7 +1439,11 @@ const skIntegration = (provider, status, accountIdentifier) => ({
   tokenExpiresAt: status === 'EXPIRED' ? '2026-10-02T09:00:00Z' : null,
 })
 const GSC = 'GOOGLE_SEARCH_CONSOLE', GA4 = 'GOOGLE_ANALYTICS_4'
+// canConnect: Connect / Reconnect lead somewhere (else the connection card is read-only) · canShowData: the connected
+// sources' data can be shown (else the page is the connection card only)
 export const siteKit = {
+  canConnect: true,
+  canShowData: true,
   today: SK_TODAY,
   states: {
     none: [skIntegration(GSC, 'DISCONNECTED', null), skIntegration(GA4, 'DISCONNECTED', null)],

@@ -18,13 +18,16 @@ const NEVER = {
   'executive-reports': 'Executive Reports hasn’t sent a report yet.',
 }
 
-// → { kind: 'connect' | 'never' | 'ok', result: { text, tone }, when, findings? }
+// → { kind: 'soon' | 'connect' | 'never' | 'ok', result: { text, tone }, when, findings? }
+// s.soon: the tool isn't available yet (an inert "Coming soon" row: no result, no action, doesn't open)
 function summarize(t, s) {
   const muted = (text) => ({ text, tone: 'muted' })
+  if (s.soon) return { kind: 'soon', result: muted('Coming soon'), when: null }
   switch (t.id) {
     case 'integrations': {
-      if (!s.connectedProviders.length) return { kind: 'connect', result: muted('Not connected'), when: null }
-      return { kind: 'ok', result: { text: `${n(s.totalClicks, 'Google click')}` }, when: s.lastSyncAt }
+      // canConnect false: nothing to connect from here, so the row just opens the page (no Connect, no attention row)
+      if (!s.connectedProviders.length) return { kind: s.canConnect === false ? 'ok' : 'connect', result: muted('Not connected'), when: null }
+      return { kind: 'ok', result: { text: s.totalClicks == null ? 'Connected' : `${n(s.totalClicks, 'Google click')}` }, when: s.lastSyncAt }
     }
     case 'crm-attribution':
       if (!s.connected) return { kind: 'connect', result: muted('Not connected'), when: null }
@@ -64,7 +67,7 @@ export function toolkitView(state) {
   const sums = toolkitSummaries[state] ?? toolkitSummaries.full
   const tools = toolkitTools.map((t) => {
     const s = summarize(t, sums[t.id])
-    return { ...t, ...s, when: s.when ? fmt(s.when) : null, action: s.kind === 'connect' ? 'Connect' : s.kind === 'never' ? 'Run' : 'Open' }
+    return { ...t, ...s, when: s.when ? fmt(s.when) : null, action: s.kind === 'soon' ? null : s.kind === 'connect' ? 'Connect' : s.kind === 'never' ? 'Run' : 'Open' }
   })
   // not connected → new findings → never run; at most 3
   const attention = [

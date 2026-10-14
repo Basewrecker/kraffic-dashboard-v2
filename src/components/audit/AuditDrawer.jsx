@@ -34,7 +34,7 @@ function Section({ icon: Icon, title, children }) {
 // the tinted stat strip under a drawer's header: 2–3 cells split by hairlines
 function StatStrip({ cells }) {
   return (
-    <div className={`mt-5 grid divide-x divide-[var(--div)] rounded-lg bg-tint p-4 ${cells.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+    <div className={`mt-5 grid divide-x divide-[var(--div)] rounded-lg bg-tint p-4 ${cells.length === 3 ? 'grid-cols-3' : cells.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
       {cells.map((c, i) => (
         <div key={c.label} className={`min-w-0 ${i ? 'pl-4' : ''} ${i < cells.length - 1 ? 'pr-4' : ''}`}>
           <div className={`text-[13px] leading-[18px] ${t2}`}>{c.label}</div>
@@ -73,8 +73,8 @@ export default function AuditDrawer() {
       meta={(
         <span className="flex flex-wrap items-center gap-2">
           <StatusLabel status={c.status} /><Dot />
-          <span>{CATEGORIES[c.category]}</span><Dot />
-          <span>{IMPACT[c.impact].label} impact</span>
+          <span>{CATEGORIES[c.category]}</span>
+          {c.impact && <><Dot /><span>{IMPACT[c.impact].label} impact</span></>}
         </span>
       )}
       footer={!passing && (
@@ -114,7 +114,7 @@ export default function AuditDrawer() {
 
       <div className="mt-6 divide-y divide-[var(--div)] border-t border-[var(--div)]">
         <Section icon={passing ? Check : AlertCircle} title={passing ? 'Result' : 'What’s wrong'}><p>{c.finding}.</p></Section>
-        <Section icon={Sparkles} title="Why it matters for AI"><p>{c.why}</p></Section>
+        {c.why && <Section icon={Sparkles} title="Why it matters for AI"><p>{c.why}</p></Section>}
         <Section icon={Wrench} title={passing ? 'Keep it that way' : 'How to fix'}>
           <ol>
             {c.fix.map((step, i) => (
@@ -188,14 +188,17 @@ export function PageDrawer() {
         </span>
       )}
     >
+      {/* only the numbers known for this page */}
       <StatStrip cells={[
-        { label: 'Load time', value: <span className={`${big} ${p.ms > SLOW_MS ? '!text-negative' : ''}`}>{fmtMs(p.ms)}</span> },
-        { label: 'Depth', value: <span className={big}>{p.depth} <span className={`text-[13px] font-normal ${t3}`}>{p.depth === 1 ? 'click' : 'clicks'}</span></span> },
-        { label: 'Status', value: <span className={`${big} ${p.code >= 400 ? '!text-negative' : ''}`}>{p.code}</span> },
-      ]} />
+        p.ms != null && { label: 'Load time', value: <span className={`${big} ${p.ms > SLOW_MS ? '!text-negative' : ''}`}>{fmtMs(p.ms)}</span> },
+        p.depth != null && { label: 'Depth', value: <span className={big}>{p.depth} <span className={`text-[13px] font-normal ${t3}`}>{p.depth === 1 ? 'click' : 'clicks'}</span></span> },
+        p.code != null && { label: 'Status', value: <span className={`${big} ${p.code >= 400 ? '!text-negative' : ''}`}>{p.code}</span> },
+      ].filter(Boolean)} />
 
       {!checked ? (
         <p className={`mt-6 text-[14px] leading-[22px] ${t2}`}>{p.code >= 400 ? 'This page returns an error, so its content wasn’t checked.' : 'This address redirects, so its content wasn’t checked.'}</p>
+      ) : !groups.length ? (
+        <p className={`mt-6 flex items-center gap-2 text-[14px] leading-5 ${t2}`}><CheckIcon status="pass" />No check fails on this page.</p>
       ) : groups.map((g) => (
         <section key={g.s} className="mt-6">
           <h3 className={`text-[13px] leading-[18px] font-semibold ${t2}`}>{STATUS[g.s].label}</h3>
@@ -206,7 +209,7 @@ export function PageDrawer() {
                   className="group -mx-2 flex h-11 w-[calc(100%+16px)] items-center gap-3 rounded-md px-2 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
                   <CheckIcon status={g.s} />
                   <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-stone-900">{c.label}</span>
-                  <span className={`shrink-0 text-[13px] leading-[18px] ${t2}`}>{IMPACT[c.impact].label}</span>
+                  {c.impact && <span className={`shrink-0 text-[13px] leading-[18px] ${t2}`}>{IMPACT[c.impact].label}</span>}
                   <ChevronRight size={14} className="shrink-0 text-stone-500 transition-colors group-hover:text-stone-900" aria-hidden />
                 </button>
               </li>

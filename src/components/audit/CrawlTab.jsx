@@ -7,6 +7,7 @@ import { CheckIcon, HBar, fmtMs, openDrawer, setParams } from './parts'
 import { SLOW_MS, TARGET_MS } from '../../data/audit'
 
 // Crawl: no KPI strip; each card carries its own numbers. Every page is a dot, a row, or a count, once per card.
+// Response time and Slowest pages show only when response times are known; Site structure only with click depths.
 const t2 = 'text-stone-600'
 const t3 = 'text-stone-500'
 const cardTitle = 'text-[15px] leading-5 font-semibold text-stone-900'
@@ -20,14 +21,19 @@ function niceMax(v) {
 }
 
 export default function CrawlTab() {
+  const { a } = useAudit()
+  const speed = a.crawl.median != null
+  const depths = a.crawl.depths.length > 0
   return (
     <>
-      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-2"><ResponseTime /></div>
-        <SlowestPages />
-      </div>
-      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
-        <SiteStructure />
+      {speed && (
+        <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-3">
+          <div className="min-w-0 lg:col-span-2"><ResponseTime /></div>
+          <SlowestPages />
+        </div>
+      )}
+      <div className={`grid grid-cols-1 items-stretch gap-4 ${depths ? 'lg:grid-cols-2' : ''}`}>
+        {depths && <SiteStructure />}
         <StatusCodes />
       </div>
     </>
@@ -40,7 +46,7 @@ function ResponseTime() {
   const explain = useExplain(a.key)
   const [tip, setTip] = useState(null) // { p, x, y }
   const box = useRef(null)
-  const pages = a.pages
+  const pages = a.crawl.slowest // the pages with a response time
   const max = niceMax(Math.max(...pages.map((p) => p.ms), TARGET_MS))
   const step = max / 3 >= 500 ? 500 : max / 4
   const ticks = Array.from({ length: Math.round(max / step) + 1 }, (_, i) => Math.round(i * step))

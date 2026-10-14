@@ -4,10 +4,11 @@ import PromptTable from '../dashboard/PromptTable'
 import Segmented from '../dashboard/Segmented'
 import { useAudit } from './context'
 import { CheckIcon, Chevron, Chips, HBar, Impact, StatusLabel, openIssue, plural, setParams } from './parts'
-import { CATEGORIES, IMPACT, STATUS, byStatus, needsAction } from '../../data/audit'
+import { CATEGORIES, IMPACT, STATUS, byStatus, impactLevel, needsAction } from '../../data/audit'
 
 // Checks: every check in one table (was Issues + Content). ?status=needs|pass|all (default needs) · ?cat=<category>.
 // Rows: Failing → Needs work → Passing, then impact. On "All" the passing checks fold into one muted row.
+// The Impact column shows only when the checks have an impact.
 const t2 = 'text-stone-600'
 const t3 = 'text-stone-500'
 const STATUSES = ['needs', 'pass', 'all', 'fail'] // 'fail': from the Overview KPI (Failing only, shown as a chip)
@@ -29,6 +30,7 @@ export default function ChecksTab({ q }) {
   }, [status, cat, fold, a]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const total = a.pages.length
+  const hasImpact = a.checks.some((c) => c.impact)
   const columns = [
     { key: 'status', label: '', width: 44, pad: 'pl-5 pr-0', mobile: false, csv: (r) => STATUS[r.status].label, cell: (r) => <span className="grid w-6 place-items-center"><CheckIcon status={r.status} /></span> },
     {
@@ -49,7 +51,7 @@ export default function ChecksTab({ q }) {
         </span>
       ) : <span className={`block w-7 text-right text-[14px] ${t3}`}>—</span>),
     },
-    { key: 'impact', label: 'Impact', width: 114, sort: { value: (r) => IMPACT[r.impact].level, first: 'desc' }, csv: (r) => IMPACT[r.impact].label, mobileText: (r) => `${IMPACT[r.impact].label} impact`, cell: (r) => <Impact impact={r.impact} /> },
+    ...(hasImpact ? [{ key: 'impact', label: 'Impact', width: 114, sort: { value: impactLevel, first: 'desc' }, csv: (r) => IMPACT[r.impact]?.label ?? '', mobileText: (r) => (r.impact ? `${IMPACT[r.impact].label} impact` : '—'), cell: (r) => (r.impact ? <Impact impact={r.impact} /> : <span className={`text-[13px] ${t3}`}>—</span>) }] : []),
     { key: 'open', label: '', width: 48, csv: false, mobile: false, cell: () => <Chevron /> },
   ]
 

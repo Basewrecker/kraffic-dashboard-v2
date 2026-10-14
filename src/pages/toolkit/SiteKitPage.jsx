@@ -10,12 +10,13 @@ import { setParams, useParams } from '../../components/audit/parts'
 import { useIsMobile } from '../../hooks/useMedia'
 import ToolPage from '../../components/tool/ToolPage'
 import KpiStrip from '../../components/tool/KpiStrip'
-import { account, guessCategory, promptActions, trackedPrompts } from '../../data/mock'
+import { account, guessCategory, promptActions, siteKit, trackedPrompts } from '../../data/mock'
 import { RANGES, analytics, fmtDay, integrationsFor, searchConsole, windowOf } from './sitekit'
 
 // /more-tools/site-kit — Search Console + Analytics for the project's site.
 // Not connected / expired: only the connection card. Connected: tabs per connected source (?tab=sc|ga).
 // ?mock=none|gsc|expired|connected|empty picks the connection state (Connect / Reconnect move between them).
+// siteKit.canConnect false: no Connect / Reconnect buttons · siteKit.canShowData false: the connection card only.
 const t2 = 'text-stone-600'
 const t3 = 'text-stone-500'
 const cardTitle = 'text-[15px] leading-5 font-semibold text-stone-900'
@@ -33,7 +34,7 @@ export default function SiteKitPage() {
   const q = useParams()
   const state = q.get('mock') ?? 'none'
   const conns = integrationsFor(state)
-  const connected = conns.filter((c) => c.status === 'CONNECTED')
+  const connected = siteKit.canShowData ? conns.filter((c) => c.status === 'CONNECTED') : []
   const tabs = connected.map((c) => SOURCES[c.provider])
   const tab = tabs.find((t) => t.tab === q.get('tab'))?.tab ?? tabs[0]?.tab
   const [range, setRange] = useState('28')
@@ -73,7 +74,7 @@ export default function SiteKitPage() {
     sub: 'Read-only access. We never change anything in your Google accounts.',
     rows: conns.map((c) => ({
       id: c.provider, name: SOURCES[c.provider].name, domain: SOURCES[c.provider].domain, account: c.accountName,
-      status: c.status === 'CONNECTED' ? 'connected' : c.status === 'EXPIRED' ? 'expired' : 'none', onConnect: () => connect(c),
+      status: c.status === 'CONNECTED' ? 'connected' : c.status === 'EXPIRED' ? 'expired' : 'none', onConnect: siteKit.canConnect ? () => connect(c) : null,
     })),
     seeing: ['Clicks and impressions from Google Search, by query and page', 'Visits that come from AI assistants like ChatGPT and Perplexity', 'Search queries worth tracking as prompts'],
   }

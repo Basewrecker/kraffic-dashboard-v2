@@ -12,6 +12,7 @@ import MobileActions from '../ui/MobileActions'
 //          · 'running' (inline status line with a spinner and elapsed time, above the body) · 'error' (reason + Retry)
 //          · 'ready' (the body)
 //   connect: { title, sub, rows: [{ id, name, domain, status: 'none'|'expired'|'connected'|'error', account, onConnect }], seeing: [3 lines] }
+//            (a row without onConnect has no Connect / Reconnect button: read-only)
 //            shown in 'not-connected', and above the body when only some sources are connected (partial)
 //   Body: the page passes its KPI strip → content rows → table card as children (cards p-5, gap-4).
 export const t2 = 'text-stone-600'
@@ -88,8 +89,9 @@ export function ConnectCard({ title = 'Connect your data', sub = 'Read-only acce
                 <span className={`block truncate text-[13px] leading-[18px] ${status[1]}`}>{status[0]}</span>
               </span>
               {r.status === 'connected' ? <span className={`inline-flex items-center gap-1 text-[13px] ${t2}`}><Check size={14} className="text-ink" aria-hidden />Ready</span>
-                : r.status === 'expired' || r.status === 'error' ? <button type="button" onClick={r.onConnect} className={lineBtn}>Reconnect</button>
-                  : <button type="button" onClick={r.onConnect} className={inkBtn}>Connect</button>}
+                : !r.onConnect ? null
+                  : r.status === 'expired' || r.status === 'error' ? <button type="button" onClick={r.onConnect} className={lineBtn}>Reconnect</button>
+                    : <button type="button" onClick={r.onConnect} className={inkBtn}>Connect</button>}
             </li>
           )
         })}

@@ -15,10 +15,12 @@ import CrawlTab from './CrawlTab'
 import { AuditProvider } from './context'
 import { setParams, useTab } from './parts'
 import { CATEGORIES, IMPACT, STATUS, byStatus, getAudit } from '../../data/audit'
+import { auditActions } from '../../data/mock'
 
 // /audit — "Site Audit": how ready the site is for AI answers. Tabs: Overview · Checks · Pages · Crawl (?tab=).
 // Data: data/audit (derived from the API-shaped mock in data/mock.js). ?mock=full|first|clean|never picks the state.
 // Rows open the Check drawer (?check=) or the Page drawer (?page=); both are bottom sheets on phones.
+// Run audit goes through auditActions (data/mock); a failed run shows its reason under the subtitle, with Retry.
 const t2 = 'text-stone-600'
 const t3 = 'text-stone-500'
 const TAB_IDS = ['overview', 'checks', 'pages', 'crawl']
@@ -31,18 +33,18 @@ export default function AuditPage() {
   const tabsRef = useRef(null)
   useEffect(() => { tabsRef.current?.querySelector('[aria-selected=true]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [tab])
   const [running, setRunning] = useState(false)
+  const [runError, setRunError] = useState(null)
   const [api, setApi] = useState(false)
   const [toastNode, toast] = useToast({ position: 'center' })
-  const timer = useRef(null)
-  useEffect(() => () => clearTimeout(timer.current), [])
 
   const run = () => {
+    if (running) return
     setRunning(true)
-    timer.current = setTimeout(() => {
-      setRunning(false)
-      if (a.never) setParams({ mock: 'first' }) // the first audit lands
-      toast('Audit finished')
-    }, 1800)
+    setRunError(null)
+    auditActions.onRunAudit({ never: a.never })
+      .then((res) => { if (res?.mock) setParams({ mock: res.mock }); toast('Audit finished') }) // the first audit lands
+      .catch((err) => setRunError(err?.message || 'The audit couldn’t finish.'))
+      .finally(() => setRunning(false))
   }
   const exportAll = () => !a.never && downloadCsv(`site-audit-${new Date().toISOString().slice(0, 10)}.csv`, [...a.checks].sort(byStatus), [
     { label: 'Check', key: 'label' },
@@ -64,6 +66,13 @@ export default function AuditPage() {
     requestAnimationFrame(() => document.querySelector(`[data-audit-tab="${next}"]`)?.focus())
   }
   const meta = running ? 'Running…' : a.never ? 'Not run yet' : `Last run ${a.run.date} · ${a.run.pages} pages`
+  // a failed run: the reason on its own line under the subtitle, with Retry (the Structured Data pattern)
+  const failLine = !running && runError && (
+    <p role="alert" className="mt-2 text-[13px] leading-[18px] text-negative">
+      Audit failed: {runError}{' '}
+      <button type="button" onClick={run} className="ml-1 rounded font-medium text-ink underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Retry</button>
+    </p>
+  )
 
   return (
     <AuditProvider audit={a}>
@@ -72,6 +81,7 @@ export default function AuditPage() {
           <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Site Audit</h1>
           <p className={`mt-1 text-[13px] leading-[18px] ${t2} lg:text-[14px] lg:leading-5`}>How ready {a.domain} is for AI answers</p>
           <p className={`mt-1 text-[13px] leading-[18px] ${t3} tabular-nums lg:hidden`}>{meta}</p>
+          {failLine}
         </div>
         <div className="flex shrink-0 items-center gap-2 lg:pt-1">
           <span className={`mr-1 hidden whitespace-nowrap text-[13px] leading-[18px] ${t3} tabular-nums lg:inline`}>{meta}</span>
