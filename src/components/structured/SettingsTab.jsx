@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, ArrowRight, Check, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { ArrowRight, Check, Plus, RefreshCw, X } from 'lucide-react'
 import Card from '../dashboard/Card'
 import Segmented from '../dashboard/Segmented'
 import Switch from '../ui/Switch'
 import DrawerShell, { useDrawer } from '../audit/DrawerShell'
 import { openDrawer } from '../audit/parts'
-import { SD, pages as allPages } from '../../data/structuredData'
-import { WEEKDAYS, groupPages, matches, nextRun, saveSettings, useSettings } from './settings'
+import { SD, crawlActions } from '../../data/structuredData'
+import { WEEKDAYS, nextRun, saveSettings, useSettings } from './settings'
 
 // Settings tab: settings cards on the left (Tracking page row style, autosave with a "Saved" tick by the row),
-// the last run on the right (sticky). Page-type rules here drive the Overview's Coverage map rows.
+// the last run on the right (sticky). Max pages goes with the next crawl; the other crawl settings, the schedule and
+// the alerts show only where the app can save them (crawlActions.canEditCrawlSettings).
 const t2 = 'text-stone-600'
 const t3 = 'text-stone-500'
 const textBtn = 'inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50'
 const input = 'h-9 rounded-lg border border-line bg-raised px-3 text-small text-stone-900 outline-none placeholder:text-stone-500 focus:border-stone-400'
-const RECIPIENT = 'you@dermasuri.com'
 
 // "Saved ✓" beside the row that changed, for 1.5s
 function useSaved() {
@@ -83,61 +83,15 @@ function PathChips({ label, value, onChange }) {
   )
 }
 
-// one page-type rule: name · pattern chip · page count · Edit (inline)
-function PageTypeRow({ t, count, onSave, onDelete, startEditing = false }) {
-  const [edit, setEdit] = useState(startEditing)
-  const [name, setName] = useState(t.name)
-  const [pattern, setPattern] = useState(t.pattern)
-  const save = () => { if (name.trim() && pattern.trim()) { onSave({ ...t, name: name.trim(), pattern: pattern.trim() }); setEdit(false) } }
-  if (edit) {
-    return (
-      <li className="flex min-h-16 flex-wrap items-center gap-2 px-5 py-3"
-        onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { e.stopPropagation(); if (startEditing) onDelete(); else setEdit(false) } }}>
-        <input autoFocus value={name} onChange={(e) => setName(e.target.value)} aria-label="Page type name" placeholder="Name" className={`${input} w-44`} />
-        <input value={pattern} onChange={(e) => setPattern(e.target.value)} aria-label="URL pattern" placeholder="/path/*" className={`${input} w-40 font-mono text-[13px]`} />
-        <span className={`text-[13px] ${t3} tabular-nums`}>{allPages.filter((p) => pattern.trim() && matches(pattern, p.path)).length} pages</span>
-        <span className="ml-auto flex items-center gap-1">
-          <button type="button" onClick={onDelete} aria-label={`Delete ${t.name || 'page type'}`} className="grid h-8 w-8 place-items-center rounded-md text-stone-500 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><Trash2 size={14} aria-hidden /></button>
-          <button type="button" onClick={() => (startEditing ? onDelete() : setEdit(false))} className="h-8 rounded-md px-2.5 text-[13px] font-medium text-stone-600 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Cancel</button>
-          <button type="button" onClick={save} disabled={!name.trim() || !pattern.trim()} className="h-8 rounded-md bg-ink px-3 text-[13px] font-medium text-on-ink outline-none hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50">Save</button>
-        </span>
-      </li>
-    )
-  }
-  return (
-    <li className="flex h-16 items-center gap-3 px-5">
-      <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-stone-900">{t.name}</span>
-      <code className="shrink-0 rounded-md bg-tint px-2 py-1 font-mono text-[12px] leading-4 text-stone-900">{t.pattern}</code>
-      <span className={`w-20 shrink-0 text-right text-[13px] leading-[18px] ${t3} tabular-nums`}>{count} {count === 1 ? 'page' : 'pages'}</span>
-      <button type="button" onClick={() => setEdit(true)} aria-label={`Edit ${t.name}`}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-stone-500 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><Pencil size={14} aria-hidden /></button>
-    </li>
-  )
-}
 
 export default function SettingsTab({ onRun, running, lastRun }) {
   const s = useSettings()
   const [savedKey, flash] = useSaved()
   const set = (patch, key) => { saveSettings(patch); flash(key) }
   const [sitemap, setSitemap] = useState(s.sitemap)
-  const [testing, setTesting] = useState(false)
-  const [newType, setNewType] = useState(null)
-  const timer = useRef(null)
-  useEffect(() => () => clearTimeout(timer.current), [])
-
-  // mock check: a .xml URL on the site is "found", anything else isn't reachable
-  const test = () => {
-    setTesting(true)
-    timer.current = setTimeout(() => {
-      let ok = false
-      try { const u = new URL(sitemap); ok = u.hostname.replace(/^www\./, '') === SD.domain && u.pathname.endsWith('.xml') } catch { /* not a URL */ }
-      set({ sitemap, sitemapCheck: ok ? { ok: true, count: 52 } : { ok: false } }, 'sitemap')
-      setTesting(false)
-    }, 700)
-  }
-  const groups = groupPages(s.pageTypes, allPages)
-  const countOf = (id) => groups.find((g) => g.id === id)?.pages.length ?? 0
-  const run = SD.runs[0]
+  const editable = crawlActions.canEditCrawlSettings
+  const run = SD.lastRun ?? {}
+  const history = SD.runs?.length > 0
   const sched = s.schedule
 
   return (
@@ -147,7 +101,7 @@ export default function SettingsTab({ onRun, running, lastRun }) {
         <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] tabular-nums">
           <span className="font-semibold text-stone-900">Last run {lastRun}</span><span className={t2}> · {run.pages} pages · {run.errors} errors</span>
         </span>
-        <button type="button" onClick={() => openDrawer('runs', 'all')} className={`${textBtn} h-10`}>History</button>
+        {history && <button type="button" onClick={() => openDrawer('runs', 'all')} className={`${textBtn} h-10`}>History</button>}
         <button type="button" onClick={onRun} disabled={running} aria-label="Re-run now"
           className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-ink px-3 text-[13px] font-medium text-on-ink outline-none disabled:opacity-60">
           <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />Re-run
@@ -155,50 +109,27 @@ export default function SettingsTab({ onRun, running, lastRun }) {
       </Card>
       <div className="flex min-w-0 flex-col gap-4">
         <SettingsCard title="Crawl" description="How Kraffic finds the pages to analyze. Changes apply on the next run.">
-          <Row name="Sitemap URL" meta="Only used if robots.txt has no sitemap" saved={savedKey === 'sitemap'} top>
-            <span className="flex items-center gap-3">
+          {editable && (
+            <Row name="Sitemap URL" meta="Only used if robots.txt has no sitemap" saved={savedKey === 'sitemap'} top>
               <input aria-label="Sitemap URL" value={sitemap} onChange={(e) => setSitemap(e.target.value)} placeholder={`https://${SD.domain}/sitemap.xml`}
-                onBlur={() => { if (sitemap.trim() !== s.sitemap) set({ sitemap: sitemap.trim(), sitemapCheck: null }, 'sitemap') }}
-                onKeyDown={(e) => { if (e.key === 'Enter') test() }}
+                onBlur={() => { if (sitemap.trim() !== s.sitemap) set({ sitemap: sitemap.trim() }, 'sitemap') }}
                 className={`${input} w-96 max-w-[50vw] max-md:h-10 max-md:min-w-0 max-md:max-w-none max-md:flex-1`} />
-              <button type="button" onClick={test} disabled={testing || !sitemap.trim()} className={textBtn}>{testing ? 'Testing…' : 'Test'}</button>
-            </span>
-            {s.sitemapCheck && (
-              <span className={`flex items-center gap-1.5 text-[13px] leading-[18px] ${s.sitemapCheck.ok ? 'text-stone-900' : 'text-negative'}`} role="status">
-                {s.sitemapCheck.ok ? <><Check size={14} className="text-ink" aria-hidden />Found {s.sitemapCheck.count} URLs</> : <><AlertCircle size={14} aria-hidden />Not reachable</>}
-              </span>
-            )}
-          </Row>
+            </Row>
+          )}
           <Row name="Max pages" meta="Larger crawls take longer" saved={savedKey === 'max'} stack>
             <Segmented label="Max pages" size="sm" value={s.maxPages} onChange={(v) => set({ maxPages: v }, 'max')} options={[25, 50, 100, 200].map((n) => ({ value: n, label: String(n) }))} />
           </Row>
+          {editable && <>
           <Row name="Include paths" meta="Only crawl these (empty = the whole site)" saved={savedKey === 'include'} top>
             <PathChips label="Include paths" value={s.include} onChange={(v) => set({ include: v }, 'include')} />
           </Row>
           <Row name="Exclude paths" meta="Never crawl these" saved={savedKey === 'exclude'} top>
             <PathChips label="Exclude paths" value={s.exclude} onChange={(v) => set({ exclude: v }, 'exclude')} />
           </Row>
+          </>}
         </SettingsCard>
 
-        <SettingsCard title="Page types" description="How Kraffic groups your pages. These rules are the rows of the Coverage map.">
-          {s.pageTypes.map((t) => (
-            <PageTypeRow key={t.id} t={t} count={countOf(t.id)}
-              onSave={(next) => set({ pageTypes: s.pageTypes.map((x) => (x.id === t.id ? next : x)) }, 'types')}
-              onDelete={() => set({ pageTypes: s.pageTypes.filter((x) => x.id !== t.id) }, 'types')} />
-          ))}
-          {newType && (
-            <PageTypeRow key={newType.id} t={newType} count={0} startEditing
-              onSave={(next) => { set({ pageTypes: [...s.pageTypes, next] }, 'types'); setNewType(null) }}
-              onDelete={() => setNewType(null)} />
-          )}
-          <li className="flex h-12 items-center justify-between px-5">
-            <button type="button" onClick={() => setNewType({ id: `custom-${Date.now()}`, name: '', pattern: '' })} disabled={Boolean(newType)} className={textBtn}>
-              <Plus size={14} aria-hidden />Add page type
-            </button>
-            <Saved show={savedKey === 'types'} />
-          </li>
-        </SettingsCard>
-
+        {editable && <>
         <SettingsCard title="Schedule">
           <Row name="Auto re-run" meta={sched.auto ? `Next run ${nextRun(sched)}` : 'Off · runs only when you press Re-run'} saved={savedKey === 'schedule'} stack>
             <span className="flex items-center gap-3 max-md:flex-wrap">
@@ -222,13 +153,14 @@ export default function SettingsTab({ onRun, running, lastRun }) {
         </SettingsCard>
 
         <SettingsCard title="Alerts">
-          <Row name="Email me when a schema breaks" meta={RECIPIENT} saved={savedKey === 'breaks'}>
+          <Row name="Email me when a schema breaks" meta="To the account owner" saved={savedKey === 'breaks'}>
             <Switch size="sm" checked={s.alerts.breaks} onChange={(v) => set({ alerts: { ...s.alerts, breaks: v } }, 'breaks')} aria-label="Email me when a schema breaks" />
           </Row>
-          <Row name="Email me when coverage drops by 10% or more" meta={RECIPIENT} saved={savedKey === 'drops'}>
+          <Row name="Email me when coverage drops by 10% or more" meta="To the account owner" saved={savedKey === 'drops'}>
             <Switch size="sm" checked={s.alerts.drops} onChange={(v) => set({ alerts: { ...s.alerts, drops: v } }, 'drops')} aria-label="Email me when coverage drops by 10% or more" />
           </Row>
         </SettingsCard>
+        </>}
       </div>
 
       {/* the last run */}
@@ -247,7 +179,7 @@ export default function SettingsTab({ onRun, running, lastRun }) {
           className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ink text-small font-medium text-on-ink outline-none transition-colors duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-60">
           <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />Re-run now
         </button>
-        <button type="button" onClick={() => openDrawer('runs', 'all')} className={`${textBtn} mt-3`}>View run history <ArrowRight size={14} aria-hidden /></button>
+        {history && <button type="button" onClick={() => openDrawer('runs', 'all')} className={`${textBtn} mt-3`}>View run history <ArrowRight size={14} aria-hidden /></button>}
       </Card>
       <RunHistory />
     </div>

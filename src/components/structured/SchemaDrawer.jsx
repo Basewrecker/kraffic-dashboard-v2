@@ -3,7 +3,8 @@ import { AlertTriangle, ArrowUpRight, Check, ChevronDown, Code2, Copy, Eye, File
 import DrawerShell, { Dot, useDrawer } from '../audit/DrawerShell'
 import { ImpactMeter, useParams } from '../audit/parts'
 import { useToast } from '../dashboard/overlays'
-import { IMPORTANCE, KINDS, SD, analyze, isPageType } from '../../data/structuredData'
+import { SD, crawlActions } from '../../data/structuredData'
+import { IMPORTANCE, KINDS, analyze, isPageType } from './analyze'
 import { StatusLabel, markPending, usePending } from './parts'
 
 // a section to scroll to when the drawer opens (the Schemas table's "2 warnings" → Issues)
@@ -57,7 +58,8 @@ function Json({ text }) {
 // ---- "What it unlocks": how the page could look in an answer once the schema is added, filled from the snippet
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 const shortDay = (iso) => { const d = new Date(iso); return Number.isNaN(+d) ? null : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
-const PRODUCTISH = ['product', 'review-snippet', 'merchant-listing', 'offer', 'brand', 'image-object']
+// schema ids are the schema type, lower-cased (analyze.js)
+const PRODUCTISH = ['product', 'aggregaterating', 'offer', 'brand', 'imageobject']
 
 function FaqRow({ q, a }) {
   const [open, setOpen] = useState(false)
@@ -111,7 +113,7 @@ function Preview({ item }) {
         </span>
       </div>
     )
-  } else if (id === 'faq') {
+  } else if (id === 'faqpage') {
     card = (
       <ul className="-my-1 divide-y divide-[var(--div)]">
         {(d.mainEntity ?? []).slice(0, 2).map((x) => <FaqRow key={x.name} q={x.name} a={x.acceptedAnswer?.text} />)}
@@ -126,7 +128,7 @@ function Preview({ item }) {
         <p className="mt-1.5 line-clamp-2 text-[13px] leading-[18px] text-stone-600">{d.description}</p>
       </div>
     )
-  } else if (id === 'breadcrumb') {
+  } else if (id === 'breadcrumblist') {
     const trail = (d.itemListElement ?? []).map((x) => x.name)
     card = (
       <div className="flex flex-wrap items-center gap-1.5 text-[13px] leading-[18px] text-stone-600">
@@ -251,7 +253,8 @@ export default function SchemaDrawer({ result, scope }) {
             </a>
             <span className="flex items-center gap-2">
               <button type="button" onClick={copy} className={lineBtn}>{copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}{copied ? 'Copied' : 'Copy snippet'}</button>
-              {!valid && (
+              {/* only where the app can save it */}
+              {!valid && crawlActions.canMarkAdded && (
                 <button type="button" onClick={mark} disabled={isPending} className={inkBtn}>
                   {isPending ? 'Pending check' : fix ? 'Mark as fixed' : 'Mark as added'}
                 </button>

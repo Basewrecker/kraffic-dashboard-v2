@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useIsMobile } from '../../hooks/useMedia'
 import { AlertCircle, AlertTriangle, ArrowRight, Braces, Check, ChevronDown, ChevronRight, CircleDashed, Copy, Download, FileText, Info, Plus, RefreshCw, Share2, X, XCircle } from 'lucide-react'
 import Card from '../dashboard/Card'
@@ -13,11 +13,12 @@ import { ImpactMeter, RowIcon, ViewFix, openDrawer, rowBtn, setParams, useTab } 
 import SchemaDrawer, { setSchemaSection } from './SchemaDrawer'
 import SettingsTab from './SettingsTab'
 import SchemaRing, { RING_COLORS } from './SchemaRing'
-import { groupPages, useSettings } from './settings'
+import { useSettings } from './settings'
 import { PendingCheck, StatusIcon, StatusLabel, pagesLine, usePending } from './parts'
-import { IMPORTANCE, KINDS, PAGE_COUNT, SD, STATUS, analyze, isPageType, pageFor, schemas } from '../../data/structuredData'
+import { SD, crawlActions } from '../../data/structuredData'
+import { IMPORTANCE, KINDS, PAGE_COUNT, STATUS, analyze, isPageType, pageFor } from './analyze'
 import ErrorBoundary from '../ui/ErrorBoundary'
-import ActionSteps, { fmtMin } from '../ui/ActionSteps'
+import ActionSteps, { fmtMin, orderSteps } from '../ui/ActionSteps'
 
 // /structured-data — "Structured Data": which schema.org types the site publishes and what to add.
 // Same system as /audit: header, scope bar (?scope=page&url=), underline tabs (?tab=), rows → Schema drawer (?schema=).
@@ -53,16 +54,32 @@ export default function StructuredDataPage() {
   const type = isPageType(rawType) ? rawType : null
   useEffect(() => { if (rawType != null && !type) setParams({ type: null }) }, [rawType, type])
   const typeResult = useMemo(() => (type && scope === 'site' ? analyze(null, type) : null), [type, scope])
-  const [lastRun, setLastRun] = useState(SD.lastRun)
+  const [lastRun, setLastRun] = useState(SD.lastRun?.date ?? null)
   const [running, setRunning] = useState(false)
+  const [runError, setRunError] = useState(null)
   const [howOpen, setHowOpen] = useState(false)
   const [toastNode, toast] = useToast({ position: 'center' })
-  const timer = useRef(null)
-  useEffect(() => () => clearTimeout(timer.current), [])
+  const settings = useSettings()
+  // Re-run / Run crawl: a new crawl with the Settings' page limit; running and failed states show in the header
   const rerun = () => {
+    if (running) return
     setRunning(true)
-    timer.current = setTimeout(() => { setRunning(false); setLastRun(today()); toast(`Analysis finished · ${PAGE_COUNT} pages`) }, 1800)
+    setRunError(null)
+    crawlActions.onRunCrawl({ maxPages: settings.maxPages })
+      .then((res) => { setLastRun(res?.lastRun?.date ?? today()); toast(`Crawl finished · ${res?.lastRun?.pages ?? PAGE_COUNT} pages`) })
+      .catch((err) => setRunError(err?.message || 'The crawl couldn’t finish.'))
+      .finally(() => setRunning(false))
   }
+  const runLine = running
+    ? <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="animate-[spin_600ms_linear_infinite] motion-reduce:animate-none" aria-hidden />Crawling… this can take a few minutes</span>
+    : lastRun ? `${PAGE_COUNT} pages · last run ${lastRun}` : null
+  // a failed crawl: the reason (it can be long) on its own line under the subtitle, with Retry
+  const failLine = !running && runError && (
+    <p role="alert" className="mt-2 text-[13px] leading-[18px] text-negative">
+      Crawl failed: {runError}{' '}
+      <button type="button" onClick={rerun} className="ml-1 rounded font-medium text-ink underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Retry</button>
+    </p>
+  )
   const share = () => { navigator.clipboard?.writeText(window.location.href).catch(() => {}); toast('Link copied') }
 
   const stamp = new Date().toISOString().slice(0, 10)
@@ -99,28 +116,45 @@ export default function StructuredDataPage() {
               <Info size={16} aria-hidden />
             </button>
           </div>
-          <p className="mt-1 line-clamp-2 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Which schemas Google and AI engines can read · detected as {SD.detected.join(', ')}</p>
-          <p className={`mt-1 text-[13px] leading-[18px] ${t3} tabular-nums lg:hidden`}>{running ? 'Running…' : `${PAGE_COUNT} pages · last run ${lastRun}`}</p>
+          <p className="mt-1 line-clamp-2 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Which schemas Google and AI engines can read on {SD.domain}</p>
+          {runLine && <p className={`mt-1 text-[13px] leading-[18px] ${t3} tabular-nums lg:hidden`}>{runLine}</p>}
+          {SD.crawled && failLine}
         </div>
         <div className="flex shrink-0 items-center gap-2 lg:pt-1">
-          <span className={`mr-1 hidden whitespace-nowrap lg:inline text-[13px] leading-[18px] ${t3} tabular-nums`}>{running ? 'Running…' : `${PAGE_COUNT} pages · last run ${lastRun}`}</span>
-          <span className="hidden items-center gap-2 lg:flex">
+          {runLine && <span className={`mr-1 hidden whitespace-nowrap lg:inline text-[13px] leading-[18px] ${t3} tabular-nums`}>{runLine}</span>}
+          {/* nothing to export or share before the first crawl */}
+          {SD.crawled && <span className="hidden items-center gap-2 lg:flex">
             <ActionMenu label="Export" items={[{ label: 'CSV', onClick: exportCsv }, { label: 'Client report', onClick: exportReport }]} className={lineBtn}>
               Export <ChevronDown size={14} className="text-stone-500" aria-hidden />
             </ActionMenu>
             <button type="button" onClick={share} className={lineBtn}><Share2 size={14} aria-hidden />Share</button>
-          </span>
-          <button type="button" onClick={rerun} disabled={running} className={`${inkBtn} justify-center max-lg:h-10 max-lg:flex-1`}>
-            <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />Re-run
-          </button>
-          <MobileActions items={[
+          </span>}
+          {SD.crawled && (
+            <button type="button" onClick={rerun} disabled={running} className={`${inkBtn} justify-center max-lg:h-10 max-lg:flex-1`}>
+              <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />Re-run
+            </button>
+          )}
+          {SD.crawled && <MobileActions items={[
             { label: 'Export CSV', icon: Download, onClick: exportCsv },
             { label: 'Client report', icon: FileText, onClick: exportReport },
             { label: 'Share link', icon: Share2, onClick: share },
-          ]} />
+          ]} />}
         </div>
       </div>
 
+      {!SD.crawled ? (
+        // never crawled: nothing to analyze yet
+        <Card className="mt-2 flex flex-col items-center gap-3 px-6 py-16 text-center">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-tint text-stone-600" aria-hidden><Braces size={18} /></span>
+          <h2 className="text-title font-semibold text-stone-900">This site hasn’t been crawled yet</h2>
+          <p className={`max-w-md text-[14px] leading-5 ${t2}`}>A crawl reads the structured data on {SD.domain}’s pages. The results show here when it finishes.</p>
+          <button type="button" onClick={rerun} disabled={running} className={`${inkBtn} mt-1`}>
+            <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />{running ? 'Crawling…' : 'Run crawl'}
+          </button>
+          {runLine && <p className={`text-[13px] leading-[18px] ${t3}`}>{runLine}</p>}
+          {failLine}
+        </Card>
+      ) : (<>
       {/* tabs, with the scope toggle on the same row (right) */}
       {/* phones: tabs scroll sideways edge to edge; the scope toggle gets its own row under them */}
       <div className="mt-2 flex items-end justify-between gap-4 border-b border-line max-md:-mx-4 max-md:px-4">
@@ -150,6 +184,7 @@ export default function StructuredDataPage() {
               : <RecommendationsTab r={result} />}
         </ErrorBoundary>
       </div>
+      </>)}
 
       <HowModal open={howOpen} onClose={() => setHowOpen(false)} />
       <ErrorBoundary name="Schema drawer" floating><SchemaDrawer result={result} scope={scope} /></ErrorBoundary>
@@ -217,7 +252,7 @@ const RecIcon = ({ s }) => (
 )
 
 function Overview({ r, setTab, site }) {
-  const prev = SD.previous
+  const prev = SD.previous // null: no earlier run to compare with, so no change lines
   const reqPct = r.required.total ? Math.round((r.required.valid * 100) / r.required.total) : null
   return (
     <>
@@ -226,21 +261,21 @@ function Overview({ r, setTab, site }) {
         <div className="kpi-grid grid grid-cols-2 gap-y-4 md:grid-cols-4 md:divide-x md:divide-[var(--div)]">
           <Kpi label="Required schemas" first>
             <Big>{reqPct == null ? '—' : `${reqPct}%`}</Big>
-            <div className="mt-1 text-[13px] leading-[18px] tabular-nums">{reqPct == null ? <span className={t3}>None apply here</span> : site ? <Change now={reqPct} before={prev.required} /> : <span className={t2}>{r.required.valid} of {r.required.total} valid</span>}</div>
+            <div className="mt-1 text-[13px] leading-[18px] tabular-nums">{reqPct == null ? <span className={t3}>None apply here</span> : site && prev ? <Change now={reqPct} before={prev.required} /> : site ? null : <span className={t2}>{r.required.valid} of {r.required.total} valid</span>}</div>
           </Kpi>
           <Kpi label="Schema coverage">
             <Big>{r.coverage}%</Big>
-            <div className="mt-1 text-[13px] leading-[18px] tabular-nums">{site ? <Change now={r.coverage} before={prev.coverage} /> : <span className={t2}>across this page</span>}</div>
+            <div className="mt-1 text-[13px] leading-[18px] tabular-nums">{site ? (prev && <Change now={r.coverage} before={prev.coverage} />) : <span className={t2}>across this page</span>}</div>
           </Kpi>
           <Kpi label="Pages fully valid">
             <div className="flex items-baseline gap-1.5"><Big>{r.fullyValid}</Big><span className={`text-[13px] leading-[18px] ${t3} tabular-nums`}>of {r.pageCount}</span></div>
-            <div className="mt-1 text-[13px] leading-[18px] tabular-nums">{site ? <Change now={r.fullyValid} before={prev.fullyValid} /> : <span className={t3}>—</span>}</div>
+            <div className="mt-1 text-[13px] leading-[18px] tabular-nums">{site ? (prev && <Change now={r.fullyValid} before={prev.fullyValid} />) : <span className={t3}>—</span>}</div>
           </Kpi>
           <Kpi label="Warnings">
             <Big>{r.warnings}</Big>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[13px] leading-[18px] tabular-nums">
               {r.critical > 0 && <span className="text-negative">{r.critical} critical</span>}
-              {site && <Change now={r.warnings} before={prev.warnings} lowerIsBetter />}
+              {site && prev && <Change now={r.warnings} before={prev.warnings} lowerIsBetter />}
               {r.warnings + r.critical > 0 && <button type="button" onClick={() => setTab('recommendations')} className={linkCls}>View</button>}
             </div>
           </Kpi>
@@ -256,11 +291,10 @@ function Overview({ r, setTab, site }) {
   )
 }
 
-// ---- What to do next: a numbered plan. Fix items first, each group ordered by impact ÷ effort (quick wins first).
-// Tick a step's number to mark it done (kept in this browser); done steps sink to the end.
+// ---- What to do next: a numbered plan, ordered by impact ÷ effort (quick wins first; a fix before an add on a tie).
+// Where the app can save it, tick a step's number to mark it done; done steps sink to the end.
 const PLAN_STEPS = 4
 const DONE_KEY = `kraffic:structured-data:done:${SD.domain}`
-const IMPACT_N = { high: 3, medium: 2, low: 1 }
 const PAGE_WORD = { 'Product pages': 'product page', 'Blog posts': 'blog post', Collections: 'collection', Home: 'home page', Other: 'page' }
 const pagesPhrase = (s) => {
   const n = s.affected.length
@@ -270,18 +304,17 @@ const pagesPhrase = (s) => {
 const readDone = () => { try { return new Set(JSON.parse(localStorage.getItem(DONE_KEY) ?? '[]')) } catch { return new Set() } }
 
 function ActionPlan({ r, setTab }) {
-  const [done, setDone] = useState(readDone)
+  const [done, setDone] = useState(() => (crawlActions.canMarkDone ? readDone() : new Set()))
   const [toastNode, toast] = useToast({ position: 'center' })
-  const score = (s) => IMPACT_N[s.impact] / (s.effort ?? 30)
-  const byScore = (a, b) => score(b) - score(a)
-  const plan = [...[...r.fix].sort(byScore), ...[...r.toAdd].sort(byScore)].slice(0, PLAN_STEPS)
-  const open = plan.filter((s) => !done.has(s.id))
-  const total = open.reduce((n, s) => n + (s.effort ?? 30), 0)
-  const all = r.fix.length + r.toAdd.length
-  const steps = plan.map((s, i) => {
+  const items = new Map([...r.fix, ...r.toAdd].map((s) => [s.id, s]))
+  // the top steps of one list ordered by impact ÷ effort (ActionSteps' orderSteps)
+  const plan = orderSteps([...items.values()].map((s) => {
     const status = s.kind === 'fix' ? (s.level === 'error' ? ['Error', 'shrink-0 text-negative'] : ['Warning', `shrink-0 ${t2}`]) : ['Missing', `shrink-0 ${t3}`]
-    return { id: s.id, n: i + 1, title: actionOf(s), chip: s.kind === 'fix' ? s.type : s.name, chipMono: true, meta: [pagesPhrase(s), status], impact: s.impact, effort: fmtMin(s.effort ?? 30) }
-  })
+    return { id: s.id, kind: s.kind === 'fix' ? 'fix' : 'add', title: actionOf(s), chip: s.kind === 'fix' ? s.type : s.name, chipMono: true, meta: [pagesPhrase(s), status], impact: s.impact, minutes: s.effort ?? 30 }
+  })).slice(0, PLAN_STEPS)
+  const open = plan.filter((s) => !done.has(s.id))
+  const total = open.reduce((n, s) => n + s.minutes, 0)
+  const all = r.fix.length + r.toAdd.length
   const toggle = (s) => {
     const next = new Set(done)
     const was = next.has(s.id)
@@ -302,17 +335,15 @@ function ActionPlan({ r, setTab }) {
         </div>
         <button type="button" onClick={() => setTab('recommendations')} className={`${linkCls} max-md:h-10`}>View all {all} <ArrowRight size={14} aria-hidden /></button>
       </div>
-      <ActionSteps steps={steps} done={done} onToggle={toggle} onOpen={(s) => openSchema(s.id)} />
+      {/* Mark done only where the app can save it */}
+      <ActionSteps steps={plan} done={done} onMarkDone={crawlActions.canMarkDone ? toggle : undefined} onOpen={(s) => openSchema(s.id)} />
       {toastNode}
     </Card>
   )
 }
 
-// ---- Coverage map: page types (the Settings rules) × the schemas that matter for them
-const MAP_COLS = [['product', 'Product'], ['offer', 'Offer'], ['review-snippet', 'Review'], ['merchant-listing', 'Merchant'], ['article', 'Article'], ['faq', 'FAQ'], ['breadcrumb', 'Breadcrumb']]
+// ---- Coverage map: the crawl's page types × the schemas found on the site or recommended for those page types
 const lower = (name) => name.charAt(0).toLowerCase() + name.slice(1)
-// the rule id when it's one of the built-in page types (the drawer can filter to those); custom rules open unfiltered
-const BUILT_IN = new Set(['product', 'blog', 'collection', 'home'])
 
 // coverage marker: ● all pages (ink + check) · ◔ some (ring, ink arc = share, from 12 o'clock) · ◌ none (dashed ring)
 function Marker({ found, applies, size = 20 }) {
@@ -346,7 +377,7 @@ function MapCell({ c, short, group }) {
   if (all) return <span title={tip} role="img" aria-label={tip} className={area}><Marker found={c.found} applies={c.applies} /></span>
   return (
     <button type="button" title={tip} aria-label={`${tip}. Open ${short}`}
-      onClick={() => openSchema(c.id, null, BUILT_IN.has(group.id) ? { schemaType: group.id } : {})}
+      onClick={() => openSchema(c.id, null, isPageType(group.id) ? { schemaType: group.id } : {})}
       className={`${area} outline-none focus-visible:ring-2 focus-visible:ring-focus`}>
       <Marker found={c.found} applies={c.applies} />
       <span className={`text-[13px] leading-[18px] ${c.found ? 'font-medium text-ink' : 'text-stone-500'}`}>{c.found}/{c.applies}</span>
@@ -355,36 +386,52 @@ function MapCell({ c, short, group }) {
 }
 
 function CoverageMap({ r }) {
-  const settings = useSettings()
-  // phones: the matrix scrolls sideways under a sticky first column; the hint goes once you've scrolled
+  // a column per schema: when they don't fit, the matrix scrolls sideways under a sticky first column; the hint goes once you've scrolled
   const [scrolled, setScrolled] = useState(false)
-  const groups = groupPages(settings.pageTypes, r.list).filter((g) => g.pages.length)
+  const [overflows, setOverflows] = useState(false)
+  const scroller = useRef(null)
+  const MAP_COLS = r.mapColumns
+  const groups = r.mapRows
   const cells = groups.map((g) => MAP_COLS.map(([id, short]) => ({ id, short, ...r.cellFor(id, g.pages) })))
+  useLayoutEffect(() => {
+    const el = scroller.current
+    if (!el) return undefined
+    const check = () => setOverflows(el.scrollWidth > el.clientWidth + 4)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [MAP_COLS.length])
   // biggest gap: the cell with the most pages missing the schema
   let gap = null
   groups.forEach((g, gi) => cells[gi].forEach((c) => { const miss = c.applies - c.found; if (miss > 0 && (!gap || miss > gap.miss)) gap = { miss, short: c.short, where: lower(g.name) } }))
   return (
     <Card className="min-w-0 p-5">
       <h2 className={cardTitle}>Coverage map</h2>
-      <div className="no-scrollbar mt-4 overflow-x-auto max-md:-mx-4" onScroll={(e) => setScrolled(e.currentTarget.scrollLeft > 4)}>
-        <table className="w-full min-w-[600px] table-fixed border-collapse md:min-w-[760px]">
+      <div ref={scroller} className="no-scrollbar mt-4 overflow-x-auto max-md:-mx-4" onScroll={(e) => setScrolled(e.currentTarget.scrollLeft > 4)}>
+        <table className="w-full table-fixed border-collapse" style={{ minWidth: 152 + MAP_COLS.length * 88 }}>
           <thead>
-            <tr className="h-10 border-b border-[var(--div)]">
-              <th className="sticky left-0 z-10 w-36 bg-surface text-left md:static md:w-44"><span className="sr-only">Page type</span></th>
-              {MAP_COLS.map(([id, short]) => <th key={id} scope="col" className="w-16 text-center text-[13px] leading-[18px] font-medium text-stone-600 md:w-auto md:min-w-[88px]">{short}</th>)}
+            <tr className="border-b border-[var(--div)]">
+              <th className="sticky left-0 z-10 w-36 bg-surface text-left md:w-44"><span className="sr-only">Page type</span></th>
+              {MAP_COLS.map(([id, short]) => (
+                <th key={id} scope="col" className="w-[88px] px-1 pb-2 pt-1 text-center align-bottom text-[13px] leading-4 font-medium text-stone-600">
+                  {/* long names break between words: OpeningHours·Specification */}
+                  {short.split(/(?<=[a-z])(?=[A-Z])/).map((part, i) => <span key={i}>{i > 0 && <wbr />}{part}</span>)}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {groups.map((g, gi) => (
               <tr key={g.id} className="h-11 border-b border-[var(--div)] transition-colors duration-150 last:border-0 hover:bg-[var(--tint)]">
-                <th scope="row" className={`sticky left-0 z-10 truncate bg-surface pl-4 text-left text-[14px] leading-5 font-medium text-stone-900 transition-shadow duration-150 md:static md:bg-transparent md:pl-2 ${scrolled ? 'max-md:shadow-[6px_0_8px_-6px_rgb(0_0_0/0.18)]' : ''}`} title={`${g.name} · ${g.pages.length} ${g.pages.length === 1 ? 'page' : 'pages'}`}>{g.name}</th>
+                <th scope="row" className={`sticky left-0 z-10 truncate bg-surface pl-4 text-left text-[14px] leading-5 font-medium text-stone-900 transition-shadow duration-150 md:pl-2 ${scrolled ? 'shadow-[6px_0_8px_-6px_rgb(0_0_0/0.18)]' : ''}`} title={`${g.name} · ${g.pages.length} ${g.pages.length === 1 ? 'page' : 'pages'}`}>{g.name}</th>
                 {cells[gi].map((c) => <td key={c.id} className="px-1"><MapCell c={c} short={c.short} group={g} /></td>)}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {!scrolled && <p className={`mt-2 text-[12px] leading-4 ${t3} md:hidden`}>Swipe to see more →</p>}
+      {overflows && !scrolled && <p className={`mt-2 text-[12px] leading-4 ${t3}`}><span className="md:hidden">Swipe</span><span className="max-md:hidden">Scroll sideways</span> to see more →</p>}
       <div className={`mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-[13px] leading-[18px] ${t2}`}>
         <ul className="flex flex-wrap items-center gap-x-5 gap-y-1">
           <li className="flex items-center gap-1.5"><Marker found={1} applies={1} size={14} />All pages</li>
@@ -436,7 +483,7 @@ function SchemaStatus({ r, setTab }) {
   const nextUp = !more && rows.length < TABLE_ROWS ? rest.slice(0, TABLE_ROWS - rows.length - 1) : []
   const nextLabel = nextUp[0] && GROUPS.find((g) => g.st === nextUp[0].status).label
   const topPages = list.slice(0, 3).reduce((n, x) => n + pagesOf(x), 0)
-  const meta = filter === 'valid' ? `last checked ${SD.lastRun}` : list.length ? `fixing the top ${Math.min(3, list.length)} covers ${topPages} ${topPages === 1 ? 'page' : 'pages'}` : null
+  const meta = filter === 'valid' ? `last checked ${SD.lastRun?.date}` : list.length ? `fixing the top ${Math.min(3, list.length)} covers ${topPages} ${topPages === 1 ? 'page' : 'pages'}` : null
   const toggle = (st) => { setFilter((f) => (f === st && st !== 'issues' ? 'issues' : st)); setPinned(null) }
 
   const select = (x) => { setFilter(x.status); setPinned(x.id) }
@@ -497,7 +544,7 @@ function SchemaStatus({ r, setTab }) {
               <ul ref={tableRef} className="mt-2 divide-y divide-[var(--div)] border-t border-[var(--div)]">
                 {[...rows.map((x) => ({ x })), ...(nextUp.length ? [{ sub: nextLabel }] : []), ...nextUp.map((x) => ({ x }))].map(({ x, sub }) => {
                   if (sub) return <li key="next-up" className={`flex h-8 items-end pb-1 text-[12px] leading-4 font-medium ${t3}`}>Next up · {sub}</li>
-                  const issue = x.status === 'invalid' ? x.error?.code ?? 'Invalid markup' : x.status === 'missing' ? 'Not added yet' : 'No issues'
+                  const issue = x.status === 'invalid' ? x.error?.where ?? 'Invalid markup' : x.status === 'missing' ? 'Not added yet' : 'No issues'
                   const where = (x.status === 'valid' ? '' : x.kinds.join(', ')) || x.usedOn
                   return (
                     <li key={x.id} data-row={x.id}>
@@ -542,7 +589,7 @@ function SchemaStatus({ r, setTab }) {
                 {[...rows.map((x) => ({ x })), ...(nextUp.length ? [{ sub: nextLabel }] : []), ...nextUp.map((x) => ({ x }))].map(({ x, sub }) => {
                   if (sub) return <tr key="next-up" className="h-8 border-b border-[var(--div)]"><td colSpan={6} className={`pl-2 text-[12px] leading-4 font-medium ${t3}`}>Next up · {sub}</td></tr>
                   const lit = hovered?.id === x.id || pinned === x.id
-                  const issue = x.status === 'invalid' ? x.error?.code ?? 'Invalid markup' : x.status === 'missing' ? 'Not added yet' : 'No issues'
+                  const issue = x.status === 'invalid' ? x.error?.where ?? 'Invalid markup' : x.status === 'missing' ? 'Not added yet' : 'No issues'
                   const where = (x.status === 'valid' ? '' : x.kinds.join(', ')) || x.usedOn
                   return (
                     <tr key={x.id} data-row={x.id} tabIndex={0} onClick={() => open(x)} onKeyDown={(e) => { if (e.key === 'Enter') open(x) }}
@@ -771,7 +818,7 @@ function downloadReport(r, page) {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Structured data report · ${SD.domain}</title>
 <style>body{font:15px/1.5 system-ui,sans-serif;color:#171412;max-width:760px;margin:40px auto;padding:0 16px}h1{font-size:26px;margin:0}p{color:#57534e}
 .kpis{display:flex;gap:32px;margin:24px 0}.kpis b{display:block;font-size:28px}table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;padding:8px;border-bottom:1px solid #e7e5e4}</style></head>
-<body><h1>Structured data · ${SD.domain}</h1><p>${esc(scope)} · ${new Date().toLocaleDateString('en-US', { dateStyle: 'medium' })} · Detected as ${SD.detected.join(' and ')}</p>
+<body><h1>Structured data · ${SD.domain}</h1><p>${esc(scope)} · ${new Date().toLocaleDateString('en-US', { dateStyle: 'medium' })}</p>
 <div class="kpis"><div><b>${r.score}/100</b>Score (${r.scoreLabel})</div><div><b>${r.coverage}%</b>Schema coverage</div><div><b>${r.fullyValid} of ${r.pageCount}</b>Pages fully valid</div><div><b>${r.critical + r.warnings}</b>${r.critical} critical · ${r.warnings} warnings</div></div>
 <h2>What to do next</h2><ul>${[...r.fix.map((s) => `<li>Fix ${esc(s.name)}: ${pagesLine(s)}</li>`), ...r.toAdd.map((s) => `<li>Add ${esc(s.name)}: ${pagesLine(s)}</li>`)].join('') || '<li>Everything required is in place.</li>'}</ul>
 <h2>Schemas</h2><table><thead><tr><th>Schema</th><th>Status</th><th>Importance</th><th>Pages</th></tr></thead><tbody>${r.rows.map(row).join('')}</tbody></table></body></html>`

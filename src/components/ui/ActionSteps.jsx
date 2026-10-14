@@ -1,21 +1,32 @@
 import { useLayoutEffect, useRef } from 'react'
 import { ArrowRight, Check } from 'lucide-react'
 
-// The numbered "What to do next" plan, shared by /structured-data and /audit.
-// Each step: a numbered circle that doubles as the mark-done checkbox (hover shows the check), a plain-English action,
-// a meta line (chip · facts), and Impact / Effort / "Open fix" on the right. Done steps sink to the end (FLIP slide).
-//   steps: [{ id, n, title, chip, chipMono?, meta: [node…], impact: 'high'|'medium'|'low', effort: 'min label' }]
-//   done: Set<id> · onToggle(step) · onOpen(step)
+// The numbered "What to do next" plan (shared; /structured-data uses it).
+// Each step: a numbered circle, a plain-English action, a meta line (chip · facts), and Impact / Effort / "Open fix" on
+// the right. One list, ordered by impact ÷ effort (quick wins first; a fix before an add on a tie): orderSteps.
+// With onMarkDone the number doubles as the mark-done checkbox (hover shows the check) and done steps sink to the end
+// (FLIP slide); without it the number is just a number.
+//   steps: [{ id, title, chip, chipMono?, meta: [node…], impact: 'high'|'medium'|'low', minutes, kind?: 'fix'|'add' }]
+//   done: Set<id> · onMarkDone(step)? · onOpen(step)
 //   impactTone: 'weighted' (high = ink/semibold, as on /structured-data) | 'plain' (t2 text, /audit's status system)
 const t2 = 'text-stone-600'
 const t3 = 'text-stone-500'
 const IMPACT_WORD = { high: 'High', medium: 'Medium', low: 'Low' }
+const IMPACT_N = { high: 3, medium: 2, low: 1 }
+const NO_DONE = new Set()
 
-export default function ActionSteps({ steps, done, onToggle, onOpen, impactTone = 'weighted' }) {
+// impact ÷ effort, highest first; on a tie a fix comes before an add
+const score = (s) => IMPACT_N[s.impact] / (s.minutes ?? 30)
+const kindRank = (s) => (s.kind === 'add' ? 1 : 0)
+export const orderSteps = (steps) => [...steps].sort((a, b) => score(b) - score(a) || kindRank(a) - kindRank(b))
+
+export default function ActionSteps({ steps, done: doneIn, onMarkDone, onOpen, impactTone = 'weighted' }) {
   const listRef = useRef(null)
   const before = useRef(null) // row positions before a reorder
 
-  const ordered = [...steps.filter((s) => !done.has(s.id)), ...steps.filter((s) => done.has(s.id))]
+  const done = onMarkDone ? doneIn ?? NO_DONE : NO_DONE
+  const numbered = orderSteps(steps).map((s, i) => ({ ...s, n: i + 1, effort: fmtMin(s.minutes ?? 30) }))
+  const ordered = [...numbered.filter((s) => !done.has(s.id)), ...numbered.filter((s) => done.has(s.id))]
 
   // the rows below a newly done step slide up into place
   useLayoutEffect(() => {
@@ -34,7 +45,7 @@ export default function ActionSteps({ steps, done, onToggle, onOpen, impactTone 
   })
   const toggle = (s) => {
     before.current = new Map([...listRef.current.querySelectorAll('[data-step]')].map((el) => [el.dataset.step, el.getBoundingClientRect().top]))
-    onToggle(s)
+    onMarkDone(s)
   }
 
   return (
@@ -52,12 +63,16 @@ export default function ActionSteps({ steps, done, onToggle, onOpen, impactTone 
             <div role="button" tabIndex={0} onClick={() => onOpen(s)} onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onOpen(s) }}
               aria-label={`Step ${s.n}: ${s.title}. ${word} impact, ${s.effort}. Open fix`}
               className="group/step -mx-3 grid min-h-16 cursor-pointer grid-cols-[28px_minmax(0,1fr)] items-center gap-4 rounded-lg px-3 py-2 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus max-md:mx-0 max-md:px-0 md:grid-cols-[28px_minmax(0,1fr)_auto]">
-              {/* the number; hover shows it's a checkbox */}
-              <button type="button" onClick={(e) => { e.stopPropagation(); toggle(s) }} aria-pressed={isDone} aria-label={isDone ? `Mark step ${s.n} not done` : `Mark step ${s.n} done`}
-                className={`group/num relative grid h-7 w-7 place-items-center rounded-full text-[13px] leading-none font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-focus ${isDone ? 'bg-ink text-[var(--color-surface)]' : circle}`}>
-                <span className={`transition-opacity duration-150 ${isDone ? 'opacity-0' : 'group-hover/num:opacity-0'}`}>{s.n}</span>
-                <Check size={14} strokeWidth={2.5} className={`absolute transition-opacity duration-150 ${isDone ? 'opacity-100' : 'opacity-0 group-hover/num:opacity-100'}`} aria-hidden />
-              </button>
+              {/* the number; with onMarkDone, hover shows it's a checkbox */}
+              {onMarkDone ? (
+                <button type="button" onClick={(e) => { e.stopPropagation(); toggle(s) }} aria-pressed={isDone} aria-label={isDone ? `Mark step ${s.n} not done` : `Mark step ${s.n} done`}
+                  className={`group/num relative grid h-7 w-7 place-items-center rounded-full text-[13px] leading-none font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-focus ${isDone ? 'bg-ink text-[var(--color-surface)]' : circle}`}>
+                  <span className={`transition-opacity duration-150 ${isDone ? 'opacity-0' : 'group-hover/num:opacity-0'}`}>{s.n}</span>
+                  <Check size={14} strokeWidth={2.5} className={`absolute transition-opacity duration-150 ${isDone ? 'opacity-100' : 'opacity-0 group-hover/num:opacity-100'}`} aria-hidden />
+                </button>
+              ) : (
+                <span className={`grid h-7 w-7 place-items-center rounded-full text-[13px] leading-none font-semibold tabular-nums ${circle}`} aria-hidden>{s.n}</span>
+              )}
               <div className="min-w-0">
                 <div className={`truncate text-[14px] leading-5 font-medium ${isDone ? `line-through ${t3}` : 'text-stone-900'}`} title={s.title}>{s.title}</div>
                 <div className={`mt-1 flex min-w-0 items-center gap-2 text-[13px] leading-[18px] ${t3}`}>
