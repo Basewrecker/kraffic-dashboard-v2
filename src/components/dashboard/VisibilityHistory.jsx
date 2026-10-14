@@ -10,6 +10,9 @@ import { brandName } from '../../utils/brand'
 import Segmented from './Segmented'
 import Switch from '../ui/Switch'
 import { useBrandView } from '../../hooks/useBrandView'
+import Insight, { hlOpacity, useExplain } from '../ui/Insight'
+import { sourceLine } from './insights'
+import { useTracking } from '../../store/trackingSettings'
 import { engineName, engineScale } from '../../data/brandViews'
 
 // colours and "you" follow the focal brand ("Viewing as"); set once per render by the card
@@ -242,7 +245,9 @@ export default function VisibilityHistory() {
   const last = points.length - 1
   const isLine = view.chart === 'line'
   // hovering a pill: line mode drops the others to 25%, bar/growth keep 30%
-  const dim = (key) => (hovered && hovered !== key ? (isLine ? 0.25 : 0.3) : 1)
+  // explain mode ("Why?"): the series the insight is about stay, the rest dim
+  const explain = useExplain(`${view.chart}|${view.granularity}|${view.range}|${view.compare}|${engine}|${YOU}`)
+  const dim = (key) => (hovered && hovered !== key ? (isLine ? 0.25 : 0.3) : 1) * (hlOpacity(explain, `series:${key}`) ?? 1)
   const g = h.growth
 
   // ---- shared plot furniture; returned as a keyed array so Recharts sees direct children
@@ -262,6 +267,30 @@ export default function VisibilityHistory() {
   const AVG_GUTTER = 84
   const shareTooltip = <HistoryTooltip series={series} compare={compare} unit={stats.unit} line={isLine} />
   const margin = { top: showGrowthLabels ? 24 : 8, right: 8, bottom: 0, left: 0 }
+
+  // insight: the focal brand's move over the last period of the range, and who leads at its end
+  // ("Lumen Skincare rose 1 point this week. Aurelia Labs still leads.")
+  const tracking = useTracking()
+  const insight = (() => {
+    const end = points[points.length - 1]
+    if (!end || end[YOU] == null) return null
+    const name = focal.name
+    const d = end.deltas?.[YOU]
+    const move = d == null ? `is at ${end[YOU]}%` : d > 0 ? `rose ${d} point${d === 1 ? '' : 's'}` : d < 0 ? `fell ${-d} point${d === -1 ? '' : 's'}` : 'held steady'
+    const when = d == null ? '' : ` this ${stats.unit}`
+    const top = (p, val) => historySeries.filter((x) => val(p, x) != null).sort((a, b) => val(p, b) - val(p, a))[0]
+    const leader = top(end, (p, x) => p[x.key])
+    const before = end.prevs ? top(end, (p, x) => p.prevs[x.key]) : null
+    const leads = leader && (before && before.key === leader.key ? 'still leads' : before ? 'now leads' : 'leads')
+    const text = !leader ? `${name} ${move}${when}.`
+      : leader.key === YOU ? `${name} ${move}${when} and ${leads}.`
+        : `${name} ${move}${when}. ${brandName(leader.label)} ${leads}.`
+    const calc = [
+      `${name}: ${d == null ? '' : `${end.prevs[YOU]}% → `}${end[YOU]}% (${end.date})`,
+      leader && leader.key !== YOU ? `${brandName(leader.label)}: ${end[leader.key]}%, the highest share` : null,
+    ].filter(Boolean).join('. ')
+    return { text, evidence: { keys: [`series:${YOU}`, ...(leader && leader.key !== YOU ? [`series:${leader.key}`] : [])], calc: `${calc}.`, source: sourceLine(tracking) } }
+  })()
 
   // ---- one real Recharts chart per type
   const renderChart = () => {
@@ -375,7 +404,7 @@ export default function VisibilityHistory() {
   }
 
   return (
-    <Card id="history" className="flex h-full min-w-0 scroll-mt-6 flex-col p-5">
+    <Card ref={explain.cardRef} id="history" className="flex h-full min-w-0 scroll-mt-6 flex-col px-5 pt-5">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
           <h2 className="whitespace-nowrap text-title font-semibold text-stone-900">Visibility history</h2>
@@ -453,11 +482,14 @@ export default function VisibilityHistory() {
 
       {/* grows with the row (Prompt coverage beside it), so there's no empty space under the x-axis */}
       {/* fixed height on phones (reserved, so nothing shifts when it draws) */}
-      <div className="mt-3 h-[220px] md:h-auto md:min-h-[300px] md:flex-1">
+      {/* one plot height in every chart type, so switching type never changes the card (phones 200, desktop 240) */}
+      <div className="mt-3 h-[200px] lg:h-[240px]">
         <ResponsiveContainer key={`${view.chart}-${view.granularity}-${view.compare}`} width="100%" height="100%">
           {renderChart()}
         </ResponsiveContainer>
       </div>
+
+      {insight && <div className="mt-auto pb-3 pt-2"><Insight explain={explain} {...insight} /></div>}
     </Card>
   )
 }
