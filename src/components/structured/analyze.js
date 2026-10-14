@@ -81,6 +81,12 @@ const actionFor = (issue, name) => {
   const field = issue.message.match(/missing required property “([^”]+)”/)?.[1]
   return field ? `Add “${field}” to ${name}` : `Fix ${name}: ${issue.message.replace(/\.$/, '')}`
 }
+const whereOf = (issue, name) => {
+  const path = String(issue.path ?? '').replace(/^@graph\[\d+\]\.?/, '')
+  if (path.includes('.')) return path
+  const field = issue.message.match(/missing required property “([^”]+)”/)?.[1]
+  return field ? `${name}.${field}` : issue.message
+}
 const steps = (fix) => (Array.isArray(fix) ? fix : fix ? [fix] : [])
 const label = (score) => (score >= 90 ? 'Excellent' : score >= 70 ? 'Good' : score >= 50 ? 'Fair' : 'Poor')
 
@@ -121,8 +127,8 @@ export function analyze(page = null, kind = null) {
       }
     })
     const firstError = problems.find((g) => g.issue.severity === 'error')
-    // where: the broken field ("Organization.logo") when the path names one, else what's wrong
-    const error = firstError && { code: firstError.issue.code, where: firstError.issue.path?.includes('.') ? firstError.issue.path.replace(/^@graph\[\d+\]\./, '') : firstError.issue.message, why: fill((s.problemWords[firstError.issue.code] ?? {}).why ?? s.why), lastValid: null }
+    // where: the broken field ("Organization.logo"; a missing required property → "Organization.url"), else what's wrong
+    const error = firstError && { code: firstError.issue.code, where: whereOf(firstError.issue, s.name), why: fill((s.problemWords[firstError.issue.code] ?? {}).why ?? s.why), lastValid: null }
     return {
       ...s, kind: 'schema', applicable: applicable.length, usedOn: usedOnLabel(applicable, list.length), found, missing, invalid, warnings, status, fixes, error,
       impact: s.impact ?? IMPACT_BY_IMPORTANCE[s.importance], kinds, affected: invalid.length ? invalid : missing,
