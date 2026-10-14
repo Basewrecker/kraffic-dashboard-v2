@@ -5,6 +5,7 @@ import Segmented from '../dashboard/Segmented'
 import { PrimaryButton, SecondaryButton } from '../dashboard/overlays'
 import ConfirmPopover from './ConfirmPopover'
 import { getResearch, researchMeta } from '../../data/research'
+import { promptActions } from '../../data/mock'
 
 const SOURCE = { site: 'From your site', competitor: 'From competitors' }
 const SKELETON_MS = 1200
@@ -67,14 +68,18 @@ export default function ResearchModal({ open, onClose, trackedTexts, onAdd, topi
     return next
   })
 
+  // the loading skeleton shows at least SKELETON_MS; a re-run waits for the new research before the list updates
+  const [runError, setRunError] = useState(null)
   const refresh = (kind) => {
     setLoading(kind)
-    setTimeout(() => {
-      setRun((r) => kind === 'check'
+    setRunError(null)
+    const work = kind === 'rerun' ? promptActions.onRerunResearch() : Promise.resolve()
+    Promise.all([work, new Promise((r) => setTimeout(r, SKELETON_MS))])
+      .then(() => setRun((r) => kind === 'check'
         ? { ...r, extraPages: r.extraPages + 1, pagesFound: r.pagesFound + 3, pagesAnalyzed: r.pagesAnalyzed + 3, updated: stamp() }
-        : { ...r, round: r.round + 1, extraPages: 0, updated: stamp() })
-      setLoading(null)
-    }, SKELETON_MS)
+        : { ...r, round: r.round + 1, extraPages: 0, updated: stamp() }))
+      .catch((err) => setRunError(err?.message || 'Research couldn’t run. Try again.'))
+      .finally(() => setLoading(null))
   }
 
   const toolbar = (
@@ -133,12 +138,15 @@ export default function ResearchModal({ open, onClose, trackedTexts, onAdd, topi
         Close
       </button>
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <SecondaryButton size="sm" icon={loading === 'check' ? Spinner : undefined} disabled={Boolean(loading)} onClick={() => refresh('check')}>
-          Check for new pages
-        </SecondaryButton>
-        <SecondaryButton size="sm" icon={loading === 'rerun' ? Spinner : undefined} disabled={Boolean(loading)} onClick={(e) => setConfirmAnchor(e.currentTarget)}>
+        {runError && <span role="alert" className="text-[13px] leading-[18px] text-negative">{runError}</span>}
+        {promptActions.canCheckNewPages && (
+          <SecondaryButton size="sm" icon={loading === 'check' ? Spinner : undefined} disabled={Boolean(loading)} onClick={() => refresh('check')}>
+            Check for new pages
+          </SecondaryButton>
+        )}
+        {promptActions.canRerunResearch && <SecondaryButton size="sm" icon={loading === 'rerun' ? Spinner : undefined} disabled={Boolean(loading)} onClick={(e) => setConfirmAnchor(e.currentTarget)}>
           Re-run research
-        </SecondaryButton>
+        </SecondaryButton>}
         <PrimaryButton size="sm" disabled={!selectedCount || Boolean(loading)} onClick={() => onAdd(newOnes.filter((s) => selected.has(s.id)))}>
           Add {selectedCount} prompt{selectedCount === 1 ? '' : 's'}
         </PrimaryButton>

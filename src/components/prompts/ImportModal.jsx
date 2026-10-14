@@ -3,7 +3,7 @@ import Papa from 'papaparse'
 import { AlertCircle, Check, Download, FileText, UploadCloud } from 'lucide-react'
 import Modal from '../ui/Modal'
 import { PrimaryButton } from '../dashboard/overlays'
-import { promptCategories } from '../../data/mock'
+import { promptCategories, trackedPrompts } from '../../data/mock'
 
 const MAX_ROWS = 1000
 const PREVIEW = 6
@@ -64,15 +64,20 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
   const [parsed, setParsed] = useState(null)
   const [error, setError] = useState(null)
   const [drag, setDrag] = useState(false)
-  const [listName, setListName] = useState('')
-  const [defaultCategory, setDefaultCategory] = useState('Moisturizers')
-  const [imported, setImported] = useState(null) // { count, list }
+  // rows without a category get the project's most used one (changeable below)
+  const usual = () => {
+    const n = {}
+    trackedPrompts.forEach((p) => { if (p.category) n[p.category] = (n[p.category] ?? 0) + 1 })
+    return Object.entries(n).sort((a, b) => b[1] - a[1])[0]?.[0] ?? promptCategories[0] ?? ''
+  }
+  const [defaultCategory, setDefaultCategory] = useState(usual)
+  const [imported, setImported] = useState(null) // { count }
   const input = useRef(null)
 
   // fresh start each time it opens
   useEffect(() => {
     if (!open) return
-    setStep('upload'); setFile(null); setParsed(null); setError(null); setDrag(false); setImported(null)
+    setStep('upload'); setFile(null); setParsed(null); setError(null); setDrag(false); setImported(null); setDefaultCategory(usual())
   }, [open])
 
   const accept = async (f) => {
@@ -82,7 +87,6 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
     if (res.error) { setError(res.error); return }
     setFile(f)
     setParsed(res)
-    setListName(f.name.replace(/\.csv$/i, ''))
     setStep('preview')
   }
   const pick = () => input.current?.click()
@@ -91,10 +95,9 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
   const resolve = (c) => known.get(c.toLowerCase()) ?? defaultCategory
 
   const doImport = () => {
-    const list = listName.trim() || file.name.replace(/\.csv$/i, '')
     const rows = parsed.rows.map((r) => ({ text: r.text, category: resolve(r.category) }))
-    onImport(rows, list)
-    setImported({ count: rows.length, list })
+    onImport(rows)
+    setImported({ count: rows.length })
     setStep('done')
   }
 
@@ -104,7 +107,7 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
 
   const titles = {
     upload: ['Import prompts', 'Upload a CSV with one prompt per row.'],
-    preview: ['Import prompts', 'Check the prompts, then import them into a list.'],
+    preview: ['Import prompts', 'Check the prompts, then import them.'],
     done: ['Import complete', null],
   }
 
@@ -113,7 +116,7 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
     preview: (
       <>
         <button type="button" onClick={() => setStep('upload')} className={ghostBtn}>Back</button>
-        <PrimaryButton size="sm" disabled={!parsed?.rows.length || !listName.trim()} onClick={doImport}>
+        <PrimaryButton size="sm" disabled={!parsed?.rows.length} onClick={doImport}>
           Import {parsed?.rows.length ?? 0} prompt{parsed?.rows.length === 1 ? '' : 's'}
         </PrimaryButton>
       </>
@@ -121,7 +124,7 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
     done: (
       <>
         <button type="button" onClick={onClose} className={ghostBtn}>Close</button>
-        <PrimaryButton size="sm" onClick={() => onView(imported.list)}>View prompts</PrimaryButton>
+        <PrimaryButton size="sm" onClick={() => onView()}>View prompts</PrimaryButton>
       </>
     ),
   }[step]
@@ -209,10 +212,6 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
             </ul>
             {parsed.rows.length > PREVIEW && <p className="mt-1.5 text-[12px] leading-4 text-stone-500 tabular-nums">+{parsed.rows.length - PREVIEW} more</p>}
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-[13px] leading-[18px] font-medium text-stone-700">List name</span>
-                <input value={listName} onChange={(e) => setListName(e.target.value)} className={fieldCls} />
-              </label>
               <label className="block">
                 <span className="mb-1 block text-[13px] leading-[18px] font-medium text-stone-700">Default category</span>
                 <select value={defaultCategory} onChange={(e) => setDefaultCategory(e.target.value)} className={fieldCls}>

@@ -5,6 +5,7 @@ import ConfirmPopover from './ConfirmPopover'
 import {
   UNCATEGORIZED, categoryError, createCategory, deleteCategory, isCustom, renameCategory, tidyCategory, useCategories,
 } from '../../store/categories'
+import { promptActions } from '../../data/mock'
 
 // Category combobox (toolbar filter, add-prompt row, inline edit): search the categories, or create one.
 //   value / onChange(name)      the selected category ('all' when allLabel is set and nothing is picked)
@@ -152,7 +153,8 @@ export default function CategorySelect({
           <div id="category-options" role="listbox" aria-label={label} className="mt-1 max-h-60 overflow-y-auto">
             {items.slice(0, -1).map((it, i) => {
               const on = it === value
-              const custom = it !== 'all' && isCustom(it)
+              // rename / delete: custom categories, where the app can save those changes
+              const custom = it !== 'all' && isCustom(it) && promptActions.canManageCategories
               if (renaming?.name === it) {
                 return (
                   <div key={it} className="px-1 py-0.5">

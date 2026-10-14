@@ -728,10 +728,55 @@ export const trackedPrompts = (() => {
     id: `v${r.id}`, prompt: r.prompt, category: topicOf(r.prompt), list: pickList(), status: 'visible', platforms: r.platforms, added: addedBefore(r.firstVisible),
   }))
   const missed = missedPrompts.map((r) => ({
-    id: `m${r.id}`, prompt: r.prompt, category: r.topic, list: pickList(), status: 'missed', platforms: [], added: addedBefore(r.firstSeen),
+    // lost = visible in the sync before, missed in the latest one
+    id: `m${r.id}`, prompt: r.prompt, category: r.topic, list: pickList(), status: wasLostThisSync(r) ? 'lost' : 'missed', platforms: [], added: addedBefore(r.firstSeen),
   }))
   return [...visible, ...missed]
 })()
+
+// Prompt Hub saves: every change on /prompts goes through one of these (the page updates first, then calls it; a
+// rejected promise rolls the row back with an inline error). Here they keep the change in memory and resolve.
+// can*: which controls the page shows (an app without that save hides the control).
+let nextPromptId = 1
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+export const promptActions = {
+  canEditText: true, // edit a prompt's wording
+  canManageCategories: true, // rename / delete custom categories
+  canRescan: true, // bulk "Rescan"
+  canCheckNewPages: true, // research: "Check for new pages"
+  canRerunResearch: true, // research: "Re-run research"
+  // → { id } of the saved prompt
+  async onAddPrompt({ text, category }) {
+    await sleep(150)
+    const row = { id: `new${nextPromptId++}`, prompt: text, category, list: 'Manual entry', status: 'pending', platforms: [], added: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }
+    trackedPrompts.unshift(row)
+    return { id: row.id }
+  },
+  async onEditPrompt(id, { text, category }) {
+    await sleep(150)
+    const r = trackedPrompts.find((p) => p.id === id)
+    if (r) Object.assign(r, { prompt: text, category })
+  },
+  async onDeletePrompt(ids) {
+    await sleep(150)
+    ids.forEach((id) => { const i = trackedPrompts.findIndex((p) => p.id === id); if (i !== -1) trackedPrompts.splice(i, 1) })
+  },
+  // rows: [{ text, category }] → [{ id } | { error }] in the same order
+  async onImportPrompts(rows) {
+    return Promise.all(rows.map((r) => promptActions.onAddPrompt(r)))
+  },
+  // items: research suggestions [{ id, text, category }] → [{ id } | { error }]
+  async onAddFromResearch(items) {
+    return Promise.all(items.map((r) => promptActions.onAddPrompt(r)))
+  },
+  async onAddCategory(name) {
+    await sleep(150)
+    if (!promptCategories.includes(name)) promptCategories.push(name)
+  },
+  async onRerunResearch() {
+    await sleep(600)
+  },
+}
 // Top cited pages → "Not cited yet": Dermasuri pages that match tracked prompts but no AI answer links to.
 // relevant = tracked prompts about the page's subject (visible or missed); keys = their tracked ids.
 export const uncitedPages = [
