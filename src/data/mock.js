@@ -882,13 +882,14 @@ export const setupActions = {
 }
 
 // ---------------------------------------------------------------------------
-// Tracking (/tracking), shaped like the production API:
+// Tracking (/tracking). One page, two backends; each passes only the rows it can save (LlmSettingsPage props).
+// kraffic.ai, shaped like its API:
 //   platforms  the engines: enabled = it has answers in the scans (the dashboard's engines); ready = it can run now
 //              (GET /projects/:id/visibility/engines/ready; the Tracking page)
 //   market     the project's primary market country and first language (project.markets / project.languages)
 //   schedule   daily: daily monitoring on / off (PUT /projects/:id/ask-geo/monitoring); lastSync: the latest scan;
 //              nextScanAt: when Sync now is allowed again (GET visibility/scan-allowance; null = now)
-//   quota      used: tracked prompts (billing isn't live: no limit, no reset)
+//   quota      used: tracked prompts (the prompt count on the AI platforms card; no quota row: billing isn't live)
 // trackingOptions: the countries and languages the app supports (GET /projects/taxonomy)
 // ---------------------------------------------------------------------------
 export const initialTracking = {
@@ -908,15 +909,55 @@ export const trackingOptions = {
   languages: ['English', 'Hindi', 'Hinglish', 'Bengali', 'Tamil', 'Telugu', 'Marathi', 'Gujarati', 'Spanish', 'French', 'German', 'Portuguese', 'Japanese', 'Chinese (Simplified)', 'Arabic'],
 }
 // Tracking saves. Here: they settle after a moment; a sync takes 2s and allows the next one tomorrow.
+const syncSettle = () => new Promise((resolve) => setTimeout(() => {
+  const d = new Date()
+  const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+  const next = new Date(d.getTime() + 23 * 3600e3)
+  resolve({ lastSync: iso(d), nextScanAt: `${iso(next)}T${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}` })
+}, 2000))
 export const trackingActions = {
   onSaveMarket: (patch) => settle(patch),
   onSetDaily: (daily) => settle({ daily }),
-  onSyncNow: () => new Promise((resolve) => setTimeout(() => {
-    const d = new Date()
-    const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
-    const next = new Date(d.getTime() + 23 * 3600e3)
-    resolve({ lastSync: iso(d), nextScanAt: `${iso(next)}T${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}` })
-  }, 2000)),
+  onSyncNow: syncSettle,
+}
+// kraffic.ai's Tracking page props: country + language, the daily check, Sync now (engines are read-only)
+export const krafficTracking = {
+  countries: trackingOptions.countries,
+  languages: trackingOptions.languages,
+  onSaveMarket: trackingActions.onSaveMarket,
+  onSetDaily: trackingActions.onSetDaily,
+  onSyncNow: trackingActions.onSyncNow,
+}
+
+// app.kraffic.ai, shaped like its API: GET / PUT /api/user/llm-settings (table user_llm_settings, per user)
+//   { default_region, default_country, default_currency, default_language, sync_frequency, enabled_engines }
+// Options: lib/llm-region-options.js (REGIONS, COUNTRIES, COUNTRY_TO_REGION, CURRENCIES) and the language and
+// frequency lists in app/admin/llm-settings/LLMSettingsForm.js. Every row saves through the one PUT.
+// Engines: enabled_engines { aio, gemini, chatgpt, claude, grok } (at least one stays on; the API turns AI Overview
+// back on otherwise). Sync now: not a settings field (the app's scans run from its own routes), so it's left out.
+export const appTrackingOptions = {
+  regions: [
+    { value: 'North America', countries: ['USA', 'Canada', 'Mexico'] },
+    { value: 'Europe', countries: ['United Kingdom', 'Germany', 'France'] },
+    { value: 'Asia Pacific', countries: ['Australia', 'India', 'Japan'] },
+    { value: 'Latin America', countries: ['Brazil'] },
+    // Middle East & Africa: no country maps to it (COUNTRY_TO_REGION), so it isn't offered
+  ],
+  languages: ['English (US)', 'English (UK)', 'Japanese', 'German', 'French', 'Arabic'],
+  currencies: [['Dollar', 'Dollar (USD)'], ['Euro', 'Euro (EUR)'], ['Pound', 'Pound (GBP)'], ['Yen', 'Yen (JPY)'], ['Rupee', 'Rupee (INR)'], ['Canadian Dollar', 'Canadian Dollar (CAD)'], ['Australian Dollar', 'Australian Dollar (AUD)']],
+  frequencies: [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']],
+}
+export const appInitialTracking = {
+  ...initialTracking,
+  platforms: initialTracking.platforms.map((p) => ({ ...p, enabled: p.id !== 'grok' })),
+  market: { region: 'North America', country: 'USA', language: 'English (US)', currency: 'Dollar' },
+  schedule: { frequency: 'weekly', lastSync: '2026-10-05', nextScanAt: null },
+}
+export const appTracking = {
+  ...appTrackingOptions,
+  onSetEngine: (id, enabled) => settle({ [id]: enabled }),
+  onSaveMarket: (patch) => settle(patch),
+  onSetFrequency: (frequency) => settle({ frequency }),
 }
 
 // ---------------------------------------------------------------------------------------------------------------

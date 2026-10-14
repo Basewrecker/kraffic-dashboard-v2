@@ -23,9 +23,9 @@ import ToolRouter from './pages/toolkit/ToolRouter'
 import BillingRouter from './pages/billing/BillingRouter'
 import EmptyBrand from './components/EmptyBrand'
 import InsightsRouter from './pages/insights/InsightsRouter'
-import { currentBrand } from './data/mock'
 import { usePath } from './router'
 import { TrackingProvider } from './store/trackingSettings'
+import { appInitialTracking, appTracking, currentBrand, initialTracking, krafficTracking } from './data/mock'
 import { DashboardViewProvider } from './hooks/useBrandView'
 import AnswerDrawer from './components/answer/AnswerDrawer'
 import EngineDrawer from './components/answer/EngineDrawer'
@@ -69,9 +69,14 @@ function DashboardPage() {
   )
 }
 
+// Tracking for each backend: app.kraffic.ai (every row; the default) or kraffic.ai (?backend=kraffic: country,
+// language, the daily check, Sync now). The page shows only the rows its props can save.
+const krafficBackend = new URLSearchParams(window.location.search).get('backend') === 'kraffic'
+const TrackingPage = () => <LlmSettingsPage {...(krafficBackend ? krafficTracking : appTracking)} />
+
 export default function App() {
   const path = usePath()
-  const PAGES = { '/overview': DashboardPage, '/tracker': PromptsPage, '/brands': SetupPage, '/tracking': LlmSettingsPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter }
+  const PAGES = { '/overview': DashboardPage, '/tracker': PromptsPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter }
   // /trends/:runId and /more-tools/<tool>[/…] are one page each (they read the rest of the path)
   const route = path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/billing/') ? '/billing' : path
   const navPath = route.startsWith('/more-tools') ? '/more-tools' : route // tool pages light up Toolkit
@@ -88,7 +93,7 @@ export default function App() {
         : empty ? <EmptyBrand route={PAGES[route] ? route : '/overview'} /> : <Page />
   return (
     // tracking settings are shared by every page (dashboard header, /brands summary, /tracking editor)
-    <TrackingProvider>
+    <TrackingProvider initial={krafficBackend ? initialTracking : appInitialTracking}>
       <div className="flex min-h-screen">
         <Sidebar path={PAGES[route] ? navPath : '/overview'} />
         <div className="min-w-0 flex-1">
