@@ -1481,3 +1481,55 @@ export const competitorAlertStates = {
   error: { competitors: watchedCompetitors, changes: competitorChanges, lastCheckedAt: '2026-10-14T07:40:00Z', error: 'cerave.com blocked our check (HTTP 403). The other two were checked.' },
   full: { competitors: watchedCompetitors, changes: competitorChanges, lastCheckedAt: '2026-10-14T07:40:00Z' }, // GAP: lastCheckedAt
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Billing (/billing, /billing/plans). Production (apps/api/src/modules/billing): Plan + Subscription + entitlements,
+// seeded plans below (prices in USD cents, limits from PlanEntitlement `limit.*`, -1 = unlimited). NOT live there:
+// no payment provider, invoices, payment methods, billing details or self-serve plan changes; limits are off unless
+// BILLING_ENFORCEMENT is set. GAP = invented here. ?mock=trial|paid|near|failed|agency (default paid).
+export const billingPlans = [
+  { id: 'starter', slug: 'starter', tier: 'STARTER', name: 'Starter', priceMonthly: 9900, priceYearly: 99000,
+    description: 'One brand, getting started with AI visibility', // GAP: seed has a description, this wording is the mock's
+    limits: { prompts: 50, projects: 1, clients: 1, users: 3, competitors: 3, countries: 1, languages: 1, research_runs_monthly: 25, ai_runs_monthly: 100, crawl_pages_monthly: 500, content_generations_monthly: 10, mimic_runs_monthly: 0, reports_monthly: 5 },
+    settings: { monitoring_frequency: 'weekly', data_retention_days: 30 },
+    features: { competitor_monitoring: true } },
+  { id: 'growth', slug: 'growth', tier: 'GROWTH', name: 'Growth', priceMonthly: 29900, priceYearly: 299000,
+    description: 'A growing brand tracking several markets',
+    limits: { prompts: 500, projects: 5, clients: 1, users: 10, competitors: 10, countries: 5, languages: 5, research_runs_monthly: 150, ai_runs_monthly: 3000, crawl_pages_monthly: 10000, content_generations_monthly: 50, mimic_runs_monthly: 100, reports_monthly: 25 },
+    settings: { monitoring_frequency: 'daily', data_retention_days: 90 },
+    features: { competitor_monitoring: true, citation_intelligence: true, content_intelligence: true, mimic_bot: true, experiments: true, advanced_reports: true, local_geo: true, multilingual_geo: true } },
+  { id: 'agency-pro', slug: 'agency-pro', tier: 'AGENCY', name: 'Agency', priceMonthly: 59900, priceYearly: 599000, agencyOnly: true,
+    description: 'Agencies running AI visibility for many clients',
+    limits: { prompts: 5000, projects: 100, clients: 25, users: 20, competitors: 25, countries: 25, languages: 25, research_runs_monthly: 500, ai_runs_monthly: 15000, crawl_pages_monthly: 50000, content_generations_monthly: 250, mimic_runs_monthly: 500, reports_monthly: 100 },
+    settings: { monitoring_frequency: 'daily', data_retention_days: 180 },
+    features: { competitor_monitoring: true, citation_intelligence: true, content_intelligence: true, mimic_bot: true, experiments: true, advanced_reports: true, local_geo: true, multilingual_geo: true, white_label: true, ai_crawler_intelligence: true, api_access: true, content_studio: true } },
+  { id: 'enterprise', slug: 'enterprise', tier: 'ENTERPRISE', name: 'Enterprise', priceMonthly: 199900, priceYearly: 1999000, contactSales: true, // GAP: seed isCustom=false; "Talk to us" is the mock's call
+    description: 'Large teams that need everything, everywhere',
+    limits: { prompts: -1, projects: -1, clients: -1, users: -1, competitors: -1, countries: -1, languages: -1, research_runs_monthly: -1, ai_runs_monthly: -1, crawl_pages_monthly: -1, content_generations_monthly: -1, mimic_runs_monthly: -1, reports_monthly: -1 },
+    settings: { monitoring_frequency: 'realtime', data_retention_days: 730 },
+    features: { competitor_monitoring: true, citation_intelligence: true, content_intelligence: true, mimic_bot: true, experiments: true, advanced_reports: true, local_geo: true, multilingual_geo: true, white_label: true, ai_crawler_intelligence: true, api_access: true, content_studio: true, sso: true, crm_attribution: true } },
+]
+
+const BILL_CARD = { brand: 'visa', last4: '4417', expMonth: 8, expYear: 2028 } // GAP: no PaymentMethod model
+const BILL_DETAILS = { company: 'Dermasuri Skincare Inc.', email: 'billing@dermasuri.com', address: '1220 Abbot Kinney Blvd, Venice, CA 90291, USA', taxId: 'US EIN 84-2917360' } // GAP: only Agency.billingEmail exists
+const bInvoices = (planName, cents, n, failedFirst = false) => Array.from({ length: n }, (_, i) => { // GAP: no Invoice model
+  const d = new Date(Date.UTC(2026, 9 - i, 1))
+  return { id: `in_${2026}${String(10 - i).padStart(2, '0')}`, date: d.toISOString().slice(0, 10), description: `${planName} plan · ${d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}`, amount: cents, currency: 'usd', status: i === 0 && failedFirst ? 'failed' : 'paid' }
+})
+// tracked prompts by day for the last 30 days (GAP: no usage time series; UsageEvent is a raw ledger)
+const promptHistory = (from, to) => Array.from({ length: 14 }, (_, i) => ({ date: new Date(Date.UTC(2026, 9, 1 + i)).toISOString().slice(0, 10), prompts: Math.round(from + ((to - from) * i) / 13) }))
+// usage = getBillingPeriodUsage items (current values); projects / users are live counts
+export const billingStates = {
+  trial: { workspace: 'Dermasuri', orgType: 'CLIENT', planId: 'starter', status: 'TRIALING', interval: 'month', currentPeriodStart: '2026-10-07', currentPeriodEnd: '2026-11-07', trialEnd: '2026-10-21',
+    usage: { prompts: 38, projects: 1, users: 2, crawl_pages_monthly: 210, ai_runs_monthly: 46 }, paymentMethod: null, details: { ...BILL_DETAILS, taxId: null }, invoices: [], history: null },
+  paid: { workspace: 'Dermasuri', orgType: 'CLIENT', planId: 'growth', status: 'ACTIVE', interval: 'month', currentPeriodStart: '2026-10-01', currentPeriodEnd: '2026-11-01',
+    usage: { prompts: 152, projects: 2, users: 4, crawl_pages_monthly: 3120, ai_runs_monthly: 1240 }, paymentMethod: BILL_CARD, details: BILL_DETAILS, invoices: bInvoices('Growth', 29900, 8), history: promptHistory(141, 152) },
+  near: { workspace: 'Dermasuri', orgType: 'CLIENT', planId: 'growth', status: 'ACTIVE', interval: 'month', currentPeriodStart: '2026-10-01', currentPeriodEnd: '2026-11-01',
+    usage: { prompts: 468, projects: 4, users: 9, crawl_pages_monthly: 9310, ai_runs_monthly: 2210 }, paymentMethod: BILL_CARD, details: BILL_DETAILS, invoices: bInvoices('Growth', 29900, 8), history: promptHistory(402, 468) },
+  failed: { workspace: 'Dermasuri', orgType: 'CLIENT', planId: 'growth', status: 'PAST_DUE', interval: 'month', currentPeriodStart: '2026-10-01', currentPeriodEnd: '2026-11-01',
+    usage: { prompts: 152, projects: 2, users: 4, crawl_pages_monthly: 3120, ai_runs_monthly: 1240 }, paymentMethod: { ...BILL_CARD, last4: '0341', expMonth: 9, expYear: 2026 }, details: BILL_DETAILS, invoices: bInvoices('Growth', 29900, 8, true), history: promptHistory(141, 152) },
+  agency: { workspace: 'PTA Agency', orgType: 'AGENCY', planId: 'agency-pro', status: 'ACTIVE', interval: 'year', currentPeriodStart: '2026-03-01', currentPeriodEnd: '2027-03-01',
+    usage: { prompts: 1460, projects: 9, clients: 4, users: 7, crawl_pages_monthly: 18400, ai_runs_monthly: 6120 }, paymentMethod: { ...BILL_CARD, brand: 'mastercard', last4: '8802', expMonth: 3, expYear: 2029 },
+    details: { company: 'PTA Agency LLC', email: 'accounts@pta.agency', address: '55 Water St, Brooklyn, NY 11201, USA', taxId: 'US EIN 93-1182044' }, invoices: [{ id: 'in_202603', date: '2026-03-01', description: 'Agency plan · yearly, Mar 2026 – Feb 2027', amount: 599000, currency: 'usd', status: 'paid' }], history: null },
+}
+export const billingToday = '2026-10-14'

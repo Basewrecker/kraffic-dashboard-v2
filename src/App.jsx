@@ -20,6 +20,7 @@ import StructuredDataPage from './components/structured/StructuredDataPage'
 import TrendsPage from './pages/trends/TrendsPage'
 import ToolkitPage from './pages/toolkit/ToolkitPage'
 import ToolRouter from './pages/toolkit/ToolRouter'
+import BillingRouter from './pages/billing/BillingRouter'
 import { usePath } from './router'
 import { TrackingProvider } from './store/trackingSettings'
 import { DashboardViewProvider } from './hooks/useBrandView'
@@ -65,9 +66,9 @@ function DashboardPage() {
 
 export default function App() {
   const path = usePath()
-  const PAGES = { '/overview': DashboardPage, '/tracker': PromptsPage, '/brands': SetupPage, '/tracking': LlmSettingsPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter }
+  const PAGES = { '/overview': DashboardPage, '/tracker': PromptsPage, '/brands': SetupPage, '/tracking': LlmSettingsPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter }
   // /trends/:runId and /more-tools/<tool>[/…] are one page each (they read the rest of the path)
-  const route = path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path
+  const route = path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/billing/') ? '/billing' : path
   const navPath = route.startsWith('/more-tools') ? '/more-tools' : route // tool pages light up Toolkit
   const Page = PAGES[route] ?? DashboardPage
   return (

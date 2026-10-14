@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BarChart3, Check, ChevronsUpDown, House, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2 } from 'lucide-react'
+import { BarChart3, Check, ChevronsUpDown, CreditCard, House, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2 } from 'lucide-react'
 import { account, agencyClients } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
@@ -70,6 +70,9 @@ export function WorkspaceSwitcher() {
           className={`absolute inset-x-0 bottom-full z-30 mb-1 rounded-lg border border-line bg-raised p-1 shadow-md transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none ${shown ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'}`}>
           <a role="menuitem" href={HOME} className={`${item} font-medium text-stone-900`}>
             <span className="grid w-5 shrink-0 place-items-center" aria-hidden><House size={16} className="text-stone-600" /></span>Home
+          </a>
+          <a role="menuitem" href="/billing" onClick={(e) => { close(); linkClick('/billing')(e) }} className={`${item} text-stone-900`}>
+            <span className="grid w-5 shrink-0 place-items-center" aria-hidden><CreditCard size={16} className="text-stone-600" /></span>Billing
           </a>
           <div className="my-1 border-t border-line" role="separator" />
           <div className="px-3 pb-1 pt-2 text-[12px] leading-4 text-stone-500">Brands</div>

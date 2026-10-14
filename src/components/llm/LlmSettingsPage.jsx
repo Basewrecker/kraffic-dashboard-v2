@@ -183,7 +183,7 @@ export default function LlmSettingsPage() {
           <span className="h-1.5 w-[72px] overflow-hidden rounded-full sm:w-[120px]" style={{ background: 'var(--data-track)' }} aria-hidden>
             <span className="block h-full rounded-full" style={{ width: `${Math.min(pct, 1) * 100}%`, background: pct >= 1 ? 'var(--negative)' : 'var(--ink)' }} />
           </span>
-          <button type="button" onClick={() => toast('Plans aren’t part of this demo')} className="rounded text-[13px] leading-[18px] font-medium text-ink underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Upgrade</button>
+          <a href="/billing/plans" onClick={linkClick('/billing/plans')} className="rounded text-[13px] leading-[18px] font-medium text-ink underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Upgrade</a>
         </Row>
       </SettingsCard>
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, House, Menu, X } from 'lucide-react'
+import { Check, CreditCard, House, Menu, X } from 'lucide-react'
+import { navigate } from '../../router'
 import Logo from '../ui/Logo'
 import SiteLogo from '../ui/SiteLogo'
 import Sheet, { SheetItem } from '../ui/Sheet'
@@ -83,6 +84,7 @@ function WorkspaceSheet({ open, onClose }) {
   return (
     <Sheet open={open} onClose={onClose} title="Workspace">
       <SheetItem icon={House} onClick={() => { window.location.href = HOME }}>Home</SheetItem>
+      <SheetItem icon={CreditCard} onClick={() => { onClose(); navigate('/billing') }}>Billing</SheetItem>
       <div className="mx-3 my-1 border-t border-line" role="separator" />
       <div className="px-3 pb-1 pt-2 text-[12px] leading-4 text-stone-500">Brands</div>
       {brands.map((b) => (
