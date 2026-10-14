@@ -98,13 +98,21 @@ export default function LlmSettingsPage() {
     toast('Sync started')
   }
 
-  // market changes ask first
-  const askMarket = (field, value, anchor) => setConfirm({ field, patch: { [field]: value }, anchor })
+  // market changes ask first (a market or language not set yet: "Set …" instead of "Switch …")
+  const askMarket = (field, value, anchor) => { if (value) setConfirm({ field, patch: { [field]: value }, anchor }) }
   const marketCopy = (c) => {
-    if (c.field === 'language') return { title: `Switch language to ${c.patch.language}?`, body: `Next sync runs prompts in ${c.patch.language}; past data stays under ${language}.` }
+    if (c.field === 'language') {
+      const to = c.patch.language
+      return language ? { title: `Switch language to ${to}?`, body: `Next sync runs prompts in ${to}; past data stays under ${language}.` }
+        : { title: `Set language to ${to}?`, body: `Next sync runs prompts in ${to}.` }
+    }
     const to = c.patch.country
-    return { title: `Switch market to ${to}?`, body: `Next sync checks answers as a user in ${to}; past data stays under ${country}.` }
+    return country ? { title: `Switch market to ${to}?`, body: `Next sync checks answers as a user in ${to}; past data stays under ${country}.` }
+      : { title: `Set market to ${to}?`, body: `Next sync checks answers as a user in ${to}.` }
   }
+  // a select whose value isn't set yet starts with "Not set"
+  const optionsFor = (list, value) => [...(value ? [] : [['', 'Not set']]), ...list.map((x) => [x, x])]
+  const updated = t.syncing ? 'Syncing…' : t.schedule.lastSync ? `Updated ${fmtDay(t.schedule.lastSync)}` : 'Not synced yet'
 
   return (
     // settings read better narrow: labels stay close to their controls
@@ -113,13 +121,13 @@ export default function LlmSettingsPage() {
         <div>
           <h1 className="text-[22px] leading-7 font-semibold text-stone-900 lg:text-[28px] lg:leading-9">Tracking</h1>
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">How Kraffic checks AI answers for {account.domain}</p>
-          <p className="mt-1 text-[13px] leading-[18px] text-stone-500 tabular-nums md:hidden">{t.syncing ? 'Syncing…' : `Updated ${fmtDay(t.schedule.lastSync)}`}</p>
+          <p className="mt-1 text-[13px] leading-[18px] text-stone-500 tabular-nums md:hidden">{updated}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 md:pt-1">
           {failed?.key === 'sync' && <Failed onRetry={failed.retry} />}
           {/* too soon for another sync: when it's possible again */}
           {tooSoon && !t.syncing && <span className="text-[13px] leading-[18px] text-stone-500 tabular-nums max-md:order-last max-md:w-full">Available {fmtAvailable(t.schedule.nextScanAt)}</span>}
-          <span className="hidden text-[13px] leading-[18px] text-stone-600 tabular-nums md:inline">{t.syncing ? 'Syncing…' : `Updated ${fmtDay(t.schedule.lastSync)}`}</span>
+          <span className="hidden text-[13px] leading-[18px] text-stone-600 tabular-nums md:inline">{updated}</span>
           <button
             type="button"
             onClick={syncNow}
@@ -160,10 +168,10 @@ export default function LlmSettingsPage() {
       {/* 2 — market */}
       <SettingsCard title="Market" description="Where and how answers are checked">
         <Row name="Country" meta="Answers as a user in this country" saved={savedKey === 'country'} failed={failed?.key === 'country' ? failed : null}>
-          <Select size="row" className={selectWidth} label="Country" value={country} options={trackingOptions.countries.map((c) => [c, c])} onChange={(v, el) => askMarket('country', v, el)} />
+          <Select size="row" className={selectWidth} label="Country" value={country ?? ''} options={optionsFor(trackingOptions.countries, country)} onChange={(v, el) => askMarket('country', v, el)} />
         </Row>
         <Row name="Language" meta="Language prompts are run in" saved={savedKey === 'language'} failed={failed?.key === 'language' ? failed : null}>
-          <Select size="row" className={selectWidth} label="Language" value={language} options={trackingOptions.languages.map((l) => [l, l])} onChange={(v, el) => askMarket('language', v, el)} />
+          <Select size="row" className={selectWidth} label="Language" value={language ?? ''} options={optionsFor(trackingOptions.languages, language)} onChange={(v, el) => askMarket('language', v, el)} />
         </Row>
       </SettingsCard>
 

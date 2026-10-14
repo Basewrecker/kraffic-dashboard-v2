@@ -245,7 +245,7 @@ const SaveFailed = ({ failed }) => (failed ? (
 // ---------------------------------------------------------------- cards
 
 function BrandIdentity({ brand, syncing, onEdit, onDelete }) {
-  const status = syncing ? 'Syncing…' : brand.lastSync ? `Tracking · updated ${brand.lastSync}` : 'First sync running'
+  const status = syncing ? 'Syncing…' : brand.lastSync ? `Tracking · updated ${brand.lastSync}` : 'Not synced yet'
   return (
     <SettingsCard label={`${brand.name} brand`}>
       <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3">
@@ -587,7 +587,7 @@ export default function SetupPage() {
       ) : (
         brands.map((b, i) => {
           // primary brand: sync state comes from the tracking store
-          const brand = b.id === primary?.id ? { ...b, lastSync: fmtDay(tracking.schedule.lastSync) } : b
+          const brand = b.id === primary?.id ? { ...b, lastSync: tracking.schedule.lastSync ? fmtDay(tracking.schedule.lastSync) : null } : b
           const update = (fn) => updateBrand(b.id, fn)
           return (
             <div key={b.id} className={`flex flex-col gap-4 ${i > 0 ? 'mt-6' : ''} ${b.id === newId ? 'card-in' : ''}`}>
