@@ -106,7 +106,7 @@ export default function PromptCoverage() {
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="mt-4 flex items-center gap-6">
           <Pie
-            radius={60}
+            radius={62} // a 140px box (62 + 8px push-out room, each side)
             labels={false}
             separator={1.5}
             label={`Share of brand appearances: ${slices.map((r) => `${r.name} ${r.share}%`).join(', ')}`}
@@ -134,7 +134,7 @@ export default function PromptCoverage() {
                   onBlur={() => preview(null)}
                   onClick={() => navigate(promptsLink(r.domain, engine))}
                   aria-label={`${r.name}: ${r.prompts} prompts, ${r.share}%. View prompts`}
-                  className={`-mx-2 flex h-10 w-[calc(100%+16px)] items-center gap-3 rounded-lg px-2 text-left outline-none transition-[opacity,background-color] duration-200 ease-out focus-visible:ring-2 focus-visible:ring-focus hover:bg-[var(--tint)] ${hover && hover !== r.domain && !explain.on ? 'opacity-60' : ''}`}
+                  className={`-mx-2 flex h-9 w-[calc(100%+16px)] items-center gap-3 rounded-lg px-2 text-left outline-none transition-[opacity,background-color] duration-200 ease-out focus-visible:ring-2 focus-visible:ring-focus hover:bg-[var(--tint)] ${hover && hover !== r.domain && !explain.on ? 'opacity-60' : ''}`}
                 >
                   <SiteLogo domain={r.domain} name={r.name} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" plate />
                   <span className={`min-w-0 truncate text-[14px] leading-5 ${r.domain === OWN.domain ? 'font-semibold text-ink' : 'font-medium text-stone-900'}`}>{r.name}</span>

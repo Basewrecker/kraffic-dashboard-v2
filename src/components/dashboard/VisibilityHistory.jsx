@@ -480,9 +480,9 @@ export default function VisibilityHistory() {
         </div>
       </div>
 
-      {/* grows with the row (Prompt coverage beside it) down to the insight footer, so there's no empty band above it */}
-      {/* at least 200 on phones / 240 on desktop in every chart type (reserved, so nothing shifts when it draws) */}
-      <div className="mt-3 min-h-[200px] flex-1 lg:min-h-[240px]">
+      {/* phones / tablets: 180px. Desktop: grows with the row, 200–240px, never taller (the insight footer stays pinned
+          to the bottom with mt-auto); the same in every chart type, so switching type never changes the card */}
+      <div className="mt-3 h-[180px] lg:h-auto lg:max-h-[240px] lg:min-h-[200px] lg:flex-1">
         <ResponsiveContainer key={`${view.chart}-${view.granularity}-${view.compare}`} width="100%" height="100%">
           {renderChart()}
         </ResponsiveContainer>
