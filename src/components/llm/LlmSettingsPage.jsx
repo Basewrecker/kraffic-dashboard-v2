@@ -8,6 +8,7 @@ import Select from '../ui/Select'
 import Switch from '../ui/Switch'
 import { account } from '../../data/mock'
 import { linkClick } from '../../router'
+import { billingLive } from '../../data/mock'
 import {
   CURRENCIES, FREQUENCIES, LANGUAGES, REGIONS, countryInfo, fmtDay, fmtTime, fmtWeekday, useTracking,
 } from '../../store/trackingSettings'
@@ -175,6 +176,12 @@ export default function LlmSettingsPage() {
             options={FREQUENCIES.map(([value, label]) => ({ value, label }))}
           />
         </Row>
+        {/* billing not live (production today): count only, no limit, bar or Upgrade */}
+        {!billingLive ? (
+        <Row name="Prompt quota" meta={`Resets ${fmtDay(resetsOn)} · no limit for now`}>
+          <span className="text-[13px] leading-[18px] font-medium text-stone-900 tabular-nums">{used} used</span>
+        </Row>
+        ) : (
         <Row
           name="Prompt quota"
           meta={pct >= 1 ? 'Limit reached — new prompts won’t be scanned' : `${limit - used} left · resets ${fmtDay(resetsOn)}${pct > 0.75 ? ' · running low' : ''}`}
@@ -185,6 +192,7 @@ export default function LlmSettingsPage() {
           </span>
           <a href="/billing/plans" onClick={linkClick('/billing/plans')} className="rounded text-[13px] leading-[18px] font-medium text-ink underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Upgrade</a>
         </Row>
+        )}
       </SettingsCard>
 
       {confirm?.kind === 'pause' && (

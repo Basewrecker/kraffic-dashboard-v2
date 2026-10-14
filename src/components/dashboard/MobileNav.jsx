@@ -5,7 +5,7 @@ import Logo from '../ui/Logo'
 import SiteLogo from '../ui/SiteLogo'
 import Sheet, { SheetItem } from '../ui/Sheet'
 import ThemeToggle from './ThemeToggle'
-import { HOME, NavLinks, WorkspaceSwitcher } from './Sidebar'
+import { HOME, NavLinks, WorkspaceContext, WorkspaceList, WorkspaceSwitcher } from './Sidebar'
 import { account, agencyClients } from '../../data/mock'
 import { useBackClose } from '../../hooks/useOverlay'
 
@@ -68,6 +68,7 @@ function NavDrawer({ open, onClose, path }) {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2">
           {/* a link tap navigates: keep the new page's history entry, then close */}
+          <WorkspaceContext />
           <NavLinks path={path} onNavigate={() => { release(); onClose() }} />
         </div>
         <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
@@ -80,19 +81,9 @@ function NavDrawer({ open, onClose, path }) {
 }
 
 function WorkspaceSheet({ open, onClose }) {
-  const brands = [{ name: account.name, domain: account.domain, current: true }, ...agencyClients]
   return (
     <Sheet open={open} onClose={onClose} title="Workspace">
-      <SheetItem icon={House} onClick={() => { window.location.href = HOME }}>Home</SheetItem>
-      <SheetItem icon={CreditCard} onClick={() => { onClose(); navigate('/billing') }}>Billing</SheetItem>
-      <div className="mx-3 my-1 border-t border-line" role="separator" />
-      <div className="px-3 pb-1 pt-2 text-[12px] leading-4 text-stone-500">Brands</div>
-      {brands.map((b) => (
-        <SheetItem key={b.domain} disabled={!b.current} onClick={() => {}} active={b.current}
-          meta={b.current ? <Check size={16} className="text-ink" aria-label="Current workspace" /> : <span className="text-[12px] text-stone-500">Not in this demo</span>}>
-          <span className="flex items-center gap-3"><SiteLogo domain={b.domain} name={b.name} className="h-6 w-6 rounded-md" imgPad="p-0.5" initialClass="text-[11px]" plate />{b.name}</span>
-        </SheetItem>
-      ))}
+      <WorkspaceList onDone={onClose} autoFocus={false} />
     </Sheet>
   )
 }

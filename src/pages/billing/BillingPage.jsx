@@ -11,7 +11,7 @@ import { openDrawer } from '../../components/audit/parts'
 import { linkClick, navigate } from '../../router'
 import { cardTitle, inkBtn, lineBtn, subtitleCls, t2, t3 } from '../../components/tool/ToolPage'
 import DetailsDrawer from './DetailsDrawer'
-import { daysUntil, fmtDate, fmtShort, forecast, money, planById, priceOf, update, usageRows, useBilling } from './billing'
+import { daysUntil, fmtDate, fmtShort, forecast, isLive, money, planById, priceOf, update, usageRows, useBilling } from './billing'
 
 // /billing — plan, usage, payment method, billing details and invoices for this workspace.
 // Production has plans + subscriptions but no payment provider, invoices, cards or billing details (all mocked here).
@@ -22,6 +22,23 @@ export default function BillingPage() {
   useEffect(() => { document.title = 'Billing · Kraffic' }, [])
   const [toastNode, toast] = useToast({ position: 'center' })
   const failed = b.status === 'PAST_DUE'
+  // billing not live (production today): the plan, and usage as plain counts. No prices, limits, cards or invoices.
+  if (!isLive()) {
+    return (
+      <>
+        <div>
+          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Billing</h1>
+          <p className={`mt-1 text-[13px] leading-[18px] ${t2} lg:text-[14px] lg:leading-5`}>Plan, usage and invoices for {b.workspace}</p>
+        </div>
+        <Card className="flex flex-wrap items-baseline gap-x-3 gap-y-1 p-5">
+          <span className={`w-full text-[13px] leading-[18px] ${t2}`}>Current plan</span>
+          <span className="text-[20px] leading-7 font-semibold text-stone-900">{planById(b.planId).name}</span>
+          <span className={`text-[13px] leading-[18px] ${t2}`}>Everything is unlimited for now</span>
+        </Card>
+        <UsageCounts b={b} />
+      </>
+    )
+  }
   return (
     <>
       <div>
@@ -81,6 +98,27 @@ function CurrentPlan({ b, toast }) {
               className="inline-flex h-9 items-center rounded-lg bg-negative px-3.5 text-small font-medium text-on-ink outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-focus">Cancel plan</button>
           </div>
         )}><span /></Modal>
+    </Card>
+  )
+}
+
+const COUNT_WORDS = { prompts: 'prompts tracked', projects: 'brands', clients: 'clients', users: 'team members', crawl_pages_monthly: 'pages crawled this period', ai_runs_monthly: 'AI answer checks this period' }
+function UsageCounts({ b }) {
+  const rows = usageRows(b)
+  return (
+    <Card className="px-5 pt-5 pb-2 max-md:px-4">
+      <h2 className={cardTitle}>Usage</h2>
+      <p className={subtitleCls}>What this workspace uses. There are no limits for now.</p>
+      <ul className="mt-3 divide-y divide-[var(--div)]">
+        {rows.map((r) => (
+          <li key={r.key} className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-1.5">
+            <span className="min-w-0">
+              <span className="block truncate text-[14px] leading-5 text-stone-900 tabular-nums">{r.used.toLocaleString('en-US')} {COUNT_WORDS[r.key]}</span>
+            </span>
+            <span className={`text-[13px] leading-[18px] ${t3}`}>{r.meta}</span>
+          </li>
+        ))}
+      </ul>
     </Card>
   )
 }

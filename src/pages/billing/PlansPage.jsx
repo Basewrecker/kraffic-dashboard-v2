@@ -7,7 +7,8 @@ import { useToast } from '../../components/dashboard/overlays'
 import { openDrawer } from '../../components/audit/parts'
 import { inkBtn, lineBtn, t2, t3 } from '../../components/tool/ToolPage'
 import ConfirmDrawer from './ConfirmDrawer'
-import { fitsPlan, money, planById, plansFor, priceOf, useBilling } from './billing'
+import { fitsPlan, isLive, money, planById, plansFor, priceOf, useBilling } from './billing'
+import TalkDrawer from './TalkDrawer'
 
 // /billing/plans — pick a plan. Every "Upgrade" link in the mock lands here. Plans, prices and limits are production's
 // seeded plans (prisma/seed.ts); the confirm step is mocked (production has no self-serve plan change).
@@ -44,7 +45,9 @@ export default function PlansPage() {
   const cur = planById(b.planId)
   const fit = fitsPlan(b)
   const cols = { gridTemplateColumns: `repeat(${plans.length}, minmax(0, 1fr))` }
+  const live = isLive()
   const ctaFor = (p) => {
+    if (!live) return { label: 'Available soon', cls: lineBtn, disabled: true }
     if (p.id === b.planId && interval === b.interval) return { label: 'Current plan', cls: lineBtn, disabled: true }
     if (p.contactSales) return { label: 'Talk to us', cls: lineBtn }
     if (p.id === b.planId) return { label: `Switch to ${interval === 'year' ? 'yearly' : 'monthly'}`, cls: lineBtn }
@@ -56,6 +59,7 @@ export default function PlansPage() {
         <BackLink to="/billing">Billing</BackLink>
         <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Choose a plan</h1>
         <p className={`mt-1 text-[13px] leading-[18px] ${t2} lg:text-[14px] lg:leading-5`}>Change any time. We prorate the difference.</p>
+        {!live && <p className={`mt-2 text-[13px] leading-[18px] ${t2}`}>Plans aren’t switched on yet. Your workspace has every feature for now.</p>}
       </div>
       <div className="flex items-center gap-3">
         <Segmented label="Billing period" value={interval} onChange={setInterval} options={[{ value: 'month', label: 'Monthly' }, { value: 'year', label: 'Yearly' }]} />
@@ -91,7 +95,7 @@ export default function PlansPage() {
                 })}
               </ul>
               <div className="mt-auto pt-5">
-                <button type="button" disabled={cta.disabled} onClick={() => (p.contactSales ? toast(`We’ll email you about ${p.name} within a day`) : openDrawer('switch', `${p.id}:${interval}`))} className={`${cta.cls} w-full disabled:cursor-default disabled:opacity-60`}>{cta.label}</button>
+                <button type="button" disabled={cta.disabled} onClick={() => (p.contactSales ? openDrawer('talk', p.id) : openDrawer('switch', `${p.id}:${interval}`))} className={`${cta.cls} w-full disabled:cursor-default disabled:opacity-60`}>{cta.label}</button>
               </div>
             </Card>
           )
@@ -131,6 +135,7 @@ export default function PlansPage() {
         </div>
       </Card>
       <ConfirmDrawer />
+      <TalkDrawer />
       {toastNode}
     </>
   )

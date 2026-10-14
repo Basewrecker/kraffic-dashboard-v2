@@ -21,6 +21,8 @@ import TrendsPage from './pages/trends/TrendsPage'
 import ToolkitPage from './pages/toolkit/ToolkitPage'
 import ToolRouter from './pages/toolkit/ToolRouter'
 import BillingRouter from './pages/billing/BillingRouter'
+import EmptyBrand from './components/EmptyBrand'
+import { currentBrand } from './data/mock'
 import { usePath } from './router'
 import { TrackingProvider } from './store/trackingSettings'
 import { DashboardViewProvider } from './hooks/useBrandView'
@@ -71,6 +73,8 @@ export default function App() {
   const route = path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/billing/') ? '/billing' : path
   const navPath = route.startsWith('/more-tools') ? '/more-tools' : route // tool pages light up Toolkit
   const Page = PAGES[route] ?? DashboardPage
+  // a brand with no data yet: data pages show the empty state (Brand Setup, Tracking and Billing still work)
+  const empty = currentBrand.data === 'empty' && !['/brands', '/tracking', '/billing'].includes(route)
   return (
     // tracking settings are shared by every page (dashboard header, /brands summary, /tracking editor)
     <TrackingProvider>
@@ -79,7 +83,7 @@ export default function App() {
         <div className="min-w-0 flex-1">
           <MobileNav path={PAGES[route] ? navPath : '/overview'} />
           {/* same content container on every page (16px gutters on phones, 24px from md) */}
-          <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 pb-10 pt-4 md:gap-4 md:px-6 lg:pt-8"><Page /></main>
+          <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 pb-10 pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8">{empty ? <EmptyBrand route={PAGES[route] ? route : '/overview'} /> : <Page />}</main>
         </div>
       </div>
     </TrackingProvider>

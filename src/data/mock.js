@@ -2,10 +2,35 @@
 // NOTE: rows marked PLACEHOLDER must be replaced with the exact rows from the live-site screenshots.
 import { brandName } from '../utils/brand.js' // .js: the unit tests load this file in plain Node
 
+// ---- Workspace: the agency, its clients and their brands. Two brands have demo data (Dermasuri; Lumen Skin reuses the
+// same dataset under its own name); the rest have none yet and show empty states. The current brand is kept in this
+// browser (store/workspace.js) and read here at load, so every page sees it as `account`.
+export const workspaceAgency = { name: 'PTA Agency', domain: 'pta.agency' }
+export const workspaceUser = { name: 'Alex Morgan', email: 'alex@pta.agency' } // the signed-in user (mock)
+export const workspaceDirectory = [
+  { id: 'dermasuri-co', client: 'Dermasuri Skincare', brands: [
+    { id: 'dermasuri', name: 'Dermasuri', domain: 'dermasuri.com', data: 'full' },
+    { id: 'dermasuri-men', name: 'Dermasuri Men', domain: 'dermasurimen.com', data: 'empty' },
+  ] },
+  { id: 'lumen-co', client: 'Lumen Beauty Group', brands: [
+    { id: 'lumen', name: 'Lumen Skin', domain: 'lumenskin.com', data: 'full' },
+  ] },
+  { id: 'brightside-co', client: 'Brightside', brands: [
+    { id: 'brightside', name: 'Brightside Botanics', domain: 'brightsidebotanics.com', data: 'empty' },
+  ] },
+  { id: 'northwind-co', client: 'Northwind Pharmacy', brands: [
+    { id: 'northwind-derm', name: 'Northwind Derm', domain: 'northwindderm.com', data: 'empty' },
+    { id: 'northwind-sun', name: 'Northwind Sun', domain: 'northwindsun.com', data: 'empty' },
+  ] },
+]
+const storedBrandId = (() => { try { return typeof localStorage !== 'undefined' ? localStorage.getItem('kraffic:brand') : null } catch { return null } })()
+export const currentBrand = workspaceDirectory.flatMap((c) => c.brands.map((b) => ({ ...b, client: c.client, clientId: c.id }))).find((b) => b.id === storedBrandId)
+  ?? { ...workspaceDirectory[0].brands[0], client: workspaceDirectory[0].client, clientId: workspaceDirectory[0].id }
+
 export const account = {
-  name: 'Dermasuri',
+  name: currentBrand.name,
   plan: 'PTA · Agency',
-  domain: 'dermasuri.com',
+  domain: currentBrand.domain,
   llm: 'Google AI Overview',
   lastSync: 'Oct 5, 2026',
 }
@@ -21,7 +46,7 @@ export const kpis = {
 
 export const competitors = [
   // colors come from getCompetitorColor (src/theme/colors.js): you → teal 700, others by share rank → c1..c3
-  { domain: 'dermasuri.com', share: 73, you: true },
+  { domain: account.domain, share: 73, you: true }, // the current brand (Lumen Skin reuses this dataset)
   { domain: 'cerave.com', share: 18 },
   { domain: 'paulaschoice.com', share: 3 },
   { domain: 'theordinary.com', share: 4 },
@@ -824,10 +849,8 @@ export const citationsMentions = {
 export const aliasSuggestions = ['Derma Suri', 'dermasuri.co']
 // answers each name variant was seen in (alias chip "· 6", suggestion tooltip "Seen in 3 answers")
 // the agency's other client workspaces (sidebar workspace switcher); not loaded in this demo
-export const agencyClients = [
-  { name: 'Lumen Skin', domain: 'lumenskin.com' },
-  { name: 'Brightside Botanics', domain: 'brightsidebotanics.com' },
-]
+// the other brands in the agency (kept for older callers; the switcher uses workspaceDirectory)
+export const agencyClients = workspaceDirectory.flatMap((c) => c.brands).filter((b) => b.domain !== account.domain).map((b) => ({ name: b.name, domain: b.domain }))
 
 export const aliasAnswers = { 'Derma Suri': 6, 'dermasuri.co': 3 }
 
@@ -1533,3 +1556,16 @@ export const billingStates = {
     details: { company: 'PTA Agency LLC', email: 'accounts@pta.agency', address: '55 Water St, Brooklyn, NY 11201, USA', taxId: 'US EIN 93-1182044' }, invoices: [{ id: 'in_202603', date: '2026-03-01', description: 'Agency plan · yearly, Mar 2026 – Feb 2027', amount: 599000, currency: 'usd', status: 'paid' }], history: null },
 }
 export const billingToday = '2026-10-14'
+
+// Billing is not live in production (no payment provider; limits off unless BILLING_ENFORCEMENT is set).
+// billingLive = false matches that. Flip it here, or add ?live=1 to a billing URL, to see the paid-billing design.
+export const billingLive = false
+
+// "Talk to us" about Enterprise → production's generic contact endpoint, POST /auth/contact
+// (ContactMessageDto { name, email, company?, website?, message 10–4000 chars }). It only writes an audit-log row today:
+// no email goes out and no sales address is configured (GAP). The mock resolves after a short wait.
+export async function sendSalesInquiry({ plan, name, email, company, size, need }) {
+  const body = { name, email, company, message: `Enterprise inquiry (${plan}) · team size ${size}\n\n${need}` } // POST /auth/contact
+  await sleep(600)
+  return { ok: true, body }
+}

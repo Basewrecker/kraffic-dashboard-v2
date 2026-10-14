@@ -1,15 +1,18 @@
 // Billing state for this tab: seeded from mock.js (?mock=trial|paid|near|failed|agency), changed by the confirm
 // drawer (switch plan), cancel and "add payment method". Selectors for usage rows, plan fit and downgrade blockers.
 import { useSyncExternalStore } from 'react'
-import { billingPlans, billingStates, billingToday } from '../../data/mock.js'
+import { billingLive, billingPlans, billingStates, billingToday } from '../../data/mock.js'
 
 const listeners = new Set()
 const emit = () => listeners.forEach((l) => l())
 const overrides = {} // per mock key
 export const stateKey = () => {
   const k = new URLSearchParams(window.location.search).get('mock')
-  return billingStates[k] ? k : 'paid'
+  if (billingStates[k]) return k
+  try { return localStorage.getItem('kraffic:role') === 'client' ? 'paid' : 'agency' } catch { return 'agency' } // agency users see the agency's billing
 }
+// production: billing isn't live (no provider; limits off). mock.js billingLive, or ?live=1 on a billing URL
+export const isLive = () => billingLive || new URLSearchParams(window.location.search).get('live') === '1'
 let snap = { key: null, value: null }
 const get = () => {
   const key = stateKey()
