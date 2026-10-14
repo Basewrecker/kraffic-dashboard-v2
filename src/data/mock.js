@@ -1209,6 +1209,7 @@ export const auditCategories = { technical: 'Technical', content: 'Content', spe
 // Run audit: resolves when the run has finished (→ the state to show next: the first audit lands on a never-run site);
 // rejects with the reason when it fails
 export const auditActions = {
+  canMarkFixed: true, // the Check drawer's "Mark as fixed" (kept in this browser: components/audit/context.jsx)
   async onRunAudit({ never = false } = {}) {
     await sleep(1800)
     return { mock: never ? 'first' : null }

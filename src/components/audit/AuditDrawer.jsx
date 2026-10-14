@@ -3,6 +3,7 @@ import { AlertCircle, ArrowUpRight, Check, ChevronRight, Copy, Sparkles, Wrench 
 import { CATEGORIES, IMPACT, STATUS, groupBySection, sectionLabel, SLOW_MS } from '../../data/audit'
 import DrawerShell, { Dot, useDrawer } from './DrawerShell'
 import { useAudit } from './context'
+import { auditActions } from '../../data/mock'
 import { CheckIcon, HBar, StatusLabel, fmtMs, plural, swapDrawer } from './parts'
 
 const t2 = 'text-stone-600'
@@ -46,7 +47,7 @@ function StatStrip({ cells }) {
 }
 const big = 'whitespace-nowrap text-[18px] leading-8 font-semibold text-stone-900 tabular-nums md:text-[22px]'
 
-// Check drawer (?check=, pushed so Back closes it): one check, from any tab.
+// Check drawer (?check=, pushed so Back closes it): one check, from any tab. Mark as fixed only with auditActions.canMarkFixed.
 export default function AuditDrawer() {
   const { a, fixed, toggleFixed } = useAudit()
   const drawer = useDrawer('check', a.checkById)
@@ -77,7 +78,7 @@ export default function AuditDrawer() {
           {c.impact && <><Dot /><span>{IMPACT[c.impact].label} impact</span></>}
         </span>
       )}
-      footer={!passing && (
+      footer={!passing && auditActions.canMarkFixed && (
         <>
           <span className={t3}>{isFixed ? 'Marked as fixed. We’ll verify on the next run.' : 'Fixed it? We’ll check again on the next run.'}</span>
           {isFixed

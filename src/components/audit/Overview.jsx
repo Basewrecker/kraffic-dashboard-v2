@@ -219,6 +219,8 @@ function SinceDrawer() {
 
 // ---- Where the problems are: sections × categories (failing page × check pairs); all-zero columns are hidden
 const CATS = Object.keys(CATEGORIES)
+// a category inside a sentence: lower case, except an acronym ("SEO")
+const catWord = (cat) => (/^[A-Z]{2,}$/.test(CATEGORIES[cat]) ? CATEGORIES[cat] : CATEGORIES[cat].toLowerCase())
 function ProblemAreas({ setTab }) {
   const { a } = useAudit()
   const explain = useExplain(a.key)
@@ -229,8 +231,8 @@ function ProblemAreas({ setTab }) {
   const hidden = CATS.filter((_, c) => !colTot[c])
   const max = Math.max(...rows.flatMap((r) => r.cells), 1)
   const top = rows.flatMap((r, ri) => r.cells.map((n, ci) => ({ n, ri, ci }))).sort((x, y) => y.n - x.n)[0]
-  const text = !top?.n ? 'No failing checks on any page.' : `Most issues are ${CATEGORIES[CATS[top.ci]].toLowerCase()} problems on ${sectionLabel(rows[top.ri].section)}.`
-  const readout = hover && (() => { const r = rows[hover[0]]; const ci = shown[hover[1]].c; const n = r.cells[ci]; return `${n} failing ${CATEGORIES[CATS[ci]].toLowerCase()} ${n === 1 ? 'check' : 'checks'} across the ${r.pages} ${r.pages === 1 ? 'page' : 'pages'} of ${sectionLabel(r.section)}` })()
+  const text = !top?.n ? 'No failing checks on any page.' : `Most issues are ${catWord(CATS[top.ci])} problems on ${sectionLabel(rows[top.ri].section)}.`
+  const readout = hover && (() => { const r = rows[hover[0]]; const ci = shown[hover[1]].c; const n = r.cells[ci]; return `${n} failing ${catWord(CATS[ci])} ${n === 1 ? 'check' : 'checks'} across the ${r.pages} ${r.pages === 1 ? 'page' : 'pages'} of ${sectionLabel(r.section)}` })()
   const on = (cls) => `${cls} transition-colors duration-150 ease-out`
   const grid = { gridTemplateColumns: `180px repeat(${Math.max(1, shown.length)}, 120px) 56px minmax(160px,1fr)` }
   const common = new Map(a.sections.map((x) => [x.section, x.common]))
@@ -252,7 +254,7 @@ function ProblemAreas({ setTab }) {
           </div>
         </div>
         <p className={`mt-2 h-5 truncate text-[13px] leading-5 ${t2} tabular-nums transition-opacity duration-150 ease-out ${readout ? 'opacity-100' : 'opacity-0'}`} aria-live="polite">{readout ?? ''}</p>
-        {hidden.length > 0 && <p className={`text-[13px] leading-[18px] ${t3}`}>No {hidden.map((c) => CATEGORIES[c].toLowerCase()).join(' or ')} issues found.</p>}
+        {hidden.length > 0 && <p className={`text-[13px] leading-[18px] ${t3}`}>No {hidden.map((c) => catWord(c)).join(' or ')} issues found.</p>}
       </div>
       <div className="mt-auto pt-3">
         <Insight explain={explain} text={text} evidence={{

@@ -31,6 +31,7 @@ const problemsText = (p) => [p.failCount && `${p.failCount} failing`, p.warnCoun
 export default function PagesTab({ q }) {
   const { a } = useAudit()
   const sections = [...new Set(a.pages.map((p) => p.section))]
+  const hasWarn = a.checks.some((c) => c.status === 'warn') // no "needs work" results: no Needs work chip
   const section = sections.includes(q.get('section')) ? q.get('section') : 'all'
   const status = STATUS_TESTS[q.get('status')] ? q.get('status') : 'all'
   // ?depth= (from Site structure): the 2xx pages at that click depth
@@ -77,7 +78,7 @@ export default function PagesTab({ q }) {
             options={[['all', 'All sections'], ...sections.map((s) => [s, sectionLabel(s)])]} />
           <div className="no-scrollbar max-md:order-last max-md:-mx-4 max-md:w-[calc(100%+32px)] max-md:overflow-x-auto max-md:px-4">
             <Chips label="Status" value={status} onChange={(v) => setParams({ status: v === 'all' ? null : v })}
-              options={[['all', 'All'], ['failing', 'Has failing'], ['warn', 'Needs work'], ['clean', 'Clean']]} />
+              options={[['all', 'All'], ['failing', 'Has failing'], ...(hasWarn ? [['warn', 'Needs work']] : []), ['clean', 'Clean']]} />
           </div>
           {cat && (
             <button type="button" onClick={() => setParams({ cat: null })} aria-label={`Remove filter: ${CATEGORIES[cat]} problems`}
