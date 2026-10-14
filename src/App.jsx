@@ -99,7 +99,8 @@ export default function App() {
         <div className="min-w-0 flex-1">
           <MobileNav path={PAGES[route] ? navPath : '/overview'} />
           {/* same content container on every page (16px gutters on phones, 24px from md) */}
-          <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 pb-10 pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8">{body}</main>
+          {/* Site Audit ends 64px under its last card (pb-16 alone, no spacer) */}
+          <main className={`mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 ${route === '/audit' ? 'pb-16' : 'pb-10'} pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8`}>{body}</main>
         </div>
       </div>
       {state === 'cookies' && <CookieBanner onChoose={() => {}} />}

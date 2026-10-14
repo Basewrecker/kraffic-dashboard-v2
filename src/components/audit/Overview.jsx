@@ -26,13 +26,11 @@ export default function Overview({ setTab }) {
       <Kpis setTab={setTab} />
       <SinceBand />
       <div id="audit-plan" className="min-w-0 scroll-mt-6"><NextSteps setTab={setTab} /></div>
-      {/* heights follow content: the two cards aren't alike, so they aren't stretched to match */}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+      {/* both cards end flush: the shorter one spreads the spare height between its rows (never a band above a footer) */}
+      <div id="audit-bottom" className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="min-w-0 lg:col-span-2"><ProblemAreas setTab={setTab} /></div>
         <WorstPages setTab={setTab} />
       </div>
-      {/* the page ends 64px under the last card (main has 40px + the 16px gap) */}
-      <div className="h-2" aria-hidden />
       {a.since && <SinceDrawer />}
     </>
   )
@@ -234,15 +232,16 @@ function ProblemAreas({ setTab }) {
   const text = !top?.n ? 'No failing checks on any page.' : `Most issues are ${catWord(CATS[top.ci])} problems on ${sectionLabel(rows[top.ri].section)}.`
   const readout = hover && (() => { const r = rows[hover[0]]; const ci = shown[hover[1]].c; const n = r.cells[ci]; return `${n} failing ${catWord(CATS[ci])} ${n === 1 ? 'check' : 'checks'} across the ${r.pages} ${r.pages === 1 ? 'page' : 'pages'} of ${sectionLabel(r.section)}` })()
   const on = (cls) => `${cls} transition-colors duration-150 ease-out`
-  const grid = { gridTemplateColumns: `180px repeat(${Math.max(1, shown.length)}, 120px) 56px minmax(160px,1fr)` }
+  const grid = { gridTemplateColumns: `180px repeat(${Math.max(1, shown.length)}, 120px) 56px minmax(160px,1fr)`, gridTemplateRows: `auto repeat(${rows.length}, minmax(32px, 1fr))` }
   const common = new Map(a.sections.map((x) => [x.section, x.common]))
   return (
     <Card ref={explain.cardRef} className="flex h-full min-w-0 flex-col px-5 pt-5 pb-3 max-md:px-4">
       <h2 className={cardTitle}>Where the problems are</h2>
-      <p className={subtitle}>Which parts of the site fail which kind of check? Click a cell to see those pages.</p>
-      <div className="mt-3">
-        <div className="no-scrollbar overflow-x-auto">
-          <div className="grid min-w-max items-center gap-1 lg:min-w-0" style={grid}>
+      {/* hovering a cell says what it counts in the subtitle's place (no band reserved for it) */}
+      <p className={`${subtitle} truncate tabular-nums`} aria-live="polite">{readout ?? 'Which parts of the site fail which kind of check? Click a cell to see those pages.'}</p>
+      <div className="mt-3 flex flex-1 flex-col">
+        <div className="no-scrollbar flex flex-1 flex-col overflow-x-auto">
+          <div className="grid min-w-max flex-1 items-center gap-1 lg:min-w-0" style={grid}>
             <span />
             {shown.map(({ cat }, k) => <span key={cat} className={on(`truncate pb-0.5 text-center text-[13px] leading-[18px] ${hover?.[1] === k ? 'font-semibold text-ink' : t3}`)}>{CATEGORIES[cat]}</span>)}
             <span className={`pb-0.5 text-right text-[13px] leading-[18px] ${t3}`}>Total</span>
@@ -253,10 +252,9 @@ function ProblemAreas({ setTab }) {
             ))}
           </div>
         </div>
-        <p className={`mt-2 h-5 truncate text-[13px] leading-5 ${t2} tabular-nums transition-opacity duration-150 ease-out ${readout ? 'opacity-100' : 'opacity-0'}`} aria-live="polite">{readout ?? ''}</p>
-        {hidden.length > 0 && <p className={`text-[13px] leading-[18px] ${t3}`}>No {hidden.map((c) => catWord(c)).join(' or ')} issues found.</p>}
+        {hidden.length > 0 && <p className={`mt-2 text-[13px] leading-[18px] ${t3}`}>No {hidden.map((c) => catWord(c)).join(' or ')} issues found.</p>}
       </div>
-      <div className="mt-auto pt-3">
+      <div className="pt-3">
         <Insight explain={explain} text={text} evidence={{
           keys: top?.n ? [`heat:${top.ri}:${top.ci}`] : [],
           calc: 'Each cell counts failing checks on each page of the section (a page failing 2 checks counts 2).',
@@ -294,22 +292,22 @@ function HeatRow({ r, ri, shown, max, hover, setHover, explain, on, onPick, comm
   )
 }
 
-// ---- Pages that fail most: the 6 pages with the most failing checks (then the heaviest checks) → the page drawer
+// ---- Pages that fail most: the 5 pages with the most failing checks (then the heaviest checks) → the page drawer
 function WorstPages({ setTab }) {
   const { a } = useAudit()
   const weight = (p) => p.failing.reduce((n, id) => n + (a.checkById(id) ? impactLevel(a.checkById(id)) : 0), 0)
-  const rows = [...a.pages].filter((p) => p.failCount).sort((x, y) => y.failCount - x.failCount || weight(y) - weight(x) || (y.ms ?? 0) - (x.ms ?? 0)).slice(0, 6)
+  const rows = [...a.pages].filter((p) => p.failCount).sort((x, y) => y.failCount - x.failCount || weight(y) - weight(x) || (y.ms ?? 0) - (x.ms ?? 0)).slice(0, 5)
   const names = (p) => p.failing.map((id) => a.checkById(id)).filter(Boolean).sort((x, y) => impactLevel(y) - impactLevel(x)).map((c) => c.label).join(', ')
   return (
-    <Card className="flex min-w-0 flex-col px-5 pt-5 max-md:px-4">
+    <Card className="flex h-full min-w-0 flex-col px-5 pt-5 max-md:px-4">
       <h2 className={cardTitle}>Pages that fail most</h2>
       <p className={subtitle}>Which single pages need the most fixing?</p>
       {rows.length ? (
-        <ul className="mt-3 divide-y divide-[var(--div)] border-t border-[var(--div)]">
+        <ul className="mt-3 flex flex-1 flex-col divide-y divide-[var(--div)] border-t border-[var(--div)]">
           {rows.map((p) => (
-            <li key={p.path}>
+            <li key={p.path} className="flex flex-1 items-center">
               <button type="button" onClick={() => openDrawer('page', p.path)} aria-label={`${p.path}: ${p.failCount} failing checks (${names(p)}). Open`}
-                className="group -mx-2 grid h-14 w-[calc(100%+16px)] grid-cols-[minmax(0,1fr)_auto_16px] items-center gap-3 rounded-md px-2 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
+                className="group -mx-2 grid h-12 w-[calc(100%+16px)] grid-cols-[minmax(0,1fr)_auto_16px] items-center gap-3 rounded-md px-2 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
                 <span className="min-w-0">
                   <span className="block truncate text-[14px] leading-5 text-stone-900" title={p.path}>{p.path}</span>
                   <span className={`block truncate text-[13px] leading-[18px] ${t3}`}>{names(p)}</span>
@@ -321,7 +319,7 @@ function WorstPages({ setTab }) {
           ))}
         </ul>
       ) : <p className={`mt-3 flex items-center gap-2 border-t border-[var(--div)] py-4 text-[14px] leading-5 ${t2}`}><CheckIcon status="pass" />No page fails a check.</p>}
-      <div className="mt-auto border-t border-[var(--div)] py-3">
+      <div className="border-t border-[var(--div)] py-3">
         <button type="button" onClick={() => setTab('pages')} className={`${linkCls} max-md:h-10`}>All {a.pages.length} pages <ArrowRight size={14} aria-hidden /></button>
       </div>
     </Card>
