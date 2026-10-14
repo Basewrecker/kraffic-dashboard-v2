@@ -1,4 +1,3 @@
-import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import Card from './Card'
 import Insight, { hl, useExplain } from '../ui/Insight'
@@ -11,14 +10,12 @@ import { openEngineDrawer } from '../answer/EngineDrawer'
 import { platformNames, uncitedPages } from '../../data/mock'
 import { useBrandView } from '../../hooks/useBrandView'
 
-// Adapts to the height the row gives it (Sync history beside it can expand): cited pages first, all of them
-// when they fit (else the rest collapse into "N other pages"), then — Dermasuri only — "Not cited yet".
-// Never a half row: whatever is left over (< 1 row) is plain padding.
+// As tall as its content: up to six rows (five pages and "N other pages"), then — Dermasuri only — "Not cited yet"
+// when the rows leave room for it. The card no longer grows to fill the row.
 const ROW_H = 44 // h-11 cited rows
 const UNCITED_H = 48 // h-12 "Not cited yet" rows
 const SECTION_H = 84 // mt-6 + border-t pt-4 + label + description + mb-2
 const BASE_ROWS = 6 // natural size: 5 pages + "N other pages", like the card always had
-const PAD_B = 16
 const ROW = 'grid grid-cols-[minmax(0,1fr)_auto_40px_40px] items-center gap-x-3'
 const iconId = (p) => (p === 'google' ? 'aio' : p)
 
@@ -55,18 +52,8 @@ export default function TopCitedPages() {
   // every cited page, all engines: the same drawer as the Citations and Mentions card
   const openAll = (e) => openEngineDrawer({ engine: 'all', tab: 'pages', brand: focal.domain, opener: e.currentTarget })
 
-  // measure the body (debounced 100ms); first measure is synchronous so nothing pops in on load
-  const body = useRef(null)
-  const [avail, setAvail] = useState(BASE_ROWS * ROW_H)
-  useLayoutEffect(() => {
-    const el = body.current
-    const read = () => setAvail(Math.max(0, el.clientHeight - PAD_B))
-    read()
-    let t
-    const ro = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(read, 100) })
-    ro.observe(el)
-    return () => { ro.disconnect(); clearTimeout(t) }
-  }, [])
+  // the card's natural size (no longer measured from the row)
+  const avail = BASE_ROWS * ROW_H
   const { shown, other, uncited } = fill(avail, citedAll, uncitedList.length)
   const uncitedShown = uncitedList.slice(0, uncited)
   const insight = uncitedShown.length
@@ -86,9 +73,9 @@ export default function TopCitedPages() {
         )}
       />
 
-      {/* the measured body: at least its natural size, taller when the row is */}
-      <div ref={body} className="relative mt-4 flex-1" style={{ minHeight: BASE_ROWS * ROW_H + PAD_B }}>
-        <div className="absolute inset-0 overflow-hidden">
+      {/* the body, as tall as its rows */}
+      <div className="mt-4 pb-4">
+        <div>
           <ul className="divide-y divide-[var(--color-line-soft)]">
             {shown.map((p) => (
               <li key={p.path} className={`${ROW} row-in h-11`} {...hl(explain, `page:${p.path}`, { row: true })}>
@@ -149,7 +136,8 @@ export default function TopCitedPages() {
         </div>
       </div>
 
-      <Insight explain={explain} {...insight} />
+      {/* the footer at the bottom of the card (the row can be taller than the list) */}
+      <div className="mt-auto"><Insight explain={explain} {...insight} /></div>
     </Card>
   )
 }

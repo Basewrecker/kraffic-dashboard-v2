@@ -127,25 +127,25 @@ function MarketplaceCard() {
         </div>
       </div>
 
-      {/* donut (the selector) + panel, centred in whatever height the row gives the card */}
-      <div className="mb-4 mt-4 flex flex-wrap items-center gap-8 sm:flex-nowrap">
+      {/* donut (the selector, 120px) + panel, the donut at the top of the list; the card is as tall as its content */}
+      <div className="mb-4 mt-4 flex flex-wrap items-start gap-8 sm:flex-nowrap">
         <div
           role="group"
           tabIndex={0}
           aria-label={`Marketplace segments: ${segs.find((s) => s.key === selectedKey).label} selected. Use the arrow keys to change.`}
           onKeyDown={onDonutKey}
           onMouseLeave={() => preview(null)}
-          className="relative h-[128px] w-[128px] shrink-0 rounded-full max-sm:mx-auto outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-4"
+          className="relative h-[120px] w-[120px] shrink-0 rounded-full max-sm:mx-auto outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-4"
         >
-          <PieChart width={128} height={128} className="cursor-pointer">
+          <PieChart width={120} height={120} className="cursor-pointer">
             <RPie
               data={segs}
               dataKey="count"
               nameKey="label"
               cx="50%"
               cy="50%"
-              innerRadius={52}
-              outerRadius={64}
+              innerRadius={49}
+              outerRadius={60}
               paddingAngle={0}
               cornerRadius={3}
               startAngle={90}

@@ -106,7 +106,7 @@ export default function SyncHistory() {
         }
       />
 
-      <ul className="mt-4 flex-1 divide-y divide-[var(--color-line-soft)] pb-4">
+      <ul className="mt-4 divide-y divide-[var(--color-line-soft)] pb-4">
         {rows.map((r, i) => {
           const isOpen = openIds.has(r.id)
           return (
@@ -151,7 +151,8 @@ export default function SyncHistory() {
         })}
       </ul>
 
-      <Insight explain={explain} {...syncEvidence(rows, { view, tracking, openRows: (ids) => setOpenIds(new Set(ids)) })} />
+      {/* the footer at the bottom of the card (the row can be taller than the list) */}
+      <div className="mt-auto"><Insight explain={explain} {...syncEvidence(rows, { view, tracking, openRows: (ids) => setOpenIds(new Set(ids)) })} /></div>
     </Card>
   )
 }
