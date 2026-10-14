@@ -5,15 +5,16 @@ import SiteLogo from '../ui/SiteLogo'
 import Pie from '../ui/Pie'
 import { useCardBrand } from './BrandSelect'
 import { sourceLine } from './insights'
-import { OWN, TRACKED_BRANDS, brandByDomain, getBrandView } from '../../data/brandViews'
+import { OWN, TRACKED_BRANDS, appearances, brandByDomain, enginePid, getBrandView } from '../../data/brandViews'
 import { trackedPrompts } from '../../data/mock'
 import { useBrandView } from '../../hooks/useBrandView'
 import { navigate } from '../../router'
 import { useTracking } from '../../store/trackingSettings'
 
-// "Prompt coverage": how the tracked prompts split between the brands that show up in them — the selected brand
-// in ink, the rest in graphite steps by size. Same anatomy as Marketplace visibility: headline + pie + rows + insight.
-// prompts = tracked prompts where the brand appears in any (filtered) engine's answer; share = of all brands' prompts.
+// "Prompt coverage": share of brand appearances — each brand's appearances (tracked prompts whose answers on any
+// filtered engine name it) out of all brands' appearances. Pie: the selected brand in ink, the top 3 other brands in
+// graphite steps, the rest as one "Other brands" slice in tint. The list keeps every brand; prompts that name no brand
+// are a different base, so they're a line under the list, not a slice.
 const HOVER_DELAY = 80 // ms; sweeping across slices doesn't flicker through each one
 const STEPS = ['var(--data-c1)', 'var(--data-c2)', 'var(--data-c3)']
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`
@@ -36,11 +37,25 @@ export default function PromptCoverage() {
   const [domain, brandSelect] = useCardBrand({ triggerClassName: 'inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-line bg-raised px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-focus' })
   const total = trackedPrompts.length
   const counts = TRACKED_BRANDS.map((b) => ({ ...b, prompts: getBrandView(b.domain, engine).kpis.visible }))
+  const appearancesTotal = counts.reduce((n, b) => n + b.prompts, 0)
   const pct = shares(counts.map((b) => b.prompts))
-  // the selected brand first (ink), then the others by size (c1 → c3)
+  // the selected brand first (ink), then the others by size: top 3 in c1 → c3, the rest as "Other brands" (tint)
   const focal = counts.find((b) => b.domain === domain)
   const others = counts.filter((b) => b.domain !== domain).sort((a, b) => b.prompts - a.prompts)
-  const rows = [focal, ...others].map((b) => ({ ...b, share: pct[counts.indexOf(b)], color: b.domain === domain ? 'var(--ink)' : STEPS[others.indexOf(b)] }))
+  const top = others.filter((b) => b.prompts > 0).slice(0, 3)
+  const rest = others.filter((b) => b.prompts > 0 && !top.includes(b))
+  const colorOf = (b) => (b.domain === domain ? 'var(--ink)' : top.includes(b) ? STEPS[top.indexOf(b)] : rest.includes(b) ? 'var(--tint)' : 'transparent')
+  const rows = [focal, ...others].map((b) => ({ ...b, share: pct[counts.indexOf(b)], color: colorOf(b) }))
+  const otherSlice = rest.length
+    ? { domain: 'other', name: 'Other brands', prompts: rest.reduce((n, b) => n + b.prompts, 0), share: rest.reduce((n, b) => n + pct[counts.indexOf(b)], 0), color: 'var(--tint)' }
+    : null
+  const slices = [...rows.filter((r) => r.prompts > 0 && (r.domain === domain || top.some((b) => b.domain === r.domain))), ...(otherSlice ? [otherSlice] : [])]
+  // prompts whose answers (on the filtered engine) name no tracked brand
+  const pid = engine === 'all' ? null : enginePid(engine)
+  const noBrand = trackedPrompts.filter((p) => TRACKED_BRANDS.every((b) => {
+    const a = appearances[p.id]?.[b.domain]
+    return !(pid ? a?.platforms.includes(pid) : a?.visible)
+  })).length
   const own = domain === OWN.domain
 
   const [hover, setHover] = useState(null)
@@ -48,7 +63,7 @@ export default function PromptCoverage() {
   useEffect(() => () => clearTimeout(timer.current), [])
   const explain = useExplain(`${domain}|${engine}`)
   const preview = (d) => { if (explain.on) return; clearTimeout(timer.current); timer.current = setTimeout(() => setHover(d), HOVER_DELAY) }
-  const hovered = rows.find((r) => r.domain === hover)
+  const hovered = hover === 'other' ? otherSlice : rows.find((r) => r.domain === hover)
 
   // insight: the selected brand against its biggest rival, and the prompts it's missing from
   const rival = others[0]
@@ -56,15 +71,16 @@ export default function PromptCoverage() {
   const missed = total - focal.prompts
   const ratio = rival?.prompts ? Math.floor((focal.prompts >= rival.prompts ? focal.prompts / rival.prompts : rival.prompts / focal.prompts) || 0) : 0
   const x = ratio >= 2 ? `${ratio}× more` : 'More'
-  // one short line: the selected brand is implied ("4× more prompts than CeraVe.")
-  const first = !rival || !rival.prompts ? `In ${plural(focal.prompts, 'prompt')}.`
-    : focal.prompts >= rival.prompts ? `${x} prompts than ${rival.name}.`
-      : `${rival.name} has ${x.toLowerCase()} prompts than ${own ? 'you' : name}.`
+  const more = x === 'More' ? 'more' : x
+  // one short line ("Aurelia Labs appears in more answers than you.")
+  const first = !rival || !rival.prompts ? `In ${plural(focal.prompts, 'answer')}.`
+    : focal.prompts >= rival.prompts ? `${own ? 'You appear' : `${name} appears`} in ${more} answers than ${rival.name}.`
+      : `${rival.name} appears in ${more} answers than ${own ? 'you' : name}.`
   const insight = {
     text: first, // short, so it fits; the missed prompts are in the evidence line
     evidence: {
       keys: [`brand:${focal.domain}`, ...(rival ? [`brand:${rival.domain}`] : [])],
-      calc: `${name} shows up in ${plural(focal.prompts, 'prompt')}${rival ? `, ${rival.name} in ${rival.prompts}` : ''}. ${missed} of ${total} prompts have no ${name} mention.`,
+      calc: `${name} appears in ${plural(focal.prompts, 'answer')}${rival ? `, ${rival.name} in ${rival.prompts}` : ''}, of ${appearancesTotal} brand appearances.`,
       source: sourceLine(tracking),
       // the missed prompts live on /prompts for your own brand only (the action never truncates, unlike the line)
       ...(own && missed > 0 && { action: { label: plural(missed, 'prompt'), onClick: () => navigate('/tracker?visibility=missed') } }),
@@ -75,8 +91,8 @@ export default function PromptCoverage() {
   const hero = (r) => (
     <>
       <div className="text-[32px] leading-none font-semibold text-stone-900 tabular-nums">{r.share}%</div>
-      <div className="mt-1.5 truncate text-[13px] leading-[18px] text-stone-600">{r.domain === OWN.domain ? 'your share' : `${r.name}’s share`}</div>
-      <div className="mt-0.5 text-[12px] leading-4 text-stone-500 tabular-nums">{r.prompts} of {total} prompts</div>
+      <div className="mt-1.5 truncate text-[13px] leading-[18px] text-stone-600">{r.domain === OWN.domain ? 'your share' : r.domain === 'other' ? 'other brands’ share' : `${r.name}’s share`}</div>
+      <div className="mt-0.5 text-[12px] leading-4 text-stone-500 tabular-nums">{r.prompts} of {appearancesTotal} appearances</div>
     </>
   )
 
@@ -93,11 +109,11 @@ export default function PromptCoverage() {
             radius={60}
             labels={false}
             separator={1.5}
-            label={`Share of prompt appearances: ${rows.map((r) => `${r.name} ${r.share}%`).join(', ')}`}
-            slices={rows.map((r) => ({ key: r.domain, name: r.name, value: r.prompts, pct: r.share, fill: r.color, insightKey: `brand:${r.domain}` }))}
+            label={`Share of brand appearances: ${slices.map((r) => `${r.name} ${r.share}%`).join(', ')}`}
+            slices={slices.map((r) => ({ key: r.domain, name: r.name, value: r.prompts, pct: r.share, fill: r.color, insightKey: `brand:${r.domain}` }))}
             hover={explain.on ? null : hover}
             onHover={preview}
-            onSelect={(d) => navigate(promptsLink(d, engine))}
+            onSelect={(d) => d !== 'other' && navigate(promptsLink(d, engine))}
             dim={(d) => hlOpacity(explain, `brand:${d}`)}
           />
           <div className="grid min-w-0 flex-1" aria-live="polite">
@@ -132,6 +148,7 @@ export default function PromptCoverage() {
             )
           })}
         </ul>
+        {noBrand > 0 && <p className="mt-2 text-[13px] leading-[18px] text-stone-500 tabular-nums">{noBrand} {noBrand === 1 ? 'prompt mentions' : 'prompts mention'} no brand</p>}
       </div>
 
       <div className="mt-auto pb-3 pt-2"><Insight explain={explain} {...insight} /></div>

@@ -171,7 +171,8 @@ export default function CompetitorPrompts() {
       csv: (r) => (r.theirPage ? `https://${r.theirPage.domain}${r.theirPage.path}` : 'Mentioned, not linked'),
       cell: (r) => !r.theirPage ? <span className="text-small text-stone-500">Mentioned, not linked</span> : (
         <div className="flex min-w-0 items-center gap-1.5">
-          <span title={r.theirPage.domain} className="truncate text-small text-stone-600">{r.theirPage.path}</span>
+          {/* a site's home page is cited as "/": show the site instead */}
+          <span title={r.theirPage.domain} className="truncate text-small text-stone-600">{r.theirPage.path === '/' ? r.theirPage.domain : r.theirPage.path}</span>
           <a
             href={`https://${r.theirPage.domain}${r.theirPage.path}`}
             target="_blank"

@@ -5,7 +5,6 @@ import Card from './Card'
 import Insight, { hl, hlOpacity, useExplain } from '../ui/Insight'
 import { marketplaceEvidence } from './insights'
 import { useTracking } from '../../store/trackingSettings'
-import { MarketplaceIcon } from './icons'
 import { marketplace } from '../../data/mock'
 import SiteLogo from '../ui/SiteLogo'
 import { brandName, isDomain } from '../../utils/brand'
@@ -14,7 +13,9 @@ import { useBrandView } from '../../hooks/useBrandView'
 
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const pct = (n, d) => Math.round((n / d) * 100)
-const MARKETS = { target: 'Target', amazon: 'Amazon' }
+// the marketplaces in the subtitle: "A", "A or B", "A, B or C", "A, B and 2 more"
+const storeList = (names) => (names.length > 3 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`
+  : names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1)}` : names[0] ?? 'a marketplace')
 // the 20px box every non-brand row gets, so all names start at the same x
 const GLYPH = { category: LayoutGrid, web: Globe, reviews: Star, forums: MessagesSquare }
 // by count, high → low; Category pages always last
@@ -103,7 +104,7 @@ function MarketplaceCard() {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="text-title font-semibold text-stone-900">Marketplace visibility</h2>
-          <p className="mt-0.5 text-[13px] leading-[18px] font-normal text-stone-600 proportional-nums">How {m.total} tracked prompts link to Amazon or Target</p>
+          <p className="mt-0.5 text-[13px] leading-[18px] font-normal text-stone-600 proportional-nums">How {m.total} tracked prompts link to {storeList(m.stores)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <button
@@ -215,13 +216,14 @@ function MarketplaceCard() {
                         key={r.label}
                         {...hl(explain, `row:${r.label}`, { row: true })}
                         // full domain for brands; marketplace rows explain the overlap ("2 prompts link to both")
-                        title={domain ? r.label : MARKETS[r.icon] ? s.note : undefined}
+                        title={domain ? r.label : r.domain ? s.note : undefined}
                         className="flex h-9 items-center justify-between gap-3 text-[14px] leading-5"
                       >
                         <span className="flex min-w-0 items-center gap-2.5">
                           {domain ? <SiteLogo domain={r.label} name={brandName(r.label)} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" plate />
-                            : MARKETS[r.icon] ? <span className="grid h-5 w-5 shrink-0 place-items-center" aria-hidden><MarketplaceIcon name={MARKETS[r.icon]} size={16} /></span>
-                              : <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md border border-line text-stone-600" aria-hidden>{Glyph && <Glyph size={14} />}</span>}
+                            : r.domain ? <SiteLogo domain={r.domain} name={r.label} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" plate />
+                              : Glyph ? <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md border border-line text-stone-600" aria-hidden><Glyph size={14} /></span>
+                                : <SiteLogo name={r.label} className="h-5 w-5 rounded-md" initialClass="text-[10px]" />}
                           <span className={`truncate ${own ? 'font-semibold text-ink' : 'text-stone-900'}`}>{domain ? brandName(r.label) : r.label}</span>
                         </span>
                         <span className={`font-semibold tabular-nums ${own ? 'text-ink' : 'text-stone-900'}`}>{r.value}</span>

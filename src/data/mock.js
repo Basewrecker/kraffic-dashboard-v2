@@ -229,6 +229,10 @@ export const brands = {
 }
 const brandWeights = ['cerave.com', 'cerave.com', 'cerave.com', 'theordinary.com', 'theordinary.com', 'paulaschoice.com', 'lumiere-labs.com', 'dewdrop-skin.com']
 
+// logos stored for a brand or marketplace, by domain (Setup uploads); SiteLogo falls back to the favicon, then the initial.
+// None stored in this demo.
+export const brandLogos = {}
+
 // platform ids match PlatformIcon (google = AI Overview)
 export const platformNames = { google: 'Google AI Overview', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude', grok: 'Grok' }
 
@@ -626,8 +630,8 @@ export const marketplace = {
     { key: 'yours', label: YOU, count: MARKET_YOURS, color: 'var(--donut-yours)',
       headline: `link to a ${YOU} listing`,
       breakdownTitle: 'By marketplace',
-      rows: [{ label: 'Target', icon: 'target', value: 12 },
-             { label: 'Amazon', icon: 'amazon', value: 8 }],
+      rows: [{ label: 'Target', icon: 'target', domain: 'target.com', value: 12 },
+             { label: 'Amazon', icon: 'amazon', domain: 'amazon.com', value: 8 }],
       note: '2 prompts link to both',
       action: { label: `View ${MARKET_YOURS} prompts`, filter: 'yours' } },
     // every marketplace citation, yours included: the slice is the others (112), the panel counts all of them (130)
@@ -698,6 +702,10 @@ export const marketplace = {
       : (m === 'Amazon' ? `/${item}/dp/B0${7000 + id}` : `/p/${item}/-/A-${81000 + id}`)
     return { id, prompt, result: b.result, markets, ...(b.brand && { brand: b.brand }), page: { domain: host[m], path } }
   })
+  // the marketplaces the answers link to, most prompts first (Marketplace visibility subtitle)
+  const n = {}
+  marketplace.prompts.forEach((r) => r.markets.forEach((m) => { n[m] = (n[m] ?? 0) + 1 }))
+  marketplace.stores = Object.keys(n).sort((a, b) => n[b] - n[a])
 }
 
 // ---------------------------------------------------------------------------
