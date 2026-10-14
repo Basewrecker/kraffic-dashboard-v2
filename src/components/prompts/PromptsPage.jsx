@@ -9,7 +9,6 @@ import { PrimaryButton, SecondaryButton, useToast } from '../dashboard/overlays'
 import { PlatformIcon } from '../dashboard/icons'
 import { MenuSelect } from '../dashboard/PageHeader'
 import LogoStack from '../dashboard/LogoStack'
-import { CompetitorPromptsTable } from '../dashboard/PromptTables'
 import AnswerDrawer, { openAnswer } from '../answer/AnswerDrawer'
 import ConfirmPopover from './ConfirmPopover'
 import { useInlineEdit } from '../../hooks/useInlineEdit'
@@ -618,9 +617,6 @@ function PromptHub() {
           onClearFilters={filtered ? clearFilters : null}
         />
       )}
-
-      {/* who shows up for each prompt: the dashboard's Prompt mix, unchanged */}
-      {!empty && <CompetitorPromptsTable />}
 
       {confirm && (
         <ConfirmPopover
