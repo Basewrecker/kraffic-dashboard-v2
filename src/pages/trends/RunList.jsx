@@ -15,6 +15,8 @@ export default function RunList() {
       <div>
         <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Trends</h1>
         <p className={`mt-1 text-[13px] leading-[18px] ${t2} lg:text-[14px] lg:leading-5`}>See how news and social channels talk about any topic.</p>
+        {/* until Trends has a backend, its runs are sample data */}
+        <p className={`mt-1 text-[13px] leading-[18px] ${t3}`}>Preview with sample data</p>
       </div>
       <NewAnalysis />
       <Runs />

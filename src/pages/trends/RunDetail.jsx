@@ -53,6 +53,8 @@ export default function RunDetail({ runId }) {
             {done ? `${run.mentions} ${run.mentions === 1 ? 'mention' : 'mentions'} from news and social · ${run.region} · Ran ${fmtDate(run.createdAt)}`
               : run.status === 'running' ? `${run.region} · Started ${fmtDate(run.createdAt)}` : `${run.region} · Tried ${fmtDate(run.createdAt)}`}
           </p>
+          {/* until Trends has a backend, its runs are sample data */}
+          <p className={`mt-1 text-[13px] leading-[18px] ${t3}`}>Preview with sample data</p>
         </div>
         <div className="flex shrink-0 items-center gap-2 lg:pt-6">
           <button type="button" onClick={doRerun} disabled={run.status === 'running'} className={`${lineBtn} max-lg:h-10 max-lg:flex-1`}><RefreshCw size={14} aria-hidden />Re-run</button>
