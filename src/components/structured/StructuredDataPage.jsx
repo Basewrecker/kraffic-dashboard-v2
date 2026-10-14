@@ -11,9 +11,10 @@ import ActionMenu from '../audit/ActionMenu'
 import MobileActions from '../ui/MobileActions'
 import { ImpactMeter, RowIcon, ViewFix, openDrawer, rowBtn, setParams, useTab } from '../audit/parts'
 import SchemaDrawer, { setSchemaSection } from './SchemaDrawer'
-import SettingsTab from './SettingsTab'
+import SettingsTab, { crawlSettings } from './SettingsTab'
+import DrawerShell, { useDrawer } from '../audit/DrawerShell'
 import SchemaRing, { RING_COLORS } from './SchemaRing'
-import { useSettings } from './settings'
+import { saveSettings, useSettings } from './settings'
 import { PendingCheck, StatusIcon, StatusLabel, pagesLine, usePending } from './parts'
 import { SD, crawlActions } from '../../data/structuredData'
 import { IMPORTANCE, KINDS, PAGE_COUNT, STATUS, analyze, isPageType, pageFor } from './analyze'
@@ -40,7 +41,10 @@ const Bar = ({ value, className = 'h-1.5 w-full' }) => (
 
 export default function StructuredDataPage() {
   useEffect(() => { document.title = 'Structured Data · Kraffic' }, [])
-  const [tab, setTab, q] = useTab(TAB_IDS)
+  // Settings: only when the backend saves 2 or more crawl settings besides Pages to crawl
+  const hasSettings = crawlSettings().length >= 2
+  const tabIds = hasSettings ? TAB_IDS : TAB_IDS.filter((id) => id !== 'settings')
+  const [tab, setTab, q] = useTab(tabIds)
   const tabsRef = useRef(null)
   useEffect(() => { tabsRef.current?.querySelector('[aria-selected=true]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [tab])
   const scope = q.get('scope') === 'page' ? 'page' : 'site'
@@ -54,7 +58,7 @@ export default function StructuredDataPage() {
   const type = isPageType(rawType) ? rawType : null
   useEffect(() => { if (rawType != null && !type) setParams({ type: null }) }, [rawType, type])
   const typeResult = useMemo(() => (type && scope === 'site' ? analyze(null, type) : null), [type, scope])
-  const [lastRun, setLastRun] = useState(SD.lastRun?.date ?? null)
+  const [lastRun, setLastRun] = useState(SD.lastRun ?? null)
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState(null)
   const [howOpen, setHowOpen] = useState(false)
@@ -66,13 +70,27 @@ export default function StructuredDataPage() {
     setRunning(true)
     setRunError(null)
     crawlActions.onRunCrawl({ maxPages: settings.maxPages })
-      .then((res) => { setLastRun(res?.lastRun?.date ?? today()); toast(`Crawl finished · ${res?.lastRun?.pages ?? PAGE_COUNT} pages`) })
+      .then((res) => { setLastRun(res?.lastRun ?? { ...lastRun, date: today() }); toast(`Crawl finished · ${res?.lastRun?.pages ?? PAGE_COUNT} pages`) })
       .catch((err) => setRunError(err?.message || 'The crawl couldn’t finish.'))
       .finally(() => setRunning(false))
   }
+  // "50 pages · 2 errors · last run Oct 12": errors only when there are some (negative; a list opens the failed pages)
+  const failed = lastRun?.failed ?? null
+  const errors = failed?.length ?? lastRun?.errors ?? 0
+  const errorsCls = 'rounded text-negative outline-none focus-visible:ring-2 focus-visible:ring-focus'
   const runLine = running
     ? <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="animate-[spin_600ms_linear_infinite] motion-reduce:animate-none" aria-hidden />Crawling… this can take a few minutes</span>
-    : lastRun ? `${PAGE_COUNT} pages · last run ${lastRun}` : null
+    : lastRun?.date ? (
+      <>
+        {lastRun.pages ?? PAGE_COUNT} pages
+        {errors > 0 && <> · {failed?.length
+          ? <button type="button" onClick={() => openDrawer('crawl', 'errors')} className={`${errorsCls} underline-offset-4 hover:underline`}>{errors} {errors === 1 ? 'error' : 'errors'}</button>
+          : <span className="text-negative">{errors} {errors === 1 ? 'error' : 'errors'}</span>}</>}
+        {' '}· last run {lastRun.date}
+      </>
+    ) : null
+  // Pages to crawl: saved with the page's settings, sent with the next run
+  const setMaxPages = (n) => { if (n !== settings.maxPages) { saveSettings({ maxPages: n }); toast(`Next run crawls up to ${n} pages`) } }
   // a failed crawl: the reason (it can be long) on its own line under the subtitle, with Retry
   const failLine = !running && runError && (
     <p role="alert" className="mt-2 text-[13px] leading-[18px] text-negative">
@@ -95,12 +113,12 @@ export default function StructuredDataPage() {
   const exportReport = () => { if (result) { downloadReport(result, page); toast('Client report downloaded') } }
 
   const counts = result ? { schemas: result.rows.length, recommendations: result.fix.length + result.toAdd.length } : {}
-  const tabs = [['overview', 'Overview'], ['schemas', 'Schemas'], ['recommendations', 'Recommendations'], ['settings', 'Settings']]
+  const tabs = [['overview', 'Overview'], ['schemas', 'Schemas'], ['recommendations', 'Recommendations'], ['settings', 'Settings']].filter(([id]) => tabIds.includes(id))
   const tabKeys = (e) => {
     const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key]
     if (!step) return
     e.preventDefault()
-    const next = TAB_IDS[(TAB_IDS.indexOf(tab) + step + TAB_IDS.length) % TAB_IDS.length]
+    const next = tabIds[(tabIds.indexOf(tab) + step + tabIds.length) % tabIds.length]
     setTab(next, { set: null, status: null, type: null })
     requestAnimationFrame(() => document.querySelector(`[data-sd-tab="${next}"]`)?.focus())
   }
@@ -129,10 +147,17 @@ export default function StructuredDataPage() {
             </ActionMenu>
             <button type="button" onClick={share} className={lineBtn}><Share2 size={14} aria-hidden />Share</button>
           </span>}
+          {/* Re-run + its menu: how many pages the next run crawls */}
           {SD.crawled && (
-            <button type="button" onClick={rerun} disabled={running} className={`${inkBtn} justify-center max-lg:h-10 max-lg:flex-1`}>
-              <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />Re-run
-            </button>
+            <span className="flex max-lg:h-10 max-lg:flex-1">
+              <button type="button" onClick={rerun} disabled={running} className={`${inkBtn} justify-center rounded-r-none max-lg:h-10 max-lg:flex-1`}>
+                <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />Re-run
+              </button>
+              <ActionMenu label="Pages to crawl" heading="Pages to crawl" items={[25, 50, 100, 200].map((n) => ({ label: `${n} pages`, checked: settings.maxPages === n, onClick: () => setMaxPages(n) }))}
+                className={`${inkBtn} h-9 rounded-l-none border-l border-[color-mix(in_srgb,var(--on-ink)_20%,transparent)] px-2 max-lg:h-10`}>
+                <ChevronDown size={14} aria-hidden />
+              </ActionMenu>
+            </span>
           )}
           {SD.crawled && <MobileActions items={[
             { label: 'Export CSV', icon: Download, onClick: exportCsv },
@@ -174,7 +199,7 @@ export default function StructuredDataPage() {
 
       <div id="sd-panel" role="tabpanel" aria-labelledby={`sd-tab-${tab}`} className="mt-2 flex flex-col gap-4">
         <ErrorBoundary resetKey={`${tab}|${scope}|${url}|${type}`} name={`Structured Data · ${tab}`}>
-        {tab === 'settings' ? <SettingsTab onRun={rerun} running={running} lastRun={lastRun} />
+        {tab === 'settings' ? <SettingsTab />
           : !result ? (
             <Card className="px-5 py-10 text-center">
               <p className={`text-[14px] leading-5 ${t2}`}>{page?.error ?? `Enter a page on ${SD.domain} above and press Analyze.`}</p>
@@ -187,6 +212,7 @@ export default function StructuredDataPage() {
       </>)}
 
       <HowModal open={howOpen} onClose={() => setHowOpen(false)} />
+      {failed?.length > 0 && <CrawlErrors failed={failed} date={lastRun.date} />}
       <ErrorBoundary name="Schema drawer" floating><SchemaDrawer result={result} scope={scope} /></ErrorBoundary>
       {toastNode}
     </>
@@ -827,4 +853,24 @@ function downloadReport(r, page) {
   a.download = `structured-data-report-${new Date().toISOString().slice(0, 10)}.html`
   a.click()
   URL.revokeObjectURL(a.href)
+}
+
+// ?crawl=errors: the pages the last crawl couldn't read. The lookup returns the same object each render.
+const ERRORS_ITEM = { id: 'errors' }
+const findErrors = (id) => (id === 'errors' ? ERRORS_ITEM : null)
+function CrawlErrors({ failed, date }) {
+  const drawer = useDrawer('crawl', findErrors)
+  if (!drawer.item) return null
+  return (
+    <DrawerShell drawer={drawer} title={`${failed.length} ${failed.length === 1 ? 'page' : 'pages'} failed`} meta={<span>Run of {date} · these pages weren’t analyzed</span>}>
+      <ul className="mt-4 divide-y divide-[var(--div)] border-y border-[var(--div)]">
+        {failed.map((f) => (
+          <li key={f.path} className="flex h-12 items-center justify-between gap-3 text-[14px] leading-5 tabular-nums">
+            <span className="min-w-0 truncate text-stone-900" title={f.path}>{f.path}</span>
+            <span className={`shrink-0 text-[13px] leading-[18px] ${t2}`}>{[f.status, f.reason].filter(Boolean).join(' · ')}</span>
+          </li>
+        ))}
+      </ul>
+    </DrawerShell>
+  )
 }

@@ -7,17 +7,18 @@ export const SD = {
   domain: 'dermasuri.com',
   brand: 'Dermasuri',
   crawled: true,
-  lastRun: { date: 'Oct 12', time: '09:04', took: '3 min', pages: 50, errors: 2, skipped: 0 },
+  // the last crawl. failed: the pages it couldn't read (crawl pages with an error status: GET /projects/:id/crawl/pages,
+  // WebPage.status), listed in the header's "{n} errors" drawer (a backend with only a count passes errors instead).
+  // No run history (no data for it).
+  lastRun: {
+    date: 'Oct 12', time: '09:04', took: '3 min', pages: 50, skipped: 0,
+    failed: [
+      { path: '/pages/stores', status: 404, reason: 'Not found' },
+      { path: '/blog/post-12', status: 500, reason: 'Server error' },
+    ],
+  },
   // the run before, for the Overview's change lines (null when there's no earlier run to compare with)
   previous: { date: 'Sep 14', required: 33, coverage: 44, fullyValid: 3, warnings: 13 },
-  // run history, newest first (Settings → View run history)
-  runs: [
-    { date: 'Oct 12', time: '09:04', took: '3 min', pages: 50, errors: 2, skipped: 0 },
-    { date: 'Sep 14', time: '09:02', took: '3 min', pages: 50, errors: 2, skipped: 0 },
-    { date: 'Aug 17', time: '09:05', took: '4 min', pages: 48, errors: 3, skipped: 2 },
-    { date: 'Jul 13', time: '09:03', took: '3 min', pages: 47, errors: 3, skipped: 0 },
-    { date: 'Jun 16', time: '09:01', took: '3 min', pages: 45, errors: 4, skipped: 1 },
-  ],
 }
 
 // ---- 50 pages: home, 20 products, 8 collections, 15 posts, 6 info pages
@@ -161,7 +162,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 export const crawlActions = {
   canMarkDone: true, // "What to do next": mark a step done
   canMarkAdded: true, // schema drawer: Mark as added / Mark as fixed
-  canEditCrawlSettings: false, // sitemap, include / exclude paths, schedule, alerts (no save for them yet)
+  canEditCrawlSettings: false, // sitemap, include / exclude paths, schedule, alerts (no save for them yet): the Settings tab
+  // Pages to crawl (25 / 50 / 100 / 200) is in Re-run's menu: saved with the page's settings, sent with the next run.
   // → { lastRun } when the crawl has finished; rejects with the reason when it fails
   async onRunCrawl({ maxPages } = {}) {
     await sleep(1800)
