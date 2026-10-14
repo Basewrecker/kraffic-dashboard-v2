@@ -5,7 +5,7 @@ import { linkClick } from '../router'
 import { account } from '../data/mock'
 
 // A brand with no data yet (switched to from the workspace menu): every data page shows this instead of its content.
-const TITLES = { '/overview': 'Visibility Overview', '/tracker': 'Prompt Hub', '/trends': 'Trends', '/audit': 'Site Audit', '/structured-data': 'Structured Data', '/more-tools': 'Toolkit', '/more-tools/tool': 'Toolkit' }
+const TITLES = { '/overview': 'Visibility Overview', '/tracker': 'Prompt Hub', '/trends': 'Trends', '/audit': 'Site Audit', '/structured-data': 'Structured Data', '/more-tools': 'Toolkit', '/more-tools/tool': 'Toolkit', '/citations': 'Citations', '/sentiment': 'Sentiment', '/fact-check': 'Fact Check' }
 export default function EmptyBrand({ route }) {
   const title = TITLES[route] ?? 'Overview'
   useEffect(() => { document.title = `${title} · ${account.name} · Kraffic` }, [title])
