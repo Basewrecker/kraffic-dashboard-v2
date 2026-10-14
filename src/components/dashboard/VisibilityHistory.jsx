@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Bar, BarChart as RBarChart, CartesianGrid, LabelList, Line, LineChart as RLineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart as RBarChart, CartesianGrid, Cell, LabelList, Line, LineChart as RLineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useIsMobile } from '../../hooks/useMedia'
 import { BarChart3, Check, ChevronDown, LineChart, TrendingUp } from 'lucide-react'
 import Card from './Card'
@@ -83,12 +83,14 @@ function LegendBox({ color: c, checked }) {
 
 const fmtDelta = (d) => (d > 0 ? `+${d}` : d < 0 ? `−${Math.abs(d)}` : '0')
 
-function HistoryTooltip({ active, payload, label, series, compare, unit, line = false }) {
+function HistoryTooltip({ active, payload, label, series, compare, unit, line = false, byValue = false }) {
   if (!active || !payload?.length) return null
   const delta = payload[0]?.payload?.delta
   // line mode: vibrant swatches, 8px rounded-[2px], your row first at 500
+  // byValue (bar mode): your row first, then the others by value, highest first
   const YOU = FOCAL.key
-  const rows = line ? [...series].sort((a, b) => (b.key === YOU) - (a.key === YOU)) : series
+  const value = (s) => payload.find((p) => p.dataKey === s.key)?.value ?? -1
+  const rows = line ? [...series].sort((a, b) => (b.key === YOU) - (a.key === YOU) || (byValue ? value(b) - value(a) : 0)) : series
   return (
     <div className="rounded-lg border border-stone-200 bg-raised px-3 py-2 text-small shadow-sm">
       <div className="mb-1 font-semibold text-stone-900">{label}</div>
@@ -184,16 +186,6 @@ function GrowthValueLabel({ x, y, width = 0, height = 0, value }) {
   )
 }
 
-// share value inside the top of a "you" bar (Bar view)
-function InsideValueLabel({ x, y, width = 0, height = 0, value }) {
-  if (value == null || height < 24) return null
-  return (
-    <text x={x + width / 2} y={y + 17} textAnchor="middle" fontSize={12} fontWeight={500} className="num" fill="var(--color-on-ink)">
-      {value}
-    </text>
-  )
-}
-
 export default function VisibilityHistory() {
   const mobile = useIsMobile()
   const { focal, isOwnBrand, engine } = useBrandView()
@@ -202,6 +194,7 @@ export default function VisibilityHistory() {
   const COMPETITORS = historySeries.filter((s) => s.key !== YOU)
   const [view, setView] = useState(readView)
   const [hovered, setHovered] = useState(null) // series key highlighted from the legend
+  const [barGroup, setBarGroup] = useState(null) // bar mode: index of the date group under the pointer
   useEffect(() => writeView(view), [view])
 
   // the chart reads ONLY this
@@ -242,10 +235,10 @@ export default function VisibilityHistory() {
   const g = h.growth
 
   // ---- shared plot furniture; returned as a keyed array so Recharts sees direct children
-  const furniture = ({ yDomain, yTicks, yFormat, tooltip, cursor, xPadding }) => [
+  const furniture = ({ yDomain, yTicks, yFormat, tooltip, cursor, xPadding, interval }) => [
     <CartesianGrid key="grid" vertical={false} stroke={chart.track} strokeWidth={1} />,
     // phones: at most 4 date labels, a 28px Y axis
-    <XAxis key="x" dataKey="date" tickMargin={12} tickLine={false} axisLine={false} tick={tick} padding={xPadding} interval={mobile ? Math.max(0, Math.ceil(points.length / 4) - 1) : 'preserveEnd'} />,
+    <XAxis key="x" dataKey="date" tickMargin={12} tickLine={false} axisLine={false} tick={tick} padding={xPadding} interval={interval ?? (mobile ? Math.max(0, Math.ceil(points.length / 4) - 1) : 'preserveEnd')} />,
     <YAxis key="y" width={mobile ? 30 : 36} tickMargin={mobile ? 4 : 8} domain={yDomain} ticks={yTicks} tickFormatter={yFormat} allowDataOverflow tickLine={false} axisLine={false} tick={tick} />,
     <Tooltip key="tip" cursor={cursor} content={tooltip} />,
   ]
@@ -284,14 +277,22 @@ export default function VisibilityHistory() {
       )
     }
     if (view.chart === 'bar') {
-      // share per period: grouped (Compare on) / single (off); share value inside the top of each "you" bar
+      // share per period: one group per date, centred on its tick, in the line colours (same chart, other view).
+      // 8px bars, 2px apart (phones 6 / 1); Compare off: your bars alone, 12px. No value labels: the tooltip has them.
+      // Hovering a group dims the others to 35%.
+      const size = compare ? (mobile ? 6 : 8) : 12
+      const groupOpacity = (i) => (barGroup == null || String(barGroup) === String(i) ? 1 : 0.35)
       return (
-        <RBarChart data={points} barCategoryGap="11%" barGap={4} margin={{ ...margin, right: compare ? margin.right : AVG_GUTTER }}>
-          {furniture({ yDomain: domain, yTicks: ticks, tooltip: shareTooltip, cursor: { fill: chart.track, fillOpacity: 0.6, radius: 8 } })}
-          {!compare && avgLine(stats.average, `Avg ${stats.average}%`, true)}
+        <RBarChart data={points} barSize={size} barGap={mobile ? 1 : 2} margin={margin}
+          onMouseMove={(st) => setBarGroup(st?.isTooltipActive ? st.activeTooltipIndex : null)} onMouseLeave={() => setBarGroup(null)}>
+          {furniture({ yDomain: domain, yTicks: ticks, tooltip: <HistoryTooltip series={series} compare={compare} unit={stats.unit} line byValue />, cursor: false,
+            interval: mobile ? (points.length > 6 ? 1 : 0) : undefined })}
+          {!compare && avgLine(stats.average, `Avg ${stats.average}%`)}
           {series.map((s) => (
-            <Bar key={s.key} dataKey={s.key} name={s.label} fill={color(s)} fillOpacity={dim(s.key)} radius={[6, 6, 0, 0]} maxBarSize={44} {...ANIM}>
-              {s.key === YOU && <LabelList dataKey={s.key} content={InsideValueLabel} />}
+            <Bar key={s.key} dataKey={s.key} name={s.label} fill={lineColor(s)} radius={[3, 3, 0, 0]} {...ANIM}>
+              {points.map((p, i) => (
+                <Cell key={p.date} fillOpacity={dim(s.key) * groupOpacity(i)} style={{ transition: 'fill-opacity 150ms ease-out' }} />
+              ))}
             </Bar>
           ))}
         </RBarChart>
@@ -332,18 +333,12 @@ export default function VisibilityHistory() {
                 onMouseLeave={() => setHovered(null)}
                 onFocus={() => shown && setHovered(s.key)}
                 onBlur={() => setHovered(null)}
-                className={isLine
-                  ? `inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 text-[14px] leading-5 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
+                className={`inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 text-[14px] leading-5 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'font-medium text-stone-900' : 'font-normal text-stone-600'
-                  }`
-                  : `inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 text-small outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
-                    shown ? 'bg-tint text-stone-900' : 'bg-transparent text-stone-600/60 hover:text-stone-600'
                   }`}
                 title={lastOne ? 'At least one brand stays on the chart' : shown ? `Hide ${brandName(s.label)}` : `Show ${brandName(s.label)}`}
               >
-                {isLine
-                  ? <LegendBox color={lineColor(s)} checked={shown} />
-                  : <span className="h-2 w-2 rounded-full" style={shown ? { background: color(s) } : { boxShadow: `inset 0 0 0 1.5px ${color(s)}` }} />}
+                <LegendBox color={lineColor(s)} checked={shown} />
                 {brandName(s.label)}
               </button>
     )
@@ -381,17 +376,13 @@ export default function VisibilityHistory() {
         <Switch checked={compare} onChange={setCompare} className="shrink-0">Compare</Switch>
         <span className="mx-3 h-5 w-px bg-stone-200" aria-hidden />
         {/* focal brand: a toggle like the others while comparing (hide it to see the rest alone); fixed otherwise */}
-        {compare ? chip(historySeries.find((s) => s.key === YOU)) : isLine ? (
+        {compare ? chip(historySeries.find((s) => s.key === YOU)) : (
           <span className="inline-flex h-8 items-center gap-2 px-1 text-[14px] leading-5 font-medium text-stone-900">
             <LegendBox color={chart.lineYou} checked /> {focal.name}
           </span>
-        ) : (
-          <span className="inline-flex h-8 items-center gap-2 px-1 text-small font-medium text-stone-900">
-            <span className="h-2 w-2 rounded-full" style={{ background: chart.you }} /> {focal.name}
-          </span>
         )}
         <div
-          className={`flex items-center overflow-hidden transition-[max-width,opacity] duration-200 ease-out ${isLine ? 'gap-0.5' : 'gap-1.5'} ${compare ? `${isLine ? 'ml-0.5' : 'ml-2'} max-w-[640px] opacity-100` : 'max-w-0 opacity-0'}`}
+          className={`flex items-center overflow-hidden transition-[max-width,opacity] duration-200 ease-out gap-0.5 ${compare ? 'ml-0.5 max-w-[640px] opacity-100' : 'max-w-0 opacity-0'}`}
           aria-hidden={!compare}
         >
           {COMPETITORS.map((s) => chip(s))}
