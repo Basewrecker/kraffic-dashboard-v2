@@ -75,6 +75,12 @@ function usedOnLabel(applicable, scopeSize) {
   const words = kinds.map((k, i) => (i ? KINDS[k].toLowerCase() : KINDS[k]))
   return words.join(' & ')
 }
+// a step's title when the reference has none for this issue: a missing required property → "Add “url” to Organization";
+// anything else → "Fix Organization: <what the crawl found>"
+const actionFor = (issue, name) => {
+  const field = issue.message.match(/missing required property “([^”]+)”/)?.[1]
+  return field ? `Add “${field}” to ${name}` : `Fix ${name}: ${issue.message.replace(/\.$/, '')}`
+}
 const steps = (fix) => (Array.isArray(fix) ? fix : fix ? [fix] : [])
 const label = (score) => (score >= 90 ? 'Excellent' : score >= 70 ? 'Good' : score >= 50 ? 'Fair' : 'Poor')
 
@@ -106,7 +112,7 @@ export function analyze(page = null, kind = null) {
       const level = issue.severity === 'error' ? 'error' : 'warning'
       return {
         id: `${s.id}--${slug(issue.code)}`, kind: 'fix', schemaId: s.id, name: `${s.name} · ${issue.message}`, title: issue.message,
-        action: words.action ?? `Fix ${s.name}: ${issue.message.charAt(0).toLowerCase()}${issue.message.slice(1).replace(/\.$/, '')}`,
+        action: words.action ?? actionFor(issue, s.name),
         effort: words.effort ?? 15, level, status: level === 'error' ? 'invalid' : 'warning', importance: s.importance,
         impact: words.impact ?? (level === 'error' ? IMPACT_BY_IMPORTANCE[s.importance] : 'low'), desc: issue.message,
         why: fill(words.why ?? s.why), how: steps(issue.fix).length ? steps(issue.fix) : undefined, snippet: issue.example ?? s.snippet, doc: s.doc, type: s.name,

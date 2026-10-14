@@ -71,9 +71,14 @@ export default function StructuredDataPage() {
   }
   const runLine = running
     ? <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="animate-[spin_600ms_linear_infinite] motion-reduce:animate-none" aria-hidden />Crawling… this can take a few minutes</span>
-    : runError
-      ? <span role="alert" className="inline-flex items-center gap-2"><span className="text-negative">Crawl failed: {runError}</span><button type="button" onClick={rerun} className="rounded font-medium text-ink underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Retry</button></span>
-      : lastRun ? `${PAGE_COUNT} pages · last run ${lastRun}` : null
+    : lastRun ? `${PAGE_COUNT} pages · last run ${lastRun}` : null
+  // a failed crawl: the reason (it can be long) on its own line under the subtitle, with Retry
+  const failLine = !running && runError && (
+    <p role="alert" className="mt-2 text-[13px] leading-[18px] text-negative">
+      Crawl failed: {runError}{' '}
+      <button type="button" onClick={rerun} className="ml-1 rounded font-medium text-ink underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Retry</button>
+    </p>
+  )
   const share = () => { navigator.clipboard?.writeText(window.location.href).catch(() => {}); toast('Link copied') }
 
   const stamp = new Date().toISOString().slice(0, 10)
@@ -112,25 +117,27 @@ export default function StructuredDataPage() {
           </div>
           <p className="mt-1 line-clamp-2 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Which schemas Google and AI engines can read on {SD.domain}</p>
           {runLine && <p className={`mt-1 text-[13px] leading-[18px] ${t3} tabular-nums lg:hidden`}>{runLine}</p>}
+          {SD.crawled && failLine}
         </div>
         <div className="flex shrink-0 items-center gap-2 lg:pt-1">
           {runLine && <span className={`mr-1 hidden whitespace-nowrap lg:inline text-[13px] leading-[18px] ${t3} tabular-nums`}>{runLine}</span>}
-          <span className="hidden items-center gap-2 lg:flex">
+          {/* nothing to export or share before the first crawl */}
+          {SD.crawled && <span className="hidden items-center gap-2 lg:flex">
             <ActionMenu label="Export" items={[{ label: 'CSV', onClick: exportCsv }, { label: 'Client report', onClick: exportReport }]} className={lineBtn}>
               Export <ChevronDown size={14} className="text-stone-500" aria-hidden />
             </ActionMenu>
             <button type="button" onClick={share} className={lineBtn}><Share2 size={14} aria-hidden />Share</button>
-          </span>
+          </span>}
           {SD.crawled && (
             <button type="button" onClick={rerun} disabled={running} className={`${inkBtn} justify-center max-lg:h-10 max-lg:flex-1`}>
               <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />Re-run
             </button>
           )}
-          <MobileActions items={[
+          {SD.crawled && <MobileActions items={[
             { label: 'Export CSV', icon: Download, onClick: exportCsv },
             { label: 'Client report', icon: FileText, onClick: exportReport },
             { label: 'Share link', icon: Share2, onClick: share },
-          ]} />
+          ]} />}
         </div>
       </div>
 
@@ -144,6 +151,7 @@ export default function StructuredDataPage() {
             <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />{running ? 'Crawling…' : 'Run crawl'}
           </button>
           {runLine && <p className={`text-[13px] leading-[18px] ${t3}`}>{runLine}</p>}
+          {failLine}
         </Card>
       ) : (<>
       {/* tabs, with the scope toggle on the same row (right) */}
