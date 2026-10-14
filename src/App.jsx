@@ -29,6 +29,8 @@ import { DashboardViewProvider } from './hooks/useBrandView'
 import AnswerDrawer from './components/answer/AnswerDrawer'
 import EngineDrawer from './components/answer/EngineDrawer'
 import SyncDrawer from './components/answer/SyncDrawer'
+import { AppLoading, PageError, PageLoading, PageNotFound } from './components/ui/PageState'
+import CookieBanner from './components/ui/CookieBanner'
 
 
 function DashboardPage() {
@@ -75,6 +77,14 @@ export default function App() {
   const Page = PAGES[route] ?? DashboardPage
   // a brand with no data yet: data pages show the empty state (Brand Setup, Tracking and Billing still work)
   const empty = currentBrand.data === 'empty' && !['/brands', '/tracking', '/billing'].includes(route)
+  // ?state= previews the states the app shows around a page (components/ui/PageState.jsx, ui/CookieBanner.jsx):
+  // app-loading (before the sidebar draws) · loading · error · notfound · cookies
+  const state = new URLSearchParams(window.location.search).get('state')
+  if (state === 'app-loading') return <AppLoading />
+  const body = state === 'loading' ? <PageLoading />
+    : state === 'error' ? <PageError message="The server didn’t answer in time. Check your connection, then try again." onRetry={() => {}} />
+      : state === 'notfound' ? <PageNotFound />
+        : empty ? <EmptyBrand route={PAGES[route] ? route : '/overview'} /> : <Page />
   return (
     // tracking settings are shared by every page (dashboard header, /brands summary, /tracking editor)
     <TrackingProvider>
@@ -83,9 +93,10 @@ export default function App() {
         <div className="min-w-0 flex-1">
           <MobileNav path={PAGES[route] ? navPath : '/overview'} />
           {/* same content container on every page (16px gutters on phones, 24px from md) */}
-          <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 pb-10 pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8">{empty ? <EmptyBrand route={PAGES[route] ? route : '/overview'} /> : <Page />}</main>
+          <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 pb-10 pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8">{body}</main>
         </div>
       </div>
+      {state === 'cookies' && <CookieBanner onChoose={() => {}} />}
     </TrackingProvider>
   )
 }
