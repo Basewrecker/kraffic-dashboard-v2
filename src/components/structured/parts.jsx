@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { AlertTriangle, CheckCircle2, CircleDashed, XCircle } from 'lucide-react'
-import { STATUS } from '../../data/structuredData'
+import { STATUS } from './analyze'
 
 // Status icon: Valid = ink check, Invalid = --negative (the page's only red), Missing = dashed circle t3,
 // Warning (a Fix item that isn't an error) = ink triangle
