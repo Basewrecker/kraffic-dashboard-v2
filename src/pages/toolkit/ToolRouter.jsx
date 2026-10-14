@@ -6,9 +6,12 @@ import SiteKitPage from './SiteKitPage'
 import CrmPage from './CrmPage'
 import ExperimentsPage from './ExperimentsPage'
 import AlertsPage from './AlertsPage'
+import ContentPage from './ContentPage'
+import EvidencePage from './EvidencePage'
+import ReportsPage from './ReportsPage'
 
 // /more-tools/<tool>[/<id>] → the tool's page. Tools that open prompts get the Answer drawer (it needs the dashboard view).
-const TOOLS = { 'site-kit': SiteKitPage, 'crm-attribution': CrmPage, experiments: ExperimentsPage, 'competitor-alerts': AlertsPage }
+const TOOLS = { 'site-kit': SiteKitPage, 'crm-attribution': CrmPage, experiments: ExperimentsPage, 'competitor-alerts': AlertsPage, content: ContentPage, evidence: EvidencePage, 'executive-reports': ReportsPage }
 export default function ToolRouter() {
   const [, , tool, id] = usePath().split('/')
   const Page = TOOLS[tool]

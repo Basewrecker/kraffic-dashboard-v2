@@ -26,7 +26,7 @@ export default function ToolkitPage() {
   const view = toolkitView(q.get('mock') ?? 'full')
   const [toastNode, toast] = useToast({ position: 'center' })
   // open a tool: Site Kit has a page; the others aren't designed in the mock yet
-  const open = (t) => (t.href ? navigate(t.href) : toast(`${t.name} isn’t designed in the mock yet`))
+  const open = (t) => (t.href ? navigate(t.href) : toast(t.movedTo ? `${t.name} is part of ${t.movedTo}, designed in Phase 7` : `${t.name} isn’t designed in the mock yet`))
   return (
     <>
       <div>

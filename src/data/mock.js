@@ -1303,13 +1303,15 @@ export const toolkitTools = [
   { id: 'integrations', section: 'Connect', name: 'Site Kit', prodName: 'Search & Analytics Connectors', icon: 'plug', href: '/more-tools/site-kit',
     desc: 'Search Console and Analytics data next to your AI visibility' },
   { id: 'crm-attribution', href: '/more-tools/crm-attribution', section: 'Connect', name: 'CRM & Revenue Attribution', icon: 'wallet', desc: 'Sales in your CRM linked to the AI answers that started them' },
-  { id: 'content', section: 'Analyze', name: 'Content Intelligence', icon: 'file-search', desc: 'Topics your website doesn’t cover yet, and pages that compete with each other' },
-  { id: 'evidence', section: 'Analyze', name: 'Evidence Vault', icon: 'library', desc: 'Sources that back up the claims your site makes' },
-  { id: 'entity-intelligence', section: 'Analyze', name: 'Entity & Hallucinations', icon: 'shield-alert', desc: 'Claims AI engines make about your brand that are wrong or out of date' },
+  { id: 'content', href: '/more-tools/content', section: 'Analyze', name: 'Content Intelligence', icon: 'file-search', desc: 'Topics your website doesn’t cover yet, and pages that compete with each other' },
+  { id: 'evidence', href: '/more-tools/evidence', section: 'Analyze', name: 'Evidence Vault', icon: 'library', desc: 'Sources that back up the claims your site makes' },
+  { id: 'entity-intelligence', href: '/fact-check', section: 'Analyze', // production's own page calls it the older, sample version of Fact Check
+    name: 'Entity & Hallucinations', icon: 'shield-alert', desc: 'Claims AI engines make about your brand that are wrong or out of date' },
   { id: 'competitor-alerts', href: '/more-tools/competitor-alerts', section: 'Analyze', name: 'Competitor Alerts', icon: 'bell', desc: 'Changes on competitor websites: new pages, prices and claims' },
-  { id: 'action-mappings', section: 'Improve', name: 'Action Mappings', icon: 'route', desc: 'Recommendations linked to the prompts and pages they help' },
+  { id: 'action-mappings', movedTo: 'Recommendations', section: 'Improve', // the same GeoRecommendation rows, re-indexed by prompt
+    name: 'Action Mappings', icon: 'route', desc: 'Recommendations linked to the prompts and pages they help' },
   { id: 'experiments', href: '/more-tools/experiments', section: 'Improve', name: 'GEO Experiment Lab', icon: 'flask', desc: 'Before-and-after tests of content changes on AI visibility' },
-  { id: 'executive-reports', section: 'Report', name: 'Executive Reports', icon: 'presentation', desc: 'Branded summary reports for managers and clients' },
+  { id: 'executive-reports', href: '/more-tools/executive-reports', section: 'Report', name: 'Executive Reports', icon: 'presentation', desc: 'Branded summary reports for managers and clients' },
 ]
 
 // Each tool's summary response, named as in production (…/overview or …/metrics). `lastRunAt` and
@@ -1318,13 +1320,13 @@ export const toolkitTools = [
 const TK_FULL = {
   integrations: { connectedProviders: [], lastSyncAt: null }, // SearchPerformanceOverviewStats (not connected: nothing synced)
   'crm-attribution': { connected: true, totalConversions: 22, totalAttributedRevenue: 31800, lastRunAt: '2026-10-11' }, // CrmAttributionMetrics
-  content: { totalGapsIdentified: 12, coveragePercentage: 64, actionableOpportunitiesCount: 7, lastRunAt: '2026-10-05' }, // ContentOverviewStats
-  evidence: { totalEvidenceCount: 18, userVerifiedCount: 11, lastRunAt: '2026-10-03' }, // EvidenceStatsDto
+  content: { totalGapsIdentified: 6, coveragePercentage: 64, actionableOpportunitiesCount: 7, lastRunAt: '2026-10-05' }, // ContentOverviewStats
+  evidence: { totalEvidenceCount: 13, userVerifiedCount: 11, lastRunAt: '2026-10-03' }, // EvidenceStatsDto
   'entity-intelligence': { totalIncidents: 5, contradictedCount: 3, criticalCount: 1, resolvedCount: 2, lastRunAt: '2026-10-09' }, // HallucinationMetrics
   'competitor-alerts': { totalChangesDetected: 11, unacknowledgedChanges: 4, highImpactChanges: 1, lastRunAt: '2026-10-14', lastAcknowledgedAt: '2026-10-12' }, // CompetitorAlertsMetrics
   'action-mappings': { coverageMetrics: { totalActionsCount: 9, promptsAddressedCount: 31, coveragePercentage: 20 }, lastRunAt: '2026-10-05' }, // ActionMappingsOverviewDto
   experiments: { totalExperiments: 0, runningCount: 0, concludedCount: 0, lastRunAt: null }, // ExperimentLabMetrics
-  'executive-reports': { exports: [{ createdAt: '2026-09-30' }] }, // GET …/executive-reports/exports
+  'executive-reports': { exports: [{ createdAt: '2026-10-02' }] }, // GET …/executive-reports/exports
 }
 const TK_NEW = {
   integrations: { connectedProviders: [], lastSyncAt: null },
@@ -1568,4 +1570,103 @@ export async function sendSalesInquiry({ plan, name, email, company, size, need 
   const body = { name, email, company, message: `Enterprise inquiry (${plan}) · team size ${size}\n\n${need}` } // POST /auth/contact
   await sleep(600)
   return { ok: true, body }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Toolkit batch 2. Shaped from production (apps/api/src/modules/{content,evidence,executive-reports}). GAP = invented.
+// ?mock=none|running|error|full per tool (default full).
+
+// ---- Content Intelligence: ContentGap (+ cluster topic), ContentDecayAudit, matches (page ↔ prompt)
+// recommendedAction → suggested page wording; competitorEvidence.observedCompetitors = domains only (no URLs)
+export const contentGaps = [
+  { id: 'cg_1', clusterName: 'Vitamin C vs niacinamide', gapType: 'MISSING_COMPARISON', recommendedAction: 'COMPARISON', severity: 'HIGH', promptIds: promptsAbout(/vitamin c|niacinamide/i, 7), competitorEvidence: { observedCompetitors: ['cerave.com', 'theordinary.com', 'paulaschoice.com', 'byrdie.com'] },
+    description: 'No page compares the two, and AI answers cite competitor comparison guides.', outline: null },
+  { id: 'cg_2', clusterName: 'Sunscreen for oily skin', gapType: 'WEAK_TOPIC_COVERAGE', recommendedAction: 'CREATE', severity: 'HIGH', promptIds: promptsAbout(/oily/i, 5), competitorEvidence: { observedCompetitors: ['cerave.com', 'laroche-posay.us'] },
+    description: 'The sunscreen pages don’t mention oily skin, which most of these prompts ask about.', outline: null },
+  { id: 'cg_3', clusterName: 'Retinol for beginners', gapType: 'MISSING_FAQ', recommendedAction: 'FAQ', severity: 'MEDIUM', promptIds: promptsAbout(/retinol/i, 4), competitorEvidence: { observedCompetitors: ['paulaschoice.com', 'theordinary.com'] },
+    description: 'People ask how often and how much; the guide has no FAQ answering that.', outline: null },
+  { id: 'cg_4', clusterName: 'Dark spots and pigmentation', gapType: 'NO_RELEVANT_PAGE', recommendedAction: 'CREATE', severity: 'MEDIUM', promptIds: promptsAbout(/pigment|dark spot/i, 5), competitorEvidence: { observedCompetitors: ['cerave.com', 'theordinary.com', 'paulaschoice.com'] },
+    description: 'There’s no page about treating dark spots at all.', outline: null },
+  { id: 'cg_5', clusterName: 'Products for sensitive skin', gapType: 'WEAK_EVIDENCE', recommendedAction: 'STRUCTURED_EVIDENCE', severity: 'LOW', promptIds: promptsAbout(/sensitive/i, 4), competitorEvidence: { observedCompetitors: ['cerave.com'] },
+    description: 'Claims of “gentle” have no test or dermatologist backing on the page.', outline: null },
+  { id: 'cg_6', clusterName: 'Under-eye care', gapType: 'WEAK_INTENT_MATCH', recommendedAction: 'UPDATE', severity: 'LOW', promptIds: promptsAbout(/eye/i, 3), competitorEvidence: { observedCompetitors: ['theordinary.com', 'byrdie.com'] },
+    description: 'The eye cream page sells the product but doesn’t answer “which is best for dark circles”.', outline: null },
+]
+// ContentDecayAuditDto { pageUrl, pageTitle, decayRisk, daysSinceLastUpdate, recommendation } + GAP: targetPromptId, suggestions[]
+export const contentPages = [
+  { id: 'cp_1', pageUrl: 'https://dermasuri.com/products/vitamin-c-serum', decayRisk: 'HIGH', daysSinceLastUpdate: 214, targetPromptId: promptsAbout(/vitamin c serum for dark/i, 1)[0], recommendation: 'No answer to the question in the first paragraph',
+    suggestions: ['Open with a 40–60 word answer: what it does, for whom, how to use it.', 'Add the 15% concentration and pH in a short spec list.', 'Link the vitamin C vs niacinamide guide.'] },
+  { id: 'cp_2', pageUrl: 'https://dermasuri.com/collections/sunscreen', decayRisk: 'MEDIUM', daysSinceLastUpdate: 160, targetPromptId: promptsAbout(/sunscreen without white cast/i, 1)[0], recommendation: 'Doesn’t say which sunscreen leaves no white cast',
+    suggestions: ['Add a one-line “no white cast” note to each product card.', 'Add an FAQ: “Which sunscreen doesn’t leave a white cast?”'] },
+  { id: 'cp_3', pageUrl: 'https://dermasuri.com/blogs/journal/retinol-for-beginners', decayRisk: 'MEDIUM', daysSinceLastUpdate: 402, targetPromptId: promptsAbout(/retinol serum for beginners/i, 1)[0], recommendation: 'Out of date: last updated over a year ago',
+    suggestions: ['Show an “Updated” date and a reviewer.', 'Replace the 2024 product list with current ones.', 'Answer “how often should beginners use retinol” in one sentence.'] },
+  { id: 'cp_4', pageUrl: 'https://dermasuri.com/products/niacinamide-booster', decayRisk: 'LOW', daysSinceLastUpdate: 96, targetPromptId: promptsAbout(/niacinamide serum for oily/i, 1)[0], recommendation: 'Never mentions oily skin, the main use people ask about',
+    suggestions: ['Say who it’s for in the first line: oily, acne-prone skin.', 'Add the 10% concentration.'] },
+]
+export const contentStates = {
+  none: { gaps: [], pages: [], lastRunAt: null },
+  running: { gaps: contentGaps, pages: contentPages, lastRunAt: '2026-10-05T09:00:00Z', diagnosing: { startedAt: '2026-10-14T11:59:30Z' } },
+  error: { gaps: contentGaps, pages: contentPages, lastRunAt: '2026-10-05T09:00:00Z', error: 'The diagnosis stopped: the latest visibility scan isn’t finished yet. Try again when it is.' },
+  full: { gaps: contentGaps, pages: contentPages, lastRunAt: '2026-10-05T09:00:00Z' }, // GAP: lastRunAt
+}
+
+// ---- Evidence Vault: CentralEvidenceItem { claim, evidenceType, source, url, extract, confidenceTier, isUserVerified }
+// GAP: backed / weak / unbacked (mapped from confidenceTier HIGH / MEDIUM+LOW / UNVERIFIED), several sources per claim,
+// source titles, the page a claim is on.
+const ev = (id, claim, page, tier, sources) => ({ id, claim, pageUrl: `https://dermasuri.com${page}`, confidenceTier: tier, isUserVerified: tier === 'HIGH', sources })
+const src = (domain, title, path = '') => ({ domain, title, url: `https://${domain}${path}` })
+export const evidenceItems = [
+  ev('ev_1', '15% L-ascorbic acid brightens skin in 8 weeks', '/products/vitamin-c-serum', 'HIGH', [src('pubmed.ncbi.nlm.nih.gov', 'Topical vitamin C in skin pigmentation: a review', '/28155427'), src('aad.org', 'How to treat dark spots', '/public/everyday-care/dark-spots')]),
+  ev('ev_2', 'Fragrance-free and safe for sensitive skin', '/products/gentle-gel-cleanser', 'MEDIUM', [src('aad.org', 'Sensitive skin: what to look for', '/public/everyday-care/sensitive-skin')]),
+  ev('ev_3', 'Dermatologist tested on 120 people', '/products/barrier-repair-balm', 'UNVERIFIED', []),
+  ev('ev_4', 'SPF 50 with no white cast on any skin tone', '/products/mineral-sunscreen-spf-50', 'LOW', [src('consumerreports.org', 'Best mineral sunscreens', '/sunscreens/mineral')]),
+  ev('ev_5', 'Niacinamide 10% reduces oil in 4 weeks', '/products/niacinamide-booster', 'HIGH', [src('pubmed.ncbi.nlm.nih.gov', 'Niacinamide and sebum excretion rate', '/16766484'), src('healthline.com', 'Niacinamide: benefits and uses', '/health/niacinamide')]),
+  ev('ev_6', 'Retinol at night only; start twice a week', '/blogs/journal/retinol-for-beginners', 'HIGH', [src('aad.org', 'How to use retinoids', '/public/everyday-care/retinoids'), src('mayoclinic.org', 'Retinoids for skin', '/retinoids')]),
+  ev('ev_7', 'Vegan and cruelty-free', '/pages/about', 'UNVERIFIED', []),
+  ev('ev_8', 'Azelaic acid is safe in pregnancy', '/blogs/journal/what-is-azelaic-acid', 'MEDIUM', [src('acog.org', 'Skin care during pregnancy', '/womens-health/skin')]),
+  ev('ev_9', 'Ceramides repair the skin barrier', '/blogs/journal/skin-barrier-guide', 'HIGH', [src('pubmed.ncbi.nlm.nih.gov', 'Ceramides and barrier function', '/30117349'), src('aad.org', 'Dry skin care', '/public/everyday-care/dry-skin')]),
+  ev('ev_10', 'Best-selling vitamin C serum in the US', '/products/vitamin-c-serum', 'UNVERIFIED', []),
+  ev('ev_11', 'Mineral filters are gentler than chemical ones', '/blogs/journal/is-mineral-sunscreen-better', 'LOW', [src('healthline.com', 'Mineral vs chemical sunscreen', '/health/mineral-sunscreen')]),
+  ev('ev_12', 'Hyaluronic acid holds 1,000× its weight in water', '/products/hyaluronic-moisturizer', 'MEDIUM', [src('healthline.com', 'Hyaluronic acid uses', '/health/hyaluronic-acid')]),
+]
+export const evidenceStates = {
+  none: { items: [] },
+  running: { items: evidenceItems, syncing: { startedAt: '2026-10-14T11:59:40Z' } },
+  error: { items: evidenceItems, error: 'Sync stopped: the crawl for 4 pages is still running.' },
+  full: { items: evidenceItems },
+}
+
+// ---- Executive Reports: ReportExportLog + ExecutiveReportSchedule (+ GAP: period, draft/scheduled/sent, sections used)
+export const execReports = [
+  { id: 'rep_3', title: 'October performance', period: { from: '2026-10-01', to: '2026-10-31' }, createdAt: '2026-10-12T10:00:00Z', recipients: [], status: 'DRAFT', sections: ['visibility', 'prompts', 'citations', 'audit'] },
+  { id: 'rep_2', title: 'Q3 review for the board', period: { from: '2026-07-01', to: '2026-09-30' }, createdAt: '2026-10-02T09:00:00Z', recipients: ['ceo@dermasuri.com', 'cmo@dermasuri.com', 'growth@dermasuri.com'], status: 'SENT', sections: ['visibility', 'prompts', 'citations', 'audit', 'structured', 'trends'] },
+  { id: 'rep_1', title: 'Monthly visibility', period: { from: '2026-09-01', to: '2026-09-30' }, createdAt: '2026-09-28T08:00:00Z', recipients: ['marketing@dermasuri.com', 'cmo@dermasuri.com'], status: 'SCHEDULED', cadence: 'MONTHLY', sections: ['visibility', 'prompts', 'citations'] },
+]
+export const execReportStates = {
+  none: { reports: [] },
+  running: { reports: execReports, generating: { startedAt: '2026-10-14T11:59:50Z' } },
+  error: { reports: execReports, error: 'The PDF for “October performance” didn’t generate. Nothing was sent.' },
+  full: { reports: execReports },
+}
+// What a report shows per section. GAP: production's report is one fixed list of six summary metrics
+// (ExecutiveReportSummaryMetrics; includeSections is accepted but ignored), so every section below is invented.
+export const execReportSections = {
+  visibility: { label: 'Visibility', summary: 'You appeared in 73% of AI answers, up 6 points, and still lead every competitor.', items: [
+    { label: 'Visibility score', value: 73, meta: '▲ 6 vs last period' }, { label: 'Prompts you appear in', value: 111, unit: 'of 152', meta: 'Across 4 engines' },
+    { label: 'Share of answers', value: '75%', meta: 'CeraVe is next at 18%' }, { label: 'Best engine', value: 'Google', meta: 'AI Overviews' }] },
+  prompts: { label: 'Prompts', summary: 'You won 9 prompts and lost 3. Most of the wins are sunscreen questions.', items: [
+    { label: 'Prompts won', value: 9, meta: 'New this period' }, { label: 'Prompts lost', value: 3, meta: 'To CeraVe and The Ordinary' },
+    { label: 'Still missed', value: 41, meta: '12 are pigmentation' }, { label: 'Prompts added', value: 12, meta: 'From the Sunscreen launch list' }] },
+  citations: { label: 'Citations', summary: 'AI cited your pages 36 times. 14 sites cite competitors but not you yet.', items: [
+    { label: 'Citations to your site', value: 36, meta: '▲ 8 vs last period' }, { label: 'Your pages cited', value: 7, meta: 'The vitamin C serum leads' },
+    { label: 'Share of citations', value: '18%', meta: 'Of all sources cited' }, { label: 'Sites to win', value: 14, meta: 'Cite competitors only' }] },
+  audit: { label: 'Site Audit', summary: 'Your site scores 82. 23 issues were fixed; 6 pages still fail a check AI relies on.', items: [
+    { label: 'Site score', value: 82, meta: '▲ 4 vs last period' }, { label: 'Pages crawled', value: 412, meta: 'Every page on the sitemap' },
+    { label: 'Issues fixed', value: 23, meta: 'Since the last report' }, { label: 'Pages still failing', value: 6, meta: 'Mostly missing answers' }] },
+  structured: { label: 'Structured Data', summary: '64% of pages now describe themselves to AI with schema, up from 51%.', items: [
+    { label: 'Pages with schema', value: '64%', meta: '▲ 13 points' }, { label: 'Schema errors', value: 4, meta: 'On product pages' },
+    { label: 'Types added', value: 5, meta: 'FAQ, Product, Review…' }, { label: 'Rich results', value: 128, meta: 'Eligible pages' }] },
+  trends: { label: 'Trends', summary: 'News and social talk about you is mostly positive (net +32), driven by the SPF launch.', items: [
+    { label: 'Net tone', value: '+32', meta: 'Mostly positive' }, { label: 'Questions watched', value: 8, meta: 'In the United States' },
+    { label: 'Mentions', value: '2.4k', meta: 'News, X and Instagram' }, { label: 'Biggest topic', value: 'SPF', meta: 'The launch in September' }] },
 }
