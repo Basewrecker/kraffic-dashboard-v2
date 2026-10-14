@@ -5,7 +5,8 @@ import { useBrandView, useCountUp } from '../../hooks/useBrandView'
 import { goToSection } from '../../utils/navigate'
 import { openEngineDrawer } from '../answer/EngineDrawer'
 
-function ScoreRing({ value, size = 64, stroke = 6 }) {
+// exported: Site Audit's KPI strip uses the same ring and value type
+export function ScoreRing({ value, size = 64, stroke = 6 }) {
   const shown = useCountUp(value)
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
@@ -22,7 +23,7 @@ function ScoreRing({ value, size = 64, stroke = 6 }) {
   )
 }
 
-const Num = ({ value }) => <div className="proportional-nums text-[24px] leading-8 font-semibold tracking-[-0.03em] text-stone-900 lg:text-kpi">{useCountUp(value)}</div>
+export const Num = ({ value }) => <div className="proportional-nums text-[24px] leading-8 font-semibold tracking-[-0.03em] text-stone-900 lg:text-kpi">{useCountUp(value)}</div>
 const Count = ({ value }) => useCountUp(value)
 
 export default function KpiRow() {
