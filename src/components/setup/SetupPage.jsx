@@ -1,40 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, ArrowUpRight, Droplet, Eye, Globe, Hand, MoreHorizontal, Pencil, Plus, ShieldCheck, Sparkles, Sun, Tag, Type, X } from 'lucide-react'
 import PromptTable from '../dashboard/PromptTable'
-import { MarketplaceIcon } from '../dashboard/icons'
 import { PrimaryButton, useToast } from '../dashboard/overlays'
 import ConfirmPopover from '../prompts/ConfirmPopover'
 import SiteLogo from '../ui/SiteLogo'
 import BrandModal from './BrandModal'
-import { toEntry } from './ChipField'
 import { useInlineEdit } from '../../hooks/useInlineEdit'
 import { useAnimatedList } from '../../hooks/useAnimatedList'
 import { linkClick, navigate } from '../../router'
 import { fmtDay, trackingSummary, useTracking } from '../../store/trackingSettings'
 import { brandName, isDomain } from '../../utils/brand'
 import { isValidDomain, normalizeDomain } from '../../utils/domain'
-import { aliasAnswers, aliasSuggestions, MAX_COMPETITORS, setupBrands, topicSuggestions } from '../../data/mock'
-import { SUGGESTED_NAMES, operatesIn } from '../../data/marketSuggestions'
+import { MAX_COMPETITORS, setupActions, setupBrands } from '../../data/mock'
 import { sharedAnswers } from '../../data/brandViews'
-import { guessTopicType, topicPromptCount } from '../../data/topics'
-import { useMarketSuggestions } from '../../hooks/useMarketSuggestions'
+import { guessTopicType } from '../../data/topics'
 
 // /setup: what Kraffic tracks for a brand, in the same settings layout as /llm-settings —
 // cards of 60px rows (name + meta left, one quiet value + hover-only Edit / Remove right),
 // a "+ Add" that opens an input row at the top, and a "Suggested" strip at the foot of a card.
-// Every add / edit / remove gives an Undo toast.
+// Every add / edit / remove gives an Undo toast. Saves go through setupActions (data/mock.js): the page changes first;
+// a save that fails puts it back and the card says so, with Retry.
 
 const CARDS_MAX = 6 // more brands than this → a table with pagination instead of cards
 const fieldCls = 'h-8 w-full min-w-0 appearance-none rounded-md border border-line bg-raised px-2.5 text-[14px] text-stone-900 outline-none placeholder:text-stone-500 transition-[border-color,box-shadow] duration-150 ease-out focus:border-[color-mix(in_srgb,var(--ink)_35%,transparent)] focus:ring-[3px] focus:ring-[color-mix(in_srgb,var(--ink)_8%,transparent)]'
 const iconBtn = 'grid h-7 w-7 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 ease-out hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus'
 const textBtn = 'inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 ease-out hover:text-ink focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40'
 const smallBtn = 'inline-flex h-8 shrink-0 items-center rounded-md px-3 text-[13px] font-medium outline-none transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40'
-const today = () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-const sinceNow = () => new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-// suggested brands carry their real names ("beminimalist.co" → "Minimalist", not "Beminimalist")
-const label = (v) => SUGGESTED_NAMES[v] ?? (isDomain(v) ? brandName(v) : v)
-// Amazon / Target keep their marks; anything else uses its favicon
-const storeMark = (domain) => (/(^|\.)amazon\./.test(domain) ? 'Amazon' : /(^|\.)target\.com$/.test(domain) ? 'Target' : null)
 const rowAnim = (state) => (state === 'enter' ? 'srow-in' : state === 'leaving' ? 'srow-out' : '')
 // favicons sit on a white plate in both themes so white / light logos stay visible
 const Logo = ({ domain, name }) => <SiteLogo domain={domain} name={name} className="h-7 w-7 rounded-md" imgPad="p-1" initialClass="text-[12px]" plate />
@@ -143,8 +134,9 @@ function Row({ logo, name, meta, value, valueTitle, muted, onEdit, onRemove, sta
 
 // an input row (add at the top, or a row being edited), on the shared inline-edit rules:
 // Enter saves, Esc cancels, a click away saves (valid) / closes (clean) / discards with Undo (invalid).
-// fields: [{ name, label, placeholder }]; validate(values) → error message or null.
-function InputRow({ logo, fields, initial, validate, submitLabel, onSubmit, onClose, onDiscard }) {
+// fields: [{ name, label, placeholder }]; validate(values) → error message or null; fixed: read-only text after the
+// fields (what can't be changed, e.g. a competitor's domain).
+function InputRow({ logo, fields, fixed, initial, validate, submitLabel, onSubmit, onClose, onDiscard }) {
   const [values, setValues] = useState(initial)
   const ref = useRef(null)
   const clean = (v) => String(v ?? '').trim()
@@ -171,6 +163,7 @@ function InputRow({ logo, fields, initial, validate, submitLabel, onSubmit, onCl
             className={`${fieldCls} flex-1 ${error ? '!border-negative' : ''}`}
           />
         ))}
+        {fixed && <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] text-stone-600">{fixed}</span>}
         <button type="button" disabled={!valid || !dirty} onClick={submit} title="Enter saves · Esc cancels" className={`${smallBtn} border border-line bg-surface text-stone-700 hover:bg-tint hover:text-stone-900`}>{submitLabel}</button>
         <button type="button" onClick={onClose} className={`${smallBtn} text-stone-600 hover:bg-tint hover:text-stone-900`}>Cancel</button>
       </div>
@@ -180,8 +173,8 @@ function InputRow({ logo, fields, initial, validate, submitLabel, onSubmit, onCl
 }
 
 // "Suggested" strip at the foot of a card; the reason is the chip's tooltip. With a market, the label names it and
-// a market change crossfades the chips: out (150ms), swap, back in.
-function Suggested({ items, onPick, market, label: lead }) {
+// a market change crossfades the chips: out (150ms), swap, back in. onDismiss: each chip also has an X.
+function Suggested({ items, onPick, onDismiss, market, label: lead }) {
   const [shown, setShown] = useState({ items, market })
   const [fading, setFading] = useState(false)
   const sig = items.map((it) => it.key).join('|') // items is rebuilt every render; react to what's in it
@@ -196,16 +189,23 @@ function Suggested({ items, onPick, market, label: lead }) {
     <div className={`flex flex-wrap items-center gap-2 border-t border-[var(--div)] bg-tint px-5 py-3 transition-opacity duration-150 ease-out ${fading ? 'opacity-0' : 'opacity-100'}`}>
       <span className="text-[12px] leading-4 font-medium text-stone-500">{lead ?? (shown.market ? `Suggested for ${shown.market}` : 'Suggested')}</span>
       {shown.items.map((it) => (
-        <button
-          key={it.key}
-          type="button"
-          title={it.reason}
-          aria-label={`Add ${it.label} · ${it.reason}`}
-          onClick={() => onPick(it)}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-line bg-surface px-2.5 text-[13px] leading-[18px] text-stone-700 outline-none transition-colors duration-150 ease-out hover:border-[var(--color-line-strong)] hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"
-        >
-          <Plus size={12} aria-hidden /> {it.label}
-        </button>
+        <span key={it.key} className="inline-flex h-7 items-center rounded-md border border-line bg-surface text-[13px] leading-[18px] text-stone-700 transition-colors duration-150 ease-out hover:border-[var(--color-line-strong)]">
+          <button
+            type="button"
+            title={it.reason}
+            aria-label={`Add ${it.label}${it.reason ? ` · ${it.reason}` : ''}`}
+            onClick={() => onPick(it)}
+            className={`inline-flex h-full items-center gap-1 rounded-md pl-2.5 ${onDismiss ? 'pr-1' : 'pr-2.5'} outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus`}
+          >
+            <Plus size={12} aria-hidden /> {it.label}
+          </button>
+          {onDismiss && (
+            <button type="button" aria-label={`Dismiss ${it.label}`} onClick={() => onDismiss(it)}
+              className="mr-1 grid h-5 w-5 place-items-center rounded text-stone-500 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
+              <X size={12} aria-hidden />
+            </button>
+          )}
+        </span>
       ))}
     </div>
   )
@@ -224,6 +224,24 @@ function useEditing(toast) {
   return { editing, draft, open, close, discard }
 }
 
+// a card's save: the change shows at once (apply); the save runs (call); if it fails the change is taken back
+// (revert) and the card says what failed, with Retry. call() may resolve with the saved item (done(saved)).
+function useCardSave() {
+  const [failed, setFailed] = useState(null) // { what, retry }
+  const run = (what, { apply, revert, call, done }) => {
+    setFailed(null)
+    apply()
+    return call().then((saved) => done?.(saved), () => { revert(); setFailed({ what, retry: () => run(what, { apply, revert, call, done }) }) })
+  }
+  return [failed, run]
+}
+const SaveFailed = ({ failed }) => (failed ? (
+  <p role="alert" className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--div)] px-5 py-2.5 text-[12.5px] leading-[18px]">
+    <span className="text-negative">Couldn’t save · {failed.what}</span>
+    <button type="button" onClick={failed.retry} className="rounded font-medium text-stone-900 underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Retry</button>
+  </p>
+) : null)
+
 // ---------------------------------------------------------------- cards
 
 function BrandIdentity({ brand, syncing, onEdit, onDelete }) {
@@ -241,8 +259,6 @@ function BrandIdentity({ brand, syncing, onEdit, onDelete }) {
                   {brand.domain}<ArrowUpRight size={12} aria-hidden />
                 </a>
               )}
-              {brand.domain && <span aria-hidden>·</span>}
-              {brand.type === 'website' ? 'Website' : 'Brand name'}
             </span>
           </span>
         </span>
@@ -304,68 +320,44 @@ function ChipAdder({ label, placeholder, shape, add }) {
   )
 }
 
-// a dashed "+ name" chip that adds a suggestion
-const SuggestChip = ({ label, reason, shape, onPick }) => (
-  <button type="button" title={reason} aria-label={`Add ${label} · ${reason}`} onClick={onPick}
-    className={`${shape} inline-flex items-center gap-1.5 border border-dashed border-[var(--dashed-border)] px-3 font-medium text-stone-600 outline-none transition-colors duration-150 hover:border-[var(--color-line-strong)] hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus`}>
-    <Plus size={14} aria-hidden />{label}
-  </button>
-)
-
-// a removable chip: X slides in on hover / focus
-const removeBtn = '-ml-1 grid h-6 w-0 place-items-center overflow-hidden rounded text-stone-500 opacity-0 outline-none transition-[width,opacity,margin] duration-150 hover:text-stone-900 focus-visible:ml-0 focus-visible:w-6 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-focus group-hover:ml-0 group-hover:w-6 group-hover:opacity-100 touch:opacity-100 [@media(hover:none)]:ml-0 [@media(hover:none)]:w-6 [@media(hover:none)]:opacity-100'
 const animClass = (state) => (state === 'enter' ? 'chip-in' : state === 'leaving' ? 'chip-out' : '')
 
-// "Also counts as": one line of chips — aliases (with how many answers used them), suggestions, "+ Add alias"
-function NamesCard({ brand, update, toast }) {
+// "Also counts as": one line of chips, the brand's aliases (read-only: they're set when the brand is added), each
+// with how many answers counted it when that's known
+function NamesCard({ brand }) {
   const aliases = brand.aliases ?? []
-  const chips = useAnimatedList(aliases, (a) => a, 150)
-  const problem = (v) => (v.toLowerCase() === brand.name.toLowerCase() ? 'That’s already the brand name'
-    : aliases.some((a) => a.toLowerCase() === v.toLowerCase()) ? 'Already added' : null)
-  const add = (v) => {
-    update((b) => ({ ...b, aliases: [...(b.aliases ?? []), v], addedOn: { ...b.addedOn, [`alias:${v}`]: today() } }))
-    toast(`“${v}” added`, { duration: 5000, action: { label: 'Undo', onClick: () => update((b) => ({ ...b, aliases: b.aliases.filter((x) => x !== v) })) } })
-  }
-  const remove = (a) => {
-    const i = aliases.indexOf(a)
-    update((b) => ({ ...b, aliases: b.aliases.filter((x) => x !== a) }))
-    toast(`“${a}” removed`, { duration: 5000, action: { label: 'Undo', onClick: () => update((b) => (b.aliases.includes(a) ? b : { ...b, aliases: [...b.aliases.slice(0, i), a, ...b.aliases.slice(i)] })) } })
-  }
-  const suggestions = (brand.id === setupBrands[0].id ? aliasSuggestions : []).filter((x) => !aliases.some((a) => a.toLowerCase() === x.toLowerCase()))
-  const seen = (a) => aliasAnswers[a] ?? 0
+  const counts = brand.aliasAnswers // null: not known, so no counts
   const shape = 'h-9 rounded-lg text-[14px]'
 
   return (
     <SettingsCard id={`aliases-${brand.id}`} title="Also counts as" count={aliases.length} description={`Name variants that count as a ${brand.name} mention`} compact
       body={(
         <div className="flex flex-wrap items-center gap-2.5 px-5 pb-4">
-          {chips.map(({ item: a, key, state }) => {
+          {aliases.map((a) => {
             const Icon = isDomain(a) ? Globe : Type // what kind of variant: a domain / URL, or a name
+            const seen = counts?.[a] ?? 0
             return (
-            <span key={key} className={`group ${shape} inline-flex items-center gap-2 border border-line bg-surface pl-2.5 pr-3 font-medium text-stone-900 transition-colors duration-150 hover:border-[var(--color-line-strong)] ${animClass(state)}`}>
+            <span key={a} className={`${shape} inline-flex items-center gap-2 border border-line bg-surface pl-2.5 pr-3 font-medium text-stone-900`}>
               <Icon size={16} className="shrink-0 text-stone-500" aria-label={isDomain(a) ? 'Domain' : 'Name'} />
               {a}
-              <span title={seen(a) ? `Counted in ${seen(a)} answer${seen(a) === 1 ? '' : 's'}` : 'Not seen in answers yet'}
-                className="inline-flex h-5 items-center rounded bg-tint px-1.5 text-[12px] leading-none font-medium text-stone-600 tabular-nums">{seen(a)}</span>
-              <button type="button" aria-label={`Remove ${a}`} onClick={() => remove(a)} className={removeBtn}><X size={14} aria-hidden /></button>
+              {counts && (
+                <span title={seen ? `Counted in ${seen} answer${seen === 1 ? '' : 's'}` : 'Not seen in answers yet'}
+                  className="inline-flex h-5 items-center rounded bg-tint px-1.5 text-[12px] leading-none font-medium text-stone-600 tabular-nums">{seen}</span>
+              )}
             </span>
             )
           })}
-          {suggestions.map((x) => (
-            <SuggestChip key={x} label={x} shape={shape} reason={`Seen in ${seen(x)} answer${seen(x) === 1 ? '' : 's'}`} onPick={() => add(x)} />
-          ))}
-          <ChipAdder label="Add alias" placeholder="Derma Suri" shape={shape} add={(v) => problem(v) ?? add(v) ?? null} />
+          {!aliases.length && <span className="text-[13px] leading-[18px] text-stone-500">No other names</span>}
         </div>
       )}
     />
   )
 }
 
-// "Products & topics": what the brand sells, grouped Products / Topics. Chip = visual (product image, or a
-// category icon) + name + tracked-prompt count; click → /prompts filtered to it. Adding offers "Run research".
+// "Topics": what the brand's prompts are about (the Prompt Hub's categories). Chip = category icon + name +
+// tracked-prompt count; click → /prompts filtered to it. Adding one offers "Run research". Topics can't be removed here.
 const TOPIC_ICONS = [[/under.?eye|eye/i, Eye], [/body|hand|lotion/i, Hand], [/sun|spf/i, Sun], [/retinol|retinoid/i, Sparkles], [/serum|vitamin|niacinamide|hyaluronic/i, Droplet], [/moistur|cream|ceramide/i, ShieldCheck]]
 function TopicVisual({ t }) {
-  if (t.thumb) return <img src={t.thumb} alt="" className="h-6 w-6 shrink-0 rounded-md object-cover" />
   const Icon = TOPIC_ICONS.find(([re]) => re.test(t.name))?.[1] ?? Tag
   return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-tint text-stone-600"><Icon size={14} aria-hidden /></span>
 }
@@ -373,55 +365,40 @@ function TopicVisual({ t }) {
 function TopicsCard({ brand, update, toast }) {
   const topics = brand.topics ?? []
   const chips = useAnimatedList(topics, (t) => t.name, 150)
+  const [failed, save] = useCardSave()
   const problem = (v) => (topics.some((t) => t.name.toLowerCase() === v.toLowerCase()) ? 'Already added' : null)
-  const add = (item) => {
-    update((b) => ({ ...b, topics: [...(b.topics ?? []), item] }))
-    toast('Added · Research will suggest prompts for it', { duration: 6000, action: { label: 'Run research', onClick: () => navigate(`/tracker?research=${encodeURIComponent(item.name)}`) } })
+  const add = (name) => {
+    save(`“${name}”`, {
+      apply: () => update((b) => ({ ...b, topics: [...(b.topics ?? []), { name, promptCount: 0, type: guessTopicType(name) }] })),
+      revert: () => update((b) => ({ ...b, topics: b.topics.filter((x) => x.name !== name) })),
+      call: () => setupActions.onAddTopic(brand.id, name),
+      done: () => toast('Added · Research will suggest prompts for it', { duration: 6000, action: { label: 'Run research', onClick: () => navigate(`/tracker?research=${encodeURIComponent(name)}`) } }),
+    })
   }
-  const remove = (t) => {
-    const i = topics.findIndex((x) => x.name === t.name)
-    update((b) => ({ ...b, topics: b.topics.filter((x) => x.name !== t.name) }))
-    toast(`${t.name} removed`, { duration: 5000, action: { label: 'Undo', onClick: () => update((b) => (b.topics.some((x) => x.name === t.name) ? b : { ...b, topics: [...b.topics.slice(0, i), t, ...b.topics.slice(i)] })) } })
-  }
-  const suggestions = (brand.id === setupBrands[0].id ? topicSuggestions : []).filter((x) => !topics.some((t) => t.name.toLowerCase() === x.name.toLowerCase()))
   const shape = 'h-9 rounded-lg text-[14px]'
-  const groups = [['Products', 'product'], ['Topics', 'topic']]
-    .map(([label, type]) => [label, chips.filter(({ item }) => item.type === type)]).filter(([, items]) => items.length)
-  const tail = (
-    <>
-      {suggestions.map((x) => <SuggestChip key={x.name} label={x.name} reason={x.reason} shape={shape} onPick={() => add({ name: x.name, type: x.type })} />)}
-      <ChipAdder label="Add" placeholder="e.g. Face mist" shape={shape} add={(v) => problem(v) ?? add({ name: v, type: guessTopicType(v) }) ?? null} />
-    </>
-  )
 
   return (
-    <SettingsCard id={`topics-${brand.id}`} title="Products & topics" count={topics.length} description={`What ${brand.name} sells — used to suggest prompts and research`} compact
+    <SettingsCard id={`topics-${brand.id}`} title="Topics" count={topics.length} description={`What ${brand.name}’s prompts are about — used to suggest prompts and research`} compact
       body={(
-        <div className="px-5 pb-4">
-          {groups.map(([label, items], gi) => (
-            <div key={label} className={gi > 0 ? 'mt-3' : ''}>
-              <div className="mb-1.5 text-[12px] leading-4 font-medium text-stone-500">{label}</div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                {items.map(({ item: t, key, state }) => {
-                  const n = topicPromptCount(t.name)
-                  return (
-                    <span key={key} className={`group ${shape} inline-flex items-center border border-line bg-surface pr-2.5 transition-colors duration-150 hover:border-[var(--color-line-strong)] ${animClass(state)}`}>
-                      <button type="button" onClick={() => navigate(`/tracker?topic=${encodeURIComponent(t.name)}`)} aria-label={`${t.name}: ${n} tracked prompts — view them`}
-                        className="inline-flex h-full items-center gap-2 rounded-l-lg pl-1.5 pr-1 font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
-                        <TopicVisual t={t} />
-                        {t.name}
-                        <span title={`${n} tracked prompt${n === 1 ? '' : 's'}`} className="text-[12px] font-normal text-stone-500 tabular-nums">{n}</span>
-                      </button>
-                      <button type="button" aria-label={`Remove ${t.name}`} onClick={() => remove(t)} className={removeBtn}><X size={14} aria-hidden /></button>
-                    </span>
-                  )
-                })}
-                {gi === groups.length - 1 && tail}
-              </div>
-            </div>
-          ))}
-          {!groups.length && <div className="flex flex-wrap items-center gap-2.5">{tail}</div>}
-        </div>
+        <>
+          <div className="flex flex-wrap items-center gap-2.5 px-5 pb-4">
+            {chips.map(({ item: t, key, state }) => {
+              const n = t.promptCount
+              return (
+                <span key={key} className={`${shape} inline-flex items-center border border-line bg-surface pr-2.5 transition-colors duration-150 hover:border-[var(--color-line-strong)] ${animClass(state)}`}>
+                  <button type="button" onClick={() => navigate(`/tracker?topic=${encodeURIComponent(t.name)}`)} aria-label={`${t.name}: ${n} tracked prompts — view them`}
+                    className="inline-flex h-full items-center gap-2 rounded-lg pl-1.5 pr-1 font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
+                    <TopicVisual t={t} />
+                    {t.name}
+                    <span title={`${n} tracked prompt${n === 1 ? '' : 's'}`} className="text-[12px] font-normal text-stone-500 tabular-nums">{n}</span>
+                  </button>
+                </span>
+              )
+            })}
+            <ChipAdder label="Add" placeholder="e.g. Face mist" shape={shape} add={(v) => problem(v) ?? add(v) ?? null} />
+          </div>
+          <SaveFailed failed={failed} />
+        </>
       )}
     />
   )
@@ -430,132 +407,104 @@ function TopicsCard({ brand, update, toast }) {
 function CompetitorsCard({ brand, update, toast }) {
   const list = brand.competitors
   const ed = useEditing(toast)
+  const [failed, save] = useCardSave()
   // tracked prompts where this competitor appears alongside the brand (null: not a tracked brand yet); most first
-  const shared = (c) => (isDomain(c) ? sharedAnswers(c, brand.domain) : null)
+  const shared = (c) => (c.domain ? sharedAnswers(c.domain, brand.domain) : null)
   const sorted = useMemo(() => [...list].sort((a, b) => (shared(b) ?? -1) - (shared(a) ?? -1)), [list, brand.domain]) // eslint-disable-line react-hooks/exhaustive-deps
-  const rows = useAnimatedList(sorted, (c) => c, 150)
-  const full = list.length >= MAX_COMPETITORS
-  const validate = (self) => ({ entry }) => {
-    const raw = entry.trim()
-    const v = toEntry(raw)
-    if (/\./.test(raw) && !/\s/.test(raw) && !isDomain(v)) return 'Enter a domain like competitor.com, or a brand name'
-    if (v === brand.domain) return 'That’s this brand’s own site'
-    if (list.some((c) => c !== self && label(c).toLowerCase() === label(v).toLowerCase())) return 'Already tracked'
+  const rows = useAnimatedList(sorted, (c) => c.id, 150)
+  // a limit only when the app sets one (none while billing isn't live)
+  const full = MAX_COMPETITORS != null && list.length >= MAX_COMPETITORS
+  const setList = (fn) => update((b) => ({ ...b, competitors: fn(b.competitors) }))
+  const setSuggested = (fn) => update((b) => ({ ...b, suggested: fn(b.suggested ?? []) }))
+  const validateNew = ({ name, domain }) => {
+    const d = normalizeDomain(domain)
+    if (!isValidDomain(d)) return 'Enter a domain like competitor.com'
+    if (d === brand.domain) return 'That’s this brand’s own site'
+    if (list.some((c) => c.domain === d)) return 'Already tracked'
+    if (list.some((c) => c.name.toLowerCase() === name.trim().toLowerCase())) return 'Already tracked'
     return null
   }
-  const add = (c) => {
-    update((b) => (b.competitors.includes(c) || b.competitors.length >= MAX_COMPETITORS ? b : { ...b, competitors: [...b.competitors, c], addedOn: { ...b.addedOn, [`competitor:${c}`]: today() } }))
-    toast(`${label(c)} added`, { duration: 5000, action: { label: 'Undo', onClick: () => update((b) => ({ ...b, competitors: b.competitors.filter((x) => x !== c) })) } })
+  const validateName = (self) => ({ name }) => (list.some((c) => c.id !== self.id && c.name.toLowerCase() === name.trim().toLowerCase()) ? 'Already tracked' : null)
+  const add = ({ name, domain }) => {
+    const temp = { id: `new-${Date.now()}`, name: name.trim(), domain: normalizeDomain(domain) }
+    save(temp.name, {
+      apply: () => setList((cs) => [...cs, temp]),
+      revert: () => setList((cs) => cs.filter((x) => x.id !== temp.id)),
+      call: () => setupActions.onAddCompetitor(brand.id, temp),
+      done: (saved) => { setList((cs) => cs.map((x) => (x.id === temp.id ? { ...temp, ...saved } : x))); toast(`${temp.name} added`) },
+    })
   }
-  const replace = (from, to) => {
-    const swap = (a, b) => (x) => (x === a ? b : x)
-    update((b) => ({ ...b, competitors: b.competitors.map(swap(from, to)), addedOn: { ...b.addedOn, [`competitor:${to}`]: b.addedOn?.[`competitor:${from}`] ?? today() } }))
-    toast(`${label(to)} updated`, { duration: 5000, action: { label: 'Undo', onClick: () => update((b) => ({ ...b, competitors: b.competitors.map(swap(to, from)) })) } })
+  const rename = (c, name) => {
+    const next = { ...c, name: name.trim() }
+    save(next.name, {
+      apply: () => setList((cs) => cs.map((x) => (x.id === c.id ? next : x))),
+      revert: () => setList((cs) => cs.map((x) => (x.id === c.id ? c : x))),
+      call: () => setupActions.onRenameCompetitor(brand.id, c, next.name),
+      done: () => toast(`${next.name} updated`),
+    })
   }
+  const restore = (c, i) => save(c.name, {
+    apply: () => setList((cs) => (cs.some((x) => x.id === c.id) ? cs : [...cs.slice(0, i), c, ...cs.slice(i)])),
+    revert: () => setList((cs) => cs.filter((x) => x.id !== c.id)),
+    call: () => setupActions.onRestoreCompetitor(brand.id, c),
+  })
   const remove = (c) => {
-    const i = list.indexOf(c)
-    update((b) => ({ ...b, competitors: b.competitors.filter((x) => x !== c) }))
-    toast(`${label(c)} removed`, { duration: 5000, action: { label: 'Undo', onClick: () => update((b) => (b.competitors.includes(c) ? b : { ...b, competitors: [...b.competitors.slice(0, i), c, ...b.competitors.slice(i)] })) } })
+    const i = list.findIndex((x) => x.id === c.id)
+    save(c.name, {
+      apply: () => setList((cs) => cs.filter((x) => x.id !== c.id)),
+      revert: () => setList((cs) => (cs.some((x) => x.id === c.id) ? cs : [...cs.slice(0, i), c, ...cs.slice(i)])),
+      call: () => setupActions.onRemoveCompetitor(brand.id, c),
+      done: () => toast(`${c.name} removed`, { duration: 5000, action: { label: 'Undo', onClick: () => restore(c, i) } }),
+    })
   }
-  const market = useMarketSuggestions('competitors', list.map((c) => (isDomain(c) ? { domain: c, name: label(c) } : { name: c })))
-  const suggestions = full ? [] : market.items
-    .map((x) => ({ key: x.domain, label: x.name, value: x.domain, reason: `Appears in ${x.answers} answers` }))
-  const field = [{ name: 'entry', label: 'Competitor domain or name', placeholder: 'competitor.com or brand name' }]
+  // research candidates: accept = track it, dismiss = research won't suggest it again
+  const accept = (sg) => save(sg.name, {
+    apply: () => { setSuggested((ss) => ss.filter((x) => x.id !== sg.id)); setList((cs) => [...cs, { id: sg.id, name: sg.name, domain: sg.domain }]) },
+    revert: () => { setList((cs) => cs.filter((x) => x.id !== sg.id)); setSuggested((ss) => [...ss, sg]) },
+    call: () => setupActions.onAcceptSuggestion(brand.id, sg),
+    done: () => toast(`${sg.name} added`),
+  })
+  const dismiss = (sg) => save(sg.name, {
+    apply: () => setSuggested((ss) => ss.filter((x) => x.id !== sg.id)),
+    revert: () => setSuggested((ss) => [...ss, sg]),
+    call: () => setupActions.onDismissSuggestion(brand.id, sg),
+  })
+  const suggestions = full ? [] : (brand.suggested ?? []).map((x) => ({ key: x.id, label: x.name, value: x, reason: x.reason }))
+  const addFields = [
+    { name: 'name', label: 'Competitor name', placeholder: 'Brand name' },
+    { name: 'domain', label: 'Competitor domain', placeholder: 'competitor.com' },
+  ]
+  const nameField = [{ name: 'name', label: 'Competitor name', placeholder: 'Brand name' }]
 
   return (
     <SettingsCard
       id={`competitors-${brand.id}`}
       title="Competitors"
-      count={`${list.length} of ${MAX_COMPETITORS}`}
+      count={MAX_COMPETITORS != null ? `${list.length} of ${MAX_COMPETITORS}` : list.length}
       description="Brands AI answers compare you with"
       action={<AddButton onClick={() => ed.open('new')} disabled={full} disabledTitle="Limit reached" />}
-      footer={<Suggested items={suggestions} market={market.country} onPick={(s) => add(s.value)} />}
+      footer={(
+        <>
+          <Suggested items={suggestions} label="Suggested from research" onPick={(sg) => accept(sg.value)} onDismiss={(sg) => dismiss(sg.value)} />
+          <SaveFailed failed={failed} />
+        </>
+      )}
     >
       {ed.editing === 'new' && !full && (
-        <InputRow logo={<Logo name="+" />} fields={field} initial={ed.draft ?? { entry: '' }} validate={validate(null)} submitLabel="Add"
-          onSubmit={({ entry }) => { add(toEntry(entry)); ed.close() }} onClose={ed.close} onDiscard={ed.discard('new')} />
+        <InputRow logo={<Logo name="+" />} fields={addFields} initial={ed.draft ?? { name: '', domain: '' }} validate={validateNew} submitLabel="Add"
+          onSubmit={(v) => { add(v); ed.close() }} onClose={ed.close} onDiscard={ed.discard('new')} />
       )}
-      {rows.map(({ item: c, key, state }) => (ed.editing === c ? (
-        <InputRow key={key} logo={<Logo domain={isDomain(c) ? c : null} name={label(c)} />} fields={field} initial={ed.draft ?? { entry: c }} validate={validate(c)} submitLabel="Save"
-          onSubmit={({ entry }) => { replace(c, toEntry(entry)); ed.close() }} onClose={ed.close} onDiscard={ed.discard(c)} />
+      {rows.map(({ item: c, key, state }) => (ed.editing === c.id ? (
+        <InputRow key={key} logo={<Logo domain={c.domain} name={c.name} />} fields={nameField} fixed={c.domain} initial={ed.draft ?? { name: c.name }} validate={validateName(c)} submitLabel="Save"
+          onSubmit={({ name }) => { rename(c, name); ed.close() }} onClose={ed.close} onDiscard={ed.discard(c.id)} />
       ) : (
-        <Row key={key} state={state} logo={<Logo domain={isDomain(c) ? c : null} name={label(c)} />} name={label(c)}
-          meta={isDomain(c) ? c : 'Brand name'}
+        <Row key={key} state={state} logo={<Logo domain={c.domain} name={c.name} />} name={c.name}
+          meta={c.domain}
           value={shared(c) != null ? `In ${shared(c)} answer${shared(c) === 1 ? '' : 's'} with you` : 'No shared answers yet'}
-          valueTitle={brand.addedOn?.[`competitor:${c}`] ? `Added ${brand.addedOn[`competitor:${c}`]}` : undefined}
-          onEdit={() => ed.open(c)} onRemove={() => remove(c)} />
+          onEdit={() => ed.open(c.id)} onRemove={() => remove(c)} />
       )))}
       {!list.length && ed.editing !== 'new' && rows.length === 0 && (
         <li className="flex h-[60px] items-center px-5 text-[13px] leading-[18px] text-stone-500">No competitors yet</li>
-      )}
-    </SettingsCard>
-  )
-}
-
-function MarketplacesCard({ brand, update, toast }) {
-  const items = brand.marketplaces
-  const ed = useEditing(toast)
-  const rows = useAnimatedList(items, (m) => m.id, 150)
-  const setMarketplaces = (fn) => update((b) => ({ ...b, marketplaces: fn(b.marketplaces) }))
-  const storeLogo = (domain, name) => {
-    const mark = storeMark(domain ?? '')
-    return mark
-      ? <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-line bg-white"><MarketplaceIcon name={mark} size={16} /></span>
-      : <Logo domain={domain && isValidDomain(domain) ? domain : null} name={name} />
-  }
-  const domainError = (raw, selfId) => {
-    const d = normalizeDomain(raw)
-    if (!isValidDomain(d)) return 'Enter a valid domain, e.g. amazon.com'
-    if (items.some((m) => m.id !== selfId && m.domain === d)) return 'Already added'
-    return null
-  }
-  const add = (d, name = brandName(d)) => {
-    setMarketplaces((ms) => [...ms, { id: `m${Date.now()}`, name, domain: d, cited: 0 }])
-    toast(`${name} added`, { duration: 5000, action: { label: 'Undo', onClick: () => setMarketplaces((ms) => ms.filter((m) => m.domain !== d)) } })
-  }
-  const save = (prev, next) => {
-    setMarketplaces((ms) => ms.map((x) => (x.id === prev.id ? next : x)))
-    toast(`${next.name} updated`, { duration: 5000, action: { label: 'Undo', onClick: () => setMarketplaces((ms) => ms.map((x) => (x.id === prev.id ? prev : x))) } })
-  }
-  const remove = (m) => {
-    const i = items.findIndex((x) => x.id === m.id)
-    setMarketplaces((ms) => ms.filter((x) => x.id !== m.id))
-    toast(`${m.name} removed`, { duration: 5000, action: { label: 'Undo', onClick: () => setMarketplaces((ms) => (ms.some((x) => x.id === m.id) ? ms : [...ms.slice(0, i), m, ...ms.slice(i)])) } })
-  }
-  const market = useMarketSuggestions('marketplaces', items)
-  const suggestions = market.items
-    .map((x) => ({ key: x.domain, label: x.name, value: x.domain, reason: `Cited in ${x.answers} answers` }))
-  // tracked stores stay put when the market changes; ones that don't sell there say so and show no count
-  const inMarket = (m) => operatesIn(m.domain, market.country)
-
-  return (
-    <SettingsCard
-      id={`marketplaces-${brand.id}`}
-      title="Marketplaces"
-      count={items.length}
-      description={`Where ${brand.domain ?? brand.name} also sells`}
-      action={<AddButton onClick={() => ed.open('new')} />}
-      footer={<Suggested items={suggestions} market={market.country} onPick={(s) => add(s.value, s.label)} />}
-    >
-      {ed.editing === 'new' && (
-        <InputRow logo={<Logo name="+" />} fields={[{ name: 'domain', label: 'Marketplace domain', placeholder: 'amazon.com' }]} initial={ed.draft ?? { domain: '' }}
-          validate={({ domain }) => domainError(domain, null)} submitLabel="Add"
-          onSubmit={({ domain }) => { add(normalizeDomain(domain)); ed.close() }} onClose={ed.close} onDiscard={ed.discard('new')} />
-      )}
-      {rows.map(({ item: m, key, state }) => (ed.editing === m.id ? (
-        <InputRow key={key} logo={storeLogo(m.domain, m.name)}
-          fields={[{ name: 'name', label: 'Marketplace name', placeholder: 'Amazon' }, { name: 'domain', label: 'Marketplace domain', placeholder: 'amazon.com' }]}
-          initial={ed.draft ?? { name: m.name, domain: m.domain }} validate={({ domain }) => domainError(domain, m.id)} submitLabel="Save"
-          onSubmit={({ name, domain }) => { save(m, { ...m, name: name.trim(), domain: normalizeDomain(domain) }); ed.close() }} onClose={ed.close} onDiscard={ed.discard(m.id)} />
-      ) : (
-        <Row key={key} state={state} logo={storeLogo(m.domain, m.name)} name={m.name} muted={!inMarket(m)}
-          meta={inMarket(m) ? m.domain : <span className="text-stone-500">Not tracked in {market.country}</span>}
-          value={!inMarket(m) ? <span className="text-stone-500">—</span> : m.cited > 0 ? `${m.cited} listing${m.cited === 1 ? '' : 's'} cited` : 'No listings yet'}
-          valueTitle={!inMarket(m) ? `${m.name} isn’t available in ${market.country}` : undefined}
-          onEdit={() => ed.open(m.id)} onRemove={() => remove(m)} />
-      )))}
-      {!items.length && ed.editing !== 'new' && rows.length === 0 && (
-        <li className="flex h-[60px] items-center px-5 text-[13px] leading-[18px] text-stone-500">No marketplaces yet</li>
       )}
     </SettingsCard>
   )
@@ -578,26 +527,36 @@ export default function SetupPage() {
   const primary = brands[0]
 
   const updateBrand = (id, fn) => setBrands((bs) => bs.map((b) => (b.id === id ? fn(b) : b)))
+  // deleting asks first; it can't be undone (the brand, its prompts and history go)
+  const removeBrand = (brand) => setupActions.onDeleteBrand(brand.id).then(() => {
+    setBrands((bs) => bs.filter((b) => b.id !== brand.id))
+    toast(`${brand.name} deleted`)
+  })
   const deleteBrand = (brand, anchor) => setConfirmState({
     anchor,
     title: `Delete ${brand.name}?`,
     body: 'This removes its prompts and history.',
     label: 'Delete',
-    onConfirm: () => {
-      const i = brands.findIndex((b) => b.id === brand.id)
-      setBrands((bs) => bs.filter((b) => b.id !== brand.id))
-      toast(`${brand.name} deleted`, { duration: 5000, action: { label: 'Undo', onClick: () => setBrands((bs) => { const n = [...bs]; n.splice(i, 0, brand); return n }) } })
-    },
+    onConfirm: () => removeBrand(brand).catch(() => toast(`Couldn’t delete ${brand.name}`, { duration: 6000, action: { label: 'Retry', onClick: () => deleteBrand(brand, anchor) } })),
   })
-  const saveBrand = (form) => {
+  // the modal's save (it waits, and shows the error if this rejects). Edit: name / domain, then the competitors
+  // added (by domain) and removed in the field. Add: one create with its aliases and competitors.
+  const saveBrand = async (form) => {
     if (modal.brand) {
-      updateBrand(modal.brand.id, (b) => ({ ...b, ...form }))
+      const b = modal.brand
+      if (form.name !== b.name || form.domain !== b.domain) await setupActions.onUpdateBrand(b.id, { name: form.name, domain: form.domain })
+      const kept = b.competitors.filter((c) => form.competitors.includes(c.domain))
+      const removed = b.competitors.filter((c) => !form.competitors.includes(c.domain))
+      const added = form.competitors.filter((d) => !b.competitors.some((c) => c.domain === d))
+      for (const c of removed) await setupActions.onRemoveCompetitor(b.id, c)
+      const saved = []
+      for (const d of added) saved.push(await setupActions.onAddCompetitor(b.id, { name: brandName(d), domain: d }))
+      updateBrand(b.id, (x) => ({ ...x, name: form.name, domain: form.domain, competitors: [...kept, ...saved] }))
       toast(`${form.name} updated`)
     } else {
-      const id = `b${Date.now()}`
-      const addedOn = Object.fromEntries([...form.competitors.map((c) => `competitor:${c}`), ...(form.aliases ?? []).map((a) => `alias:${a}`)].map((k) => [k, today()]))
-      setBrands((bs) => [...bs, { id, logo: null, ...form, addedOn, marketplaces: [], prompts: 0, visible: null, visibility: null, visibilityDelta: null, since: sinceNow(), lastSync: null }])
-      setNewId(id)
+      const created = await setupActions.onCreateBrand({ name: form.name, domain: form.domain, aliases: form.aliases, competitors: form.competitors.map((d) => ({ name: brandName(d), domain: d })) })
+      setBrands((bs) => [...bs, { aliasAnswers: null, topics: [], suggested: [], prompts: 0, lastSync: null, ...created }])
+      setNewId(created.id)
       toast(`${form.name} added · first sync starts now`)
     }
     setModal(null)
@@ -606,8 +565,7 @@ export default function SetupPage() {
   const brandColumns = [
     { key: 'name', label: 'Brand', sort: { value: (b) => b.name.toLowerCase(), first: 'asc' }, cell: (b) => <span className="font-medium text-stone-900">{b.name}</span> },
     { key: 'domain', label: 'Website', width: 220, cell: (b) => <span className="text-[13px] text-stone-600">{b.domain ?? '—'}</span> },
-    { key: 'competitors', label: 'Competitors', width: 140, cell: (b) => <span className="text-[13px] text-stone-600 tabular-nums">{b.competitors.length} of {MAX_COMPETITORS}</span> },
-    { key: 'marketplaces', label: 'Marketplaces', width: 140, cell: (b) => <span className="text-[13px] text-stone-600 tabular-nums">{b.marketplaces.length}</span> },
+    { key: 'competitors', label: 'Competitors', width: 140, cell: (b) => <span className="text-[13px] text-stone-600 tabular-nums">{MAX_COMPETITORS != null ? `${b.competitors.length} of ${MAX_COMPETITORS}` : b.competitors.length}</span> },
     { key: 'edit', label: '', width: 96, align: 'right', cell: (b) => <button type="button" onClick={() => setModal({ brand: b })} className="text-[13px] font-medium text-stone-600 hover:text-stone-900">Edit</button> },
   ]
 
@@ -634,10 +592,9 @@ export default function SetupPage() {
           return (
             <div key={b.id} className={`flex flex-col gap-4 ${i > 0 ? 'mt-6' : ''} ${b.id === newId ? 'card-in' : ''}`}>
               <BrandIdentity brand={brand} syncing={b.id === primary?.id && tracking.syncing} onEdit={(x) => setModal({ brand: x })} onDelete={deleteBrand} />
-              <NamesCard brand={brand} update={update} toast={toast} />
+              <NamesCard brand={brand} />
               <TopicsCard brand={brand} update={update} toast={toast} />
               <CompetitorsCard brand={brand} update={update} toast={toast} />
-              <MarketplacesCard brand={brand} update={update} toast={toast} />
             </div>
           )
         })
@@ -650,7 +607,7 @@ export default function SetupPage() {
           description={trackingSummary(tracking)}
           action={(
             <a href="/tracking" onClick={linkClick('/tracking')} className={`${textBtn} text-stone-700`}>
-              Edit in LLM settings <ArrowRight size={12} aria-hidden />
+              Edit in Tracking <ArrowRight size={12} aria-hidden />
             </a>
           )}
         />
@@ -660,12 +617,8 @@ export default function SetupPage() {
         open={Boolean(modal)}
         mode={modal?.brand ? 'edit' : 'add'}
         brand={modal?.brand ?? null}
-        onDelete={(brand) => {
-          // deleted from the modal's danger zone (already confirmed there; no undo)
-          setModal(null)
-          setBrands((bs) => bs.filter((b) => b.id !== brand.id))
-          toast(`${brand.name} deleted`)
-        }}
+        // deleted from the modal's danger zone (already confirmed there; no undo); the modal waits and shows a failure
+        onDelete={(brand) => removeBrand(brand).then(() => setModal(null))}
         takenDomains={brands.filter((b) => b.id !== modal?.brand?.id).map((b) => b.domain).filter(Boolean)}
         onClose={() => setModal(null)}
         onSave={saveBrand}

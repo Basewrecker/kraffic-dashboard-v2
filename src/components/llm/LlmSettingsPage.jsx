@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Check, RefreshCw } from 'lucide-react'
-import Segmented from '../dashboard/Segmented'
 import { PlatformIcon } from '../dashboard/icons'
 import { useToast } from '../dashboard/overlays'
 import ConfirmPopover from '../prompts/ConfirmPopover'
@@ -9,11 +8,8 @@ import Switch from '../ui/Switch'
 import { account } from '../../data/mock'
 import { linkClick } from '../../router'
 import { billingLive } from '../../data/mock'
-import {
-  CURRENCIES, FREQUENCIES, LANGUAGES, REGIONS, countryInfo, fmtDay, fmtTime, fmtWeekday, useTracking,
-} from '../../store/trackingSettings'
+import { fmtAvailable, fmtDay, trackingOptions, useTracking } from '../../store/trackingSettings'
 
-const CURRENCY_NAMES = { USD: 'US dollar', GBP: 'British pound', EUR: 'Euro', AED: 'UAE dirham', SGD: 'Singapore dollar' }
 const selectWidth = 'min-w-[140px] sm:min-w-[200px]'
 // what each engine is (performance lives on the dashboard's Platform visibility card)
 const ENGINE_INFO = {
@@ -36,6 +32,13 @@ const Saved = ({ show }) => (
     {show && <><Check size={12} aria-hidden /> Saved</>}
   </span>
 )
+// a save that failed: said beside the control (its value is already back), with Retry
+const Failed = ({ onRetry }) => (
+  <span role="alert" className="inline-flex items-center gap-1.5 text-[12px] leading-4">
+    <span className="text-negative">Couldn’t save</span>
+    <button type="button" onClick={onRetry} className="rounded font-medium text-stone-900 underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Retry</button>
+  </span>
+)
 
 function SettingsCard({ title, description, children, footer }) {
   return (
@@ -50,8 +53,8 @@ function SettingsCard({ title, description, children, footer }) {
   )
 }
 
-// name + meta on the left, one control on the right
-function Row({ icon, name, meta, muted, saved, children }) {
+// name + meta on the left, one control on the right; failed: { retry } when this row's save failed
+function Row({ icon, name, meta, muted, saved, failed, children }) {
   return (
     <li className="flex h-[60px] items-center justify-between gap-4 px-5">
       <span className="flex min-w-0 items-center gap-3">
@@ -62,7 +65,7 @@ function Row({ icon, name, meta, muted, saved, children }) {
         </span>
       </span>
       <span className="flex shrink-0 items-center gap-3">
-        <Saved show={saved} />
+        {failed ? <Failed onRetry={failed.retry} /> : <Saved show={saved} />}
         {children}
       </span>
     </li>
@@ -74,24 +77,33 @@ export default function LlmSettingsPage() {
   const t = useTracking()
   const [savedKey, flash] = useSaved()
   const [toastNode, toast] = useToast({ position: 'center' })
-  const [confirm, setConfirm] = useState(null) // { kind: 'pause' | 'market', ... }
+  const [confirm, setConfirm] = useState(null) // { field, patch, anchor }: a market change waiting for a yes
+  const [failed, setFailed] = useState(null) // { key, retry }: the row whose save failed
 
   const engines = t.platforms.filter((p) => p.enabled).length
   const prompts = t.quota.used // every engine runs every tracked prompt
-  const { region, country, language, currency } = t.market
+  const { country, language } = t.market
   const { used, limit, resetsOn } = t.quota
   const pct = used / limit
-  const syncNow = () => { t.syncNow(); toast('Sync started') }
-
-  // market changes ask first; region picks that region's first country
-  const askMarket = (field, value, anchor) => {
-    const patch = field === 'region' ? { region: value, country: REGIONS[value][0].name } : { [field]: value }
-    setConfirm({ kind: 'market', field, patch, anchor })
+  // Sync now: allowed again at schedule.nextScanAt (null = now)
+  const tooSoon = Boolean(t.schedule.nextScanAt) && new Date(t.schedule.nextScanAt) > new Date()
+  // a save: the page shows the new value at once; a failure puts it back and offers Retry beside the control
+  const save = (key, run) => {
+    setFailed(null)
+    run().then(() => flash(key), () => setFailed({ key, retry: () => save(key, run) }))
   }
+  const syncNow = () => {
+    setFailed(null)
+    t.syncNow().then(() => toast('Sync finished'), () => setFailed({ key: 'sync', retry: syncNow }))
+    toast('Sync started')
+  }
+
+  // market changes ask first
+  const askMarket = (field, value, anchor) => setConfirm({ field, patch: { [field]: value }, anchor })
   const marketCopy = (c) => {
     if (c.field === 'language') return { title: `Switch language to ${c.patch.language}?`, body: `Next sync runs prompts in ${c.patch.language}; past data stays under ${language}.` }
     const to = c.patch.country
-    return { title: `Switch market to ${to}?`, body: `Next sync tracks ${countryInfo(to)?.short ?? to} answers; past data stays under ${country}.` }
+    return { title: `Switch market to ${to}?`, body: `Next sync checks answers as a user in ${to}; past data stays under ${country}.` }
   }
 
   return (
@@ -103,12 +115,15 @@ export default function LlmSettingsPage() {
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">How Kraffic checks AI answers for {account.domain}</p>
           <p className="mt-1 text-[13px] leading-[18px] text-stone-500 tabular-nums md:hidden">{t.syncing ? 'Syncing…' : `Updated ${fmtDay(t.schedule.lastSync)}`}</p>
         </div>
-        <div className="flex items-center gap-3 md:pt-1">
+        <div className="flex flex-wrap items-center gap-3 md:pt-1">
+          {failed?.key === 'sync' && <Failed onRetry={failed.retry} />}
+          {/* too soon for another sync: when it's possible again */}
+          {tooSoon && !t.syncing && <span className="text-[13px] leading-[18px] text-stone-500 tabular-nums max-md:order-last max-md:w-full">Available {fmtAvailable(t.schedule.nextScanAt)}</span>}
           <span className="hidden text-[13px] leading-[18px] text-stone-600 tabular-nums md:inline">{t.syncing ? 'Syncing…' : `Updated ${fmtDay(t.schedule.lastSync)}`}</span>
           <button
             type="button"
             onClick={syncNow}
-            disabled={t.syncing}
+            disabled={t.syncing || tooSoon}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-small font-medium text-stone-700 max-md:flex-1 md:h-9 outline-none transition-colors duration-150 ease-out hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-60"
           >
             <RefreshCw size={14} className={t.syncing ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />
@@ -117,13 +132,13 @@ export default function LlmSettingsPage() {
         </div>
       </div>
 
-      {/* 1 — platforms: a pure on/off setting */}
+      {/* 1 — platforms: which engines run your prompts (read-only: set by the app, not per brand) */}
       <SettingsCard
         title="AI platforms"
-        description={`Choose which AI engines Kraffic runs your prompts on. Each one runs all ${prompts} prompts every sync.`}
+        description={`The AI engines Kraffic runs your prompts on. Each one that's ready runs all ${prompts} prompts every sync.`}
         footer={(
           <>
-            <span>{engines} of {t.platforms.length} engines on · {engines * prompts} prompt runs per sync</span>
+            <span>{engines} of {t.platforms.length} engines ready · {engines * prompts} prompt runs per sync</span>
             <a href="/overview" onClick={linkClick('/overview')} className="inline-flex items-center gap-1 rounded font-medium text-stone-700 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">
               See results on dashboard <ArrowRight size={12} aria-hidden />
             </a>
@@ -136,49 +151,31 @@ export default function LlmSettingsPage() {
             icon={<span className={`flex transition-opacity duration-150 ${p.enabled ? '' : 'opacity-50'}`}><PlatformIcon id={p.id} size={18} /></span>}
             name={p.name}
             meta={ENGINE_INFO[p.id]}
-            saved={savedKey === `p-${p.id}`}
           >
-            <span className={`w-16 text-right text-[13px] leading-[18px] ${p.enabled ? 'font-medium text-stone-900' : 'text-stone-500'}`}>{p.enabled ? 'Tracking' : 'Off'}</span>
-            <Switch
-              size="sm"
-              checked={p.enabled}
-              aria-label={`Track ${p.name}`}
-              onChange={(on, anchor) => { if (on) { t.setPlatform(p.id, true); flash(`p-${p.id}`) } else setConfirm({ kind: 'pause', platform: p, anchor }) }}
-            />
+            <span className={`text-right text-[13px] leading-[18px] ${p.enabled ? 'font-medium text-stone-900' : 'text-stone-500'}`}>{p.enabled ? 'Tracking' : 'Not ready'}</span>
           </Row>
         ))}
       </SettingsCard>
 
       {/* 2 — market */}
-      <SettingsCard title="Market" description="Where and how answers are checked · saved per user">
-        <Row name="Region" meta="Where answers are checked from" saved={savedKey === 'region'}>
-          <Select size="row" className={selectWidth} label="Region" value={region} options={Object.keys(REGIONS).map((r) => [r, r])} onChange={(v, el) => askMarket('region', v, el)} />
+      <SettingsCard title="Market" description="Where and how answers are checked">
+        <Row name="Country" meta="Answers as a user in this country" saved={savedKey === 'country'} failed={failed?.key === 'country' ? failed : null}>
+          <Select size="row" className={selectWidth} label="Country" value={country} options={trackingOptions.countries.map((c) => [c, c])} onChange={(v, el) => askMarket('country', v, el)} />
         </Row>
-        <Row name="Country" meta="Answers as a user in this country" saved={savedKey === 'country'}>
-          <Select size="row" className={selectWidth} label="Country" value={country} options={REGIONS[region].map((c) => [c.name, c.name])} onChange={(v, el) => askMarket('country', v, el)} />
-        </Row>
-        <Row name="Language" meta="Language prompts are run in" saved={savedKey === 'language'}>
-          <Select size="row" className={selectWidth} label="Language" value={language} options={LANGUAGES.map((l) => [l, l])} onChange={(v, el) => askMarket('language', v, el)} />
-        </Row>
-        <Row name="Currency" meta="Used for prices in AI answers" saved={savedKey === 'currency'}>
-          <Select size="row" className={selectWidth} label="Currency" value={currency} options={CURRENCIES.map((c) => [c.code, `${c.symbol} ${c.code} · ${CURRENCY_NAMES[c.code]}`])} onChange={(v) => { t.setMarket({ currency: v }); flash('currency') }} />
+        <Row name="Language" meta="Language prompts are run in" saved={savedKey === 'language'} failed={failed?.key === 'language' ? failed : null}>
+          <Select size="row" className={selectWidth} label="Language" value={language} options={trackingOptions.languages.map((l) => [l, l])} onChange={(v, el) => askMarket('language', v, el)} />
         </Row>
       </SettingsCard>
 
       {/* 3 — schedule & limits */}
       <SettingsCard title="Schedule & limits" description={`How often prompts are re-checked · applies to everyone on ${account.name}`}>
-        <Row name="Sync frequency" meta={`Next sync ${fmtWeekday(t.schedule.nextSync)} · ${fmtTime(t.schedule.nextSync)}`} saved={savedKey === 'frequency'}>
-          <Segmented
-            label="Sync frequency"
-            size="sm"
-            value={t.schedule.frequency}
-            onChange={(v) => { if (v !== t.schedule.frequency) { t.setFrequency(v); flash('frequency') } }}
-            options={FREQUENCIES.map(([value, label]) => ({ value, label }))}
-          />
+        <Row name="Check prompts every day" meta={t.schedule.daily ? 'Prompts are re-checked once a day' : 'Prompts are checked when you press Sync now'} saved={savedKey === 'daily'} failed={failed?.key === 'daily' ? failed : null}>
+          <span className={`w-8 text-right text-[13px] leading-[18px] ${t.schedule.daily ? 'font-medium text-stone-900' : 'text-stone-500'}`}>{t.schedule.daily ? 'On' : 'Off'}</span>
+          <Switch size="sm" checked={t.schedule.daily} aria-label="Check prompts every day" onChange={(on) => save('daily', () => t.setDaily(on))} />
         </Row>
         {/* billing not live (production today): count only, no limit, bar or Upgrade */}
         {!billingLive ? (
-        <Row name="Prompt quota" meta={`Resets ${fmtDay(resetsOn)} · no limit for now`}>
+        <Row name="Prompt quota" meta="No limit for now">
           <span className="text-[13px] leading-[18px] font-medium text-stone-900 tabular-nums">{used} used</span>
         </Row>
         ) : (
@@ -195,23 +192,13 @@ export default function LlmSettingsPage() {
         )}
       </SettingsCard>
 
-      {confirm?.kind === 'pause' && (
-        <ConfirmPopover
-          anchor={confirm.anchor}
-          title={`Stop running prompts on ${confirm.platform.name}?`}
-          body="Past results are kept."
-          confirmLabel="Turn off"
-          onCancel={() => setConfirm(null)}
-          onConfirm={() => { t.setPlatform(confirm.platform.id, false); flash(`p-${confirm.platform.id}`); setConfirm(null) }}
-        />
-      )}
-      {confirm?.kind === 'market' && (
+      {confirm && (
         <ConfirmPopover
           anchor={confirm.anchor}
           {...marketCopy(confirm)}
           confirmLabel="Switch"
           onCancel={() => setConfirm(null)}
-          onConfirm={() => { t.setMarket(confirm.patch); flash(confirm.field); setConfirm(null) }}
+          onConfirm={() => { const c = confirm; setConfirm(null); save(c.field, () => t.setMarket(c.patch)) }}
         />
       )}
       {toastNode}

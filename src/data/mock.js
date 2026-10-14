@@ -821,20 +821,16 @@ export const promptCategories = [...new Set(trackedPrompts.map((r) => r.category
 export const guessCategory = topicOf
 
 // ---------------------------------------------------------------------------
-// /setup: tracked brands (with competitors) and the marketplaces they sell on.
-// Marketplace stats come from the Marketplace visibility card (Target 12, Amazon 8).
+// Brand Setup (/brands), shaped like the production API. The workspace's brands, the current one first:
+//   brand        a project: id, name, domain (primaryDomain), lastSync (its latest scan), prompts (tracked)
+//   aliases      project.brandAliases (read-only: the API can't change aliases once a brand exists)
+//   aliasAnswers answers each alias was counted in (left out when the app can't count them)
+//   topics       prompt clusters (GET /projects/:id/prompts/clusters): name, promptCount
+//   competitors  approved competitors (GET /projects/:id/competitors/evidence): id, name, domain
+//   suggested    research candidates not decided yet (status DISCOVERED): id, name, domain, reason
+// MAX_COMPETITORS: null = no limit (billing isn't live, so the API returns none)
 // ---------------------------------------------------------------------------
-export const MAX_COMPETITORS = 5 // same limit on the Setup card and in the brand modal
-// marketplaces belong to the brand; stats from the Marketplace visibility card (Target 12, Amazon 8)
-const brandMarketplaces = (() => {
-  const listings = Object.fromEntries(marketplace.segments.find((s) => s.key === 'yours').rows.map((r) => [r.label, r.value]))
-  return [
-    { id: 'm1', name: 'Amazon', domain: 'amazon.com', cited: listings.Amazon ?? 0 },
-    { id: 'm2', name: 'Target', domain: 'target.com', cited: listings.Target ?? 0 },
-    { id: 'm3', name: 'Ulta', domain: 'ulta.com', cited: 0 },
-  ]
-})()
-// (platforms, market, schedule and quota live in src/store/trackingSettings.js, edited on /llm-settings)
+export const MAX_COMPETITORS = null
 
 // "Citations and Mentions" card: per brand → per engine [mentions, citations] (engines not listed = 0).
 // Totals are always summed from these rows.
@@ -845,46 +841,82 @@ export const citationsMentions = {
   'paulaschoice.com': { aio: [6, 1], gemini: [3, 0], chatgpt: [5, 0] },
 }
 
-// name variants spotted in AI answers that aren't aliases yet (Setup → "Suggested")
-export const aliasSuggestions = ['Derma Suri', 'dermasuri.co']
-// answers each name variant was seen in (alias chip "· 6", suggestion tooltip "Seen in 3 answers")
 // the agency's other client workspaces (sidebar workspace switcher); not loaded in this demo
 // the other brands in the agency (kept for older callers; the switcher uses workspaceDirectory)
 export const agencyClients = workspaceDirectory.flatMap((c) => c.brands).filter((b) => b.domain !== account.domain).map((b) => ({ name: b.name, domain: b.domain }))
 
-export const aliasAnswers = { 'Derma Suri': 6, 'dermasuri.co': 3 }
+// answers each alias was counted in (alias chip count)
+export const aliasAnswers = { 'Derma Suri': 6 }
 
-// Setup → Products & topics. type: 'product' (has a product page) | 'topic'; thumb: the product page's image (mock).
-const thumb = (bg, fill, shape) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" fill="${bg}"/>${shape(fill)}</svg>`)}`
-const dropper = (f) => `<rect x="21" y="7" width="6" height="9" rx="2" fill="#3f3a36"/><rect x="16" y="15" width="16" height="26" rx="4" fill="${f}"/><rect x="19" y="23" width="10" height="9" rx="1.5" fill="#fff" opacity=".85"/>`
-const jar = (f) => `<rect x="11" y="15" width="26" height="7" rx="2" fill="#3f3a36"/><rect x="9" y="21" width="30" height="17" rx="5" fill="${f}"/><rect x="17" y="26" width="14" height="7" rx="1.5" fill="#fff" opacity=".85"/>`
-export const productsTopics = [
-  { name: 'Vitamin C serum', type: 'product', thumb: thumb('#FBEEDC', '#E8A33D', dropper) },
-  { name: 'Ceramide moisturizer', type: 'product', thumb: thumb('#EEF1F4', '#B9C6D3', jar) },
-  { name: 'Niacinamide serum', type: 'product', thumb: thumb('#EFEDF6', '#A79FC9', dropper) },
-  { name: 'Under-eye cream', type: 'product' }, // no image on its page: category icon
-  { name: 'Body lotion', type: 'product' },
-  { name: 'Sunscreen', type: 'topic' },
-  { name: 'Retinol', type: 'topic' },
-]
-// pages found on the site that no product/topic covers yet
-export const topicSuggestions = [{ name: 'Hyaluronic serum', type: 'product', reason: 'Found on your site, not in your list yet' }]
+// Brand Setup → Topics: the prompt clusters (the Prompt Hub's categories) with their tracked prompts
+const setupTopics = promptCategories.map((name) => ({ name, promptCount: trackedPrompts.filter((p) => p.category === name).length }))
 
 export const setupBrands = [
   {
-    // displayName: what the user typed (null = never set → name falls back to brandName(domain))
-    id: 'b1', name: account.name, displayName: account.name, type: 'website', domain: account.domain, logo: null,
-    prompts: trackedPrompts.length, visible: kpis.visible, visibility: kpis.score, visibilityDelta: kpis.scoreDelta,
-    since: 'Mar 2026', lastSync: account.lastSync.replace(/, \d{4}$/, ''),
-    aliases: [], // none yet: Setup suggests the variants seen in answers
-    topics: productsTopics.map((t) => ({ ...t })), // Products & topics
-    // when each alias / competitor was added ("alias:<name>" / "competitor:<entry>"), shown on the Setup rows
-    addedOn: { 'competitor:cerave.com': 'Sep 12', 'competitor:theordinary.com': 'Sep 12', 'competitor:paulaschoice.com': 'Sep 21' },
-    marketplaceCitations: { total: marketplace.cited, yours: marketplace.yours },
-    competitors: competitors.filter((c) => !c.you).sort((a, b) => b.share - a.share).map((c) => c.domain),
-    marketplaces: brandMarketplaces,
+    id: 'b1', name: account.name, domain: account.domain, lastSync: account.lastSync.replace(/, \d{4}$/, ''), prompts: trackedPrompts.length,
+    aliases: ['Derma Suri'],
+    aliasAnswers,
+    topics: setupTopics,
+    competitors: competitors.filter((c) => !c.you).sort((a, b) => b.share - a.share).map((c, i) => ({ id: `c${i + 1}`, name: brands[c.domain]?.name ?? c.domain, domain: c.domain })),
+    suggested: [
+      { id: 's1', name: 'La Roche-Posay', domain: 'laroche-posay.us', reason: 'Sells sunscreen and barrier creams to the same shoppers' },
+      { id: 's2', name: 'Neutrogena', domain: 'neutrogena.com', reason: 'Named next to you in answers about daily SPF' },
+    ],
   },
 ]
+
+// Brand Setup saves. Here: they settle after a moment (the page updates first and keeps the change).
+const settle = (value) => new Promise((resolve) => setTimeout(() => resolve(value), 300))
+let setupSeq = 100
+export const setupActions = {
+  onAddTopic: (brandId, name) => settle({ name, promptCount: 0 }),
+  onAddCompetitor: (brandId, { name, domain }) => settle({ id: `c${++setupSeq}`, name, domain }),
+  onRenameCompetitor: (brandId, competitor, name) => settle({ ...competitor, name }),
+  onRemoveCompetitor: (brandId, competitor) => settle(competitor),
+  onRestoreCompetitor: (brandId, competitor) => settle(competitor),
+  onAcceptSuggestion: (brandId, s) => settle({ id: s.id, name: s.name, domain: s.domain }),
+  onDismissSuggestion: (brandId, s) => settle(s),
+  onCreateBrand: ({ name, domain, aliases, competitors: list }) => settle({ id: `b${++setupSeq}`, name, domain, aliases, competitors: list.map((c, i) => ({ id: `c${++setupSeq + i}`, ...c })) }),
+  onUpdateBrand: (id, { name, domain }) => settle({ id, name, domain }),
+  onDeleteBrand: (id) => settle(id),
+}
+
+// ---------------------------------------------------------------------------
+// Tracking (/tracking), shaped like the production API:
+//   platforms  the engines and whether each is ready (GET /projects/:id/visibility/engines/ready)
+//   market     the project's primary market country and first language (project.markets / project.languages)
+//   schedule   daily: daily monitoring on / off (PUT /projects/:id/ask-geo/monitoring); lastSync: the latest scan;
+//              nextScanAt: when Sync now is allowed again (GET visibility/scan-allowance; null = now)
+//   quota      used: tracked prompts (billing isn't live: no limit, no reset)
+// trackingOptions: the countries and languages the app supports (GET /projects/taxonomy)
+// ---------------------------------------------------------------------------
+export const initialTracking = {
+  platforms: [
+    { id: 'aio', name: 'AI Overview', enabled: true },
+    { id: 'gemini', name: 'Gemini', enabled: true },
+    { id: 'chatgpt', name: 'ChatGPT', enabled: true },
+    { id: 'claude', name: 'Claude', enabled: true },
+    { id: 'grok', name: 'Grok', enabled: true },
+  ],
+  market: { country: 'United States', language: 'English' },
+  schedule: { daily: true, lastSync: '2026-10-05', nextScanAt: null },
+  quota: { used: trackedPrompts.length },
+}
+export const trackingOptions = {
+  countries: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Singapore', 'United Arab Emirates', 'Germany', 'France', 'Japan', 'Brazil', 'Netherlands'],
+  languages: ['English', 'Hindi', 'Hinglish', 'Bengali', 'Tamil', 'Telugu', 'Marathi', 'Gujarati', 'Spanish', 'French', 'German', 'Portuguese', 'Japanese', 'Chinese (Simplified)', 'Arabic'],
+}
+// Tracking saves. Here: they settle after a moment; a sync takes 2s and allows the next one tomorrow.
+export const trackingActions = {
+  onSaveMarket: (patch) => settle(patch),
+  onSetDaily: (daily) => settle({ daily }),
+  onSyncNow: () => new Promise((resolve) => setTimeout(() => {
+    const d = new Date()
+    const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+    const next = new Date(d.getTime() + 23 * 3600e3)
+    resolve({ lastSync: iso(d), nextScanAt: `${iso(next)}T${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}` })
+  }, 2000)),
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Site Audit (/audit). Shaped like the production API (harshranjandas/kraffic.ai, apps/api):
