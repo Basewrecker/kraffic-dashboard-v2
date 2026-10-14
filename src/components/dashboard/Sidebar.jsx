@@ -161,17 +161,6 @@ export function WorkspaceSwitcher() {
   )
 }
 
-// agency users: which client and brand they're looking at, above the nav
-export function WorkspaceContext() {
-  if (role() !== 'agency') return null
-  return (
-    <div className="mb-5 min-w-0 px-3" aria-label="Current client and brand">
-      <div className="truncate text-[13px] leading-[18px] text-stone-500">{brand.client} /</div>
-      <div className="truncate text-[14px] leading-5 font-medium text-stone-900">{brand.name}</div>
-    </div>
-  )
-}
-
 // the grouped nav links (sidebar on desktop, the drawer on phones); onNavigate runs before an in-app link navigates
 export function NavLinks({ path, onNavigate }) {
   return (
@@ -211,7 +200,7 @@ export default function Sidebar({ path = '/overview' }) {
       <div className="shrink-0 px-3 pt-4">
         <a href={HOME} title="Home" aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
       </div>
-      <div className="mt-6 px-3"><WorkspaceContext /><NavLinks path={path} /></div>
+      <div className="mt-6 px-3"><NavLinks path={path} /></div>
       {/* footer: theme, then the workspace (its menu holds Home) */}
       <div className="mt-auto flex flex-col gap-2 px-3 pb-3">
         <ThemeToggle />

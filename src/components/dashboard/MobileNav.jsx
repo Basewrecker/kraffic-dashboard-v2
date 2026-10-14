@@ -5,7 +5,7 @@ import Logo from '../ui/Logo'
 import SiteLogo from '../ui/SiteLogo'
 import Sheet, { SheetItem } from '../ui/Sheet'
 import ThemeToggle from './ThemeToggle'
-import { HOME, NavLinks, WorkspaceContext, WorkspaceList, WorkspaceSwitcher } from './Sidebar'
+import { HOME, NavLinks, WorkspaceList, WorkspaceSwitcher } from './Sidebar'
 import { account, agencyClients } from '../../data/mock'
 import { useBackClose } from '../../hooks/useOverlay'
 
@@ -68,7 +68,6 @@ function NavDrawer({ open, onClose, path }) {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2">
           {/* a link tap navigates: keep the new page's history entry, then close */}
-          <WorkspaceContext />
           <NavLinks path={path} onNavigate={() => { release(); onClose() }} />
         </div>
         <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
