@@ -883,7 +883,8 @@ export const setupActions = {
 
 // ---------------------------------------------------------------------------
 // Tracking (/tracking), shaped like the production API:
-//   platforms  the engines and whether each is ready (GET /projects/:id/visibility/engines/ready)
+//   platforms  the engines: enabled = it has answers in the scans (the dashboard's engines); ready = it can run now
+//              (GET /projects/:id/visibility/engines/ready; the Tracking page)
 //   market     the project's primary market country and first language (project.markets / project.languages)
 //   schedule   daily: daily monitoring on / off (PUT /projects/:id/ask-geo/monitoring); lastSync: the latest scan;
 //              nextScanAt: when Sync now is allowed again (GET visibility/scan-allowance; null = now)
@@ -892,11 +893,11 @@ export const setupActions = {
 // ---------------------------------------------------------------------------
 export const initialTracking = {
   platforms: [
-    { id: 'aio', name: 'AI Overview', enabled: true },
-    { id: 'gemini', name: 'Gemini', enabled: true },
-    { id: 'chatgpt', name: 'ChatGPT', enabled: true },
-    { id: 'claude', name: 'Claude', enabled: true },
-    { id: 'grok', name: 'Grok', enabled: true },
+    { id: 'aio', name: 'AI Overview', enabled: true, ready: true },
+    { id: 'gemini', name: 'Gemini', enabled: true, ready: true },
+    { id: 'chatgpt', name: 'ChatGPT', enabled: true, ready: true },
+    { id: 'claude', name: 'Claude', enabled: true, ready: true },
+    { id: 'grok', name: 'Grok', enabled: true, ready: true },
   ],
   market: { country: 'United States', language: 'English' },
   schedule: { daily: true, lastSync: '2026-10-05', nextScanAt: null },

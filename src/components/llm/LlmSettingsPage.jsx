@@ -80,7 +80,7 @@ export default function LlmSettingsPage() {
   const [confirm, setConfirm] = useState(null) // { field, patch, anchor }: a market change waiting for a yes
   const [failed, setFailed] = useState(null) // { key, retry }: the row whose save failed
 
-  const engines = t.platforms.filter((p) => p.enabled).length
+  const engines = t.platforms.filter((p) => p.ready).length
   const prompts = t.quota.used // every engine runs every tracked prompt
   const { country, language } = t.market
   const { used, limit, resetsOn } = t.quota
@@ -148,11 +148,11 @@ export default function LlmSettingsPage() {
         {t.platforms.map((p) => (
           <Row
             key={p.id}
-            icon={<span className={`flex transition-opacity duration-150 ${p.enabled ? '' : 'opacity-50'}`}><PlatformIcon id={p.id} size={18} /></span>}
+            icon={<span className={`flex transition-opacity duration-150 ${p.ready ? '' : 'opacity-50'}`}><PlatformIcon id={p.id} size={18} /></span>}
             name={p.name}
             meta={ENGINE_INFO[p.id]}
           >
-            <span className={`text-right text-[13px] leading-[18px] ${p.enabled ? 'font-medium text-stone-900' : 'text-stone-500'}`}>{p.enabled ? 'Tracking' : 'Not ready'}</span>
+            <span className={`text-right text-[13px] leading-[18px] ${p.ready ? 'font-medium text-stone-900' : 'text-stone-500'}`}>{p.ready ? 'Tracking' : 'Not ready'}</span>
           </Row>
         ))}
       </SettingsCard>

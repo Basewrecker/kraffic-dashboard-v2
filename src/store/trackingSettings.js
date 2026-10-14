@@ -72,6 +72,6 @@ export function useTracking() {
 
 // "4 engines ready · Daily checks on · United States · English"
 export function trackingSummary(t) {
-  const ready = t.platforms.filter((p) => p.enabled).length
+  const ready = t.platforms.filter((p) => p.ready).length
   return `${ready} engine${ready === 1 ? '' : 's'} ready · Daily checks ${t.schedule.daily ? 'on' : 'off'} · ${t.market.country} · ${t.market.language}`
 }
