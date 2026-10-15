@@ -78,7 +78,7 @@ export default function BrandModal({ open, mode = 'add', brand, takenDomains, on
 
   // validation (computed always; shown only when touched / submitted)
   const errs = {}
-  if (!domainOk) errs.site = 'Enter a valid domain, e.g. dermasuri.com'
+  if (!domainOk) errs.site = 'Enter a valid domain, e.g. yourbrand.com'
   else if (takenDomains.includes(domain)) errs.site = 'This site is already tracked'
   if (!form.competitors.length) errs.competitors = 'Add at least one competitor'
   const valid = !Object.keys(errs).length
@@ -139,7 +139,7 @@ export default function BrandModal({ open, mode = 'add', brand, takenDomains, on
                 inputMode="url"
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="dermasuri.com"
+                placeholder="yourbrand.com"
                 value={form.site}
                 aria-invalid={Boolean(show('site'))}
                 aria-describedby={show('site') ? 'brand-site-err' : undefined}
@@ -161,7 +161,7 @@ export default function BrandModal({ open, mode = 'add', brand, takenDomains, on
             <Label htmlFor="brand-display" optional>Display name</Label>
             <input
               id="brand-display"
-              placeholder={domainOk ? brandName(domain) : 'Dermasuri'}
+              placeholder={domainOk ? brandName(domain) : 'Your brand'}
               value={form.displayName}
               onChange={(e) => set({ displayName: e.target.value })}
               className={`${fieldCls} ${okBorder} focus:ring-[3px] focus:ring-[color-mix(in_srgb,var(--ink)_8%,transparent)] focus:border-[color-mix(in_srgb,var(--ink)_35%,transparent)]`}
@@ -201,13 +201,13 @@ export default function BrandModal({ open, mode = 'add', brand, takenDomains, on
             value={form.competitors}
             onChange={(competitors) => set({ competitors })}
             max={MAX_COMPETITORS ?? Infinity}
-            placeholder="cerave.com"
+            placeholder="competitor.com"
             reject={(v) => !isDomain(v) || v === domain} // a domain, and not the brand's own site
             onBlur={() => touch('competitors', form.competitors.join(''))}
           />
           {show('competitors') && !form.competitors.length
             ? <Err>{errs.competitors}</Err>
-            : <p id="brand-competitors-help" className="mt-1.5 text-[12px] leading-4 text-stone-600">{counterFull ? 'Maximum reached' : 'Add the sites of brands you compete with, e.g. cerave.com.'}</p>}
+            : <p id="brand-competitors-help" className="mt-1.5 text-[12px] leading-4 text-stone-600">{counterFull ? 'Maximum reached' : 'Add the sites of brands you compete with, e.g. competitor.com.'}</p>}
         </div>
         {editing && (
           <div className="flex items-center justify-between gap-4 border-t border-line pt-4">

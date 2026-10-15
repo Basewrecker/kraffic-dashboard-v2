@@ -16,7 +16,7 @@ import { useTracking } from '../../store/trackingSettings'
 import { engineName, engineScale } from '../../data/brandViews'
 
 // colours and "you" follow the focal brand ("Viewing as"); set once per render by the card
-let FOCAL = { key: 'dermasuri', domain: 'dermasuri.com' }
+let FOCAL = { key: null, domain: null } // the brand the chart is seen from: set on every render (useBrandView)
 const color = (s) => getCompetitorColor(s.label, FOCAL.domain).fill
 const lineColor = (s) => getLineColor(s.label, FOCAL.domain)
 const barColor = (s) => getBarColor(s.label, FOCAL.domain) // { fill, opacity }
