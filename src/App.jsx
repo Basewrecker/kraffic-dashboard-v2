@@ -15,6 +15,8 @@ import TopCitedPages from './components/dashboard/TopCitedPages'
 import PromptsPage from './components/prompts/PromptsPage'
 import SetupPage from './components/setup/SetupPage'
 import LlmSettingsPage from './components/llm/LlmSettingsPage'
+import FirstSetupPage from './components/firstSetup/FirstSetupPage'
+import { setupGroups } from './components/firstSetup/nav'
 import AuditPage from './components/audit/AuditPage'
 import StructuredDataPage from './components/structured/StructuredDataPage'
 import TrendsPage from './pages/trends/TrendsPage'
@@ -79,13 +81,14 @@ const TrackingPage = () => <LlmSettingsPage {...(krafficBackend ? krafficTrackin
 
 export default function App() {
   const path = usePath()
-  const PAGES = { '/overview': DashboardPage, '/tracker': PromptsPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter }
+  const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter }
   // /trends/:runId and /more-tools/<tool>[/…] are one page each (they read the rest of the path)
   const route = path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/billing/') ? '/billing' : path
   const navPath = route.startsWith('/more-tools') ? '/more-tools' : route // tool pages light up Toolkit
+  const setupNav = route === '/first-setup' ? setupGroups : undefined // setup mode: First-time setup, Prompt Hub, Trends
   const Page = PAGES[route] ?? DashboardPage
   // a brand with no data yet: data pages show the empty state (Brand Setup, Tracking and Billing still work)
-  const empty = currentBrand.data === 'empty' && !['/brands', '/tracking', '/billing'].includes(route)
+  const empty = currentBrand.data === 'empty' && !['/first-setup', '/brands', '/tracking', '/billing'].includes(route)
   // ?state= previews the states the app shows around a page (components/ui/PageState.jsx, ui/CookieBanner.jsx):
   // app-loading (before the sidebar draws) · loading · error · notfound · cookies
   const state = new URLSearchParams(window.location.search).get('state')
@@ -98,9 +101,9 @@ export default function App() {
     // tracking settings are shared by every page (dashboard header, /brands summary, /tracking editor)
     <TrackingProvider initial={krafficBackend ? initialTracking : appInitialTracking}>
       <div className="flex min-h-screen">
-        <Sidebar path={PAGES[route] ? navPath : '/overview'} />
+        <Sidebar path={PAGES[route] ? navPath : '/overview'} nav={setupNav} />
         <div className="min-w-0 flex-1">
-          <MobileNav path={PAGES[route] ? navPath : '/overview'} />
+          <MobileNav path={PAGES[route] ? navPath : '/overview'} nav={setupNav} />
           {/* same content container on every page (16px gutters on phones, 24px from md) */}
           {/* Site Audit ends 64px under its last card (pb-16 alone, no spacer) */}
           <main className={`mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 ${route === '/audit' ? 'pb-16' : 'pb-10'} pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8`}>{body}</main>

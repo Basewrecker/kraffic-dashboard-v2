@@ -879,6 +879,54 @@ export const setupBrands = [
   },
 ]
 
+// ---------------------------------------------------------------------------------------------------------------
+// First-time setup (/first-setup): a brand, its competitors, its first prompts, then the first scan. ?mock=<state>:
+//   new · brand (no competitors yet) · competitors (no prompts yet) · prompts (scan not started) · scanning · done ·
+//   name-only (a brand tracked by its name, no website; competitors next)
+// brand: { name, domain } (domain null = name only) · competitors: [{ id, name, domain }] · suggested: research
+// candidates (Suggested chips) · prompts: newest first · scan: { status: idle | running | done, startedAt }
+// scanMinutes: how long a first scan usually takes (GAP: no estimate in the API; the mock's number).
+const setupPromptTexts = [
+  'best natural face oil for dry skin', 'plant based retinol alternative', 'clean skincare brands for sensitive skin',
+  'bakuchiol serum vs retinol', 'organic moisturizer for combination skin', 'rosehip oil for acne scars',
+  'non toxic sunscreen for face', 'vegan night cream for wrinkles', 'calendula cream for eczema',
+  'best botanical toner for oily skin', 'squalane vs jojoba oil', 'fragrance free natural cleanser',
+]
+const setupPrompts = setupPromptTexts.map((text, i) => ({ id: `sp${i + 1}`, text })).reverse()
+const setupBrand = { name: 'Brightside Botanics', domain: 'brightsidebotanics.com' }
+const setupCompetitors = [
+  { id: 'sc1', name: 'Herbivore', domain: 'herbivorebotanicals.com' },
+  { id: 'sc2', name: 'Pai Skincare', domain: 'paiskincare.com' },
+  { id: 'sc3', name: 'Tata Harper', domain: 'tataharperskincare.com' },
+]
+const setupSuggested = [
+  { id: 'ss1', name: 'Youth to the People', domain: 'youthtothepeople.com', reason: 'Named next to you in answers about plant-based serums' },
+  { id: 'ss2', name: 'Drunk Elephant', domain: 'drunkelephant.com', reason: 'Sells clean skincare to the same shoppers' },
+  { id: 'ss3', name: 'Kiehl’s', domain: 'kiehls.com', reason: 'Cited in answers about botanical moisturizers' },
+]
+const setupState = (brand, competitors, prompts, scan) => ({ brand, competitors, suggested: setupSuggested.filter((x) => !competitors.some((c) => c.domain === x.domain)), prompts, scan })
+const minutesAgo = (m) => new Date(Date.now() - m * 60e3).toISOString()
+export const firstSetupStates = {
+  new: setupState(null, [], [], { status: 'idle' }),
+  brand: setupState(setupBrand, [], [], { status: 'idle' }),
+  competitors: setupState(setupBrand, setupCompetitors, [], { status: 'idle' }),
+  prompts: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'idle' }),
+  scanning: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'running', startedAt: minutesAgo(2.2) }),
+  done: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'done' }),
+  'name-only': setupState({ name: 'Brightside Botanics', domain: null }, [], [], { status: 'idle' }),
+}
+export const firstSetupScanMinutes = 10
+// the client the brand belongs to (the agency / superadmin "Viewing … as" banner)
+export const firstSetupClient = 'Brightside'
+// First-time setup saves. Here: they settle after a moment; the mock's first scan finishes after 8s.
+// A brand, competitors and research go through setupActions / promptActions (Brand Setup, Prompt Hub).
+export const firstSetupActions = {
+  onAddPrompts: (items) => new Promise((resolve) => setTimeout(() => resolve(items.map((it, i) => ({ id: `np${Date.now()}${i}`, text: it.text }))), 300)),
+  onStartScan: () => new Promise((resolve) => setTimeout(() => resolve({ startedAt: new Date().toISOString() }), 300)),
+  // → resolves when the scan has finished
+  onScanDone: () => new Promise((resolve) => setTimeout(resolve, 8000)),
+}
+
 // Brand Setup saves. Here: they settle after a moment (the page updates first and keeps the change).
 const settle = (value) => new Promise((resolve) => setTimeout(() => resolve(value), 300))
 let setupSeq = 100
