@@ -1,12 +1,12 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useIsMobile } from '../../hooks/useMedia'
 import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
-import { ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronUp, Hash, Minus, Plus, X } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronUp, History, Hash, Minus, Plus, X } from 'lucide-react'
 import Segmented from '../dashboard/Segmented'
 import { brandName } from '../../utils/brand'
 import { PlatformIcon } from '../dashboard/icons'
 import SiteLogo from '../ui/SiteLogo'
-import { ANSWER_SYNCS, LATEST, compareAnswers, getAnswer } from '../../data/answers'
+import { ANSWER_SYNCS, LATEST, compareAnswers, getAnswer, loadAnswerHistory } from '../../data/answers'
 import { OWN, brandByDomain, engineName, getBrandView } from '../../data/brandViews'
 import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
@@ -194,6 +194,9 @@ function changeSentence(c, cur, name) {
     lost: `${name} is no longer mentioned.`,
     none: `${name} still isn’t mentioned.`,
   }[c.visibility]
+  // a rank that moved, when both answers rank the brand
+  const { before, now } = c.position ?? {}
+  const rank = c.visibility === 'still' && before && now && before !== now ? ` It now ranks ${ordinal(now)} (was ${ordinal(before)}).` : ''
   const bA = c.brandsNew.length, sA = c.sourcesNew.length, bD = c.brandsDropped.length, sD = c.sourcesDropped.length
   const both = (b, s) => [b && plural(b, 'brand'), s && plural(s, 'source')].filter(Boolean).join(' and ')
   const parts = []
@@ -203,9 +206,9 @@ function changeSentence(c, cur, name) {
   const how = r <= 5 ? 'a few words of the answer changed' : r < 20 ? 'a little of the answer was rewritten' : r < 40 ? 'about a third of the answer was rewritten'
     : r < 60 ? 'about half the answer was rewritten' : r < 85 ? 'most of the answer was rewritten' : 'almost all of the answer was rewritten'
   if (r > 0) parts.push(how)
-  if (!parts.length) return first
+  if (!parts.length) return first + rank
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')}, and ${parts.at(-1)}` : parts[0]
-  return `${first} ${list.charAt(0).toUpperCase()}${list.slice(1)}.`
+  return `${first}${rank} ${list.charAt(0).toUpperCase()}${list.slice(1)}.`
 }
 
 // one list style for brands and sources: added (ink plus) first, then dropped (tint minus)
@@ -388,7 +391,42 @@ function FullAnswers({ cur, prev, focalName }) {
 }
 
 // state = { view, mode } lives in the drawer (so it survives the loading skeleton), mirrored to the URL there
+// The syncs to compare with are the ones that stored an answer for this prompt on this engine (loadAnswerHistory),
+// before the one shown; by default the one just before it. With none, there's nothing to compare yet.
 function ChangesTab({ a, prevDate, setPrevDate, focalDomain, focalName, state, setState }) {
+  const [hist, setHist] = useState(null) // { dates } newest first, or { error }
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    let off = false
+    setHist(null)
+    loadAnswerHistory(a.key, a.engine).then((h) => !off && setHist(h), (e) => !off && setHist({ error: e?.message || 'The earlier answers couldn’t load.' }))
+    return () => { off = true }
+  }, [a.key, a.engine, attempt])
+  if (!hist) return <Skeleton />
+  if (hist.error) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-12 text-center text-[14px] leading-5 text-stone-600">
+        {hist.error}
+        <button type="button" onClick={() => setAttempt((n) => n + 1)} className="rounded font-medium text-ink underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Retry</button>
+      </div>
+    )
+  }
+  const at = Date.parse(a.date)
+  const earlier = hist.dates.filter((d) => Date.parse(d) < at)
+  if (!earlier.length) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12 text-center">
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-tint text-stone-600"><History size={18} aria-hidden /></span>
+        <p className="text-[14px] leading-5 font-medium text-stone-900">Not enough history yet</p>
+        <p className="max-w-[44ch] text-[14px] leading-5 text-stone-600">This is the first answer stored for this prompt on {engineName(a.engine)}. Changes show here after the next sync.</p>
+      </div>
+    )
+  }
+  const shownPrev = earlier.includes(prevDate) ? prevDate : earlier[0]
+  return <ChangesView a={a} prevDate={shownPrev} earlier={earlier} setPrevDate={setPrevDate} focalDomain={focalDomain} focalName={focalName} state={state} setState={setState} />
+}
+
+function ChangesView({ a, prevDate, earlier, setPrevDate, focalDomain, focalName, state, setState }) {
   const prev = getAnswer(a.key, a.engine, prevDate, focalDomain)
   const c = compareAnswers(a, prev)
 
@@ -400,7 +438,7 @@ function ChangesTab({ a, prevDate, setPrevDate, focalDomain, focalName, state, s
           <span className="relative inline-flex">
             <select aria-label="Compare with sync" value={prevDate} onChange={(e) => setPrevDate(e.target.value)}
               className="h-8 cursor-pointer appearance-none rounded-md border border-line bg-raised pl-3 pr-8 text-[13px] font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus">
-              {ANSWER_SYNCS.slice(ANSWER_SYNCS.indexOf(a.date) + 1).map((d) => <option key={d} value={d}>{short(d)}</option>)}
+              {earlier.map((d) => <option key={d} value={d}>{short(d)}</option>)}
             </select>
             <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-500" aria-hidden />
           </span>
@@ -450,7 +488,7 @@ export default function AnswerDrawer() {
   const [changesState, setChangesState] = useState(readChanges) // What changed: { view: summary|answer, mode: changes|full }
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(() => import.meta.env.DEV && new URLSearchParams(window.location.search).has('answerError'))
-  const [prevDate, setPrevDate] = useState(ANSWER_SYNCS[1])
+  const [prevDate, setPrevDate] = useState(null) // null: the sync before the one shown (What changed)
   const panel = useRef(null)
   const opener = useRef(null)
   const bodyRef = useRef(null)
@@ -475,7 +513,7 @@ export default function AnswerDrawer() {
       const date = ANSWER_SYNCS.includes(e.detail.date) ? e.detail.date : null
       setState({ key: e.detail.key, list: e.detail.list, engine: e.detail.engine, back: e.detail.back, brand: e.detail.brand, date })
       // compare with the sync before the one shown
-      setPrevDate(ANSWER_SYNCS[ANSWER_SYNCS.indexOf(date ?? LATEST) + 1] ?? ANSWER_SYNCS.at(-1))
+      setPrevDate(null)
       setTab('answer')
     }
     // Back: the URL no longer has ?answer → close (e.g. Back while it stands in for the Engine drawer)
@@ -544,7 +582,6 @@ export default function AnswerDrawer() {
 
   if (!open || !a) return null
   const own = focal.domain === OWN.domain
-  const changes = compareAnswers(a, getAnswer(a.key, a.engine, prevDate, focal.domain))
   const iconBtn = 'grid h-7 w-7 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40'
   const status = (ok, Icon, text) => (
     <span className="inline-flex items-center gap-1.5">

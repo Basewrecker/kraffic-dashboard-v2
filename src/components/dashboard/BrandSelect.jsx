@@ -6,7 +6,7 @@ import { useBrandView } from '../../hooks/useBrandView'
 
 // A card-local brand toggle (Citations and Mentions, Prompt coverage): starts on, and follows, the page's
 // "Viewing as" but never changes it. Returns [domain, select element].
-export function useCardBrand({ triggerClassName } = {}) {
+export function useCardBrand({ triggerClassName, className } = {}) {
   const { focal } = useBrandView()
   const [domain, setDomain] = useState(focal.domain)
   useEffect(() => setDomain(focal.domain), [focal.domain])
@@ -19,5 +19,5 @@ export function useCardBrand({ triggerClassName } = {}) {
       meta: `${getBrandView(b.domain).kpis.score}%`,
     })),
   }]
-  return [domain, <MenuSelect key="brand" value={domain} onChange={setDomain} groups={groups} listLabel="Brand" showIcon triggerClassName={triggerClassName} />]
+  return [domain, <MenuSelect key="brand" value={domain} onChange={setDomain} groups={groups} listLabel="Brand" showIcon triggerClassName={triggerClassName} className={className} />]
 }

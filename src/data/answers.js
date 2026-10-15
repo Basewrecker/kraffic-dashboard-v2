@@ -205,7 +205,7 @@ export function compareAnswers(cur, prev) {
   const allWords = diff.reduce((n, d) => n + words(d.text), 0)
   const names = (x) => x.brands.map((b) => b.name)
   const srcKey = (s) => `${s.domain}${s.path}`
-  return {
+  const c = {
     diff,
     rewritten: allWords ? Math.round((changedWords / allWords) * 100) : 0,
     visibility: cur.visible && prev.visible ? 'still' : cur.visible ? 'new' : prev.visible ? 'lost' : 'none',
@@ -213,6 +213,19 @@ export function compareAnswers(cur, prev) {
     brandsDropped: prev.brands.filter((b) => !names(cur).includes(b.name)),
     sourcesNew: cur.sources.filter((s) => !prev.sources.some((p) => srcKey(p) === srcKey(s))),
     sourcesDropped: prev.sources.filter((s) => !cur.sources.some((c) => srcKey(c) === srcKey(s))),
-    unchanged: diff.every((d) => d.op === 'same') && cur.sources.length === prev.sources.length && cur.brands.length === prev.brands.length,
+    // the focal brand's rank in each answer (null: not named, or named without a rank)
+    position: { before: prev.position ?? null, now: cur.position ?? null },
   }
+  // no changes only when the two answers really match: text, visibility, rank, brands and sources
+  c.unchanged = diff.every((d) => d.op === 'same') && cur.visible === prev.visible && c.position.before === c.position.now
+    && !c.brandsNew.length && !c.brandsDropped.length && !c.sourcesNew.length && !c.sourcesDropped.length
+  return c
+}
+
+// The syncs that stored an answer for one prompt on one engine, newest first. Here every sync has one; the app reads
+// the prompt's stored answers. Preview the state with only one stored answer: ?history=none
+export function loadAnswerHistory() {
+  let none = false
+  try { none = new URLSearchParams(window.location.search).get('history') === 'none' } catch { /* not in a browser */ }
+  return Promise.resolve({ dates: none ? [LATEST] : ANSWER_SYNCS })
 }

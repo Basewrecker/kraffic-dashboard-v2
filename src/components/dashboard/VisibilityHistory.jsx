@@ -1,11 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Bar, BarChart as RBarChart, CartesianGrid, Cell, LabelList, Line, LineChart as RLineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useIsMobile } from '../../hooks/useMedia'
 import { BarChart3, Check, ChevronDown, LineChart, TrendingUp } from 'lucide-react'
 import Card from './Card'
 import { chart } from '../../theme/chart'
 import { getBarColor, getCompetitorColor, getLineColor } from '../../theme/colors'
-import { defaultRange, getHistory, historyRanges, historySeries } from '../../data/mock'
+import { competitors, defaultRange, getHistory, historyRanges, historySeries } from '../../data/mock'
 import { brandName } from '../../utils/brand'
 import Segmented from './Segmented'
 import Switch from '../ui/Switch'
@@ -200,12 +200,116 @@ function InsideValueLabel({ x, y, width = 0, height = 0, value }) {
   )
 }
 
+// The legend chips on one line, never wrapped or cut mid-name: 14px labels with gap-4; if they don't fit, 13px with
+// gap-3; if they still don't, as many as fit (the brand's chip always) and a "+N more" chip with the rest. Measured
+// from the row's own width, again on every resize and once the web fonts have loaded.
+const GAP = { md: 16, sm: 12 }
+function FitChips({ items, chip, more, measureKey }) {
+  const row = useRef(null)
+  const probe = useRef(null)
+  const [fit, setFit] = useState({ small: false, count: items.length })
+  const keys = items.map((s) => s.key).join('|')
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (!row.current || !probe.current) return
+      const avail = row.current.clientWidth
+      const widths = (size) => [...probe.current.querySelectorAll(`[data-probe="${size}"]`)].map((n) => n.getBoundingClientRect().width)
+      const md = widths('md')
+      const sm = widths('sm')
+      const moreW = probe.current.querySelector('[data-probe="more"]')?.getBoundingClientRect().width ?? 0
+      const span = (w, n, gap) => w.slice(0, n).reduce((a, b) => a + b, 0) + gap * Math.max(0, n - 1)
+      let next
+      if (span(md, md.length, GAP.md) <= avail) next = { small: false, count: items.length }
+      else if (span(sm, sm.length, GAP.sm) <= avail) next = { small: true, count: items.length }
+      else {
+        let n = items.length - 1
+        while (n > 1 && span(sm, n, GAP.sm) + GAP.sm + moreW > avail) n--
+        next = { small: true, count: Math.max(1, n) }
+      }
+      setFit((f) => (f.small === next.small && f.count === next.count ? f : next))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(row.current)
+    document.fonts?.ready.then(measure)
+    return () => ro.disconnect()
+  }, [keys, measureKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = items.slice(0, fit.count)
+  const rest = items.slice(fit.count)
+  return (
+    <div ref={row} className="relative min-w-0 flex-1">
+      <div className={`flex items-center ${fit.small ? 'gap-3' : 'gap-4'}`}>
+        {shown.map((s) => chip(s, fit.small))}
+        {rest.length > 0 && more(rest, fit.small)}
+      </div>
+      {/* off-screen copies at both sizes, for the widths */}
+      <div ref={probe} aria-hidden inert="" className="pointer-events-none invisible absolute left-0 top-0 flex w-max whitespace-nowrap">
+        {items.map((s) => <span key={`md-${s.key}`} data-probe="md" className="inline-flex">{chip(s, false)}</span>)}
+        {items.map((s) => <span key={`sm-${s.key}`} data-probe="sm" className="inline-flex">{chip(s, true)}</span>)}
+        <span data-probe="more" className="inline-flex"><MoreTrigger n={items.length} small /></span>
+      </div>
+    </div>
+  )
+}
+
+const MoreTrigger = forwardRef(function MoreTrigger({ n, small, open, ...rest }, ref) {
+  return (
+  <button ref={ref} type="button" aria-haspopup="menu" aria-expanded={!!open} {...rest}
+    className={`inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} font-medium text-stone-600 outline-none transition-colors duration-150 hover:bg-[var(--tint)] hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus`}>
+    +{n} more <ChevronDown size={14} className="text-stone-500" aria-hidden />
+  </button>
+  )
+})
+
+// "+N more": the chips that didn't fit, as a checklist with the same marks; a toggle here is the chip's toggle
+function MoreChips({ rest, small, hidden, marker, onToggle }) {
+  const [open, setOpen] = useState(false)
+  const wrap = useRef(null)
+  const btn = useRef(null)
+  const menu = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    menu.current?.querySelector('[role=menuitemcheckbox]')?.focus()
+    const out = (e) => { if (!wrap.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', out)
+    return () => document.removeEventListener('mousedown', out)
+  }, [open])
+  const onKey = (e) => {
+    const els = [...(menu.current?.querySelectorAll('[role=menuitemcheckbox]') ?? [])]
+    const i = els.indexOf(document.activeElement)
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); btn.current?.focus() }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); els[(i + (e.key === 'ArrowDown' ? 1 : -1) + els.length) % els.length]?.focus() }
+    else if (e.key === 'Tab') setOpen(false)
+  }
+  return (
+    <div ref={wrap} className="relative shrink-0" onKeyDown={open ? onKey : undefined}>
+      <MoreTrigger ref={btn} n={rest.length} small={small} open={open} onClick={() => setOpen((o) => !o)} aria-label={`${rest.length} more brands`} />
+      {open && (
+        <div ref={menu} role="menu" aria-label="More brands" className="absolute right-0 top-full z-30 mt-1 w-max min-w-44 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-raised p-1 shadow-md">
+          {rest.map((s) => {
+            const shown = !hidden.includes(s.key)
+            return (
+              <button key={s.key} type="button" role="menuitemcheckbox" aria-checked={shown} onClick={() => onToggle(s.key)}
+                className={`flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-[18px] outline-none hover:bg-tint focus-visible:bg-tint ${shown ? 'font-medium text-stone-900' : 'text-stone-600'}`}>
+                {marker(s, shown)}
+                <span className="flex-1 whitespace-nowrap">{brandName(s.label)}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function VisibilityHistory() {
   const mobile = useIsMobile()
   const { focal, isOwnBrand, engine } = useBrandView()
   FOCAL = { key: focal.key, domain: focal.domain }
   const YOU = focal.key
-  const COMPETITORS = historySeries.filter((s) => s.key !== YOU)
+  // competitors by share rank (highest first), the order of the legend chips after the brand's own
+  const shareOf = (s) => competitors.find((c) => c.domain === s.label)?.share ?? 0
+  const COMPETITORS = historySeries.filter((s) => s.key !== YOU).sort((a, b) => shareOf(b) - shareOf(a))
   const [view, setView] = useState(readView)
   const [hovered, setHovered] = useState(null) // series key highlighted from the legend
   const [barGroup, setBarGroup] = useState(null) // thin bar view: index of the date group under the pointer
@@ -369,8 +473,14 @@ export default function VisibilityHistory() {
     )
   }
 
-  // one legend chip = a show/hide toggle for that series
-  const chip = (s) => {
+  // a series' mark: the line checkbox, or the bar / dot swatch (filled when shown, outlined when hidden)
+  const marker = (s, shown) => (isLine
+    ? <LegendBox color={lineColor(s)} checked={shown} />
+    : <span className="h-2 w-2 shrink-0 rounded-full" style={view.chart === 'bar'
+      ? (shown ? { background: barColor(s).fill, opacity: barColor(s).opacity } : { boxShadow: `inset 0 0 0 1.5px ${barColor(s).fill}`, opacity: barColor(s).opacity })
+      : (shown ? { background: color(s) } : { boxShadow: `inset 0 0 0 1.5px ${color(s)}` })} />)
+  // one legend chip = a show/hide toggle for that series; small: the 13px step (FitChips)
+  const chip = (s, small = false) => {
     const shown = !view.hidden.includes(s.key)
     const lastOne = shown && series.length === 1 // the last visible series can't be hidden
     return (
@@ -385,19 +495,15 @@ export default function VisibilityHistory() {
                 onFocus={() => shown && setHovered(s.key)}
                 onBlur={() => setHovered(null)}
                 className={isLine
-                  ? `inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 text-[14px] leading-5 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
+                  ? `inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'font-medium text-stone-900' : 'font-normal text-stone-600'
                   }`
-                  : `inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 text-small outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
+                  : `inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'bg-tint text-stone-900' : 'bg-transparent text-stone-600/60 hover:text-stone-600'
                   }`}
                 title={lastOne ? 'At least one brand stays on the chart' : shown ? `Hide ${brandName(s.label)}` : `Show ${brandName(s.label)}`}
               >
-                {isLine
-                  ? <LegendBox color={lineColor(s)} checked={shown} />
-                  : <span className="h-2 w-2 rounded-full" style={view.chart === 'bar'
-                    ? (shown ? { background: barColor(s).fill, opacity: barColor(s).opacity } : { boxShadow: `inset 0 0 0 1.5px ${barColor(s).fill}`, opacity: barColor(s).opacity })
-                    : (shown ? { background: color(s) } : { boxShadow: `inset 0 0 0 1.5px ${color(s)}` })} />}
+                {marker(s, shown)}
                 {brandName(s.label)}
               </button>
     )
@@ -429,27 +535,27 @@ export default function VisibilityHistory() {
         </div>
       </div>
 
-      {/* legend = filter */}
-      {/* phones: one sideways-scrolling row */}
-      <div className="no-scrollbar mt-3 flex items-center gap-y-2 max-md:-mx-4 max-md:overflow-x-auto max-md:px-4 md:flex-wrap">
+      {/* legend = filter: one line, never wrapped (FitChips) */}
+      <div className="mt-3 flex min-w-0 items-center">
         <Switch checked={compare} onChange={setCompare} className="shrink-0">Compare</Switch>
-        <span className="mx-3 h-5 w-px bg-stone-200" aria-hidden />
-        {/* focal brand: a toggle like the others while comparing (hide it to see the rest alone); fixed otherwise */}
-        {compare ? chip(historySeries.find((s) => s.key === YOU)) : isLine ? (
-          <span className="inline-flex h-8 items-center gap-2 px-1 text-[14px] leading-5 font-medium text-stone-900">
+        <span className="mx-3 h-5 w-px shrink-0 bg-stone-200" aria-hidden />
+        {/* comparing: the brand's chip first, then the competitors by share; the brand can be hidden like the others */}
+        {compare ? (
+          <FitChips
+            items={[historySeries.find((s) => s.key === YOU), ...COMPETITORS]}
+            measureKey={`${view.chart}|${view.hidden.join(',')}`}
+            chip={chip}
+            more={(rest, small) => <MoreChips rest={rest} small={small} isLine={isLine} hidden={view.hidden} marker={marker} onToggle={toggleHidden} />}
+          />
+        ) : isLine ? (
+          <span className="inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap px-1 text-[14px] leading-5 font-medium text-stone-900">
             <LegendBox color={chart.lineYou} checked /> {focal.name}
           </span>
         ) : (
-          <span className="inline-flex h-8 items-center gap-2 px-1 text-small font-medium text-stone-900">
-            <span className="h-2 w-2 rounded-full" style={{ background: chart.you }} /> {focal.name}
+          <span className="inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap px-1 text-small font-medium text-stone-900">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: chart.you }} /> {focal.name}
           </span>
         )}
-        <div
-          className={`flex items-center overflow-hidden transition-[max-width,opacity] duration-200 ease-out ${isLine ? 'gap-0.5' : 'gap-1.5'} ${compare ? `${isLine ? 'ml-0.5' : 'ml-2'} max-w-[640px] opacity-100` : 'max-w-0 opacity-0'}`}
-          aria-hidden={!compare}
-        >
-          {COMPETITORS.map((s) => chip(s))}
-        </div>
       </div>
 
       {/* summary strip slides in when Compare is off */}

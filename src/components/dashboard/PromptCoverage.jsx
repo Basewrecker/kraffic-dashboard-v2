@@ -34,7 +34,11 @@ const promptsLink = (domain, engine) => `/tracker?brand=${brandByDomain(domain).
 export default function PromptCoverage() {
   const { engine } = useBrandView()
   const tracking = useTracking()
-  const [domain, brandSelect] = useCardBrand({ triggerClassName: 'inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-line bg-raised px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-focus' })
+  const [domain, brandSelect] = useCardBrand({
+    // the title never truncates: a long brand name ends with an ellipsis in the trigger instead (full name in its tooltip)
+    className: 'min-w-0',
+    triggerClassName: 'inline-flex h-9 w-full min-w-0 max-w-[180px] items-center gap-2 whitespace-nowrap rounded-md border border-line bg-raised px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-focus',
+  })
   const total = trackedPrompts.length
   const counts = TRACKED_BRANDS.map((b) => ({ ...b, prompts: getBrandView(b.domain, engine).kpis.visible }))
   const appearancesTotal = counts.reduce((n, b) => n + b.prompts, 0)
@@ -99,7 +103,7 @@ export default function PromptCoverage() {
   return (
     <Card ref={explain.cardRef} className="flex h-full min-w-0 flex-col px-5 pt-5">
       <div className="flex h-9 items-center justify-between gap-3">
-        <h2 className="truncate text-[15px] leading-5 font-semibold text-stone-900">Prompt coverage</h2>
+        <h2 className="shrink-0 whitespace-nowrap text-[15px] leading-5 font-semibold text-stone-900">Prompt coverage</h2>
         {brandSelect}
       </div>
 

@@ -59,15 +59,16 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`${prefix || listLabel}: ${current.label}`}
-        title={title}
+        title={title ?? current.label}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => { if (e.key === 'ArrowDown' && !open) { e.preventDefault(); setOpen(true) } }}
         className={triggerClassName ?? triggerClass('sm')}
       >
         {prefix && <span className="font-normal text-stone-500">{prefix}</span>}
         {showIcon && current.icon}
-        <span className={`${prefix ? '-ml-0.5 ' : ''}font-medium text-stone-900`}>{current.short ?? current.label}</span>
-        <ChevronDown size={14} className="text-ink-3" />
+        {/* a narrow trigger ends the label with an ellipsis (the full name is the tooltip) */}
+        <span className={`${prefix ? '-ml-0.5 ' : ''}min-w-0 truncate font-medium text-stone-900`}>{current.short ?? current.label}</span>
+        <ChevronDown size={14} className="shrink-0 text-ink-3" />
       </button>
       {open && (
         <div
