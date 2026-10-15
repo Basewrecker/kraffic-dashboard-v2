@@ -348,6 +348,8 @@ export default function VisibilityHistory() {
   // one sync date in range: nothing to draw a line between, so bars (one group, a value on every bar, the brands in
   // their line colours); Trend and Growth come back from the second date
   const single = points.length === 1
+  // no point in range (no sync yet, or every day at 0%, which the history leaves out): an empty state, no axes
+  const empty = points.length === 0
   const chartType = single ? 'bar' : view.chart
   const barFill = (s) => (single ? { fill: lineColor(s), opacity: 1 } : barColor(s))
 
@@ -585,7 +587,7 @@ export default function VisibilityHistory() {
       <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${compare ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`} aria-hidden={compare}>
         <div className="overflow-hidden">
           <div className="flex flex-wrap gap-x-8 gap-y-2 pt-3">
-            <Stat label="Current">{stats.current}%</Stat>
+            <Stat label="Current">{stats.current == null ? '—' : `${stats.current}%`}</Stat>
             <Stat label="Change">
               {stats.change != null && (
                 <>
@@ -602,7 +604,7 @@ export default function VisibilityHistory() {
               </Stat>
             ) : (
               <Stat label="Best">
-                {stats.best}% <span className="text-[13px] font-normal text-stone-600">{stats.bestLabel.startsWith('this') ? `· ${stats.bestLabel}` : `(${stats.bestLabel})`}</span>
+                {stats.best == null ? '—' : <>{stats.best}% <span className="text-[13px] font-normal text-stone-600">{stats.bestLabel?.startsWith('this') ? `· ${stats.bestLabel}` : `(${stats.bestLabel})`}</span></>}
               </Stat>
             )}
           </div>
@@ -612,9 +614,15 @@ export default function VisibilityHistory() {
       {/* phones / tablets: 180px. Desktop: grows with the row, 200–240px, never taller (the insight footer stays pinned
           to the bottom with mt-auto); the same in every chart type, so switching type never changes the card */}
       <div className="mt-3 h-[180px] lg:h-auto lg:max-h-[240px] lg:min-h-[200px] lg:flex-1">
-        <ResponsiveContainer key={`${chartType}-${view.granularity}-${view.compare}`} width="100%" height="100%">
-          {renderChart()}
-        </ResponsiveContainer>
+        {empty ? (
+          <div className="grid h-full place-items-center rounded-lg bg-tint/50 px-4 text-center text-[13px] leading-[18px] text-stone-500">
+            No visibility on record for this range yet.
+          </div>
+        ) : (
+          <ResponsiveContainer key={`${chartType}-${view.granularity}-${view.compare}`} width="100%" height="100%">
+            {renderChart()}
+          </ResponsiveContainer>
+        )}
       </div>
       {single && <p className="mt-1 text-[12px] leading-4 text-stone-500">Showing your first sync. Trend lines appear after the next sync.</p>}
 
