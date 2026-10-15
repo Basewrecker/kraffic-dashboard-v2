@@ -95,7 +95,7 @@ export default function PromptCoverage() {
   const hero = (r) => (
     <>
       <div className="text-[32px] leading-none font-semibold text-stone-900 tabular-nums">{r.share}%</div>
-      <div className="mt-1.5 truncate text-[13px] leading-[18px] text-stone-600">{r.domain === OWN.domain ? 'your share' : r.domain === 'other' ? 'other brands’ share' : `${r.name}’s share`}</div>
+      <div className="mt-1.5 line-clamp-2 break-words text-[13px] leading-[18px] text-stone-600">{r.domain === OWN.domain ? 'your share' : r.domain === 'other' ? 'other brands’ share' : `${r.name}’s share`}</div>
       <div className="mt-0.5 text-[12px] leading-4 text-stone-500 tabular-nums">{r.prompts} of {appearancesTotal} appearances</div>
     </>
   )

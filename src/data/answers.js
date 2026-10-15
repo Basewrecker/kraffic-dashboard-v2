@@ -204,7 +204,8 @@ export function compareAnswers(cur, prev) {
   const changedWords = diff.filter((d) => d.op !== 'same').reduce((n, d) => n + words(d.text), 0)
   const allWords = diff.reduce((n, d) => n + words(d.text), 0)
   const names = (x) => x.brands.map((b) => b.name)
-  const srcKey = (s) => `${s.domain}${s.path}`
+  // a page is the same page whatever its tracking query (?srsltid=, ?utm_…): compared by site and path
+  const srcKey = (s) => `${s.domain}${String(s.path || '').split(/[?#]/)[0].replace(/\/$/, '')}`
   const c = {
     diff,
     rewritten: allWords ? Math.round((changedWords / allWords) * 100) : 0,
