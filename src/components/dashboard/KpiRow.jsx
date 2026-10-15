@@ -36,7 +36,8 @@ export default function KpiRow() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <ScoreRing value={kpis.score} />
             <span className="text-small font-semibold text-stone-600 tabular-nums">
-              {d === 0 ? <span className="text-stone-500">No change vs last sync</span> : <><span className={d > 0 ? 'text-ink' : 'text-negative'}>{d > 0 ? '▲' : '▼'}</span> {Math.abs(d)} vs last sync</>}
+              {/* no previous sync (null): nothing to compare, no delta line */}
+              {d == null ? null : d === 0 ? <span className="text-stone-500">No change vs last sync</span> : <><span className={d > 0 ? 'text-ink' : 'text-negative'}>{d > 0 ? '▲' : '▼'}</span> {Math.abs(d)} vs last sync</>}
             </span>
           </div>
         </KpiCard>

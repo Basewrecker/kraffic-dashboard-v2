@@ -49,14 +49,18 @@ export default function CitationsMentions() {
 
   const enabled = tracking.platforms.filter((p) => p.enabled).map((p) => p.id)
   const all = ENGINES.filter((e) => enabled.includes(e.id)).map((e) => {
-    const [mentions = 0, citations = 0] = data[e.id] ?? []
-    return { ...e, mentions, citations }
+    // mentions null: not known (no stored answer text to read a name from); never filled in from citations
+    const [m, c] = data[e.id] ?? []
+    return { ...e, mentions: m === null ? null : m ?? 0, citations: c ?? 0 }
   })
-  const rows = all.filter((r) => r.mentions > 0)
-  const silent = all.filter((r) => r.mentions === 0).map((r) => r.name)
+  const rows = all.filter((r) => (r.mentions ?? 0) > 0 || r.citations > 0)
+  const silent = all.filter((r) => r.mentions === 0 && r.citations === 0).map((r) => r.name)
   // "Claude and Grok don't mention you yet" (in the subtitle)
   const silentLine = silent.length && rows.length ? `${listOf(silent)} ${silent.length === 1 ? 'doesn’t' : 'don’t'} mention ${domain === OWN.domain ? 'you' : brand?.name} yet` : null
-  const mentions = rows.reduce((n, r) => n + r.mentions, 0)
+  const mentionsUnknown = rows.some((r) => r.mentions == null)
+  const mentions = mentionsUnknown ? null : rows.reduce((n, r) => n + r.mentions, 0)
+  const NOT_TRACKED = 'Not tracked: no stored answer text to read mentions from'
+  const dash = <span className="text-stone-500" title={NOT_TRACKED}>—</span>
   const citations = rows.reduce((n, r) => n + r.citations, 0)
   const score = view.kpis.score
   // drawer for this card's brand (not necessarily the page's "Viewing as")
@@ -70,7 +74,8 @@ export default function CitationsMentions() {
   })
   const lead = [...insightRows].sort((a, b) => b.cited - a.cited || b.visible - a.visible)[0]
   const explain = useExplain(`${domain}|${lead?.id}`)
-  const insight = lead && platformEvidence(lead, insightRows, { view, tracking, setEngine: page.setEngine })
+  // no line built on mentions that aren't known
+  const insight = lead && !mentionsUnknown && platformEvidence(lead, insightRows, { view, tracking, setEngine: page.setEngine })
   // its "View prompts" acts on the page's tables, which only make sense for the brand the page is showing
   if (insight && domain !== page.focal.domain) delete insight.evidence.action
 
@@ -95,9 +100,11 @@ export default function CitationsMentions() {
           <span className="text-[24px] leading-none font-semibold text-stone-900 tabular-nums md:text-[32px]">{Math.round(shownScore)}</span>
         </Stat>
         <Stat label="Mentions">
+          {mentions == null ? <span className="text-[24px] leading-none font-semibold md:text-[32px]">{dash}</span> : (
           <Clickable value={mentions} label={`View all ${mentions} ${brand?.name} mentions`} onOpen={(e) => open('all', 'mentions', e)}>
             <span className="text-stone-900"><Big value={mentions} /></span>
           </Clickable>
+          )}
         </Stat>
         <Stat label="Citations">
           <Clickable value={citations} label={`View all ${citations} ${brand?.name} citations`} onOpen={(e) => open('all', 'pages', e)}>
@@ -116,11 +123,11 @@ export default function CitationsMentions() {
           <ul aria-label={`${brand?.name} by engine`} className="-mx-1 md:hidden">
             {rows.map((r) => (
               <li key={r.id} className="border-b border-[var(--div)] last:border-0">
-                <button type="button" onClick={(e) => open(r.id, 'mentions', e)} aria-label={`${r.name}: ${r.mentions} mentions, ${r.citations} citations`}
+                <button type="button" onClick={(e) => open(r.id, 'mentions', e)} aria-label={`${r.name}: ${r.mentions ?? 'unknown'} mentions, ${r.citations} citations`}
                   className="flex h-12 w-full items-center gap-2.5 px-1 text-left outline-none active:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
                   <PlatformIcon id={r.id} size={18} />
                   <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-stone-900">{r.name}</span>
-                  <span className="shrink-0 text-[13px] leading-[18px] text-stone-600 tabular-nums">{r.mentions} mentions · {r.citations} citations</span>
+                  <span className="shrink-0 text-[13px] leading-[18px] text-stone-600 tabular-nums">{r.mentions ?? '—'} mentions · {r.citations} citations</span>
                   <ChevronRight size={14} className="shrink-0 text-stone-500" aria-hidden />
                 </button>
               </li>
@@ -135,7 +142,7 @@ export default function CitationsMentions() {
                   </button>
                 </span>
                 <span className="text-stone-900">
-                  <Clickable value={r.mentions} label={`View ${r.mentions} ${r.name} mentions`} onOpen={(e) => open(r.id, 'mentions', e)}><Num value={r.mentions} /></Clickable>
+                  {r.mentions == null ? dash : <Clickable value={r.mentions} label={`View ${r.mentions} ${r.name} mentions`} onOpen={(e) => open(r.id, 'mentions', e)}><Num value={r.mentions} /></Clickable>}
                 </span>
                 <span className="text-stone-900">
                   <Clickable value={r.citations} label={`View ${r.citations} ${r.name} citations`} onOpen={(e) => open(r.id, 'pages', e)}><Num value={r.citations} /></Clickable>

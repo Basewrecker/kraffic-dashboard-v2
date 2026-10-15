@@ -1834,3 +1834,21 @@ export const execReportSections = {
     { label: 'Net tone', value: '+32', meta: 'Mostly positive' }, { label: 'Questions watched', value: 8, meta: 'In the United States' },
     { label: 'Mentions', value: '2.4k', meta: 'News, X and Instagram' }, { label: 'Biggest topic', value: 'SPF', meta: 'The launch in September' }] },
 }
+
+// ---------------------------------------------------------------------------
+// Preview: a brand on its first sync with nothing visible yet (?preview=first-sync): one sync, no deltas or "vs last
+// sync", every tracked prompt missed, no citations, competitors still in the answers. The data above is trimmed in
+// place so every page (and brandViews, which reads it after) sees the same brand.
+const PREVIEW = (() => { try { return new URLSearchParams(window.location.search).get('preview') } catch { return null } })()
+if (PREVIEW === 'first-sync') {
+  const keepLast = (arr) => arr.splice(0, Math.max(0, arr.length - 1))
+  keepLast(recentSyncs); keepLast(history); keepLast(historyMonthly); syncHistory.splice(1)
+  syncHistory.forEach((r) => { r.visibility = 0; r.mentions = 0; r.cited = 0; r.missed += r.visible; r.visible = 0; r.delta = null; r.changes = null })
+  history.forEach((p) => { p.dermasuri = 0 }); historyMonthly.forEach((p) => { p.dermasuri = 0 })
+  visiblePrompts.splice(0)
+  for (let i = trackedPrompts.length - 1; i >= 0; i--) if (trackedPrompts[i].status === 'visible') trackedPrompts.splice(i, 1)
+  Object.assign(kpis, { score: 0, scoreDelta: null, visible: 0, missed: trackedPrompts.length, total: trackedPrompts.length, citedSources: 0 })
+  platforms.forEach((p) => { p.visible = 0; p.cited = 0 })
+  if (citationsMentions[account.domain]) Object.keys(citationsMentions[account.domain]).forEach((e) => { citationsMentions[account.domain][e] = [0, 0] })
+  competitors.forEach((c) => { if (c.you) c.share = 0 })
+}
