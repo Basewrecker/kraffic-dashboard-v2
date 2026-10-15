@@ -16,9 +16,10 @@ const fmtDate = (s) => {
 }
 
 export function WonFor({ row }) {
-  return row.isNew
-    ? <span className="inline-flex h-5 items-center rounded-full bg-tint px-2 text-[12px] leading-none font-medium text-ink">New</span>
-    : <span className="proportional-nums">Won {row.streak} syncs</span>
+  if (row.isNew) return <span className="inline-flex h-5 items-center rounded-full bg-tint px-2 text-[12px] leading-none font-medium text-ink">New</span>
+  // how long isn't known (no earlier sync to compare with): say nothing
+  if (row.streak == null) return null
+  return <span className="proportional-nums">Won {row.streak} sync{row.streak === 1 ? '' : 's'}</span>
 }
 
 function PageLink({ page }) {
@@ -78,8 +79,8 @@ export function CompetitorCompareSheet({ row, tracked, onClose, onCreateBrief, o
               <span className="inline-flex items-center gap-2 text-stone-800"><Favicon domain={r.competitor} size={16} /> <span title={r.competitor}>{brandName(r.competitor)}</span></span>
               <span aria-hidden>·</span>
               <WonFor row={r} />
-              <span aria-hidden>·</span>
-              <span>{r.topic}</span>
+              {/* no topic: no trailing tag or separator */}
+              {r.topic && <><span aria-hidden>·</span><span>{r.topic}</span></>}
             </div>
           </header>
 

@@ -11,7 +11,7 @@ import { linkClick, navigate } from '../../router'
 import { fmtDay, trackingSummary, useTracking } from '../../store/trackingSettings'
 import { brandName, isDomain } from '../../utils/brand'
 import { isValidDomain, normalizeDomain } from '../../utils/domain'
-import { MAX_COMPETITORS, setupActions, setupBrands } from '../../data/mock'
+import { MAX_COMPETITORS, account, setupActions, setupBrands } from '../../data/mock'
 import { sharedAnswers } from '../../data/brandViews'
 import { guessTopicType } from '../../data/topics'
 
@@ -259,6 +259,8 @@ function BrandIdentity({ brand, syncing, onEdit, onDelete }) {
                   {brand.domain}<ArrowUpRight size={12} aria-hidden />
                 </a>
               )}
+              {/* what's tracked: a website, or a name with no site of its own */}
+              {brand.type && <>{brand.domain && <span aria-hidden>·</span>}{brand.type === 'website' ? 'Website' : 'Brand name'}</>}
             </span>
             {/* no other names: one muted line here instead of an empty "Also counts as" card */}
             {!(brand.aliases ?? []).length && <span className="block text-[13px] leading-[18px] text-stone-500">No other names</span>}
@@ -513,6 +515,92 @@ function CompetitorsCard({ brand, update, toast }) {
   )
 }
 
+// "Marketplaces": where the brand also sells (accounts with ecommerce). Row = store, its domain, and how many listings
+// of the brand AI answers cited (null: not known for this brand). + Add opens a domain row; Edit renames or moves it;
+// Remove has Undo. Suggested: stores AI cites in the market where the brand isn't listed, when the backend has them.
+function MarketplacesCard({ brand, update, toast }) {
+  const items = brand.marketplaces ?? []
+  const ed = useEditing(toast)
+  const [failed, save] = useCardSave()
+  const tracking = useTracking()
+  const rows = useAnimatedList(items, (m) => m.id, 150)
+  const setList = (fn) => update((b) => ({ ...b, marketplaces: fn(b.marketplaces ?? []) }))
+  const domainError = (raw, selfId) => {
+    const d = normalizeDomain(raw)
+    if (!isValidDomain(d)) return 'Enter a valid domain, e.g. amazon.com'
+    if (d === brand.domain) return 'That’s this brand’s own site'
+    if (items.some((m) => m.id !== selfId && m.domain === d)) return 'Already added'
+    return null
+  }
+  const add = (domain, name = brandName(domain)) => {
+    const temp = { id: `new-${Date.now()}`, name, domain, cited: null }
+    save(name, {
+      apply: () => setList((ms) => [...ms, temp]),
+      revert: () => setList((ms) => ms.filter((x) => x.id !== temp.id)),
+      call: () => setupActions.onAddMarketplace(brand.id, temp),
+      done: (saved) => { setList((ms) => ms.map((x) => (x.id === temp.id ? { ...temp, ...saved } : x))); toast(`${name} added`) },
+    })
+  }
+  const edit = (prev, next) => save(next.name, {
+    apply: () => setList((ms) => ms.map((x) => (x.id === prev.id ? next : x))),
+    revert: () => setList((ms) => ms.map((x) => (x.id === prev.id ? prev : x))),
+    call: () => setupActions.onUpdateMarketplace(brand.id, prev, next),
+    done: (saved) => { if (saved) setList((ms) => ms.map((x) => (x.id === prev.id ? { ...next, ...saved } : x))); toast(`${next.name} updated`) },
+  })
+  const restore = (m, i) => save(m.name, {
+    apply: () => setList((ms) => (ms.some((x) => x.id === m.id) ? ms : [...ms.slice(0, i), m, ...ms.slice(i)])),
+    revert: () => setList((ms) => ms.filter((x) => x.id !== m.id)),
+    call: () => setupActions.onRestoreMarketplace(brand.id, m),
+  })
+  const remove = (m) => {
+    const i = items.findIndex((x) => x.id === m.id)
+    save(m.name, {
+      apply: () => setList((ms) => ms.filter((x) => x.id !== m.id)),
+      revert: () => setList((ms) => (ms.some((x) => x.id === m.id) ? ms : [...ms.slice(0, i), m, ...ms.slice(i)])),
+      call: () => setupActions.onRemoveMarketplace(brand.id, m),
+      done: () => toast(`${m.name} removed`, { duration: 5000, action: { label: 'Undo', onClick: () => restore(m, i) } }),
+    })
+  }
+  const country = tracking.market.country
+  const suggestions = (setupActions.marketplaceSuggestions?.(brand, country) ?? [])
+    .map((x) => ({ key: x.domain, label: x.name, value: x, reason: x.answers ? `Cited in ${x.answers} answers` : undefined }))
+  const cited = (m) => (m.cited == null ? <span className="text-stone-500">—</span> : m.cited > 0 ? `${m.cited} listing${m.cited === 1 ? '' : 's'} cited` : 'No listings yet')
+
+  return (
+    <SettingsCard
+      id={`marketplaces-${brand.id}`}
+      title="Marketplaces"
+      count={items.length}
+      description={`Where ${brand.domain ?? brand.name} also sells`}
+      action={<AddButton onClick={() => ed.open('new')} />}
+      footer={(
+        <>
+          <Suggested items={suggestions} market={country} onPick={(s) => add(s.value.domain, s.value.name)} />
+          <SaveFailed failed={failed} />
+        </>
+      )}
+    >
+      {ed.editing === 'new' && (
+        <InputRow logo={<Logo name="+" />} fields={[{ name: 'domain', label: 'Marketplace domain', placeholder: 'amazon.com' }]} initial={ed.draft ?? { domain: '' }}
+          validate={({ domain }) => domainError(domain, null)} submitLabel="Add"
+          onSubmit={({ domain }) => { add(normalizeDomain(domain)); ed.close() }} onClose={ed.close} onDiscard={ed.discard('new')} />
+      )}
+      {rows.map(({ item: m, key, state }) => (ed.editing === m.id ? (
+        <InputRow key={key} logo={<Logo domain={m.domain} name={m.name} />}
+          fields={[{ name: 'name', label: 'Marketplace name', placeholder: 'Amazon' }, { name: 'domain', label: 'Marketplace domain', placeholder: 'amazon.com' }]}
+          initial={ed.draft ?? { name: m.name, domain: m.domain }} validate={({ domain }) => domainError(domain, m.id)} submitLabel="Save"
+          onSubmit={({ name, domain }) => { edit(m, { ...m, name: name.trim() || brandName(normalizeDomain(domain)), domain: normalizeDomain(domain) }); ed.close() }} onClose={ed.close} onDiscard={ed.discard(m.id)} />
+      ) : (
+        <Row key={key} state={state} logo={<Logo domain={m.domain} name={m.name} />} name={m.name} meta={m.domain}
+          value={cited(m)} onEdit={() => ed.open(m.id)} onRemove={() => remove(m)} />
+      )))}
+      {!items.length && ed.editing !== 'new' && rows.length === 0 && (
+        <li className="flex h-[60px] items-center px-5 text-[13px] leading-[18px] text-stone-500">No marketplaces yet</li>
+      )}
+    </SettingsCard>
+  )
+}
+
 // ---------------------------------------------------------------- page
 
 // kept outside the component so edits survive leaving /setup (e.g. to change the market on /llm-settings)
@@ -598,6 +686,8 @@ export default function SetupPage() {
               <NamesCard brand={brand} />
               <TopicsCard brand={brand} update={update} toast={toast} />
               <CompetitorsCard brand={brand} update={update} toast={toast} />
+              {/* marketplaces: accounts with ecommerce, when the backend keeps the brand's stores */}
+              {account.features?.ecommerce !== false && Array.isArray(brand.marketplaces) && <MarketplacesCard brand={brand} update={update} toast={toast} />}
             </div>
           )
         })

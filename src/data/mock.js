@@ -1,6 +1,7 @@
 // All dashboard data. No backend.
 // NOTE: rows marked PLACEHOLDER must be replaced with the exact rows from the live-site screenshots.
 import { brandName } from '../utils/brand.js' // .js: the unit tests load this file in plain Node
+import { GLOBAL, MARKET_SUGGESTIONS } from './marketSuggestions.js'
 
 // ---- Workspace: the agency, its clients and their brands. Two brands have demo data (Dermasuri; Lumen Skin reuses the
 // same dataset under its own name); the rest have none yet and show empty states. The current brand is kept in this
@@ -836,9 +837,9 @@ export const guessCategory = topicOf
 //   topics       prompt clusters (GET /projects/:id/prompts/clusters): name, promptCount
 //   competitors  approved competitors (GET /projects/:id/competitors/evidence): id, name, domain
 //   suggested    research candidates not decided yet (status DISCOVERED): id, name, domain, reason
-// MAX_COMPETITORS: null = no limit (billing isn't live, so the API returns none)
+// MAX_COMPETITORS: how many competitors a brand can track ("3 of 5"); null = no limit
 // ---------------------------------------------------------------------------
-export const MAX_COMPETITORS = null
+export const MAX_COMPETITORS = 5
 
 // "Citations and Mentions" card: per brand → per engine [mentions, citations] (engines not listed = 0).
 // Totals are always summed from these rows.
@@ -859,9 +860,13 @@ export const aliasAnswers = { 'Derma Suri': 6 }
 // Brand Setup → Topics: the prompt clusters (the Prompt Hub's categories) with their tracked prompts
 const setupTopics = promptCategories.map((name) => ({ name, promptCount: trackedPrompts.filter((p) => p.category === name).length }))
 
+// Brand Setup → Marketplaces: the stores the brand sells on, with the listings of it AI answers cited (the
+// Marketplace visibility card's "By marketplace" rows)
+const setupMarketplaces = marketplace.segments.find((s) => s.key === 'yours').rows.map((r, i) => ({ id: `m${i + 1}`, name: r.label, domain: r.domain, cited: r.value }))
+
 export const setupBrands = [
   {
-    id: 'b1', name: account.name, domain: account.domain, lastSync: account.lastSync.replace(/, \d{4}$/, ''), prompts: trackedPrompts.length,
+    id: 'b1', name: account.name, domain: account.domain, type: 'website', lastSync: account.lastSync.replace(/, \d{4}$/, ''), prompts: trackedPrompts.length,
     aliases: ['Derma Suri'],
     aliasAnswers,
     topics: setupTopics,
@@ -870,6 +875,7 @@ export const setupBrands = [
       { id: 's1', name: 'La Roche-Posay', domain: 'laroche-posay.us', reason: 'Sells sunscreen and barrier creams to the same shoppers' },
       { id: 's2', name: 'Neutrogena', domain: 'neutrogena.com', reason: 'Named next to you in answers about daily SPF' },
     ],
+    marketplaces: setupMarketplaces,
   },
 ]
 
@@ -887,6 +893,14 @@ export const setupActions = {
   onCreateBrand: ({ name, domain, aliases, competitors: list }) => settle({ id: `b${++setupSeq}`, name, domain, aliases, competitors: list.map((c, i) => ({ id: `c${++setupSeq + i}`, ...c })) }),
   onUpdateBrand: (id, { name, domain }) => settle({ id, name, domain }),
   onDeleteBrand: (id) => settle(id),
+  // Marketplaces (shown when the account has ecommerce): the brand's stores, saved one change at a time
+  onAddMarketplace: (brandId, { name, domain }) => settle({ id: `m${++setupSeq}`, name, domain, cited: 0 }),
+  onUpdateMarketplace: (brandId, prev, next) => settle(next),
+  onRemoveMarketplace: (brandId, m) => settle(m),
+  onRestoreMarketplace: (brandId, m) => settle(m),
+  // stores AI cites in the market where the brand isn't listed (none: no Suggested strip)
+  marketplaceSuggestions: (brand, country) => (MARKET_SUGGESTIONS[country] ?? GLOBAL).marketplaces
+    .filter((x) => !(brand.marketplaces ?? []).some((m) => m.domain === x.domain)),
 }
 
 // ---------------------------------------------------------------------------

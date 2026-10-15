@@ -24,10 +24,11 @@ export function CompetitorPromptsTable() {
 
 // "Sep 7, 2026" → "7 Sep 2026"
 const fmtDate = (s) => {
+  if (!s) return '—' // not known (no earlier sync to compare with)
   const [mon, day, year] = s.replace(',', '').split(' ')
   return `${day} ${mon} ${year}`
 }
-const isNew = (r) => r.firstVisible === account.lastSync
+const isNew = (r) => !!r.firstVisible && r.firstVisible === account.lastSync
 // Recovered: we published content for it, and a later sync found it visible
 const isRecovered = (r) => publishedContent.some((p) => p.prompt === r.prompt && r.firstVisible && Date.parse(r.firstVisible) > Date.parse(p.publishedOn))
 

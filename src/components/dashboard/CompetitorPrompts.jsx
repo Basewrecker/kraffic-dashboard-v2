@@ -16,7 +16,7 @@ import { brandName } from '../../utils/brand'
 const iconId = (p) => (p === 'google' ? 'aio' : p)
 const prevSync = recentSyncs[recentSyncs.length - 2].replace(', 2026', '').split(' ').reverse().join(' ') // "28 Sep"
 // Default order: Missing first, then New wins, then the longest streak.
-const urgency = (r) => (r.you === 'missing' ? 1000 : 0) + (r.isNew ? 100 : 0) + r.streak
+const urgency = (r) => (r.you === 'missing' ? 1000 : 0) + (r.isNew ? 100 : 0) + (r.streak ?? 0)
 
 // "Prompt mix": who shows up for each prompt — the competitors' wins plus Dermasuri's own appearances, in one table.
 // Dermasuri rows = prompts where Dermasuri appears, with its own cited page (or "Mentioned, not linked");
@@ -26,7 +26,8 @@ const lastSync = recentSyncs.at(-1)
 const ownRows = visiblePrompts.map((v) => {
   const a = appearances[`v${v.id}`]?.[OWN]
   const since = recentSyncs.indexOf(v.firstVisible)
-  const isNew = v.firstVisible === lastSync
+  // new = first visible on the latest sync (unknown first-visible day, e.g. no earlier sync to compare: not new)
+  const isNew = !!v.firstVisible && v.firstVisible === lastSync
   return {
     id: `own-${v.id}`,
     answerKey: `v${v.id}`,
@@ -36,8 +37,10 @@ const ownRows = visiblePrompts.map((v) => {
     own: true,
     platforms: v.platforms,
     isNew,
-    streak: since === -1 ? recentSyncs.length : recentSyncs.length - since,
-    you: 'self',
+    // syncs in a row it has been visible; unknown (null) without a first-visible day
+    streak: !v.firstVisible ? null : since === -1 ? recentSyncs.length : recentSyncs.length - since,
+    // the brand's own rows: its status on the prompt (these are the prompts it appears in: New or Visible)
+    you: isNew ? 'new' : 'visible',
     theirPage: a?.cited ? { domain: OWN, path: a.citedPage } : null,
   }
 })
@@ -69,7 +72,8 @@ const loading = import.meta.env.DEV && new URLSearchParams(window.location.searc
 
 // the "Dermasuri" column: on competitor rows, whether Dermasuri is there too; on Dermasuri rows, nothing to repeat
 function YouPill({ you }) {
-  if (you === 'self') return <span className="text-[13px] text-stone-500">—</span>
+  if (you === 'visible') return <span className="whitespace-nowrap text-[13px] text-stone-600">Visible</span>
+  if (you === 'new') return <span className="whitespace-nowrap text-[13px] font-medium text-ink">New</span>
   return you === 'cited'
     ? <span className="whitespace-nowrap text-[13px] text-stone-600">Also there</span>
     : <span className="inline-flex h-6 items-center whitespace-nowrap rounded-full bg-tint px-2 text-[13px] font-medium text-ink">Missing</span>
@@ -135,8 +139,8 @@ export default function CompetitorPrompts() {
             {tracked.has(r.id) && <Bell size={14} className="shrink-0 text-stone-500" aria-label="Tracked" />}
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-[13px] leading-[18px] text-stone-500">
-            <TopicTag topic={r.topic} />
-            <span aria-hidden>·</span>
+            {/* no topic: nothing before the status (no empty tag, no leading ·) */}
+            {r.topic && <><TopicTag topic={r.topic} /><span aria-hidden>·</span></>}
             <WonFor row={r} />
             {/* an engine filter already says which engine: no per-row icons */}
             {!platform && (
@@ -151,14 +155,14 @@ export default function CompetitorPrompts() {
     {
       key: 'competitor',
       label: 'Brand',
-      width: 200,
+      width: 168,
       skeleton: '140px',
       sort: { value: (r) => brandName(r.competitor).toLowerCase(), first: 'asc' },
       csv: (r) => brandName(r.competitor),
       cell: (r) => (
         <span className="flex min-w-0 items-center gap-2 text-small text-stone-800">
           <Favicon domain={r.competitor} size={16} />
-          <span className={`truncate ${r.own ? 'font-semibold text-ink' : ''}`} title={r.competitor}>{brandName(r.competitor)}</span>
+          <span className={`min-w-0 truncate ${r.own ? 'font-semibold text-ink' : ''}`} title={brandName(r.competitor)}>{brandName(r.competitor)}</span>
         </span>
       ),
     },
@@ -166,7 +170,8 @@ export default function CompetitorPrompts() {
       key: 'theirPage',
       label: 'Cited page',
       mobile: false,
-      width: 240,
+      width: 200,
+      colClass: '[@media(max-width:1099px)]:hidden', // below 1100px wide it goes first
       skeleton: '180px',
       csv: (r) => (r.theirPage ? `https://${r.theirPage.domain}${r.theirPage.path}` : 'Mentioned, not linked'),
       cell: (r) => !r.theirPage ? <span className="text-small text-stone-500">Mentioned, not linked</span> : (
@@ -190,16 +195,17 @@ export default function CompetitorPrompts() {
       key: 'you',
       label: account.name,
       width: 112,
+      colClass: '[@media(max-width:959px)]:hidden', // then this one, below 960px
       skeleton: '80px',
       sort: { value: urgency, first: 'desc' },
-      csv: (r) => (r.you === 'self' ? '' : r.you === 'cited' ? 'Also there' : 'Missing'),
+      csv: (r) => ({ visible: 'Visible', new: 'New', cited: 'Also there' }[r.you] ?? 'Missing'),
       cell: (r) => <YouPill you={r.you} />,
     },
     {
       key: 'action',
       label: '',
       mobile: false, // phones: the row tap does it
-      width: 104, // spec 88; 'Compare' needs 104
+      width: 132, // always whole: 'View answer' with the cell's padding
       align: 'right',
       skeleton: '72px',
       csv: false,

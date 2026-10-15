@@ -14,6 +14,7 @@ import { downloadCsv } from './csv'
 //   sort?: { value: (row) => string | number, first: 'asc' | 'desc' },  // makes the header a sort button
 //   skeleton?: CSS width of the loading bar,
 //   width?: full column width in px incl. padding (table-layout: fixed; omit on the one flexing column),
+//   colClass?: classes on the column's header and cells (e.g. '[@media(max-width:1099px)]:hidden' to drop it on narrower screens),
 //   stopRowClick?: clicks in this cell don't open the row
 // }
 // Optional action-list features (used by Missed prompts):
@@ -286,12 +287,12 @@ export default function PromptTable({
                 <th
                   key={c.key}
                   aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                  className={`${pad(i)} ${align(c)} whitespace-nowrap text-[13px] leading-5 font-medium text-stone-500`}
+                  className={`${pad(i)} ${align(c)} ${c.colClass ?? ''} whitespace-nowrap text-[13px] leading-5 font-medium text-stone-500`}
                   style={{ width: colWidth(c) }}
                 >
                   {c.header ? c.header : c.sort ? (
-                    <button onClick={() => toggleSort(c)} className="group/sort -mx-1 inline-flex items-center gap-1 rounded px-1 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
-                      {c.label}
+                    <button onClick={() => toggleSort(c)} title={typeof c.label === 'string' ? c.label : undefined} className="group/sort -mx-1 inline-flex max-w-full items-center gap-1 rounded px-1 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
+                      <span className="min-w-0 truncate">{c.label}</span>
                       {active
                         ? (sort.dir === 'asc' ? <ChevronUp size={14} className="text-stone-500" /> : <ChevronDown size={14} className="text-stone-500" />)
                         : <ChevronDown size={14} className="text-stone-500 opacity-0 group-hover/sort:opacity-60 group-focus-visible/sort:opacity-60" />}
@@ -308,7 +309,7 @@ export default function PromptTable({
             ? Array.from({ length: 10 }, (_, r) => (
                 <tr key={r} className={`${rowHeight} border-b border-stone-100 last:border-0`}>
                   {columns.map((c, i) => (
-                    <td key={c.key} className={pad(i)}>
+                    <td key={c.key} className={`${pad(i)} ${c.colClass ?? ''}`}>
                       <div className={`h-4 animate-pulse rounded bg-stone-100 ${c.align === 'right' ? 'ml-auto' : ''}`} style={{ width: c.skeleton ?? '60%' }} />
                     </td>
                   ))}
@@ -325,7 +326,7 @@ export default function PromptTable({
                   } ${selection?.selected.has(r.id) ? 'bg-stone-50' : ''} ${rowClass?.(r) ?? ''}`}
                 >
                   {columns.map((c, i) => (
-                    <td key={c.key} data-stop-row={c.stopRowClick || undefined} className={`${pad(i)} ${align(c)} ${c.tdClass ?? ''}`}>{c.cell(r, sorted)}</td>
+                    <td key={c.key} data-stop-row={c.stopRowClick || undefined} className={`${pad(i)} ${align(c)} ${c.colClass ?? ''} ${c.tdClass ?? ''}`}>{c.cell(r, sorted)}</td>
                   ))}
                 </tr>
               ))}
@@ -397,7 +398,9 @@ export function RowAction({ children, icon: Icon, onClick }) {
 }
 
 // Topic label (neutral tint), used as the sub-label in prompt rows.
+// a prompt with no topic draws nothing (no empty tag)
 export function TopicTag({ topic }) {
+  if (!topic) return null
   return <span className="inline-flex h-[18px] items-center rounded bg-tint px-1.5 text-[12px] leading-none font-medium text-stone-600">{topic}</span>
 }
 
