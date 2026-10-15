@@ -201,7 +201,7 @@ function InsideValueLabel({ x, y, width = 0, height = 0, value }) {
 }
 
 // The legend chips on one line, never wrapped or cut mid-name: 14px labels with gap-4; if they don't fit, 13px with
-// gap-3; if they still don't, as many as fit (the brand's chip always) and a "+N more" chip with the rest. Measured
+// gap-3; if they still don't, as many as fit (brand first) and a "+N more" chip with the rest. Measured
 // from the row's own width, again on every resize and once the web fonts have loaded.
 const GAP = { md: 16, sm: 12 }
 function FitChips({ items, chip, more, measureKey }) {
@@ -222,9 +222,10 @@ function FitChips({ items, chip, more, measureKey }) {
       if (span(md, md.length, GAP.md) <= avail) next = { small: false, count: items.length }
       else if (span(sm, sm.length, GAP.sm) <= avail) next = { small: true, count: items.length }
       else {
+        // as many as fit next to "+N more"; on a phone that can be none (then "+N more" holds every brand)
         let n = items.length - 1
-        while (n > 1 && span(sm, n, GAP.sm) + GAP.sm + moreW > avail) n--
-        next = { small: true, count: Math.max(1, n) }
+        while (n > 0 && span(sm, n, GAP.sm) + GAP.sm + moreW > avail) n--
+        next = { small: true, count: n }
       }
       setFit((f) => (f.small === next.small && f.count === next.count ? f : next))
     }
@@ -264,9 +265,16 @@ const MoreTrigger = forwardRef(function MoreTrigger({ n, small, open, ...rest },
 // "+N more": the chips that didn't fit, as a checklist with the same marks; a toggle here is the chip's toggle
 function MoreChips({ rest, small, hidden, marker, onToggle }) {
   const [open, setOpen] = useState(false)
+  const [alignLeft, setAlignLeft] = useState(false)
   const wrap = useRef(null)
   const btn = useRef(null)
   const menu = useRef(null)
+  // the list opens toward the side with room (a phone's "+N more" can sit near the left edge)
+  useLayoutEffect(() => {
+    if (!open || !menu.current || !btn.current) return
+    const b = btn.current.getBoundingClientRect()
+    setAlignLeft(b.right - menu.current.offsetWidth < 8)
+  }, [open])
   useEffect(() => {
     if (!open) return
     menu.current?.querySelector('[role=menuitemcheckbox]')?.focus()
@@ -285,7 +293,7 @@ function MoreChips({ rest, small, hidden, marker, onToggle }) {
     <div ref={wrap} className="relative shrink-0" onKeyDown={open ? onKey : undefined}>
       <MoreTrigger ref={btn} n={rest.length} small={small} open={open} onClick={() => setOpen((o) => !o)} aria-label={`${rest.length} more brands`} />
       {open && (
-        <div ref={menu} role="menu" aria-label="More brands" className="absolute right-0 top-full z-30 mt-1 w-max min-w-44 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-raised p-1 shadow-md">
+        <div ref={menu} role="menu" aria-label="More brands" className={`absolute ${alignLeft ? 'left-0' : 'right-0'} top-full z-30 mt-1 w-max min-w-44 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-raised p-1 shadow-md`}>
           {rest.map((s) => {
             const shown = !hidden.includes(s.key)
             return (
