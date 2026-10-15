@@ -17,7 +17,7 @@ export const workspaceDirectory = [
     { id: 'lumen', name: 'Lumen Skin', domain: 'lumenskin.com', data: 'full' },
   ] },
   { id: 'brightside-co', client: 'Brightside', brands: [
-    { id: 'brightside', name: 'Brightside Botanics', domain: 'brightsidebotanics.com', data: 'empty' },
+    { id: 'brightside', name: 'Brightside Botanics', domain: 'brightsidebotanics.com', data: 'empty', setUp: true }, // prompts and competitors in, first sync pending
   ] },
   { id: 'northwind-co', client: 'Northwind Pharmacy', brands: [
     { id: 'northwind-derm', name: 'Northwind Derm', domain: 'northwindderm.com', data: 'empty' },
@@ -121,10 +121,13 @@ function fitDomain(values) {
 //                 to look at competitors alone; the axis then fits their values)
 // Each point carries `delta` = change of dermasuri vs the previous period (even across the window edge).
 // scale: { seriesKey: factor } — an engine filter's share relative to all engines (see brandViews.engineScale)
+const singleSync = (() => { try { return new URLSearchParams(window.location.search).get('history') === 'single' } catch { return false } })()
 export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null } = {}) {
   const gran = granularity === 'monthly' ? 'monthly' : 'weekly'
   const raw = gran === 'monthly' ? historyMonthly : [...historyEarlier, ...history]
-  const all = !scale ? raw : raw.map((p) => ({ ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, Math.round(p[s.key] * (scale[s.key] ?? 1))])) }))
+  const scaled = !scale ? raw : raw.map((p) => ({ ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, Math.round(p[s.key] * (scale[s.key] ?? 1))])) }))
+  // ?history=single: a brand with one sync so far (the chart's first-sync state)
+  const all = singleSync ? scaled.slice(-1) : scaled
   const opts = historyRanges[gran]
   const opt = opts.find((r) => r.id === range) ?? opts.find((r) => r.id === defaultRange[gran])
   const start = Math.max(0, all.length - opt.count)

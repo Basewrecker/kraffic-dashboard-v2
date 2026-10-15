@@ -133,7 +133,9 @@ function Coverage({ a, day, onDay }) {
   const labelEvery = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(w / 72))))
   const driver = CHANNELS[a.peakDriver].label
   const avg = Math.round(a.avg * 10) / 10
-  const tone = mode === 'tone'
+  // one day: no line to draw, so Volume only (Tone, the line, comes back from the second day)
+  const single = n === 1
+  const tone = !single && mode === 'tone'
 
   // tone scale: zero in the middle, ±100% 20px from the top / bottom (room for the side labels)
   const y0 = H / 2
@@ -166,7 +168,7 @@ function Coverage({ a, day, onDay }) {
               {fmtDay(day)} · Clear<X size={13} aria-hidden />
             </button>
           )}
-          <Segmented size="sm" label="Show" value={mode} onChange={setMode} options={[{ value: 'volume', label: 'Volume' }, { value: 'tone', label: 'Tone' }]} />
+          <Segmented size="sm" label="Show" value={tone ? 'tone' : 'volume'} onChange={setMode} options={[{ value: 'volume', label: 'Volume' }, ...(single ? [] : [{ value: 'tone', label: 'Tone' }])]} />
         </div>
       </div>
 
@@ -272,6 +274,7 @@ function Coverage({ a, day, onDay }) {
           </div>
         ))}
       </div>
+      {single && <p className="mt-1 text-[12px] leading-4 text-stone-500">Showing one day of coverage. The tone line appears after the next day.</p>}
 
       <div className="mt-3">
         <Insight explain={explain} text={insight.text} evidence={{ keys: insight.keys, calc: insight.calc }} />
