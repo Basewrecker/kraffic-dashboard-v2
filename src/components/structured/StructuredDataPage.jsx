@@ -17,6 +17,8 @@ import SchemaRing, { RING_COLORS } from './SchemaRing'
 import { saveSettings, useSettings } from './settings'
 import { PendingCheck, StatusIcon, StatusLabel, pagesLine, usePending } from './parts'
 import { SD, crawlActions } from '../../data/structuredData'
+import { account } from '../../data/mock'
+import FeatureOff from '../ui/FeatureOff'
 import { IMPORTANCE, KINDS, PAGE_COUNT, STATUS, analyze, isPageType, pageFor } from './analyze'
 import ErrorBoundary from '../ui/ErrorBoundary'
 import ActionSteps, { fmtMin, orderSteps } from '../ui/ActionSteps'
@@ -78,6 +80,7 @@ export default function StructuredDataPage() {
   const failed = lastRun?.failed ?? null
   const errors = failed?.length ?? lastRun?.errors ?? 0
   const errorsCls = 'rounded text-negative outline-none focus-visible:ring-2 focus-visible:ring-focus'
+  const on = account.features.structuredData // off: no run line, actions or results, only FeatureOff
   const runLine = running
     ? <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="animate-[spin_600ms_linear_infinite] motion-reduce:animate-none" aria-hidden />Crawling… this can take a few minutes</span>
     : lastRun?.date ? (
@@ -135,20 +138,20 @@ export default function StructuredDataPage() {
             </button>
           </div>
           <p className="mt-1 line-clamp-2 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Which schemas Google and AI engines can read on {SD.domain}</p>
-          {runLine && <p className={`mt-1 text-[13px] leading-[18px] ${t3} tabular-nums lg:hidden`}>{runLine}</p>}
-          {SD.crawled && failLine}
+          {on && runLine && <p className={`mt-1 text-[13px] leading-[18px] ${t3} tabular-nums lg:hidden`}>{runLine}</p>}
+          {on && SD.crawled && failLine}
         </div>
         <div className="flex shrink-0 items-center gap-2 lg:pt-1">
-          {runLine && <span className={`mr-1 hidden whitespace-nowrap lg:inline text-[13px] leading-[18px] ${t3} tabular-nums`}>{runLine}</span>}
+          {on && runLine && <span className={`mr-1 hidden whitespace-nowrap lg:inline text-[13px] leading-[18px] ${t3} tabular-nums`}>{runLine}</span>}
           {/* nothing to export or share before the first crawl */}
-          {SD.crawled && <span className="hidden items-center gap-2 lg:flex">
+          {on && SD.crawled && <span className="hidden items-center gap-2 lg:flex">
             <ActionMenu label="Export" items={[{ label: 'CSV', onClick: exportCsv }, { label: 'Client report', onClick: exportReport }]} className={lineBtn}>
               Export <ChevronDown size={14} className="text-stone-500" aria-hidden />
             </ActionMenu>
             <button type="button" onClick={share} className={lineBtn}><Share2 size={14} aria-hidden />Share</button>
           </span>}
           {/* Re-run + its menu: how many pages the next run crawls */}
-          {SD.crawled && (
+          {on && SD.crawled && (
             <span className="flex max-lg:h-10 max-lg:flex-1">
               <button type="button" onClick={rerun} disabled={running} className={`${inkBtn} justify-center rounded-r-none max-lg:h-10 max-lg:flex-1`}>
                 <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />Re-run
@@ -159,7 +162,7 @@ export default function StructuredDataPage() {
               </ActionMenu>
             </span>
           )}
-          {SD.crawled && <MobileActions items={[
+          {on && SD.crawled && <MobileActions items={[
             { label: 'Export CSV', icon: Download, onClick: exportCsv },
             { label: 'Client report', icon: FileText, onClick: exportReport },
             { label: 'Share link', icon: Share2, onClick: share },
@@ -167,7 +170,9 @@ export default function StructuredDataPage() {
         </div>
       </div>
 
-      {!SD.crawled ? (
+      {!on ? (
+        <FeatureOff name="Structured Data" what={`It reads which schemas Google and AI engines can find on ${SD.domain}’s pages.`} />
+      ) : !SD.crawled ? (
         // never crawled: nothing to analyze yet
         <Card className="mt-2 flex flex-col items-center gap-3 px-6 py-16 text-center">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-tint text-stone-600" aria-hidden><Braces size={18} /></span>

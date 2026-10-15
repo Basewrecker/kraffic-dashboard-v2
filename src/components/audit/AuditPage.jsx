@@ -15,7 +15,8 @@ import CrawlTab from './CrawlTab'
 import { AuditProvider } from './context'
 import { setParams, useTab } from './parts'
 import { CATEGORIES, IMPACT, STATUS, byStatus, getAudit } from '../../data/audit'
-import { auditActions } from '../../data/mock'
+import { account, auditActions } from '../../data/mock'
+import FeatureOff from '../ui/FeatureOff'
 
 // /audit — "Site Audit": how ready the site is for AI answers. Tabs: Overview · Checks · Pages · Crawl (?tab=).
 // Data: data/audit (derived from the API-shaped mock in data/mock.js). ?mock=full|first|clean|never picks the state.
@@ -65,7 +66,8 @@ export default function AuditPage() {
     setTab(next, { status: null, section: null, cat: null, depth: null })
     requestAnimationFrame(() => document.querySelector(`[data-audit-tab="${next}"]`)?.focus())
   }
-  const meta = running ? 'Running…' : a.never ? 'Not run yet' : `Last run ${a.run.date} · ${a.run.pages} pages`
+  const off = !account.features.siteAudit
+  const meta = off ? null : running ? 'Running…' : a.never ? 'Not run yet' : `Last run ${a.run.date} · ${a.run.pages} pages`
   // a failed run: the reason on its own line under the subtitle, with Retry (the Structured Data pattern)
   const failLine = !running && runError && (
     <p role="alert" className="mt-2 text-[13px] leading-[18px] text-negative">
@@ -85,21 +87,21 @@ export default function AuditPage() {
         </div>
         <div className="flex shrink-0 items-center gap-2 lg:pt-1">
           <span className={`mr-1 hidden whitespace-nowrap text-[13px] leading-[18px] ${t3} tabular-nums lg:inline`}>{meta}</span>
-          {!a.never && <button type="button" onClick={run} disabled={running} className={`${inkBtn} max-lg:flex-1`}>
+          {!off && !a.never && <button type="button" onClick={run} disabled={running} className={`${inkBtn} max-lg:flex-1`}>
             <RefreshCw size={14} className={running ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />
             Run audit
           </button>}
-          <MobileActions items={[{ label: 'API access', icon: Code2, onClick: () => setApi(true) }, ...(a.never ? [] : [{ label: 'Export all (CSV)', icon: Download, onClick: exportAll }])]} />
-          <span className="hidden lg:inline-flex">
+          {!off && <MobileActions items={[{ label: 'API access', icon: Code2, onClick: () => setApi(true) }, ...(a.never ? [] : [{ label: 'Export all (CSV)', icon: Download, onClick: exportAll }])]} />}
+          {!off && <span className="hidden lg:inline-flex">
             <ActionMenu label="More actions" items={[{ label: 'API access', onClick: () => setApi(true) }, ...(a.never ? [] : [{ label: 'Export all (CSV)', onClick: exportAll }])]}
               className="grid h-9 w-9 place-items-center rounded-lg border border-line text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
               <MoreHorizontal size={16} aria-hidden />
             </ActionMenu>
-          </span>
+          </span>}
         </div>
       </div>
 
-      {a.never ? <NeverRun onRun={run} running={running} domain={a.domain} /> : (
+      {off ? <FeatureOff name="Site Audit" what={`It checks how ready ${a.domain} is for AI answers: what’s failing, on which pages, and what to fix first.`} /> : a.never ? <NeverRun onRun={run} running={running} domain={a.domain} /> : (
         <>
           {/* underline tabs; phones: they scroll sideways edge to edge, the active one scrolled into view */}
           <div role="tablist" aria-label="Site Audit" onKeyDown={tabKeys} ref={tabsRef}

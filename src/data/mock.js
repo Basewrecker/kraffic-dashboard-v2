@@ -27,12 +27,20 @@ const storedBrandId = (() => { try { return typeof localStorage !== 'undefined' 
 export const currentBrand = workspaceDirectory.flatMap((c) => c.brands.map((b) => ({ ...b, client: c.client, clientId: c.id }))).find((b) => b.id === storedBrandId)
   ?? { ...workspaceDirectory[0].brands[0], client: workspaceDirectory[0].client, clientId: workspaceDirectory[0].id }
 
+// The features switched on for the account (the backend's per-account flags). Off: the Overview drops the marketplace
+// cards (ecommerce); Structured Data and Site Audit show FeatureOff. Preview: ?off=ecommerce,structuredData,siteAudit
+const featuresOff = (() => { try { return (new URLSearchParams(window.location.search).get('off') || '').split(',') } catch { return [] } })()
 export const account = {
   name: currentBrand.name,
   plan: 'PTA · Agency',
   domain: currentBrand.domain,
   llm: 'Google AI Overview',
   lastSync: 'Oct 5, 2026',
+  features: {
+    ecommerce: !featuresOff.includes('ecommerce'),
+    structuredData: !featuresOff.includes('structuredData'),
+    siteAudit: !featuresOff.includes('siteAudit'),
+  },
 }
 
 export const kpis = {

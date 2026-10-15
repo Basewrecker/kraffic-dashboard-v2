@@ -95,6 +95,16 @@ export function marketplaceEvidence(s, { tracking }) {
   const source = sourceLine(tracking)
   const yourProduct = 'your product'
   if (s.key === 'yours') {
+    // no listing linked yet, or only one marketplace: nothing to compare
+    if (!top) {
+      return { text: `No AI answer links to a ${s.label} listing yet.`, evidence: { keys: ['seg:yours'], calc: `None of the ${plural(marketplace.total, 'tracked prompt')} links to your product on a marketplace.`, source } }
+    }
+    if (!second) {
+      return {
+        text: `${rowName(top)} is the only marketplace linking to ${s.label}.`,
+        evidence: { keys: ['seg:yours', `row:${top.label}`], calc: `${rowName(top)} linked to ${yourProduct} in ${plural(top.value, 'AI answer')}.`, source },
+      }
+    }
     const ratio = fmtRatio(top.value / second.value)
     const ids = marketplace.prompts.filter((p) => p.result === 'yours' && p.markets.includes(top.label)).map((p) => p.id)
     return {
@@ -111,8 +121,11 @@ export function marketplaceEvidence(s, { tracking }) {
     // the competitor with the most marketplace links, against yours
     const you = s.rows.find((r) => r.you)
     const rival = s.rows.filter((r) => !r.you && !r.muted).sort((a, b) => b.value - a.value)[0]
+    if (!rival) {
+      return { text: 'No competitor gets a marketplace link.', evidence: { keys: ['seg:others', `row:${you.label}`], calc: `Of ${s.panelCount} answers linking to a store, ${you.value} went to your listings and none to a competitor’s.`, source } }
+    }
     const x = rival.value / you.value
-    const vs = x > 2 ? `more than double your ${you.value}` : x > 1 ? `more than your ${you.value}` : x === 1 ? `the same as your ${you.value}` : `fewer than your ${you.value}`
+    const vs = !you.value ? 'and you have none' : x > 2 ? `more than double your ${you.value}` : x > 1 ? `more than your ${you.value}` : x === 1 ? `the same as your ${you.value}` : `fewer than your ${you.value}`
     const ids = marketplace.prompts.filter((p) => p.result === 'competitor' && p.brand === rival.label).map((p) => p.id)
     return {
       text: `${rowName(rival)} gets ${plural(rival.value, 'marketplace link')} — ${vs}.`,
@@ -123,6 +136,9 @@ export function marketplaceEvidence(s, { tracking }) {
         action: { label: VIEW_PROMPTS, onClick: () => showPromptSet('marketplace-prompts', ids, `${rowName(rival)} listings`) },
       },
     }
+  }
+  if (!top) {
+    return { text: 'Every tracked prompt’s answers link to a marketplace.', evidence: { keys: [`seg:${s.key}`], calc: `None of the ${plural(marketplace.total, 'tracked prompt')} cites only other websites.`, source } }
   }
   return {
     text: `AI cites ${rowName(top).toLowerCase()} instead of stores for these prompts.`,

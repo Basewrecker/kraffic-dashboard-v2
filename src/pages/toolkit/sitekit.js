@@ -16,6 +16,8 @@ export function windowOf(range, custom) {
   return { start, end, prevStart, prevEnd, len }
 }
 const inside = (d, a, b) => d >= a && d <= b
+// "https://site.com/products/x" → "/products/x" (any site: the page rows are the brand's own)
+const pathOf = (url) => { try { return new URL(url).pathname || '/' } catch { return url || '/' } }
 const delta = (now, before) => (before ? (now - before) / before : null)
 
 export function searchConsole(w, empty) {
@@ -45,7 +47,7 @@ export function searchConsole(w, empty) {
     ],
     series: [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date)),
     queries: group('query').slice(0, 10),
-    pages: group('pageUrl').map((p) => ({ ...p, path: p.key.replace('https://dermasuri.com', '') || '/' })).slice(0, 8),
+    pages: group('pageUrl').map((p) => ({ ...p, path: pathOf(p.key) })).slice(0, 8),
   }
 }
 

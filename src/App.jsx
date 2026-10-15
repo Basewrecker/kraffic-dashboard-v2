@@ -25,7 +25,7 @@ import EmptyBrand from './components/EmptyBrand'
 import InsightsRouter from './pages/insights/InsightsRouter'
 import { usePath } from './router'
 import { TrackingProvider } from './store/trackingSettings'
-import { appInitialTracking, appTracking, currentBrand, initialTracking, krafficTracking } from './data/mock'
+import { account, appInitialTracking, appTracking, currentBrand, initialTracking, krafficTracking } from './data/mock'
 import { DashboardViewProvider } from './hooks/useBrandView'
 import AnswerDrawer from './components/answer/AnswerDrawer'
 import EngineDrawer from './components/answer/EngineDrawer'
@@ -49,15 +49,16 @@ function DashboardPage() {
             <CardGate card="history" height="h-[443px] lg:h-[457px]" label="Loading visibility history"><VisibilityHistory /></CardGate>
             <CardGate card="coverage" height="h-[453px] lg:h-[457px]" label="Loading prompt coverage"><PromptCoverage /></CardGate>
           </div>
-          <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-2">
+          {/* marketplace cards only for accounts with ecommerce switched on; without them Citations takes the row */}
+          <div className={`grid grid-cols-1 items-stretch gap-3 md:gap-4 ${account.features.ecommerce ? 'lg:grid-cols-2' : ''}`}>
             <CardGate card="citations" height="h-[389px] lg:h-[364px]" label="Loading citations and mentions"><CitationsMentions /></CardGate>
-            <CardGate card="marketplace" height="h-[564px] lg:h-[364px]" label="Loading marketplace visibility"><MarketplaceVisibility /></CardGate>
+            {account.features.ecommerce && <CardGate card="marketplace" height="h-[564px] lg:h-[364px]" label="Loading marketplace visibility"><MarketplaceVisibility /></CardGate>}
           </div>
           {/* phones / tablets reorder (desktop keeps this order): … Sync history → Top cited pages → Prompt mix → the other tables */}
           <div className="max-lg:order-3"><CardGate card="visiblePrompts" height="h-[945px] lg:h-[605px]" label="Loading visible prompts"><VisiblePromptsTable /></CardGate></div>
           <div className="max-lg:order-4"><CardGate card="missedPrompts" height="h-[1305px] lg:h-[729px]" label="Loading missed prompts"><MissedPromptsTable /></CardGate></div>
           <div className="max-lg:order-2"><CardGate card="competitorPrompts" height="h-[969px] lg:h-[729px]" label="Loading prompt mix"><CompetitorPromptsTable /></CardGate></div>
-          <div className="max-lg:order-5"><CardGate card="marketplacePrompts" height="h-[987px] lg:h-[649px]" label="Loading marketplace prompts"><MarketplacePrompts /></CardGate></div>
+          {account.features.ecommerce && <div className="max-lg:order-5"><CardGate card="marketplacePrompts" height="h-[987px] lg:h-[649px]" label="Loading marketplace prompts"><MarketplacePrompts /></CardGate></div>}
           <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-2 max-lg:order-1">
             <CardGate card="syncHistory" height="h-[367px] lg:h-[415px]" label="Loading sync history"><SyncHistory /></CardGate>
             <CardGate card="citedPages" height="h-[407px] lg:h-[415px]" label="Loading top cited pages"><TopCitedPages /></CardGate>

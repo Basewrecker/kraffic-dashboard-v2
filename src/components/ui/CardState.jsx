@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { Component, useSyncExternalStore } from 'react'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import Card from '../dashboard/Card'
 import { cardStatus, retryCard, subscribeCards } from '../../data/cards'
@@ -7,7 +7,8 @@ import { cardStatus, retryCard, subscribeCards } from '../../data/cards'
 // still loading or failed never holds the rest of the page.
 //   CardLoading  the card's skeleton at its own fixed height (nothing jumps when it arrives)
 //   CardError    what happened, and Try again (that card only)
-//   CardGate     a card, its skeleton or its error, from the card's status
+//   CardGate     a card, its skeleton or its error, from the card's status; a card that fails to draw (data it
+//                can't show) gets the same error, so it never takes the page down
 const sk = 'animate-pulse rounded-2xl bg-tint motion-reduce:animate-none'
 
 export function CardLoading({ className = '', label = 'Loading' }) {
@@ -40,5 +41,21 @@ export function CardGate({ card, height, label, children }) {
   const status = useSyncExternalStore(subscribeCards, () => cardStatus(card), () => cardStatus(card))
   if (status.state === 'loading') return <CardLoading className={height} label={label} />
   if (status.state === 'error') return <CardError className={height} message={status.message} onRetry={() => retryCard(card)} />
-  return children
+  return <CardBoundary card={card} height={height}>{children}</CardBoundary>
 }
+
+class CardBoundary extends Component {
+  state = { error: null, attempt: 0 }
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+  componentDidCatch(error, info) {
+    console.error(`[${this.props.card}] failed to render:`, error, info?.componentStack)
+  }
+  render() {
+    if (!this.state.error) return <Keyed key={this.state.attempt}>{this.props.children}</Keyed>
+    return <CardError className={this.props.height} onRetry={() => this.setState((s) => ({ error: null, attempt: s.attempt + 1 }))} />
+  }
+}
+// Try again mounts the card fresh
+const Keyed = ({ children }) => children
