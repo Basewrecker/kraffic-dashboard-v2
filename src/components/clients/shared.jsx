@@ -1,5 +1,6 @@
 import { Loader2, RefreshCw } from 'lucide-react'
 import { SecondaryButton } from '../dashboard/overlays'
+import { setViewing } from '../../store/workspace'
 
 // the Clients list's shared bits: setup labels, a sync's state, the row's Sync button, View as
 export const textBtn = 'inline-flex shrink-0 items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 ease-out hover:text-ink focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40'
@@ -16,12 +17,13 @@ export const pctOf = (progress) => {
 // a sync is on its way (asked, running, or still running in the background): Sync stays off for that client
 export const syncBusy = (s) => ['starting', 'running', 'background'].includes(s?.status)
 
-// "View as": opens the client's brand in this tab (the mock keeps the brand in this browser); a client still in setup
-// lands on First-time setup. ?client= names them on the setup page's "Viewing … as" banner
+// "View as": opens the client's account in this tab, under the "Viewing … as PTA Agency" bar (the app: its
+// login-as-client). Here the mock keeps the brand in this browser; a client still in setup lands on First-time setup
 export function viewAs(c) {
   try { localStorage.setItem('kraffic:brand', c.brandId ?? '') } catch { /* private mode */ }
+  setViewing(c.name)
   const setup = { scanning: 'scanning', prompts: 'competitors' }[c.setup]
-  window.location.assign(setup || !c.brandId ? `/first-setup?mock=${setup ?? 'new'}&client=${encodeURIComponent(c.name)}` : '/overview')
+  window.location.assign(setup || !c.brandId ? `/first-setup?mock=${setup ?? 'new'}` : '/overview')
 }
 
 // a row's Sync: off while that client's sync is on its way, and until the client has prompts and its first scan is done

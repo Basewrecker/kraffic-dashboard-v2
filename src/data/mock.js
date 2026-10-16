@@ -1062,14 +1062,13 @@ export const krafficTracking = {
 // (admin_sync_progress.updated_at), setup (user_domains, user_prompts count, user_domains.is_analyzing).
 //   setup: 'ready' (set up) · 'scanning' (first scan running) · 'prompts' (needs prompts)
 //   plan: 'demo' | 'paid' with until (access end, YYYY-MM-DD) · lastSync: ISO or null (never)
-//   email: the client's sign-in email (mock: built from the brand's domain)
-const clientRow = (c) => ({ ...c, email: `team@${c.domain}` })
+//   email: the client's sign-in email (mock: obviously fake example.com addresses)
 export const agencyClientList = [
-  { id: 'dermasuri-co', brandId: 'dermasuri', name: 'Dermasuri Skincare', domain: 'dermasuri.com', brands: 2, setup: 'ready', score: kpis.score, scoreDelta: kpis.scoreDelta, lastSync: '2026-10-05T09:40', prompts: kpis.total, missed: kpis.missed, active: true, plan: 'paid', until: '2027-03-31', aiMode: true, domainMatch: true },
-  { id: 'lumen-co', brandId: 'lumen', name: 'Lumen Beauty Group', domain: 'lumenskin.com', brands: 1, setup: 'ready', score: 58, scoreDelta: -3, lastSync: '2026-10-03T18:05', prompts: 96, missed: 37, active: true, plan: 'demo', until: '2026-11-02', aiMode: false, domainMatch: true },
-  { id: 'brightside-co', brandId: 'brightside', name: 'Brightside', domain: 'brightsidebotanics.com', brands: 1, setup: 'scanning', score: null, scoreDelta: null, lastSync: null, prompts: 12, missed: 0, active: true, plan: 'demo', until: '2026-11-15', aiMode: false, domainMatch: true },
-  { id: 'northwind-co', brandId: 'northwind-derm', name: 'Northwind Pharmacy', domain: 'northwindderm.com', brands: 2, setup: 'prompts', score: null, scoreDelta: null, lastSync: null, prompts: 0, missed: 0, active: false, plan: 'demo', until: '2026-10-30', aiMode: false, domainMatch: false },
-].map(clientRow)
+  { id: 'dermasuri-co', brandId: 'dermasuri', name: 'Dermasuri Skincare', domain: 'dermasuri.com', brands: 2, setup: 'ready', score: kpis.score, scoreDelta: kpis.scoreDelta, lastSync: '2026-10-05T09:40', prompts: kpis.total, missed: kpis.missed, active: true, plan: 'paid', until: '2027-03-31', aiMode: true, domainMatch: true, email: 'client1@example.com' },
+  { id: 'lumen-co', brandId: 'lumen', name: 'Lumen Beauty Group', domain: 'lumenskin.com', brands: 1, setup: 'ready', score: 58, scoreDelta: -3, lastSync: '2026-10-03T18:05', prompts: 96, missed: 37, active: true, plan: 'demo', until: '2026-11-02', aiMode: false, domainMatch: true, email: 'client2@example.com' },
+  { id: 'brightside-co', brandId: 'brightside', name: 'Brightside', domain: 'brightsidebotanics.com', brands: 1, setup: 'scanning', score: null, scoreDelta: null, lastSync: null, prompts: 12, missed: 0, active: true, plan: 'demo', until: '2026-11-15', aiMode: false, domainMatch: true, email: 'client3@example.com' },
+  { id: 'northwind-co', brandId: 'northwind-derm', name: 'Northwind Pharmacy', domain: 'northwindderm.com', brands: 2, setup: 'prompts', score: null, scoreDelta: null, lastSync: null, prompts: 0, missed: 0, active: false, plan: 'demo', until: '2026-10-30', aiMode: false, domainMatch: false, email: 'client4@example.com' },
+]
 // ?mock= on /clients: loading · empty (no clients yet) · scanning (the default: Brightside on its first scan) ·
 // sync-running · sync-background (outlasted the page's wait) · sync-done · sync-error. sync: Dermasuri's sync, if any
 const runningSync = { mode: 'full', progress: { aio: { done: 58, total: 152 }, chatgpt: { done: 96, total: 152 }, gemini: { done: 84, total: 152 }, claude: { done: 40, total: 152 } } }
@@ -1083,10 +1082,12 @@ export const clientsStates = {
   'sync-error': { clients: agencyClientList, syncs: { 'dermasuri-co': { status: 'error', mode: 'full' } } },
 }
 // the Clients list's saves. Here: they settle after a moment. onSync takes the client's own prompt counts; ?sync=slow /
-// ?sync=fail preview a sync that outlasts the wait / is refused
+// ?sync=fail preview a sync that outlasts the wait / is refused. onCreateClient: the app's create-user (account + the
+// invite email to set a password); emailSent false when the email didn't go (?invite=fail previews it)
+const invitePreview = (() => { try { return new URLSearchParams(window.location.search).get('invite') } catch { return null } })()
 export const clientActions = {
   onSync: (c, { mode, onAccepted, onProgress }) => syncSettle({ mode, onAccepted, onProgress, counts: { prompts: c.prompts, missed: c.missed } }),
-  onCreateClient: ({ name, email }) => settle({ id: `client-${Date.now()}`, name: name || email, email }),
+  onCreateClient: ({ name, email }) => settle({ id: `client-${Date.now()}`, name: name || email, email, emailSent: invitePreview !== 'fail' }),
   onAssignClient: (email) => settle({ email }),
   onUpdateClient: (id, patch) => settle(patch),
   onDeleteClient: (id) => settle(id),

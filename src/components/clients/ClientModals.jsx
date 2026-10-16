@@ -5,6 +5,7 @@ import Segmented from '../dashboard/Segmented'
 import { PrimaryButton } from '../dashboard/overlays'
 import { fieldCls } from '../firstSetup/ui'
 import { clientActions } from '../../data/mock'
+import { setViewing } from '../../store/workspace'
 
 const t2 = 'text-stone-600'
 const t3 = 'text-stone-500'
@@ -34,7 +35,10 @@ export function AddClientModal({ open, onClose, toast, onAssigned }) {
   const [touched, setTouched] = useState(false)
   const [saving, setSaving] = useState(false)
   const [failed, setFailed] = useState(null)
-  useEffect(() => { if (open) { setKind('new'); setName(''); setEmail(''); setTouched(false); setSaving(false); setFailed(null) } }, [open])
+  const [created, setCreated] = useState(null) // { name, email, emailSent }: the account exists, setup opens next
+  useEffect(() => { if (open) { setKind('new'); setName(''); setEmail(''); setTouched(false); setSaving(false); setFailed(null); setCreated(null) } }, [open])
+  // First-time setup for the new client, in this tab, under the "Viewing … as" bar
+  const openSetup = (c) => { setViewing(c.name); window.location.assign('/first-setup?mock=new') }
   const error = touched && email.trim() && !isEmail(email) ? 'Enter a valid email address' : null
 
   const submit = (e) => {
@@ -43,8 +47,10 @@ export function AddClientModal({ open, onClose, toast, onAssigned }) {
     if (!isEmail(email) || saving) return
     setSaving(true); setFailed(null)
     if (kind === 'new') {
+      // the app's create-user: the account, then the same invite email as before (set your own password); setup opens
+      // once it's sent. An email that didn't go is said, with the way round it, before setup opens
       clientActions.onCreateClient({ name: name.trim(), email: email.trim() }).then(
-        (c) => window.location.assign(`/first-setup?mock=new&client=${encodeURIComponent(c.name)}`),
+        (c) => { setCreated(c); if (c.emailSent) setTimeout(() => openSetup(c), 1200) },
         () => { setSaving(false); setFailed('Couldn’t add the client. Try again.') },
       )
     } else {
@@ -62,8 +68,16 @@ export function AddClientModal({ open, onClose, toast, onAssigned }) {
 
   return (
     <Modal open={open} onClose={onClose} size="md" title="Add client"
-      subtitle={kind === 'new' ? 'Creates their account, then opens First-time setup for their brand.' : 'Someone who already has a Kraffic account and isn’t in an agency.'}
+      subtitle={kind === 'new' ? 'Creates their account and emails them an invite, then opens First-time setup for their brand.' : 'Someone who already has a Kraffic account and isn’t in an agency.'}
       footer={<>
+        {created ? (
+          created.emailSent
+            ? <span role="status" className={`flex min-w-0 flex-1 items-center gap-1.5 text-[13px] leading-[18px] ${t2}`}><Spinner size={13} aria-hidden />Invite sent to {created.email}. Opening setup…</span>
+            : <>
+                <span role="alert" className="min-w-0 flex-1 basis-[240px] text-[13px] leading-[18px] text-negative">The invite email didn’t send. They can use Forgot password to sign in.</span>
+                <PrimaryButton size="sm" onClick={() => openSetup(created)}>Open setup</PrimaryButton>
+              </>
+        ) : <>
         {failed ? <span role="alert" className="text-[13px] leading-[18px] text-negative">{failed}</span> : <span />}
         <span className="flex items-center gap-2">
           <button type="button" onClick={onClose} className={cancelBtn}>Cancel</button>
@@ -71,6 +85,7 @@ export function AddClientModal({ open, onClose, toast, onAssigned }) {
             {saving ? 'Adding…' : kind === 'new' ? 'Add and set up' : 'Add to my agency'}
           </PrimaryButton>
         </span>
+        </>}
       </>}>
       <form id="add-client" noValidate onSubmit={submit} className="flex flex-col gap-4">
         <Segmented label="Who" size="sm" value={kind} onChange={setKind} full options={[{ value: 'new', label: 'New client' }, { value: 'existing', label: 'Existing user' }]} />

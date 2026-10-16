@@ -5,7 +5,7 @@ import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
 import { Wordmark } from '../ui/Logo'
 import SiteLogo from '../ui/SiteLogo'
-import { agency, brand, recentBrands, role, switchBrand, visibleDirectory } from '../../store/workspace'
+import { agency, brand, onAgencyPage, recentBrands, role, switchBrand, visibleDirectory } from '../../store/workspace'
 
 // grouped nav, each group ordered longest → shortest label; items without an href have no page yet.
 // Old routes redirect (see router.js REDIRECTS).
@@ -30,6 +30,8 @@ export const groups = [
 export const HOME = '/superadmin'
 // the agency's home: its Clients list
 export const AGENCY_HOME = '/clients'
+// Home is role-based: an agency's is its Clients list, a superadmin's its own Home
+export const homeHref = () => (role() === 'agency' ? AGENCY_HOME : HOME)
 
 // Workspace switcher (sidebar footer). Agency users: search, Agency home, Recent, then every client with its brands, and
 // Team / Billing / Settings / Profile at the bottom. Client users: only their own brands. Opens upward (320 × ≤440).
@@ -150,6 +152,7 @@ export function WorkspaceSwitcher() {
   }, [open])
   const close = () => { setOpen(false); trigger.current?.focus() }
   const agencyUser = role() === 'agency'
+  const home = onAgencyPage()
   return (
     <div ref={wrap} className="relative" onKeyDown={(e) => { if (open && e.key === 'Escape') { e.preventDefault(); close() } else if (open && e.key === 'Tab' && !e.shiftKey && e.target === wrap.current?.querySelector('[role=menu] [role=menuitem]:last-of-type')) setOpen(false) }}>
       {mounted && (
@@ -161,10 +164,11 @@ export function WorkspaceSwitcher() {
       <button ref={trigger} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => { if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !open) { e.preventDefault(); setOpen(true) } }}
         className="flex h-12 w-full items-center gap-3 rounded-lg border border-line bg-surface px-3 text-left outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus">
-        <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" imgPad="p-0.5" initialClass="text-[12px]" plate />
+        {/* the agency's own pages show the agency; a brand's pages show the brand */}
+        <SiteLogo domain={home ? agency.domain : account.domain} name={home ? agency.name : account.name} className="h-7 w-7 rounded-md" imgPad="p-0.5" initialClass="text-[12px]" plate />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{account.name}</span>
-          <span className="block truncate text-[12px] leading-4 text-stone-500">{agencyUser ? brand.client : account.plan}</span>
+          <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{home ? agency.name : account.name}</span>
+          <span className="block truncate text-[12px] leading-4 text-stone-500">{home ? 'Agency' : agencyUser ? brand.client : account.plan}</span>
         </span>
         <ChevronsUpDown size={14} className="ml-auto shrink-0 text-stone-500" aria-hidden />
       </button>
@@ -210,7 +214,7 @@ export default function Sidebar({ path = '/overview', nav }) {
     <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-stone-200 bg-stone-50 lg:flex">
       {/* top: the logo (a link home). px-3 everywhere: logo, nav icons and the footer blocks share one x */}
       <div className="shrink-0 px-3 pt-4">
-        <a href={HOME} title="Home" aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
+        <a href={homeHref()} title="Home" aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
       </div>
       <div className="mt-6 px-3"><NavLinks path={path} nav={nav} /></div>
       {/* footer: theme, then the workspace (its menu holds Home) */}

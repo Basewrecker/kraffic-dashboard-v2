@@ -15,6 +15,12 @@ export const role = () => {
   try { return localStorage.getItem('kraffic:role') ?? 'agency' } catch { return 'agency' }
 }
 export const brand = currentBrand
+// View as: the client an agency opened from the Clients list (same tab); the "Viewing … as" bar reads it, Back clears it
+const VIEWING = 'kraffic:viewing'
+export const viewingClient = () => { try { return localStorage.getItem(VIEWING) } catch { return null } }
+export const setViewing = (name) => { try { name ? localStorage.setItem(VIEWING, name) : localStorage.removeItem(VIEWING) } catch { /* private mode */ } }
+// the agency's own pages (agency home): the sidebar footer shows the agency, not a brand
+export const onAgencyPage = () => role() === 'agency' && window.location.pathname.startsWith('/clients')
 export const agency = workspaceAgency
 // a client user (and a superadmin signed in as one) only sees their own client's brands
 export const visibleDirectory = () => (role() !== 'agency' ? workspaceDirectory.filter((c) => c.id === brand.clientId) : workspaceDirectory)

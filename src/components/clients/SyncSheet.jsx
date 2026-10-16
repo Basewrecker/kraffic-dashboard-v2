@@ -7,12 +7,12 @@ import { estimateSync } from '../../data/mock'
 export const SYNC_ENGINE = { aio: 'Google', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
 const fmt = (n) => n.toLocaleString('en-US')
 
-// "152 prompts · about 625–2,821 paid calls": what the picked mode will run, before anything starts
+// "152 prompts · estimated 625–2,821 paid calls": what the picked mode will run, before anything starts
 export function syncSummary(m, counts) {
   if (!m.engines.length) return 'No paid calls'
   const { n, lo, hi } = estimateSync(m, counts)
   if (!n) return m.prompts === 'missed' ? 'No missed Google prompts to re-check' : 'No prompts to sync yet'
-  return `${fmt(n)} ${n === 1 ? 'prompt' : 'prompts'} · about ${lo === hi ? fmt(lo) : `${fmt(lo)}–${fmt(hi)}`} paid calls`
+  return `${fmt(n)} ${n === 1 ? 'prompt' : 'prompts'} · estimated ${lo === hi ? fmt(lo) : `${fmt(lo)}–${fmt(hi)}`} paid calls`
 }
 
 // Sync now (replaces the app's Sync dropdown): its modes word for word, one picked; the footer states what the pick

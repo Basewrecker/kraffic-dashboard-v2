@@ -5,9 +5,10 @@ import Logo from '../ui/Logo'
 import SiteLogo from '../ui/SiteLogo'
 import Sheet, { SheetItem } from '../ui/Sheet'
 import ThemeToggle from './ThemeToggle'
-import { HOME, NavLinks, WorkspaceList, WorkspaceSwitcher } from './Sidebar'
+import { NavLinks, WorkspaceList, WorkspaceSwitcher, homeHref } from './Sidebar'
 import { account, agencyClients } from '../../data/mock'
 import { useBackClose } from '../../hooks/useOverlay'
+import { agency, onAgencyPage } from '../../store/workspace'
 
 // Below lg: a sticky top bar (menu · Kraffic mark ······ workspace logo) instead of the sidebar.
 // The menu opens the nav as a left drawer (288px): same groups and items, theme + workspace at the bottom.
@@ -63,7 +64,7 @@ function NavDrawer({ open, onClose, path, nav }) {
       <div ref={panel} role="dialog" aria-modal="true" aria-label="Menu" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
         className={`absolute inset-y-0 left-0 flex w-[288px] max-w-[85vw] flex-col border-r border-line bg-stone-50 pt-[env(safe-area-inset-top)] shadow-xl outline-none transition-transform duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-14 shrink-0 items-center justify-between px-3">
-          <a href={HOME} aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /><span className="ml-2 text-[16px] font-bold text-stone-900">Kraffic</span></a>
+          <a href={homeHref()} aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /><span className="ml-2 text-[16px] font-bold text-stone-900">Kraffic</span></a>
           <button type="button" onClick={close} aria-label="Close menu" className="grid h-10 w-10 place-items-center rounded-md text-stone-600 outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus"><X size={20} aria-hidden /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2">
@@ -90,15 +91,16 @@ function WorkspaceSheet({ open, onClose }) {
 export default function MobileNav({ path, nav }) {
   const [menu, setMenu] = useState(false)
   const [workspace, setWorkspace] = useState(false)
+  const home = onAgencyPage() // the agency's own pages: the agency, not a brand
   return (
     <>
       <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-[var(--div)] bg-[color-mix(in_srgb,var(--color-page)_90%,transparent)] px-4 pt-[env(safe-area-inset-top)] backdrop-blur lg:hidden">
         <button type="button" onClick={() => setMenu(true)} aria-label="Open menu" aria-expanded={menu}
           className="-ml-2 grid h-10 w-10 place-items-center rounded-md text-stone-700 outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus"><Menu size={20} aria-hidden /></button>
-        <a href={HOME} aria-label="Kraffic — Home" className="grid h-10 w-10 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /></a>
-        <button type="button" onClick={() => setWorkspace(true)} aria-label={`Workspace: ${account.name}`}
+        <a href={homeHref()} aria-label="Kraffic — Home" className="grid h-10 w-10 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /></a>
+        <button type="button" onClick={() => setWorkspace(true)} aria-label={`Workspace: ${home ? agency.name : account.name}`}
           className="ml-auto grid h-10 w-10 place-items-center rounded-md outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
-          <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" imgPad="p-0.5" initialClass="text-[12px]" plate />
+          <SiteLogo domain={home ? agency.domain : account.domain} name={home ? agency.name : account.name} className="h-7 w-7 rounded-md" imgPad="p-0.5" initialClass="text-[12px]" plate />
         </button>
       </header>
       <NavDrawer open={menu} onClose={() => setMenu(false)} path={path} nav={nav} />

@@ -19,6 +19,7 @@ import FirstSetupPage from './components/firstSetup/FirstSetupPage'
 import { setupGroups } from './components/firstSetup/nav'
 import ClientsPage from './components/clients/ClientsPage'
 import { clientsGroups } from './components/clients/nav'
+import ViewAsBar from './components/clients/ViewAsBar'
 import AuditPage from './components/audit/AuditPage'
 import StructuredDataPage from './components/structured/StructuredDataPage'
 import TrendsPage from './pages/trends/TrendsPage'
@@ -109,7 +110,11 @@ export default function App() {
           <MobileNav path={PAGES[route] ? navPath : '/overview'} nav={setupNav} />
           {/* same content container on every page (16px gutters on phones, 24px from md) */}
           {/* Site Audit ends 64px under its last card (pb-16 alone, no spacer) */}
-          <main className={`mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 ${route === '/audit' ? 'pb-16' : 'pb-10'} pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8`}>{body}</main>
+          <main className={`mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 ${route === '/audit' ? 'pb-16' : 'pb-10'} pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8`}>
+            {/* an agency inside a client's account (View as): who and the way back; First-time setup places its own */}
+            {route !== '/clients' && route !== '/first-setup' && <ViewAsBar />}
+            {body}
+          </main>
         </div>
       </div>
       {state === 'cookies' && <CookieBanner onChoose={() => {}} />}
