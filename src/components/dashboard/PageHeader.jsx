@@ -161,7 +161,7 @@ export default function PageHeader() {
             className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER} />
           <MenuSelect
             className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER}
-            prefix="Viewing as"
+            prefix="Brand"
             value={focal.domain}
             onChange={setView}
             groups={brandGroups()}

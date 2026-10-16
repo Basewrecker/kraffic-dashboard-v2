@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Check, Eye } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { useToast } from '../dashboard/overlays'
 import SiteLogo from '../ui/SiteLogo'
-import { HOME } from '../dashboard/Sidebar'
-import { agency, role } from '../../store/workspace'
+import ViewAsBar from '../clients/ViewAsBar'
 import { firstSetupClient, firstSetupStates } from '../../data/mock'
 import BrandStep from './BrandStep'
 import CompetitorsStep from './CompetitorsStep'
@@ -68,7 +67,7 @@ export default function FirstSetupPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-[760px] flex-col pt-2">
-      <ViewAsBanner />
+      <ViewAsBar fallback={firstSetupClient} className="mb-6" />
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Set up {name ?? 'your brand'}</h1>
@@ -122,19 +121,5 @@ function Marker({ n, state }) {
     <span className={`relative z-[1] grid h-7 w-7 place-items-center rounded-full text-[13px] leading-none font-semibold tabular-nums ${cls}`}>
       {state === 'done' ? <><Check size={14} strokeWidth={2.5} aria-hidden /><span className="sr-only">Step {n}, done</span></> : n}
     </span>
-  )
-}
-
-// an agency (or superadmin) working inside a client's brand: who they are and the way back. ?viewer=superadmin
-function ViewAsBanner() {
-  const viewer = new URLSearchParams(window.location.search).get('viewer')
-  const superadmin = viewer === 'superadmin'
-  if (!superadmin && role() !== 'agency') return null
-  return (
-    <div role="status" className={`mb-6 flex h-10 items-center gap-2 rounded-[10px] bg-tint px-4 text-[13px] leading-[18px] ${t2}`}>
-      <Eye size={14} className="shrink-0 text-stone-500" aria-hidden />
-      <span className="min-w-0 flex-1 truncate">Viewing <span className="font-medium text-stone-900">{firstSetupClient}</span> as {superadmin ? 'superadmin' : agency.name}</span>
-      <a href={HOME} className={textBtn}>{superadmin ? 'Exit' : <><span className="md:hidden">Back</span><span className="max-md:hidden">Back to {agency.name}</span></>}</a>
-    </div>
   )
 }
