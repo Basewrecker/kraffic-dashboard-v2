@@ -10,7 +10,7 @@ import { engineName } from '../../data/brandViews'
 export function scoreHint(engine, isOwnBrand, name) {
   if (engine === 'all') {
     return isOwnBrand
-      ? 'All engines: Google AI Overview’s score on the days it ran (on other days, the best engine’s), and never below the best day on record.'
+      ? 'All engines: the average of each engine’s score in the latest sync (an engine without results is left out).'
       : `All engines: ${name}’s share on the latest day, averaged across the engines that ran that day.`
   }
   return isOwnBrand
