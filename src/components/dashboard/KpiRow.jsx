@@ -4,6 +4,19 @@ import { chart } from '../../theme/chart'
 import { useBrandView, useCountUp } from '../../hooks/useBrandView'
 import { goToSection } from '../../utils/navigate'
 import { openEngineDrawer } from '../answer/EngineDrawer'
+import { engineName } from '../../data/brandViews'
+
+// how the visibility score is worked out, for the engine filter (the previous dashboard's definitions, kept as they were)
+export function scoreHint(engine, isOwnBrand, name) {
+  if (engine === 'all') {
+    return isOwnBrand
+      ? 'All engines: Google AI Overview’s score on the days it ran (on other days, the best engine’s), and never below the best day on record.'
+      : `All engines: ${name}’s share on the latest day, averaged across the engines that ran that day.`
+  }
+  return isOwnBrand
+    ? `${engineName(engine)}: the prompts whose answer shows your site, out of every tracked prompt.`
+    : `${engineName(engine)}: the prompts whose answer mentions ${name} before your other competitors, out of every tracked prompt.`
+}
 
 // exported: Site Audit's KPI strip uses the same ring and value type
 export function ScoreRing({ value, size = 64, stroke = 6 }) {
@@ -27,12 +40,12 @@ export const Num = ({ value }) => <div className="proportional-nums text-[24px] 
 const Count = ({ value }) => useCountUp(value)
 
 export default function KpiRow() {
-  const { kpis, isOwnBrand, engine } = useBrandView()
+  const { kpis, isOwnBrand, engine, focal } = useBrandView()
   const d = kpis.scoreDelta
   return (
       // phones / tablets: 2 × 2
       <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
-        <KpiCard label="Visibility score" icon={Gauge} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} footer={<><Count value={kpis.visible} />/{kpis.total} prompts visible</>}>
+        <KpiCard label="Visibility score" icon={Gauge} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} hint={scoreHint(engine, isOwnBrand, focal.name)} footer={<><Count value={kpis.visible} />/{kpis.total} prompts visible</>}>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <ScoreRing value={kpis.score} />
             <span className="text-small font-semibold text-stone-600 tabular-nums">

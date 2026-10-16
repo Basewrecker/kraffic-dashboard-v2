@@ -88,6 +88,7 @@ export default function SyncHistory() {
   const rows = showAll ? syncHistory : syncHistory.slice(0, PREVIEW)
   const explain = useExplain(`${focal.domain}|${engine}|${showAll}`)
   const toggle = (id) => setOpenIds((cur) => (cur.has(id) ? new Set() : new Set([id])))
+  const insight = syncEvidence(rows, { view, tracking, openRows: (ids) => setOpenIds(new Set(ids)) })
 
   return (
     <Card ref={explain.cardRef} className="flex h-full min-w-0 flex-col p-5">
@@ -106,6 +107,7 @@ export default function SyncHistory() {
         }
       />
 
+      {!rows.length && <p className="mt-4 pb-4 text-[14px] leading-5 text-stone-600">No syncs on record yet.</p>}
       <ul className="mt-4 divide-y divide-[var(--color-line-soft)] pb-4">
         {rows.map((r, i) => {
           const isOpen = openIds.has(r.id)
@@ -152,7 +154,7 @@ export default function SyncHistory() {
       </ul>
 
       {/* the footer at the bottom of the card (the row can be taller than the list) */}
-      <div className="mt-auto"><Insight explain={explain} {...syncEvidence(rows, { view, tracking, openRows: (ids) => setOpenIds(new Set(ids)) })} /></div>
+      {insight && <div className="mt-auto"><Insight explain={explain} {...insight} /></div>}
     </Card>
   )
 }

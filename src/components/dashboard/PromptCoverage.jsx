@@ -39,7 +39,6 @@ export default function PromptCoverage() {
     className: 'min-w-0',
     triggerClassName: 'inline-flex h-9 w-full min-w-0 max-w-[180px] items-center gap-2 whitespace-nowrap rounded-md border border-line bg-raised px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-focus',
   })
-  const total = trackedPrompts.length
   const counts = TRACKED_BRANDS.map((b) => ({ ...b, prompts: getBrandView(b.domain, engine).kpis.visible }))
   const appearancesTotal = counts.reduce((n, b) => n + b.prompts, 0)
   const pct = shares(counts.map((b) => b.prompts))
@@ -72,7 +71,8 @@ export default function PromptCoverage() {
   // insight: the selected brand against its biggest rival, and the prompts it's missing from
   const rival = others[0]
   const name = focal.name
-  const missed = total - focal.prompts
+  // the brand's missed prompts, as its KPI counts them
+  const missed = getBrandView(domain, engine).kpis.missed
   // a ratio only when both appear (a brand in 0 answers: "more", never "Infinity×")
   const ratio = rival?.prompts && focal.prompts ? Math.floor((focal.prompts >= rival.prompts ? focal.prompts / rival.prompts : rival.prompts / focal.prompts) || 0) : 0
   const x = ratio >= 2 ? `${ratio}× more` : 'More'

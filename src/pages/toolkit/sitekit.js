@@ -1,5 +1,6 @@
 // Site Kit data for one date range, derived from the API-shaped rows in data/mock.js.
 import { siteKit, skAiReferrals, skGa4Daily, skSearchMetrics } from '../../data/mock'
+const singleDay = (() => { try { return new URLSearchParams(window.location.search).get('history') === 'single' } catch { return false } })()
 
 export const RANGES = [['7', 'Last 7 days'], ['28', 'Last 28 days'], ['90', 'Last 90 days'], ['custom', 'Custom']]
 const DAY = 86400000
@@ -45,7 +46,8 @@ export function searchConsole(w, empty) {
       { id: 'ctr', label: 'CTR', value: now.ctr, change: before.ctr ? now.ctr - before.ctr : null, fmt: 'pct', points: true },
       { id: 'position', label: 'Avg position', value: now.position, change: before.position ? now.position - before.position : null, fmt: 'pos', lowerIsBetter: true, points: true },
     ],
-    series: [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    // ?history=single: one day of data so far (the chart's first-day state)
+    series: [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(singleDay ? -1 : 0),
     queries: group('query').slice(0, 10),
     pages: group('pageUrl').map((p) => ({ ...p, path: pathOf(p.key) })).slice(0, 8),
   }

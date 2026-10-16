@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, LabelList, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { BarChart3, RefreshCw } from 'lucide-react'
 import Card from '../../components/dashboard/Card'
 import Select from '../../components/ui/Select'
@@ -145,6 +145,7 @@ function SearchConsoleTab({ w, empty, onRange, toast }) {
 }
 
 function ClicksChart({ series }) {
+  const single = series.length === 1
   const ticks = series.filter((_, i) => i % Math.max(1, Math.ceil(series.length / 7)) === 0).map((p) => p.date)
   return (
     <Card className="p-5">
@@ -154,12 +155,27 @@ function ClicksChart({ series }) {
           <p className={subtitle}>How many searches led to a visit, and how often you showed up</p>
         </div>
         <ul className={`flex items-center gap-4 text-[13px] leading-[18px] ${t2}`} aria-hidden>
-          <li className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded bg-ink" />Clicks</li>
-          <li className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-[var(--data-c2)]" />Impressions</li>
+          <li className="flex items-center gap-1.5"><span className={single ? 'h-2 w-2 rounded-full bg-ink' : 'h-0.5 w-4 rounded bg-ink'} />Clicks</li>
+          <li className="flex items-center gap-1.5"><span className={single ? 'h-2 w-2 rounded-full bg-[var(--data-c2)]' : 'w-4 border-t-2 border-dashed border-[var(--data-c2)]'} />Impressions</li>
         </ul>
       </div>
-      <div className="mt-4 h-[240px]" role="img" aria-label={`Daily clicks and impressions, ${fmtDay(series[0].date)} to ${fmtDay(series.at(-1).date)}`}>
+      <div className="mt-4 h-[240px]" role="img" aria-label={single ? `Clicks and impressions on ${fmtDay(series[0].date)}: ${series[0].clicks} clicks, ${series[0].impressions} impressions` : `Daily clicks and impressions, ${fmtDay(series[0].date)} to ${fmtDay(series.at(-1).date)}`}>
         <ResponsiveContainer width="100%" height="100%">
+          {single ? (
+            // one day of data: nothing to draw a line between, so the day's two numbers as bars
+            <BarChart data={series} barCategoryGap="30%" barGap={8} margin={{ top: 24, right: 4, bottom: 0, left: -12 }}>
+              <CartesianGrid vertical={false} stroke="var(--div)" />
+              <XAxis dataKey="date" tickFormatter={fmtDay} tickLine={false} axisLine={{ stroke: 'var(--color-line)' }} tick={{ fontSize: 12, fill: 'var(--color-stone-500)' }} />
+              <YAxis yAxisId="c" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--color-stone-500)' }} width={44} allowDecimals={false} />
+              <YAxis yAxisId="i" orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--color-stone-500)' }} width={48} tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 100) / 10}k` : v)} />
+              <Bar yAxisId="c" dataKey="clicks" fill="var(--ink)" radius={[6, 6, 0, 0]} maxBarSize={44} isAnimationActive={false}>
+                <LabelList dataKey="clicks" position="top" formatter={(v) => nf.format(v)} style={{ fontSize: 12, fontWeight: 500, fill: 'var(--color-stone-700)' }} />
+              </Bar>
+              <Bar yAxisId="i" dataKey="impressions" fill="var(--data-c2)" radius={[6, 6, 0, 0]} maxBarSize={44} isAnimationActive={false}>
+                <LabelList dataKey="impressions" position="top" formatter={(v) => nf.format(v)} style={{ fontSize: 12, fontWeight: 500, fill: 'var(--color-stone-700)' }} />
+              </Bar>
+            </BarChart>
+          ) : (
           <LineChart data={series} margin={{ top: 8, right: 4, bottom: 0, left: -12 }}>
             <CartesianGrid vertical={false} stroke="var(--div)" />
             <XAxis dataKey="date" ticks={ticks} tickFormatter={fmtDay} tickLine={false} axisLine={{ stroke: 'var(--color-line)' }} tick={{ fontSize: 12, fill: 'var(--color-stone-500)' }} interval="preserveStartEnd" />
@@ -175,8 +191,10 @@ function ClicksChart({ series }) {
             <Line yAxisId="i" dataKey="impressions" stroke="var(--data-c2)" strokeWidth={1.5} strokeDasharray="4 4" dot={false} isAnimationActive={false} />
             <Line yAxisId="c" dataKey="clicks" stroke="var(--ink)" strokeWidth={2} dot={false} activeDot={{ r: 3.5, fill: 'var(--ink)', stroke: 'var(--color-surface)', strokeWidth: 2 }} isAnimationActive={false} />
           </LineChart>
+          )}
         </ResponsiveContainer>
       </div>
+      {single && <p className="mt-1 text-[12px] leading-4 text-stone-500">Showing your first day of data. Trend lines appear after the next day.</p>}
     </Card>
   )
 }
