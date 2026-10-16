@@ -13,9 +13,23 @@ const Spinner = (props) => <Loader2 {...props} className="animate-spin motion-re
 
 // Step 3 — prompts (at least one), all without leaving the page: type one, import a CSV (Prompt Hub's Import, with its
 // drop zone) or find them (Prompt Hub's research, after a step-by-step read of the site). Shows how many are in and
-// the last 5 added.
+// the last 5 added. New ones stay in the page (and a local draft, so a refresh keeps them) until Continue saves them all
+// in one request — saving prompts starts the first scan, so it happens once.
+const draftKey = (brand) => `kraffic:first-setup:prompts:${brand?.id ?? brand?.name ?? 'new'}`
+const readDraft = (brand) => { try { return JSON.parse(localStorage.getItem(draftKey(brand))) || [] } catch { return [] } }
+const writeDraft = (brand, items) => { try { if (items.length) localStorage.setItem(draftKey(brand), JSON.stringify(items)); else localStorage.removeItem(draftKey(brand)) } catch { /* private mode */ } }
+
 export default function PromptsStep({ brand, prompts, competitors, update, toast, onContinue }) {
   const [text, setText] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const unsaved = prompts.filter((p) => p.unsaved)
+  // a draft from before a refresh comes back (the ones not saved since)
+  useEffect(() => {
+    const draft = readDraft(brand).filter((d) => !prompts.some((p) => p.text.toLowerCase() === d.text.toLowerCase()))
+    if (draft.length) update((s) => ({ prompts: [...draft.map((d, i) => ({ id: `draft${i}`, text: d.text, unsaved: true })), ...s.prompts] }))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { writeDraft(brand, unsaved.map((p) => ({ text: p.text }))) }, [unsaved.length]) // eslint-disable-line react-hooks/exhaustive-deps
   const [modal, setModal] = useState(null) // 'import' | 'research'
   const [finding, setFinding] = useState(null) // the research step that's running (index), null when idle
   const timer = useRef(null)
@@ -23,19 +37,28 @@ export default function PromptsStep({ brand, prompts, competitors, update, toast
   const trackedTexts = useMemo(() => new Set(prompts.map((p) => p.text.toLowerCase())), [prompts])
   const dupe = text.trim() && trackedTexts.has(text.trim().toLowerCase())
 
-  // the page shows them at once; a failed save takes them back and says so, with Retry
+  // the page shows them at once, not saved yet (Continue saves them together)
   const insert = (items) => {
-    const fresh = items.filter((it) => !trackedTexts.has(it.text.toLowerCase())).map((it, i) => ({ id: `tmp${Date.now()}${i}`, text: it.text }))
+    const fresh = items.filter((it) => !trackedTexts.has(it.text.toLowerCase())).map((it, i) => ({ id: `tmp${Date.now()}${i}`, text: it.text, unsaved: true }))
     if (!fresh.length) return 0
     update((s) => ({ prompts: [...fresh.slice().reverse(), ...s.prompts] }))
-    firstSetupActions.onAddPrompts(fresh).then(
-      (saved) => update((s) => ({ prompts: s.prompts.map((p) => { const i = fresh.findIndex((f) => f.id === p.id); return i < 0 ? p : { ...p, id: saved[i]?.id ?? p.id } }) })),
-      () => {
-        update((s) => ({ prompts: s.prompts.filter((p) => !fresh.some((f) => f.id === p.id)) }))
-        toast(`Couldn’t add ${fresh.length === 1 ? 'the prompt' : `${fresh.length} prompts`}`, { duration: 6000, action: { label: 'Retry', onClick: () => insert(fresh) } })
-      },
-    )
     return fresh.length
+  }
+  // Continue: the unsaved ones in one request (it can't run twice: the button waits for it); a failure keeps the list
+  const saveAndContinue = () => {
+    if (saving) return
+    if (!unsaved.length) { onContinue(); return }
+    setSaving(true)
+    setFailed(false)
+    firstSetupActions.onSavePrompts(unsaved.map((p) => ({ text: p.text }))).then(
+      (saved) => {
+        update((s) => ({ prompts: s.prompts.map((p) => { const i = unsaved.findIndex((u) => u.id === p.id); return i < 0 ? p : { id: saved[i]?.id ?? p.id, text: p.text } }) }))
+        writeDraft(brand, [])
+        setSaving(false)
+        onContinue()
+      },
+      () => { setSaving(false); setFailed(true) },
+    )
   }
   const addTyped = (e) => {
     e.preventDefault()
@@ -92,7 +115,7 @@ export default function PromptsStep({ brand, prompts, competitors, update, toast
       {prompts.length > 0 ? (
         <div className="border-t border-[var(--div)]">
           <div className="flex h-11 items-center justify-between gap-3 px-5 max-md:px-4">
-            <span className="text-[14px] leading-5 font-medium text-stone-900 tabular-nums">{prompts.length} {prompts.length === 1 ? 'prompt' : 'prompts'} added</span>
+            <span className="text-[14px] leading-5 font-medium text-stone-900 tabular-nums">{prompts.length} {prompts.length === 1 ? 'prompt' : 'prompts'} added{unsaved.length > 0 && <span className={`font-normal ${t3}`}> · {unsaved.length === prompts.length ? 'saved' : `${unsaved.length} saved`} when you continue</span>}</span>
             <a href="/tracker" onClick={linkClick('/tracker')} className={textBtn}>View all in Prompt Hub <ArrowRight size={14} aria-hidden /></a>
           </div>
           <ul aria-label={`Last ${recent.length} added`} className="divide-y divide-[var(--div)] border-t border-[var(--div)]">
@@ -100,9 +123,12 @@ export default function PromptsStep({ brand, prompts, competitors, update, toast
           </ul>
         </div>
       ) : null}
-      <div className={`${stepFooter} ${prompts.length ? '!justify-end' : ''}`}>
+      <div className={`${stepFooter} ${prompts.length && !failed ? '!justify-end' : ''}`}>
         {!prompts.length && <span className={`text-[13px] leading-[18px] ${t3}`}>No prompts yet</span>}
-        <PrimaryButton size="sm" disabled={!prompts.length} onClick={onContinue}>Continue</PrimaryButton>
+        {failed && <span role="alert" className="text-[13px] leading-[18px] text-negative">Couldn’t save the prompts. Try again.</span>}
+        <PrimaryButton size="sm" disabled={!prompts.length || saving} onClick={saveAndContinue} icon={saving ? Spinner : undefined} aria-busy={saving || undefined}>
+          {saving ? 'Saving…' : failed ? 'Try again' : 'Continue'}
+        </PrimaryButton>
       </div>
 
       <ImportModal open={modal === 'import'} onClose={() => setModal(null)} trackedTexts={trackedTexts}
