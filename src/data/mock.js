@@ -1794,7 +1794,7 @@ export const billingPlans = [
 ]
 
 const BILL_CARD = { brand: 'visa', last4: '4417', expMonth: 8, expYear: 2028 } // GAP: no PaymentMethod model
-const BILL_DETAILS = { company: 'Dermasuri Skincare Inc.', email: 'billing@dermasuri.com', address: '1220 Abbot Kinney Blvd, Venice, CA 90291, USA', taxId: 'US EIN 84-2917360' } // GAP: only Agency.billingEmail exists
+const BILL_DETAILS = { company: 'Dermasuri Skincare Inc.', email: 'billing@example.com', address: '1220 Abbot Kinney Blvd, Venice, CA 90291, USA', taxId: 'US EIN 84-2917360' } // GAP: only Agency.billingEmail exists
 const bInvoices = (planName, cents, n, failedFirst = false) => Array.from({ length: n }, (_, i) => { // GAP: no Invoice model
   const d = new Date(Date.UTC(2026, 9 - i, 1))
   return { id: `in_${2026}${String(10 - i).padStart(2, '0')}`, date: d.toISOString().slice(0, 10), description: `${planName} plan · ${d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}`, amount: cents, currency: 'usd', status: i === 0 && failedFirst ? 'failed' : 'paid' }
@@ -1813,7 +1813,7 @@ export const billingStates = {
     usage: { prompts: 152, projects: 2, users: 4, crawl_pages_monthly: 3120, ai_runs_monthly: 1240 }, paymentMethod: { ...BILL_CARD, last4: '0341', expMonth: 9, expYear: 2026 }, details: BILL_DETAILS, invoices: bInvoices('Growth', 29900, 8, true), history: promptHistory(141, 152) },
   agency: { workspace: 'PTA Agency', orgType: 'AGENCY', planId: 'agency-pro', status: 'ACTIVE', interval: 'year', currentPeriodStart: '2026-03-01', currentPeriodEnd: '2027-03-01',
     usage: { prompts: 1460, projects: 9, clients: 4, users: 7, crawl_pages_monthly: 18400, ai_runs_monthly: 6120 }, paymentMethod: { ...BILL_CARD, brand: 'mastercard', last4: '8802', expMonth: 3, expYear: 2029 },
-    details: { company: 'PTA Agency LLC', email: 'accounts@pta.agency', address: '55 Water St, Brooklyn, NY 11201, USA', taxId: 'US EIN 93-1182044' }, invoices: [{ id: 'in_202603', date: '2026-03-01', description: 'Agency plan · yearly, Mar 2026 – Feb 2027', amount: 599000, currency: 'usd', status: 'paid' }], history: null },
+    details: { company: 'PTA Agency LLC', email: 'accounts@example.com', address: '55 Water St, Brooklyn, NY 11201, USA', taxId: 'US EIN 93-1182044' }, invoices: [{ id: 'in_202603', date: '2026-03-01', description: 'Agency plan · yearly, Mar 2026 – Feb 2027', amount: 599000, currency: 'usd', status: 'paid' }], history: null },
 }
 export const billingToday = '2026-10-14'
 
