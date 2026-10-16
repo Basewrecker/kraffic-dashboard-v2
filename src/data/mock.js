@@ -838,7 +838,7 @@ export const guessCategory = topicOf
 // ---------------------------------------------------------------------------
 // Brand Setup (/brands), shaped like the production API. The workspace's brands, the current one first:
 //   brand        a project: id, name, domain (primaryDomain), lastSync (its latest scan), prompts (tracked)
-//   aliases      project.brandAliases (read-only: the API can't change aliases once a brand exists)
+//   aliases      project.brandAliases (added and removed in Brand Setup: setupActions.onAddAlias / onRemoveAlias)
 //   aliasAnswers answers each alias was counted in (left out when the app can't count them)
 //   topics       prompt clusters (GET /projects/:id/prompts/clusters): name, promptCount
 //   competitors  approved competitors (GET /projects/:id/competitors/evidence): id, name, domain
@@ -946,6 +946,9 @@ export const setupActions = {
   onDismissSuggestion: (brandId, s) => settle(s),
   onCreateBrand: ({ name, domain, aliases, competitors: list }) => settle({ id: `b${++setupSeq}`, name, domain, aliases, competitors: list.map((c, i) => ({ id: `c${++setupSeq + i}`, ...c })) }),
   onUpdateBrand: (id, { name, domain }) => settle({ id, name, domain }),
+  // "Also counts as": one name variant at a time
+  onAddAlias: (brandId, name) => settle(name),
+  onRemoveAlias: (brandId, name) => settle(name),
   onDeleteBrand: (id) => settle(id),
   // Marketplaces (shown when the account has ecommerce): the brand's stores, saved one change at a time
   onAddMarketplace: (brandId, { name, domain }) => settle({ id: `m${++setupSeq}`, name, domain, cited: 0 }),
