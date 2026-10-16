@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, Eye } from 'lucide-react'
 import { useToast } from '../dashboard/overlays'
 import SiteLogo from '../ui/SiteLogo'
-import { HOME } from '../dashboard/Sidebar'
+import { AGENCY_HOME, HOME } from '../dashboard/Sidebar'
 import { agency, role } from '../../store/workspace'
 import { firstSetupClient, firstSetupStates } from '../../data/mock'
 import BrandStep from './BrandStep'
@@ -129,12 +129,13 @@ function Marker({ n, state }) {
 function ViewAsBanner() {
   const viewer = new URLSearchParams(window.location.search).get('viewer')
   const superadmin = viewer === 'superadmin'
+  const client = new URLSearchParams(window.location.search).get('client') ?? firstSetupClient // ?client=: opened from the Clients list
   if (!superadmin && role() !== 'agency') return null
   return (
     <div role="status" className={`mb-6 flex h-10 items-center gap-2 rounded-[10px] bg-tint px-4 text-[13px] leading-[18px] ${t2}`}>
       <Eye size={14} className="shrink-0 text-stone-500" aria-hidden />
-      <span className="min-w-0 flex-1 truncate">Viewing <span className="font-medium text-stone-900">{firstSetupClient}</span> as {superadmin ? 'superadmin' : agency.name}</span>
-      <a href={HOME} className={textBtn}>{superadmin ? 'Exit' : <><span className="md:hidden">Back</span><span className="max-md:hidden">Back to {agency.name}</span></>}</a>
+      <span className="min-w-0 flex-1 truncate">Viewing <span className="font-medium text-stone-900">{client}</span> as {superadmin ? 'superadmin' : agency.name}</span>
+      <a href={superadmin ? HOME : AGENCY_HOME} className={textBtn}>{superadmin ? 'Exit' : <><span className="md:hidden">Back</span><span className="max-md:hidden">Back to {agency.name}</span></>}</a>
     </div>
   )
 }

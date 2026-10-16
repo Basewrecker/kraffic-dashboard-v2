@@ -6,9 +6,8 @@ import { useToast } from '../dashboard/overlays'
 import ConfirmPopover from '../prompts/ConfirmPopover'
 import Select from '../ui/Select'
 import Switch from '../ui/Switch'
-import Modal from '../ui/Modal'
-import { PrimaryButton } from '../dashboard/overlays'
-import { SYNC_CALLS, account, missedPrompts, syncModes } from '../../data/mock'
+import SyncSheet, { SYNC_ENGINE } from '../clients/SyncSheet'
+import { account, missedPrompts, syncModes } from '../../data/mock'
 import { role } from '../../store/workspace'
 import { linkClick } from '../../router'
 import { fmtAvailable, fmtDay, useTracking } from '../../store/trackingSettings'
@@ -87,8 +86,6 @@ function Row({ icon, name, meta, muted, saved, failed, children }) {
 //   onSetFrequency(f) + frequencies       Schedule: sync frequency ([value, label] pairs)
 //   onSetDaily(on)                        Schedule: the daily-check switch
 //   onSyncNow()                           Sync now in the header ({ lastSync, nextScanAt })
-// the engines' names in the sync sheet and its progress line
-const SYNC_ENGINE = { aio: 'Google', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
 
 export default function LlmSettingsPage({
   regions, countries, languages, currencies, frequencies,
@@ -117,17 +114,11 @@ export default function LlmSettingsPage({
   // took it, the engines' progress while it runs, and "still running in the background" when it outlasts the wait
   const [syncSheet, setSyncSheet] = useState(false)
   const modes = account.domain ? syncModes.website : syncModes.brand
-  const [mode, setMode] = useState(modes[0].id)
-  const estimate = (m) => {
-    const n = m.prompts === 'missed' ? missedPrompts.length : prompts
-    const [lo, hi] = m.engines.reduce(([a, b], e) => [a + SYNC_CALLS[e][0] * n, b + SYNC_CALLS[e][1] * n], [0, 0])
-    return { n, lo, hi }
-  }
-  const syncNow = () => {
+  const syncNow = (mode) => {
     setFailed(null)
     setSyncSheet(false)
     t.syncNow(onSyncNow, { mode, onAccepted: () => toast('Sync started') })
-      .then((res) => res?.status === 'complete' && toast('Sync finished'), () => setFailed({ key: 'sync', retry: syncNow }))
+      .then((res) => res?.status === 'complete' && toast('Sync finished'), () => setFailed({ key: 'sync', retry: () => syncNow(mode) }))
   }
   // client users can't start a sync (an agency or Kraffic runs it): no button
   const canSync = Boolean(onSyncNow) && role() !== 'client'
@@ -205,41 +196,8 @@ export default function LlmSettingsPage({
                 : 'Sync started'}
         </p>
       )}
-      <Modal
-        open={syncSheet}
-        onClose={() => setSyncSheet(false)}
-        size="md"
-        title="Sync now"
-        subtitle={`Checks ${account.name}'s prompts again. Scans are paid per prompt and engine.`}
-        footer={(
-          <>
-            <button type="button" onClick={() => setSyncSheet(false)} className="inline-flex h-9 items-center rounded-lg px-3 text-small font-medium text-stone-600 outline-none transition-colors duration-150 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Cancel</button>
-            <PrimaryButton size="sm" onClick={syncNow}>Start sync</PrimaryButton>
-          </>
-        )}
-      >
-        <div role="radiogroup" aria-label="What to sync" className="flex flex-col gap-2">
-          {modes.map((m) => {
-            const on = mode === m.id
-            const { n, lo, hi } = estimate(m)
-            return (
-              <button key={m.id} type="button" role="radio" aria-checked={on} onClick={() => setMode(m.id)}
-                className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'border-ink bg-tint' : 'border-line hover:bg-stone-50'}`}>
-                <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border ${on ? 'border-ink' : 'border-stone-400'}`} aria-hidden>{on && <span className="h-2 w-2 rounded-full bg-ink" />}</span>
-                <span className="min-w-0">
-                  <span className="block text-[14px] leading-5 font-medium text-stone-900">{m.title}</span>
-                  <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-600">{m.description}</span>
-                  <span className="mt-1 block text-[12px] leading-4 text-stone-500 tabular-nums">
-                    {m.engines.length
-                      ? `${m.engines.map((e) => SYNC_ENGINE[e]).join(', ')} · ${n} ${n === 1 ? 'prompt' : 'prompts'} · about ${lo === hi ? lo : `${lo}–${hi}`} paid calls`
-                      : 'No new scans, no scan cost'}
-                  </span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </Modal>
+      <SyncSheet open={syncSheet} onClose={() => setSyncSheet(false)} name={account.name} modes={modes}
+        counts={{ prompts, missed: missedPrompts.length }} onStart={syncNow} />
 
       {/* 1 — platforms: on/off switches when the backend saves them; otherwise read-only (ready or not) */}
       <SettingsCard

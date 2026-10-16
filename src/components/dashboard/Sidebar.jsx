@@ -28,6 +28,8 @@ export const groups = [
 
 // the superadmin home lives outside this app: a full page load, not an in-app route
 export const HOME = '/superadmin'
+// the agency's home: its Clients list
+export const AGENCY_HOME = '/clients'
 
 // Workspace switcher (sidebar footer). Agency users: search, Agency home, Recent, then every client with its brands, and
 // Team / Billing / Settings / Profile at the bottom. Client users: only their own brands. Opens upward (320 × ≤440).
@@ -79,7 +81,7 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-1 pt-0">
         {agencyUser && !q && (
-          <a role="menuitem" href={HOME} className={`${item} font-medium text-stone-900`}>
+          <a role="menuitem" href={AGENCY_HOME} className={`${item} font-medium text-stone-900`}>
             <SiteLogo domain={agency.domain} name={agency.name} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" plate />
             <span className="min-w-0 flex-1 truncate">{agency.name}</span>
             <span className="shrink-0 text-[12px] text-stone-500">Agency home</span>

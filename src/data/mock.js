@@ -985,9 +985,21 @@ export const trackingOptions = {
   languages: ['English', 'Hindi', 'Hinglish', 'Bengali', 'Tamil', 'Telugu', 'Marathi', 'Gujarati', 'Spanish', 'French', 'German', 'Portuguese', 'Japanese', 'Chinese (Simplified)', 'Arabic'],
 }
 // Sync now's modes: the app's agency Sync menu (components/ClientSyncDropdown.js), word for word. engines: the ones a mode
-// runs; prompts: 'all' or 'missed' (Google's missed prompts only); calls: paid API calls per prompt per engine, low–high
-// (Google: up to 3 SerpAPI tries and an AI Mode fetch on a miss; ChatGPT, Gemini, Claude: one call each).
-export const SYNC_CALLS = { aio: [1, 5], chatgpt: [1, 1], gemini: [1, 1], claude: [1, 1] }
+// runs; prompts: 'all' or 'missed' (Google's missed prompts only); calls: paid API calls per prompt per engine, low–high,
+// read from the app's scan routes: Google 1 SerpAPI search on a hit, up to 3 tries on a miss, each with a possible AI
+// Overview fetch (6), +1 AI Mode call when the client's AI Mode is on (7); ChatGPT 1 (2 with the gpt-4o fallback);
+// Gemini 1 (2 on the retry without location); Claude 1 call with up to 5 web searches inside it (6). After a sync, each
+// branded domain gets about 8 more SerpAPI searches and 1 LLM call (SYNC_AFTER).
+export const SYNC_CALLS = { aio: [1, 6], chatgpt: [1, 2], gemini: [1, 2], claude: [1, 6] }
+export const SYNC_AI_MODE = 1
+export const SYNC_AFTER = 9
+// roughly how many paid calls a mode makes: { n: prompts it runs, lo, hi }. counts: { prompts, missed, domains, aiMode }
+export const estimateSync = (m, { prompts, missed, domains = 1, aiMode = false }) => {
+  const n = m.prompts === 'missed' ? missed : prompts
+  if (!m.engines.length || !n) return { n, lo: 0, hi: 0 }
+  const [lo, hi] = m.engines.reduce(([a, b], e) => [a + SYNC_CALLS[e][0] * n, b + (SYNC_CALLS[e][1] + (e === 'aio' && aiMode ? SYNC_AI_MODE : 0)) * n], [0, 0])
+  return { n, lo: lo + SYNC_AFTER * domains, hi: hi + SYNC_AFTER * domains }
+}
 export const syncModes = {
   website: [
     { id: 'full', title: 'Full sync', description: 'Runs Google (SERP + AI Mode), ChatGPT, Gemini, and Claude for every prompt.', engines: ['aio', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
@@ -1007,12 +1019,13 @@ export const syncModes = {
 // a sync here: accepted after a moment, then each engine works through its prompts (progress), done after a few seconds.
 // ?sync=slow: it outlasts the page's wait, so the page says it's still running in the background; ?sync=fail: refused
 const syncPreview = (() => { try { return new URLSearchParams(window.location.search).get('sync') } catch { return null } })()
-const syncSettle = ({ mode = 'full', onAccepted, onProgress, waitMs = 6000 } = {}) => new Promise((resolve, reject) => {
-  if (syncPreview === 'fail') { setTimeout(() => reject(new Error('A sync is already running for this brand')), 600); return }
+// counts: { prompts, missed } for another brand than the current one (the agency Clients list); preview: overrides ?sync=
+const syncSettle = ({ mode = 'full', onAccepted, onProgress, waitMs = 6000, counts, preview = syncPreview } = {}) => new Promise((resolve, reject) => {
+  if (preview === 'fail') { setTimeout(() => reject(new Error('A sync is already running for this brand')), 600); return }
   const m = [...syncModes.website, ...syncModes.brand].find((x) => x.id === mode) || syncModes.website[0]
-  const total = m.prompts === 'missed' ? missedPrompts.length : trackedPrompts.length
+  const total = m.prompts === 'missed' ? counts?.missed ?? missedPrompts.length : counts?.prompts ?? trackedPrompts.length
   const done = Object.fromEntries(m.engines.map((e) => [e, 0]))
-  const step = syncPreview === 'slow' ? 1 : Math.max(1, Math.ceil(total / 8))
+  const step = preview === 'slow' ? 1 : Math.max(1, Math.ceil(total / 8))
   setTimeout(() => {
     onAccepted?.()
     const started = Date.now()
@@ -1041,6 +1054,42 @@ export const krafficTracking = {
   onSaveMarket: trackingActions.onSaveMarket,
   onSetDaily: trackingActions.onSetDaily,
   onSyncNow: trackingActions.onSyncNow,
+}
+
+// ---- Agency Clients list (/clients). The app's list (app/agency/dashboard) reads user_metadata for the agency: name,
+// email, Active / Inactive, Demo or Paid with an access date, the Google AI Mode and Domain match switches. The rest
+// comes from tables the app already has but the old list didn't show: score + change (domain_score_history), last sync
+// (admin_sync_progress.updated_at), setup (user_domains, user_prompts count, user_domains.is_analyzing).
+//   setup: 'ready' (set up) · 'scanning' (first scan running) · 'prompts' (needs prompts)
+//   plan: 'demo' | 'paid' with until (access end, YYYY-MM-DD) · lastSync: ISO or null (never)
+//   email: the client's sign-in email (mock: built from the brand's domain)
+const clientRow = (c) => ({ ...c, email: `team@${c.domain}` })
+export const agencyClientList = [
+  { id: 'dermasuri-co', brandId: 'dermasuri', name: 'Dermasuri Skincare', domain: 'dermasuri.com', brands: 2, setup: 'ready', score: kpis.score, scoreDelta: kpis.scoreDelta, lastSync: '2026-10-05T09:40', prompts: kpis.total, missed: kpis.missed, active: true, plan: 'paid', until: '2027-03-31', aiMode: true, domainMatch: true },
+  { id: 'lumen-co', brandId: 'lumen', name: 'Lumen Beauty Group', domain: 'lumenskin.com', brands: 1, setup: 'ready', score: 58, scoreDelta: -3, lastSync: '2026-10-03T18:05', prompts: 96, missed: 37, active: true, plan: 'demo', until: '2026-11-02', aiMode: false, domainMatch: true },
+  { id: 'brightside-co', brandId: 'brightside', name: 'Brightside', domain: 'brightsidebotanics.com', brands: 1, setup: 'scanning', score: null, scoreDelta: null, lastSync: null, prompts: 12, missed: 0, active: true, plan: 'demo', until: '2026-11-15', aiMode: false, domainMatch: true },
+  { id: 'northwind-co', brandId: 'northwind-derm', name: 'Northwind Pharmacy', domain: 'northwindderm.com', brands: 2, setup: 'prompts', score: null, scoreDelta: null, lastSync: null, prompts: 0, missed: 0, active: false, plan: 'demo', until: '2026-10-30', aiMode: false, domainMatch: false },
+].map(clientRow)
+// ?mock= on /clients: loading · empty (no clients yet) · scanning (the default: Brightside on its first scan) ·
+// sync-running · sync-background (outlasted the page's wait) · sync-done · sync-error. sync: Dermasuri's sync, if any
+const runningSync = { mode: 'full', progress: { aio: { done: 58, total: 152 }, chatgpt: { done: 96, total: 152 }, gemini: { done: 84, total: 152 }, claude: { done: 40, total: 152 } } }
+export const clientsStates = {
+  loading: { loading: true, clients: agencyClientList },
+  empty: { clients: [] },
+  scanning: { clients: agencyClientList },
+  'sync-running': { clients: agencyClientList, syncs: { 'dermasuri-co': { status: 'running', ...runningSync } } },
+  'sync-background': { clients: agencyClientList, syncs: { 'dermasuri-co': { status: 'background', ...runningSync } } },
+  'sync-done': { clients: agencyClientList.map((c) => (c.id === 'dermasuri-co' ? { ...c, lastSync: 'now' } : c)), syncs: { 'dermasuri-co': { status: 'done', mode: 'full' } } },
+  'sync-error': { clients: agencyClientList, syncs: { 'dermasuri-co': { status: 'error', mode: 'full' } } },
+}
+// the Clients list's saves. Here: they settle after a moment. onSync takes the client's own prompt counts; ?sync=slow /
+// ?sync=fail preview a sync that outlasts the wait / is refused
+export const clientActions = {
+  onSync: (c, { mode, onAccepted, onProgress }) => syncSettle({ mode, onAccepted, onProgress, counts: { prompts: c.prompts, missed: c.missed } }),
+  onCreateClient: ({ name, email }) => settle({ id: `client-${Date.now()}`, name: name || email, email }),
+  onAssignClient: (email) => settle({ email }),
+  onUpdateClient: (id, patch) => settle(patch),
+  onDeleteClient: (id) => settle(id),
 }
 
 // app.kraffic.ai, shaped like its API: GET / PUT /api/user/llm-settings (table user_llm_settings, per user)
