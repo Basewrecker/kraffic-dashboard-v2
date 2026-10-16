@@ -1,6 +1,7 @@
 // Workspace: who's signed in (agency or client user), the current brand and the recently opened ones.
 // Switching brand keeps the current page: the main column fades out (150ms), the brand is stored, and the same URL
-// reloads so every page reads the new brand (mock.js picks it up as `account`). ?role=client previews a client user.
+// reloads so every page reads the new brand (mock.js picks it up as `account`). ?role=client previews a client user;
+// ?role=superadmin a superadmin signed in as a client through "Login as client" (the client's brands, and Home).
 import { currentBrand, workspaceAgency, workspaceDirectory } from '../data/mock'
 
 const BRAND = 'kraffic:brand'
@@ -10,13 +11,13 @@ const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d }
 export const allBrands = workspaceDirectory.flatMap((c) => c.brands.map((b) => ({ ...b, client: c.client, clientId: c.id })))
 export const role = () => {
   const q = new URLSearchParams(window.location.search).get('role')
-  if (q === 'client' || q === 'agency') { try { localStorage.setItem('kraffic:role', q) } catch { /* ignore */ } return q }
+  if (q === 'client' || q === 'agency' || q === 'superadmin') { try { localStorage.setItem('kraffic:role', q) } catch { /* ignore */ } return q }
   try { return localStorage.getItem('kraffic:role') ?? 'agency' } catch { return 'agency' }
 }
 export const brand = currentBrand
 export const agency = workspaceAgency
-// a client user only sees their own client's brands
-export const visibleDirectory = () => (role() === 'client' ? workspaceDirectory.filter((c) => c.id === brand.clientId) : workspaceDirectory)
+// a client user (and a superadmin signed in as one) only sees their own client's brands
+export const visibleDirectory = () => (role() !== 'agency' ? workspaceDirectory.filter((c) => c.id === brand.clientId) : workspaceDirectory)
 export const recentBrands = () => {
   const ids = read(RECENT, null) ?? allBrands.filter((b) => b.data === 'full' || b.id === brand.id).map((b) => b.id) // first visit: the brands with data
   const mine = new Set(visibleDirectory().flatMap((c) => c.brands.map((b) => b.id)))
