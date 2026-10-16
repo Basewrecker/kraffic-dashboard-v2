@@ -23,12 +23,20 @@ function reducer(state, action) {
       return { ...state, market: { ...state.market, ...action.patch } }
     case 'schedule':
       return { ...state, schedule: { ...state.schedule, ...action.patch } }
+    // a sync: syncing (asked) → accepted (the server took it) → progress per engine → done, or still running in the
+    // background when it outlasts the page's wait (not a failure: the scans go on)
     case 'syncStart':
-      return { ...state, syncing: true }
+      return { ...state, syncing: true, syncAccepted: false, syncProgress: null, syncBackground: false }
+    case 'syncAccepted':
+      return { ...state, syncAccepted: true }
+    case 'syncProgress':
+      return { ...state, syncProgress: action.progress }
     case 'syncDone':
-      return { ...state, syncing: false, schedule: { ...state.schedule, lastSync: action.lastSync, nextScanAt: action.nextScanAt } }
+      return { ...state, syncing: false, syncProgress: null, schedule: { ...state.schedule, lastSync: action.lastSync, nextScanAt: action.nextScanAt } }
+    case 'syncBackground':
+      return { ...state, syncing: false, syncBackground: true }
     case 'syncFail':
-      return { ...state, syncing: false }
+      return { ...state, syncing: false, syncProgress: null }
     default:
       return state
   }
@@ -37,7 +45,7 @@ function reducer(state, action) {
 const Ctx = createContext(null)
 
 export function TrackingProvider({ initial = initialTracking, children }) {
-  const [state, dispatch] = useReducer(reducer, undefined, () => ({ ...initial, syncing: false }))
+  const [state, dispatch] = useReducer(reducer, undefined, () => ({ ...initial, syncing: false, syncAccepted: false, syncProgress: null, syncBackground: false }))
   const current = useRef(state)
   current.current = state
   const syncing = useRef(false)
@@ -63,13 +71,21 @@ export function TrackingProvider({ initial = initialTracking, children }) {
     const before = current.current.schedule.daily
     return optimistic({ type: 'schedule', patch: { daily } }, { type: 'schedule', patch: { daily: before } }, () => save(daily))
   }, [optimistic])
-  const syncNow = useCallback(async (run = trackingActions.onSyncNow) => {
-    if (syncing.current) return
+  // run({ mode, onAccepted, onProgress }) resolves { status: 'complete', lastSync, nextScanAt } or { status: 'running' };
+  // onAccepted: the caller's own reaction (the "Sync started" toast), after the server took the request
+  const syncNow = useCallback(async (run = trackingActions.onSyncNow, { mode, onAccepted } = {}) => {
+    if (syncing.current) return null
     syncing.current = true
     dispatch({ type: 'syncStart' })
     try {
-      const { lastSync, nextScanAt } = await run()
-      dispatch({ type: 'syncDone', lastSync, nextScanAt })
+      const res = await run({
+        mode,
+        onAccepted: () => { dispatch({ type: 'syncAccepted' }); onAccepted?.() },
+        onProgress: (progress) => dispatch({ type: 'syncProgress', progress }),
+      })
+      if (res?.status === 'running') dispatch({ type: 'syncBackground' })
+      else dispatch({ type: 'syncDone', lastSync: res?.lastSync, nextScanAt: res?.nextScanAt ?? null })
+      return res
     } catch (err) { dispatch({ type: 'syncFail' }); throw err } finally { syncing.current = false }
   }, [])
   const actions = useMemo(() => ({ setPlatform, setMarket, setFrequency, setDaily, syncNow }), [setPlatform, setMarket, setFrequency, setDaily, syncNow])

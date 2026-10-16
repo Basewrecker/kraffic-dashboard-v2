@@ -984,13 +984,51 @@ export const trackingOptions = {
   countries: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Singapore', 'United Arab Emirates', 'Germany', 'France', 'Japan', 'Brazil', 'Netherlands'],
   languages: ['English', 'Hindi', 'Hinglish', 'Bengali', 'Tamil', 'Telugu', 'Marathi', 'Gujarati', 'Spanish', 'French', 'German', 'Portuguese', 'Japanese', 'Chinese (Simplified)', 'Arabic'],
 }
-// Tracking saves. Here: they settle after a moment; a sync takes 2s and allows the next one tomorrow.
-const syncSettle = () => new Promise((resolve) => setTimeout(() => {
-  const d = new Date()
-  const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
-  const next = new Date(d.getTime() + 23 * 3600e3)
-  resolve({ lastSync: iso(d), nextScanAt: `${iso(next)}T${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}` })
-}, 2000))
+// Sync now's modes: the app's agency Sync menu (components/ClientSyncDropdown.js), word for word. engines: the ones a mode
+// runs; prompts: 'all' or 'missed' (Google's missed prompts only); calls: paid API calls per prompt per engine, low–high
+// (Google: up to 3 SerpAPI tries and an AI Mode fetch on a miss; ChatGPT, Gemini, Claude: one call each).
+export const SYNC_CALLS = { aio: [1, 5], chatgpt: [1, 1], gemini: [1, 1], claude: [1, 1] }
+export const syncModes = {
+  website: [
+    { id: 'full', title: 'Full sync', description: 'Runs Google (SERP + AI Mode), ChatGPT, Gemini, and Claude for every prompt.', engines: ['aio', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
+    { id: 'missed_google', title: 'Missed prompts (Google only)', description: 'Only re-checks prompts still marked missed on Google. Skips ChatGPT, Gemini, and Claude.', engines: ['aio'], prompts: 'missed' },
+    { id: 'chatgpt_only', title: 'ChatGPT sync', description: 'Runs ChatGPT for every prompt. Skips Google, Gemini, and Claude.', engines: ['chatgpt'], prompts: 'all' },
+    { id: 'gemini_only', title: 'Gemini sync', description: 'Runs Gemini for every prompt. Skips Google, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
+    { id: 'claude_only', title: 'Claude sync', description: 'Runs Claude for every prompt. Skips Google, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
+  ],
+  brand: [
+    { id: 'brand_full', title: 'Full brand sync', description: 'Runs every platform for this brand and its competitors, then rebuilds the Brand vs Brand comparison.', engines: ['aio', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
+    { id: 'brand_insights', title: 'Rebuild insights only', description: 'Re-reads the answers already stored and regenerates the topic comparison and recommendations. No new scans, no scan cost.', engines: [], prompts: 'all' },
+    { id: 'gemini_only', title: 'Gemini only', description: 'Runs Gemini for every prompt. Skips Google, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
+    { id: 'chatgpt_only', title: 'ChatGPT only', description: 'Runs ChatGPT for every prompt. Skips Google, Gemini, and Claude.', engines: ['chatgpt'], prompts: 'all' },
+    { id: 'claude_only', title: 'Claude only', description: 'Runs Claude for every prompt. Skips Google, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
+  ],
+}
+// a sync here: accepted after a moment, then each engine works through its prompts (progress), done after a few seconds.
+// ?sync=slow: it outlasts the page's wait, so the page says it's still running in the background; ?sync=fail: refused
+const syncPreview = (() => { try { return new URLSearchParams(window.location.search).get('sync') } catch { return null } })()
+const syncSettle = ({ mode = 'full', onAccepted, onProgress, waitMs = 6000 } = {}) => new Promise((resolve, reject) => {
+  if (syncPreview === 'fail') { setTimeout(() => reject(new Error('A sync is already running for this brand')), 600); return }
+  const m = [...syncModes.website, ...syncModes.brand].find((x) => x.id === mode) || syncModes.website[0]
+  const total = m.prompts === 'missed' ? missedPrompts.length : trackedPrompts.length
+  const done = Object.fromEntries(m.engines.map((e) => [e, 0]))
+  const step = syncPreview === 'slow' ? 1 : Math.max(1, Math.ceil(total / 8))
+  setTimeout(() => {
+    onAccepted?.()
+    const started = Date.now()
+    const tick = setInterval(() => {
+      for (const e of m.engines) done[e] = Math.min(total, done[e] + step + (e === 'aio' ? 0 : 1))
+      onProgress?.(Object.fromEntries(m.engines.map((e) => [e, { done: done[e], total }])))
+      const finished = m.engines.every((e) => done[e] >= total)
+      if (finished || Date.now() - started > waitMs) {
+        clearInterval(tick)
+        const d = new Date()
+        const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+        resolve(finished ? { status: 'complete', lastSync: iso(d), nextScanAt: null } : { status: 'running' })
+      }
+    }, 400)
+  }, 600)
+})
 export const trackingActions = {
   onSaveMarket: (patch) => settle(patch),
   onSetDaily: (daily) => settle({ daily }),

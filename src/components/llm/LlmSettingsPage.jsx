@@ -6,7 +6,10 @@ import { useToast } from '../dashboard/overlays'
 import ConfirmPopover from '../prompts/ConfirmPopover'
 import Select from '../ui/Select'
 import Switch from '../ui/Switch'
-import { account } from '../../data/mock'
+import Modal from '../ui/Modal'
+import { PrimaryButton } from '../dashboard/overlays'
+import { SYNC_CALLS, account, missedPrompts, syncModes } from '../../data/mock'
+import { role } from '../../store/workspace'
 import { linkClick } from '../../router'
 import { fmtAvailable, fmtDay, useTracking } from '../../store/trackingSettings'
 
@@ -84,6 +87,9 @@ function Row({ icon, name, meta, muted, saved, failed, children }) {
 //   onSetFrequency(f) + frequencies       Schedule: sync frequency ([value, label] pairs)
 //   onSetDaily(on)                        Schedule: the daily-check switch
 //   onSyncNow()                           Sync now in the header ({ lastSync, nextScanAt })
+// the engines' names in the sync sheet and its progress line
+const SYNC_ENGINE = { aio: 'Google', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
+
 export default function LlmSettingsPage({
   regions, countries, languages, currencies, frequencies,
   onSetEngine, onSaveMarket, onSetFrequency, onSetDaily, onSyncNow,
@@ -107,11 +113,24 @@ export default function LlmSettingsPage({
     run().then(() => flash(key), () => setFailed({ key, retry: () => save(key, run) }))
   }
   const failedFor = (key) => (failed?.key === key ? failed : null)
+  // Sync now: a sheet first (what runs and roughly how many paid calls), then the sync; "Sync started" once the server
+  // took it, the engines' progress while it runs, and "still running in the background" when it outlasts the wait
+  const [syncSheet, setSyncSheet] = useState(false)
+  const modes = account.domain ? syncModes.website : syncModes.brand
+  const [mode, setMode] = useState(modes[0].id)
+  const estimate = (m) => {
+    const n = m.prompts === 'missed' ? missedPrompts.length : prompts
+    const [lo, hi] = m.engines.reduce(([a, b], e) => [a + SYNC_CALLS[e][0] * n, b + SYNC_CALLS[e][1] * n], [0, 0])
+    return { n, lo, hi }
+  }
   const syncNow = () => {
     setFailed(null)
-    t.syncNow(onSyncNow).then(() => toast('Sync finished'), () => setFailed({ key: 'sync', retry: syncNow }))
-    toast('Sync started')
+    setSyncSheet(false)
+    t.syncNow(onSyncNow, { mode, onAccepted: () => toast('Sync started') })
+      .then((res) => res?.status === 'complete' && toast('Sync finished'), () => setFailed({ key: 'sync', retry: syncNow }))
   }
+  // client users can't start a sync (an agency or Kraffic runs it): no button
+  const canSync = Boolean(onSyncNow) && role() !== 'client'
 
   // which rows this backend can save
   const regionList = onSaveMarket && regions?.length ? regions : null
@@ -160,12 +179,12 @@ export default function LlmSettingsPage({
         <div className="flex flex-wrap items-center gap-3 md:pt-1">
           {failed?.key === 'sync' && <Failed onRetry={failed.retry} />}
           {/* too soon for another sync: when it's possible again */}
-          {onSyncNow && tooSoon && !t.syncing && <span className="text-[13px] leading-[18px] text-stone-500 tabular-nums max-md:order-last max-md:w-full">Available {fmtAvailable(t.schedule.nextScanAt)}</span>}
+          {canSync && tooSoon && !t.syncing && <span className="text-[13px] leading-[18px] text-stone-500 tabular-nums max-md:order-last max-md:w-full">Available {fmtAvailable(t.schedule.nextScanAt)}</span>}
           <span className="hidden text-[13px] leading-[18px] text-stone-600 tabular-nums md:inline">{updated}</span>
-          {onSyncNow && (
+          {canSync && (
           <button
             type="button"
-            onClick={syncNow}
+            onClick={() => setSyncSheet(true)}
             disabled={t.syncing || tooSoon}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-small font-medium text-stone-700 max-md:flex-1 md:h-9 outline-none transition-colors duration-150 ease-out hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-60"
           >
@@ -175,6 +194,52 @@ export default function LlmSettingsPage({
           )}
         </div>
       </div>
+
+      {/* a sync on its way: starting, each engine's progress, or still running in the background */}
+      {canSync && (t.syncing || t.syncBackground) && (
+        <p role="status" className="-mt-3 text-[13px] leading-[18px] text-stone-600 tabular-nums">
+          {t.syncBackground
+            ? 'Still running in the background. Results appear as each engine finishes.'
+            : !t.syncAccepted ? 'Starting the sync…'
+              : t.syncProgress ? Object.entries(t.syncProgress).map(([e, p]) => `${SYNC_ENGINE[e] ?? e} ${p.done}/${p.total}`).join(' · ')
+                : 'Sync started'}
+        </p>
+      )}
+      <Modal
+        open={syncSheet}
+        onClose={() => setSyncSheet(false)}
+        size="md"
+        title="Sync now"
+        subtitle={`Checks ${account.name}'s prompts again. Scans are paid per prompt and engine.`}
+        footer={(
+          <>
+            <button type="button" onClick={() => setSyncSheet(false)} className="inline-flex h-9 items-center rounded-lg px-3 text-small font-medium text-stone-600 outline-none transition-colors duration-150 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Cancel</button>
+            <PrimaryButton size="sm" onClick={syncNow}>Start sync</PrimaryButton>
+          </>
+        )}
+      >
+        <div role="radiogroup" aria-label="What to sync" className="flex flex-col gap-2">
+          {modes.map((m) => {
+            const on = mode === m.id
+            const { n, lo, hi } = estimate(m)
+            return (
+              <button key={m.id} type="button" role="radio" aria-checked={on} onClick={() => setMode(m.id)}
+                className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'border-ink bg-tint' : 'border-line hover:bg-stone-50'}`}>
+                <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border ${on ? 'border-ink' : 'border-stone-400'}`} aria-hidden>{on && <span className="h-2 w-2 rounded-full bg-ink" />}</span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] leading-5 font-medium text-stone-900">{m.title}</span>
+                  <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-600">{m.description}</span>
+                  <span className="mt-1 block text-[12px] leading-4 text-stone-500 tabular-nums">
+                    {m.engines.length
+                      ? `${m.engines.map((e) => SYNC_ENGINE[e]).join(', ')} · ${n} ${n === 1 ? 'prompt' : 'prompts'} · about ${lo === hi ? lo : `${lo}–${hi}`} paid calls`
+                      : 'No new scans, no scan cost'}
+                  </span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </Modal>
 
       {/* 1 — platforms: on/off switches when the backend saves them; otherwise read-only (ready or not) */}
       <SettingsCard
