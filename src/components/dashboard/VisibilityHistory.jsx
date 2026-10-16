@@ -191,6 +191,16 @@ function GrowthValueLabel({ x, y, width = 0, height = 0, value }) {
 }
 
 // share value inside the top of a "you" bar (Bar view)
+// one sync date: every bar's value above it
+function TopValueLabel({ x, y, width = 0, value }) {
+  if (value == null) return null
+  return (
+    <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={12} fontWeight={500} className="num" fill="var(--color-stone-700)">
+      {value}%
+    </text>
+  )
+}
+
 function InsideValueLabel({ x, y, width = 0, height = 0, value }) {
   if (value == null || height < 24) return null
   return (
@@ -335,6 +345,13 @@ export default function VisibilityHistory() {
     })
   }, [YOU])
   const { points, series, stats, domain, ticks, youHidden } = h
+  // one sync date in range: nothing to draw a line between, so bars (one group, a value on every bar, the brands in
+  // their line colours); Trend and Growth come back from the second date
+  const single = points.length === 1
+  // no point in range (no sync yet, or every day at 0%, which the history leaves out): an empty state, no axes
+  const empty = points.length === 0
+  const chartType = single ? 'bar' : view.chart
+  const barFill = (s) => (single ? { fill: lineColor(s), opacity: 1 } : barColor(s))
 
   const update = (patch) => setView((v) => ({ ...v, ...patch }))
   const setGranularity = (granularity) => update({ granularity, range: defaultRange[granularity] })
@@ -352,13 +369,13 @@ export default function VisibilityHistory() {
     })
 
   const compare = view.compare
-  const isGrowth = view.chart === 'growth'
-  const showGrowthLabels = !compare && view.granularity === 'monthly' && view.chart === 'line'
+  const isGrowth = chartType === 'growth'
+  const showGrowthLabels = !compare && view.granularity === 'monthly' && chartType === 'line'
   const last = points.length - 1
-  const isLine = view.chart === 'line'
+  const isLine = chartType === 'line'
   // hovering a pill: line mode drops the others to 25%, bar/growth keep 30%
   // explain mode ("Why?"): the series the insight is about stay, the rest dim
-  const explain = useExplain(`${view.chart}|${view.granularity}|${view.range}|${view.compare}|${engine}|${YOU}`)
+  const explain = useExplain(`${chartType}|${view.granularity}|${view.range}|${view.compare}|${engine}|${YOU}`)
   const dim = (key) => (hovered && hovered !== key ? (isLine ? 0.25 : 0.3) : 1) * (hlOpacity(explain, `series:${key}`) ?? 1)
   const g = h.growth
 
@@ -378,7 +395,7 @@ export default function VisibilityHistory() {
   )
   const AVG_GUTTER = 84
   const shareTooltip = <HistoryTooltip series={series} compare={compare} unit={stats.unit} line={isLine} />
-  const margin = { top: showGrowthLabels ? 24 : 8, right: 8, bottom: 0, left: 0 }
+  const margin = { top: showGrowthLabels || single ? 24 : 8, right: 8, bottom: 0, left: 0 }
 
   // insight: the focal brand's move over the last period of the range, and who leads at its end
   // ("Lumen Skincare rose 1 point this week. Aurelia Labs still leads.")
@@ -406,7 +423,7 @@ export default function VisibilityHistory() {
 
   // ---- one real Recharts chart per type
   const renderChart = () => {
-    if (view.chart === 'line') {
+    if (chartType === 'line') {
       // trend: lines only (no fills). All lines 2.5px, round caps, full opacity; a dot on the last point only.
       return (
         <RLineChart data={points} margin={margin}>
@@ -428,12 +445,12 @@ export default function VisibilityHistory() {
         </RLineChart>
       )
     }
-    if (view.chart === 'bar') {
+    if (chartType === 'bar') {
       // share per period: grouped (Compare on) / single (off), graphite by share rank (getBarColor).
       // Up to 4 brands showing: the regular bars, share value inside the top of each "you" bar.
       // 5 or more: thin bars (8px, 2px apart; phones 6 / 1), no labels; hovering a date group dims the others to 35%
       // and shows the tooltip. Bars resize over 200ms when the number of brands showing crosses 4 / 5.
-      const thin = series.length >= 5
+      const thin = !single && series.length >= 5
       const groupOpacity = (i) => (!thin || barGroup == null || String(barGroup) === String(i) ? 1 : 0.35)
       return (
         <RBarChart data={points} {...(thin ? { barSize: mobile ? 6 : 8, barGap: mobile ? 1 : 2 } : { barCategoryGap: '11%', barGap: 4 })}
@@ -445,16 +462,16 @@ export default function VisibilityHistory() {
             cursor: thin ? false : { fill: chart.track, fillOpacity: 0.6, radius: 8 },
             interval: thin && mobile ? (points.length > 6 ? 1 : 0) : undefined,
           })}
-          {!compare && avgLine(stats.average, `Avg ${stats.average}%`, true)}
+          {!compare && !single && avgLine(stats.average, `Avg ${stats.average}%`, true)}
           {series.map((s) => {
-            const c = barColor(s)
+            const c = barFill(s)
             return (
               <Bar key={s.key} dataKey={s.key} name={s.label} fill={c.fill} fillOpacity={dim(s.key) * c.opacity} radius={thin ? [3, 3, 0, 0] : [6, 6, 0, 0]}
                 maxBarSize={thin ? undefined : 44} animationDuration={200} animationEasing="ease-out">
                 {thin && points.map((p, i) => (
                   <Cell key={p.date} fillOpacity={dim(s.key) * c.opacity * groupOpacity(i)} style={{ transition: 'fill-opacity 150ms ease-out' }} />
                 ))}
-                {!thin && s.key === YOU && <LabelList dataKey={s.key} content={InsideValueLabel} />}
+                {single ? <LabelList dataKey={s.key} content={TopValueLabel} /> : !thin && s.key === YOU && <LabelList dataKey={s.key} content={InsideValueLabel} />}
               </Bar>
             )
           })}
@@ -484,8 +501,8 @@ export default function VisibilityHistory() {
   // a series' mark: the line checkbox, or the bar / dot swatch (filled when shown, outlined when hidden)
   const marker = (s, shown) => (isLine
     ? <LegendBox color={lineColor(s)} checked={shown} />
-    : <span className="h-2 w-2 shrink-0 rounded-full" style={view.chart === 'bar'
-      ? (shown ? { background: barColor(s).fill, opacity: barColor(s).opacity } : { boxShadow: `inset 0 0 0 1.5px ${barColor(s).fill}`, opacity: barColor(s).opacity })
+    : <span className="h-2 w-2 shrink-0 rounded-full" style={chartType === 'bar'
+      ? (shown ? { background: barFill(s).fill, opacity: barFill(s).opacity } : { boxShadow: `inset 0 0 0 1.5px ${barFill(s).fill}`, opacity: barFill(s).opacity })
       : (shown ? { background: color(s) } : { boxShadow: `inset 0 0 0 1.5px ${color(s)}` })} />)
   // one legend chip = a show/hide toggle for that series; small: the 13px step (FitChips)
   const chip = (s, small = false) => {
@@ -531,12 +548,12 @@ export default function VisibilityHistory() {
           <Segmented label="Period" value={view.granularity} onChange={setGranularity} options={[{ value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }]} />
           <Segmented
             label="Chart type"
-            value={view.chart}
+            value={chartType}
             onChange={(chart) => update({ chart })}
             options={[
-              { value: 'line', label: 'Trend', icon: LineChart },
+              ...(single ? [] : [{ value: 'line', label: 'Trend', icon: LineChart }]),
               { value: 'bar', label: 'Share per period', icon: BarChart3 },
-              { value: 'growth', label: 'Growth per period', icon: TrendingUp },
+              ...(single ? [] : [{ value: 'growth', label: 'Growth per period', icon: TrendingUp }]),
             ]}
           />
           <RangeSelect granularity={view.granularity} value={view.range} onChange={(range) => update({ range })} />
@@ -551,7 +568,7 @@ export default function VisibilityHistory() {
         {compare ? (
           <FitChips
             items={[historySeries.find((s) => s.key === YOU), ...COMPETITORS]}
-            measureKey={`${view.chart}|${view.hidden.join(',')}`}
+            measureKey={`${chartType}|${view.hidden.join(',')}`}
             chip={chip}
             more={(rest, small) => <MoreChips rest={rest} small={small} isLine={isLine} hidden={view.hidden} marker={marker} onToggle={toggleHidden} />}
           />
@@ -570,7 +587,7 @@ export default function VisibilityHistory() {
       <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${compare ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`} aria-hidden={compare}>
         <div className="overflow-hidden">
           <div className="flex flex-wrap gap-x-8 gap-y-2 pt-3">
-            <Stat label="Current">{stats.current}%</Stat>
+            <Stat label="Current">{stats.current == null ? '—' : `${stats.current}%`}</Stat>
             <Stat label="Change">
               {stats.change != null && (
                 <>
@@ -587,7 +604,7 @@ export default function VisibilityHistory() {
               </Stat>
             ) : (
               <Stat label="Best">
-                {stats.best}% <span className="text-[13px] font-normal text-stone-600">{stats.bestLabel.startsWith('this') ? `· ${stats.bestLabel}` : `(${stats.bestLabel})`}</span>
+                {stats.best == null ? '—' : <>{stats.best}% <span className="text-[13px] font-normal text-stone-600">{stats.bestLabel?.startsWith('this') ? `· ${stats.bestLabel}` : `(${stats.bestLabel})`}</span></>}
               </Stat>
             )}
           </div>
@@ -597,10 +614,17 @@ export default function VisibilityHistory() {
       {/* phones / tablets: 180px. Desktop: grows with the row, 200–240px, never taller (the insight footer stays pinned
           to the bottom with mt-auto); the same in every chart type, so switching type never changes the card */}
       <div className="mt-3 h-[180px] lg:h-auto lg:max-h-[240px] lg:min-h-[200px] lg:flex-1">
-        <ResponsiveContainer key={`${view.chart}-${view.granularity}-${view.compare}`} width="100%" height="100%">
-          {renderChart()}
-        </ResponsiveContainer>
+        {empty ? (
+          <div className="grid h-full place-items-center rounded-lg bg-tint/50 px-4 text-center text-[13px] leading-[18px] text-stone-500">
+            No visibility on record for this range yet.
+          </div>
+        ) : (
+          <ResponsiveContainer key={`${chartType}-${view.granularity}-${view.compare}`} width="100%" height="100%">
+            {renderChart()}
+          </ResponsiveContainer>
+        )}
       </div>
+      {single && <p className="mt-1 text-[12px] leading-4 text-stone-500">Showing your first sync. Trend lines appear after the next sync.</p>}
 
       {insight && <div className="mt-auto pb-3 pt-2"><Insight explain={explain} {...insight} /></div>}
     </Card>

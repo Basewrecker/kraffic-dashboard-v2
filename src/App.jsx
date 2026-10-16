@@ -93,7 +93,7 @@ export default function App() {
   const body = state === 'loading' ? <PageLoading />
     : state === 'error' ? <PageError message="The server didn’t answer in time. Check your connection, then try again." onRetry={() => {}} />
       : state === 'notfound' ? <PageNotFound />
-        : empty ? <EmptyBrand route={PAGES[route] ? route : '/overview'} /> : <Page />
+        : empty ? <EmptyBrand route={PAGES[route] ? route : '/overview'} setUp={!!currentBrand.setUp} /> : <Page />
   return (
     // tracking settings are shared by every page (dashboard header, /brands summary, /tracking editor)
     <TrackingProvider initial={krafficBackend ? initialTracking : appInitialTracking}>

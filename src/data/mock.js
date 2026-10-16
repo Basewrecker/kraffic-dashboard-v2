@@ -17,7 +17,7 @@ export const workspaceDirectory = [
     { id: 'lumen', name: 'Lumen Skin', domain: 'lumenskin.com', data: 'full' },
   ] },
   { id: 'brightside-co', client: 'Brightside', brands: [
-    { id: 'brightside', name: 'Brightside Botanics', domain: 'brightsidebotanics.com', data: 'empty' },
+    { id: 'brightside', name: 'Brightside Botanics', domain: 'brightsidebotanics.com', data: 'empty', setUp: true }, // prompts and competitors in, first sync pending
   ] },
   { id: 'northwind-co', client: 'Northwind Pharmacy', brands: [
     { id: 'northwind-derm', name: 'Northwind Derm', domain: 'northwindderm.com', data: 'empty' },
@@ -121,10 +121,15 @@ function fitDomain(values) {
 //                 to look at competitors alone; the axis then fits their values)
 // Each point carries `delta` = change of dermasuri vs the previous period (even across the window edge).
 // scale: { seriesKey: factor } — an engine filter's share relative to all engines (see brandViews.engineScale)
+const historyPreview = (() => { try { return new URLSearchParams(window.location.search).get('history') } catch { return null } })()
+const singleSync = historyPreview === 'single'
 export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null } = {}) {
   const gran = granularity === 'monthly' ? 'monthly' : 'weekly'
   const raw = gran === 'monthly' ? historyMonthly : [...historyEarlier, ...history]
-  const all = !scale ? raw : raw.map((p) => ({ ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, Math.round(p[s.key] * (scale[s.key] ?? 1))])) }))
+  const scaled = !scale ? raw : raw.map((p) => ({ ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, Math.round(p[s.key] * (scale[s.key] ?? 1))])) }))
+  // ?history=single: a brand with one sync so far (the chart's first-sync state)
+  // ?history=empty: nothing on record yet (no sync, or every day at 0%)
+  const all = historyPreview === 'empty' ? [] : singleSync ? scaled.slice(-1) : scaled
   const opts = historyRanges[gran]
   const opt = opts.find((r) => r.id === range) ?? opts.find((r) => r.id === defaultRange[gran])
   const start = Math.max(0, all.length - opt.count)
@@ -152,13 +157,14 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
     // the focal brand's average growth (read from the raw deltas, so it exists even when it is hidden)
     average: growthPoints.length ? Math.round((growthPoints.reduce((a, p) => a + p.values.delta, 0) / growthPoints.length) * 10) / 10 : 0,
   }
-  const you = points.map((p) => p[focal])
-  const last = points[points.length - 1]
-  const best = points.reduce((a, p) => (p[focal] > a[focal] ? p : a), points[0])
+  const you = points.map((p) => p[focal]).filter((v) => v != null)
+  const last = points[points.length - 1] || {}
+  const valued = points.filter((p) => p[focal] != null)
+  const best = valued.reduce((a, p) => (p[focal] > a[focal] ? p : a), valued[0] || null)
   const unit = gran === 'monthly' ? 'month' : 'week'
   // competitors alone sit at 3–21%: on 0–100 they'd be flat lines along the floor, so fit them
-  const axis = !compare ? fitDomain(you)
-    : youHidden ? fitDomain(points.flatMap((p) => series.map((s) => p[s.key])))
+  const axis = !compare ? fitDomain(you.length ? you : [0])
+    : youHidden ? fitDomain(points.flatMap((p) => series.map((s) => p[s.key])).filter((v) => v != null).concat(points.length ? [] : [0]))
     : { domain: [0, 100], ticks: [0, 25, 50, 75, 100] }
   return {
     granularity: gran,
@@ -169,12 +175,12 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
     ...axis,
     growth,
     stats: {
-      current: last[focal],
-      change: last.delta,
+      current: last[focal] ?? null,
+      change: last.delta ?? null,
       unit,
-      best: best[focal],
-      bestLabel: best === last ? `this ${unit}` : gran === 'monthly' ? best.date : `${best.date}, 2026`,
-      average: Math.round(you.reduce((a, b) => a + b, 0) / you.length),
+      best: best ? best[focal] : null,
+      bestLabel: !best ? null : best === last ? `this ${unit}` : gran === 'monthly' ? best.date : `${best.date}, 2026`,
+      average: you.length ? Math.round(you.reduce((a, b) => a + b, 0) / you.length) : null,
     },
   }
 }
