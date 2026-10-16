@@ -109,6 +109,15 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
           </>
         )}
         {dir.length === 0 && <p className="px-3 py-4 text-[13px] leading-[18px] text-stone-500">No client or brand matches “{q}”</p>}
+        {/* a superadmin signed in as the client (Login as client): the way back to the superadmin home */}
+        {role() === 'superadmin' && !q && (
+          <>
+            <div className="my-1 border-t border-line" role="separator" />
+            <a role="menuitem" href={HOME} className={`${item} text-stone-900`}>
+              <span className="grid w-5 shrink-0 place-items-center" aria-hidden><House size={16} /></span>Home
+            </a>
+          </>
+        )}
       </div>
       <div className="shrink-0 border-t border-line p-1">
         {foot.map(([l, Icon, href]) => (href
