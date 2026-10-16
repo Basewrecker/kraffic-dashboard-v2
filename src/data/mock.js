@@ -885,6 +885,54 @@ export const setupBrands = [
   },
 ]
 
+// ---------------------------------------------------------------------------------------------------------------
+// First-time setup (/first-setup): a brand, its competitors, its first prompts, then the first scan. ?mock=<state>:
+//   new · brand (no competitors yet) · competitors (no prompts yet) · prompts (scan not started) · scanning · done ·
+//   name-only (a brand tracked by its name, no website; competitors next)
+// brand: { name, domain } (domain null = name only) · competitors: [{ id, name, domain }] · suggested: research
+// candidates (Suggested chips) · prompts: newest first · scan: { status: idle | running | done, startedAt }
+// scanMinutes: how long a first scan usually takes (GAP: no estimate in the API; the mock's number).
+const setupPromptTexts = [
+  'best natural face oil for dry skin', 'plant based retinol alternative', 'clean skincare brands for sensitive skin',
+  'bakuchiol serum vs retinol', 'organic moisturizer for combination skin', 'rosehip oil for acne scars',
+  'non toxic sunscreen for face', 'vegan night cream for wrinkles', 'calendula cream for eczema',
+  'best botanical toner for oily skin', 'squalane vs jojoba oil', 'fragrance free natural cleanser',
+]
+const setupPrompts = setupPromptTexts.map((text, i) => ({ id: `sp${i + 1}`, text })).reverse()
+const setupBrand = { name: 'Brightside Botanics', domain: 'brightsidebotanics.com' }
+const setupCompetitors = [
+  { id: 'sc1', name: 'Herbivore', domain: 'herbivorebotanicals.com' },
+  { id: 'sc2', name: 'Pai Skincare', domain: 'paiskincare.com' },
+  { id: 'sc3', name: 'Tata Harper', domain: 'tataharperskincare.com' },
+]
+const setupSuggested = [
+  { id: 'ss1', name: 'Youth to the People', domain: 'youthtothepeople.com', reason: 'Named next to you in answers about plant-based serums' },
+  { id: 'ss2', name: 'Drunk Elephant', domain: 'drunkelephant.com', reason: 'Sells clean skincare to the same shoppers' },
+  { id: 'ss3', name: 'Kiehl’s', domain: 'kiehls.com', reason: 'Cited in answers about botanical moisturizers' },
+]
+const setupState = (brand, competitors, prompts, scan) => ({ brand, competitors, suggested: setupSuggested.filter((x) => !competitors.some((c) => c.domain === x.domain)), prompts, scan })
+const minutesAgo = (m) => new Date(Date.now() - m * 60e3).toISOString()
+export const firstSetupStates = {
+  new: setupState(null, [], [], { status: 'idle' }),
+  brand: setupState(setupBrand, [], [], { status: 'idle' }),
+  competitors: setupState(setupBrand, setupCompetitors, [], { status: 'idle' }),
+  prompts: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'idle' }),
+  scanning: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'running', startedAt: minutesAgo(2.2) }),
+  done: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'done' }),
+  'name-only': setupState({ name: 'Brightside Botanics', domain: null }, [], [], { status: 'idle' }),
+}
+export const firstSetupScanMinutes = 10
+// the client the brand belongs to (the agency / superadmin "Viewing … as" banner)
+export const firstSetupClient = 'Brightside'
+// First-time setup saves. Here: they settle after a moment; the mock's first scan finishes after 8s.
+// A brand, competitors and research go through setupActions / promptActions (Brand Setup, Prompt Hub).
+export const firstSetupActions = {
+  onAddPrompts: (items) => new Promise((resolve) => setTimeout(() => resolve(items.map((it, i) => ({ id: `np${Date.now()}${i}`, text: it.text }))), 300)),
+  onStartScan: () => new Promise((resolve) => setTimeout(() => resolve({ startedAt: new Date().toISOString() }), 300)),
+  // → resolves when the scan has finished
+  onScanDone: () => new Promise((resolve) => setTimeout(resolve, 8000)),
+}
+
 // Brand Setup saves. Here: they settle after a moment (the page updates first and keeps the change).
 const settle = (value) => new Promise((resolve) => setTimeout(() => resolve(value), 300))
 let setupSeq = 100
@@ -1791,4 +1839,22 @@ export const execReportSections = {
   trends: { label: 'Trends', summary: 'News and social talk about you is mostly positive (net +32), driven by the SPF launch.', items: [
     { label: 'Net tone', value: '+32', meta: 'Mostly positive' }, { label: 'Questions watched', value: 8, meta: 'In the United States' },
     { label: 'Mentions', value: '2.4k', meta: 'News, X and Instagram' }, { label: 'Biggest topic', value: 'SPF', meta: 'The launch in September' }] },
+}
+
+// ---------------------------------------------------------------------------
+// Preview: a brand on its first sync with nothing visible yet (?preview=first-sync): one sync, no deltas or "vs last
+// sync", every tracked prompt missed, no citations, competitors still in the answers. The data above is trimmed in
+// place so every page (and brandViews, which reads it after) sees the same brand.
+const PREVIEW = (() => { try { return new URLSearchParams(window.location.search).get('preview') } catch { return null } })()
+if (PREVIEW === 'first-sync') {
+  const keepLast = (arr) => arr.splice(0, Math.max(0, arr.length - 1))
+  keepLast(recentSyncs); keepLast(history); keepLast(historyMonthly); syncHistory.splice(1)
+  syncHistory.forEach((r) => { r.visibility = 0; r.mentions = 0; r.cited = 0; r.missed += r.visible; r.visible = 0; r.delta = null; r.changes = null })
+  history.forEach((p) => { p.dermasuri = 0 }); historyMonthly.forEach((p) => { p.dermasuri = 0 })
+  visiblePrompts.splice(0)
+  for (let i = trackedPrompts.length - 1; i >= 0; i--) if (trackedPrompts[i].status === 'visible') trackedPrompts.splice(i, 1)
+  Object.assign(kpis, { score: 0, scoreDelta: null, visible: 0, missed: trackedPrompts.length, total: trackedPrompts.length, citedSources: 0 })
+  platforms.forEach((p) => { p.visible = 0; p.cited = 0 })
+  if (citationsMentions[account.domain]) Object.keys(citationsMentions[account.domain]).forEach((e) => { citationsMentions[account.domain][e] = [0, 0] })
+  competitors.forEach((c) => { if (c.you) c.share = 0 })
 }

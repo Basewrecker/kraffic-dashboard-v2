@@ -28,7 +28,7 @@ const textBtn = 'inline-flex items-center gap-1 rounded text-[13px] leading-[18p
 const smallBtn = 'inline-flex h-8 shrink-0 items-center rounded-md px-3 text-[13px] font-medium outline-none transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40'
 const rowAnim = (state) => (state === 'enter' ? 'srow-in' : state === 'leaving' ? 'srow-out' : '')
 // favicons sit on a white plate in both themes so white / light logos stay visible
-const Logo = ({ domain, name }) => <SiteLogo domain={domain} name={name} className="h-7 w-7 rounded-md" imgPad="p-1" initialClass="text-[12px]" plate bordered={false} />
+export const Logo = ({ domain, name }) => <SiteLogo domain={domain} name={name} className="h-7 w-7 rounded-md" imgPad="p-1" initialClass="text-[12px]" plate bordered={false} />
 
 // ---------------------------------------------------------------- frame
 
@@ -77,7 +77,7 @@ function Menu({ items, label: aria }) {
 }
 
 // compact: header pt-4 pb-3 with no rule under it, and `body` (a chip line) instead of a list of rows
-function SettingsCard({ title, count, description, action, footer, children, body, id, label: aria, compact }) {
+export function SettingsCard({ title, count, description, action, footer, children, body, id, label: aria, compact }) {
   return (
     <section id={id} aria-label={aria ?? title} className="scroll-mt-6 overflow-hidden rounded-[14px] border border-line bg-surface">
       {title && (
@@ -107,7 +107,7 @@ const AddButton = ({ onClick, disabled, disabledTitle }) => (
 )
 
 // one read-only row: [logo] name / meta … quiet value + hover-only Edit / Remove
-function Row({ logo, name, meta, value, valueTitle, muted, onEdit, onRemove, state }) {
+export function Row({ logo, name, meta, value, valueTitle, muted, onEdit, onRemove, state }) {
   return (
     <li className={rowAnim(state)}>
       <div className="group flex h-[60px] items-center justify-between gap-4 px-5">
@@ -136,7 +136,7 @@ function Row({ logo, name, meta, value, valueTitle, muted, onEdit, onRemove, sta
 // Enter saves, Esc cancels, a click away saves (valid) / closes (clean) / discards with Undo (invalid).
 // fields: [{ name, label, placeholder }]; validate(values) → error message or null; fixed: read-only text after the
 // fields (what can't be changed, e.g. a competitor's domain).
-function InputRow({ logo, fields, fixed, initial, validate, submitLabel, onSubmit, onClose, onDiscard }) {
+export function InputRow({ logo, fields, fixed, initial, validate, submitLabel, onSubmit, onClose, onDiscard }) {
   const [values, setValues] = useState(initial)
   const ref = useRef(null)
   const clean = (v) => String(v ?? '').trim()
@@ -174,7 +174,7 @@ function InputRow({ logo, fields, fixed, initial, validate, submitLabel, onSubmi
 
 // "Suggested" strip at the foot of a card; the reason is the chip's tooltip. With a market, the label names it and
 // a market change crossfades the chips: out (150ms), swap, back in. onDismiss: each chip also has an X.
-function Suggested({ items, onPick, onDismiss, market, label: lead }) {
+export function Suggested({ items, onPick, onDismiss, market, label: lead }) {
   const [shown, setShown] = useState({ items, market })
   const [fading, setFading] = useState(false)
   const sig = items.map((it) => it.key).join('|') // items is rebuilt every render; react to what's in it
@@ -212,7 +212,7 @@ function Suggested({ items, onPick, onDismiss, market, label: lead }) {
 }
 
 // which row is open: null | 'new' | a row key; draft = values to reopen with after a discard's Undo
-function useEditing(toast) {
+export function useEditing(toast) {
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState(null)
   const open = (key) => { setDraft(null); setEditing(key) }

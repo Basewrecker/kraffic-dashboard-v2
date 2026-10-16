@@ -14,7 +14,7 @@ import { useBackClose } from '../../hooks/useOverlay'
 // Closes on a link tap, the scrim, Esc, a swipe left, or Back.
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-function NavDrawer({ open, onClose, path }) {
+function NavDrawer({ open, onClose, path, nav }) {
   const [mounted, setMounted] = useState(open)
   const [shown, setShown] = useState(false)
   const panel = useRef(null)
@@ -68,7 +68,7 @@ function NavDrawer({ open, onClose, path }) {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2">
           {/* a link tap navigates: keep the new page's history entry, then close */}
-          <NavLinks path={path} onNavigate={() => { release(); onClose() }} />
+          <NavLinks path={path} nav={nav} onNavigate={() => { release(); onClose() }} />
         </div>
         <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
           <ThemeToggle />
@@ -87,7 +87,7 @@ function WorkspaceSheet({ open, onClose }) {
   )
 }
 
-export default function MobileNav({ path }) {
+export default function MobileNav({ path, nav }) {
   const [menu, setMenu] = useState(false)
   const [workspace, setWorkspace] = useState(false)
   return (
@@ -101,7 +101,7 @@ export default function MobileNav({ path }) {
           <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" imgPad="p-0.5" initialClass="text-[12px]" plate />
         </button>
       </header>
-      <NavDrawer open={menu} onClose={() => setMenu(false)} path={path} />
+      <NavDrawer open={menu} onClose={() => setMenu(false)} path={path} nav={nav} />
       <WorkspaceSheet open={workspace} onClose={() => setWorkspace(false)} />
     </>
   )

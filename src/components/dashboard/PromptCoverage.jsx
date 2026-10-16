@@ -73,7 +73,8 @@ export default function PromptCoverage() {
   const name = focal.name
   // the brand's missed prompts, as its KPI counts them
   const missed = getBrandView(domain, engine).kpis.missed
-  const ratio = rival?.prompts ? Math.floor((focal.prompts >= rival.prompts ? focal.prompts / rival.prompts : rival.prompts / focal.prompts) || 0) : 0
+  // a ratio only when both appear (a brand in 0 answers: "more", never "Infinity×")
+  const ratio = rival?.prompts && focal.prompts ? Math.floor((focal.prompts >= rival.prompts ? focal.prompts / rival.prompts : rival.prompts / focal.prompts) || 0) : 0
   const x = ratio >= 2 ? `${ratio}× more` : 'More'
   const more = x === 'More' ? 'more' : x
   // one short line ("Aurelia Labs appears in more answers than you.")

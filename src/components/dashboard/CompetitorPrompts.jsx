@@ -14,7 +14,8 @@ import { PlatformFilterPill, usePlatformFilter } from './PlatformFilter'
 import { brandName } from '../../utils/brand'
 
 const iconId = (p) => (p === 'google' ? 'aio' : p)
-const prevSync = recentSyncs[recentSyncs.length - 2].replace(', 2026', '').split(' ').reverse().join(' ') // "28 Sep"
+// the sync before the latest, "28 Sep" (none with a single sync: no new-wins line then)
+const prevSync = recentSyncs.length > 1 ? String(recentSyncs[recentSyncs.length - 2]).replace(/, \d{4}$/, '').split(' ').reverse().join(' ') : null
 // Default order: Missing first, then New wins, then the longest streak.
 const urgency = (r) => (r.you === 'missing' ? 1000 : 0) + (r.isNew ? 100 : 0) + (r.streak ?? 0)
 
@@ -273,7 +274,7 @@ export default function CompetitorPrompts() {
         filterBar={filterBar}
         onRowClick={(r, el) => (r.own ? openOwn(r, el) : setOpenId(r.id))}
         rowHeight="h-[52px]"
-        notice={topNew && alertOpen && (
+        notice={topNew && prevSync && alertOpen && (
           <span role="status" className="proportional-nums">
             {brandName(topNew.domain)} won {topNew.newWins} new prompt{topNew.newWins === 1 ? '' : 's'} since {prevSync} ·{' '}
             <button onClick={() => { setTab(topNew.domain); setNewOnly(true) }} className="rounded font-medium text-ink underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">Review</button>

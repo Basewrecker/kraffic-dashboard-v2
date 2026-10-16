@@ -161,11 +161,12 @@ export function WorkspaceSwitcher() {
   )
 }
 
-// the grouped nav links (sidebar on desktop, the drawer on phones); onNavigate runs before an in-app link navigates
-export function NavLinks({ path, onNavigate }) {
+// the grouped nav links (sidebar on desktop, the drawer on phones); onNavigate runs before an in-app link navigates.
+// nav: another set of groups (First-time setup's setup mode)
+export function NavLinks({ path, onNavigate, nav = groups }) {
   return (
     <nav className="flex flex-col" aria-label="Main">
-      {groups.map((g, gi) => (
+      {nav.map((g, gi) => (
       <div key={g.label} role="group" aria-labelledby={`nav-${g.label}`} className="flex flex-col gap-0.5">
       <div id={`nav-${g.label}`} className={`mb-1.5 px-3 text-[12px] leading-4 font-medium text-stone-500 ${gi ? 'mt-6' : ''}`}>{g.label}</div>
       {g.items.map(({ label, icon: Icon, href }) => {
@@ -192,7 +193,7 @@ export function NavLinks({ path, onNavigate }) {
   )
 }
 
-export default function Sidebar({ path = '/overview' }) {
+export default function Sidebar({ path = '/overview', nav }) {
   return (
     // below lg the sidebar is replaced by the top bar + drawer (MobileNav)
     <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-stone-200 bg-stone-50 lg:flex">
@@ -200,7 +201,7 @@ export default function Sidebar({ path = '/overview' }) {
       <div className="shrink-0 px-3 pt-4">
         <a href={HOME} title="Home" aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
       </div>
-      <div className="mt-6 px-3"><NavLinks path={path} /></div>
+      <div className="mt-6 px-3"><NavLinks path={path} nav={nav} /></div>
       {/* footer: theme, then the workspace (its menu holds Home) */}
       <div className="mt-auto flex flex-col gap-2 px-3 pb-3">
         <ThemeToggle />
