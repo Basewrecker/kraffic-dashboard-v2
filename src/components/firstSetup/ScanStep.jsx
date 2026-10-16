@@ -10,8 +10,10 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`
 
 // Step 4 — the first scan, read-only: saving the prompts started it, so this step starts nothing. It shows the scan's
 // real progress (prompts with their first results, polled), opens the dashboard once every prompt has its Google and
-// ChatGPT results, and says when the other engines come in. No scan running: it says so, with nothing to click.
-//   scan: { status: 'idle' (not checked yet) | 'running' | 'done' | 'none', scanned, total }
+// ChatGPT results, and says when the other engines come in. A prompt the scan couldn't check (a timed-out search)
+// doesn't hold the dashboard back: it opens, saying how many will be checked again with the next sync. No scan running:
+// it says so, with nothing to click.
+//   scan: { status: 'idle' (not checked yet) | 'running' | 'done' | 'none', scanned, total, failed }
 export default function ScanStep({ scan, update }) {
   const done = scan.status === 'done'
   // poll until the first results are in
@@ -55,6 +57,7 @@ export default function ScanStep({ scan, update }) {
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-tint text-ink" aria-hidden><Check size={14} strokeWidth={2.5} /></span>
             <span className="min-w-0">
               <span className="block text-[14px] leading-5 font-medium text-stone-900">Your dashboard is ready</span>
+              {scan.failed > 0 && <span className={`block text-[13px] leading-[18px] ${t2} tabular-nums`}>{plural(scan.failed, 'prompt')} couldn’t be checked. {scan.failed === 1 ? 'It’s' : 'They’re'} checked again with the next sync.</span>}
               {later}
             </span>
           </span>
