@@ -112,7 +112,8 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
   )
 }
 
-const BRAND_GROUPS = [
+// built when the header draws (not when the module loads), so the scores are the current ones
+const brandGroups = () => [
   { label: 'Your brand', items: TRACKED_BRANDS.filter((b) => b.you) },
   { label: 'View as a competitor', items: TRACKED_BRANDS.filter((b) => !b.you) },
 ].map((g) => ({ ...g, items: g.items.map((b) => ({ id: b.domain, label: b.name, meta: `${score(b.domain)}%` })) }))
@@ -163,7 +164,7 @@ export default function PageHeader() {
             prefix="Viewing as"
             value={focal.domain}
             onChange={setView}
-            groups={BRAND_GROUPS}
+            groups={brandGroups()}
             listLabel="View the dashboard as"
             title="See the dashboard from a competitor’s point of view"
           />
