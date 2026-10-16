@@ -199,7 +199,10 @@ function PromptHub() {
     const seen = (d) => Boolean(a?.[d] && (pid ? a[d].platforms.includes(pid) : a[d].visible))
     const appearingFor = a ? TRACKED_BRANDS.filter((b) => seen(b.domain)).map((b) => b.domain) : []
     const missedBy = a ? TRACKED_BRANDS.filter((b) => !seen(b.domain)).map((b) => b.domain) : []
-    const shown = pid && (r.status === 'visible' || r.status === 'missed') ? (seen(OWN.domain) ? 'visible' : 'missed') : r.status
+    // an engine filter: a prompt with no result on that engine is waiting for its scan there (answered: the engines with a
+    // result), not missed
+    const shown = pid && r.answered && !r.answered.includes(pid) ? 'pending'
+      : pid && (r.status === 'visible' || r.status === 'missed') ? (seen(OWN.domain) ? 'visible' : 'missed') : r.status
     return { ...r, status: shown, appearingFor, missedBy }
   }), [prompts, pid])
 

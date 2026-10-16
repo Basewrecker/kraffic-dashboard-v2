@@ -40,7 +40,6 @@ export default function PromptCoverage() {
     triggerClassName: 'inline-flex h-9 w-full min-w-0 max-w-[180px] items-center gap-2 whitespace-nowrap rounded-md border border-line bg-raised px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-focus',
   })
   const counts = TRACKED_BRANDS.map((b) => ({ ...b, prompts: getBrandView(b.domain, engine).kpis.visible }))
-  const appearancesTotal = counts.reduce((n, b) => n + b.prompts, 0)
   const pct = shares(counts.map((b) => b.prompts))
   // the selected brand first (ink), then the others by size: top 3 in c1 → c3, the rest as "Other brands" (tint)
   const focal = counts.find((b) => b.domain === domain)
@@ -78,14 +77,16 @@ export default function PromptCoverage() {
   const x = ratio >= 2 ? `${ratio}× more` : 'More'
   const more = x === 'More' ? 'more' : x
   // one short line ("Aurelia Labs appears in more answers than you.")
-  const first = !rival || !rival.prompts ? `In ${plural(focal.prompts, 'answer')}.`
+  const focalShare = rows.find((r) => r.domain === focal.domain)?.share ?? 0
+  const rivalShare = rival ? rows.find((r) => r.domain === rival.domain)?.share ?? 0 : 0
+  const first = !rival || !rival.prompts ? `${focalShare}% of brand appearances.`
     : focal.prompts >= rival.prompts ? `${own ? 'You appear' : `${name} appears`} in ${more} answers than ${rival.name}.`
       : `${rival.name} appears in ${more} answers than ${own ? 'you' : name}.`
   const insight = {
     text: first, // short, so it fits; the missed prompts are in the evidence line
     evidence: {
       keys: [`brand:${focal.domain}`, ...(rival ? [`brand:${rival.domain}`] : [])],
-      calc: `${name} appears in ${plural(focal.prompts, 'answer')}${rival ? `, ${rival.name} in ${rival.prompts}` : ''}, of ${appearancesTotal} brand appearances.`,
+      calc: `${name}: ${focalShare}% of brand appearances${rival ? `; ${rival.name}: ${rivalShare}%` : ''}.`,
       source: sourceLine(tracking),
       // the missed prompts live on /prompts for your own brand only (the action never truncates, unlike the line)
       ...(own && missed > 0 && { action: { label: plural(missed, 'prompt'), onClick: () => navigate('/tracker?visibility=missed') } }),
@@ -97,7 +98,6 @@ export default function PromptCoverage() {
     <>
       <div className="text-[32px] leading-none font-semibold text-stone-900 tabular-nums">{r.share}%</div>
       <div className="mt-1.5 line-clamp-2 break-words text-[13px] leading-[18px] text-stone-600">{r.domain === OWN.domain ? 'your share' : r.domain === 'other' ? 'other brands’ share' : `${r.name}’s share`}</div>
-      <div className="mt-0.5 text-[12px] leading-4 text-stone-500 tabular-nums">{r.prompts} of {appearancesTotal} appearances</div>
     </>
   )
 
@@ -138,14 +138,13 @@ export default function PromptCoverage() {
                   onFocus={() => preview(r.domain)}
                   onBlur={() => preview(null)}
                   onClick={() => navigate(promptsLink(r.domain, engine))}
-                  aria-label={`${r.name}: ${r.prompts} prompts, ${r.share}%. View prompts`}
+                  aria-label={`${r.name}: ${r.share}%. View prompts`}
                   className={`-mx-2 flex h-9 w-[calc(100%+16px)] items-center gap-3 rounded-lg px-2 text-left outline-none transition-[opacity,background-color] duration-200 ease-out focus-visible:ring-2 focus-visible:ring-focus hover:bg-[var(--tint)] ${hover && hover !== r.domain && !explain.on ? 'opacity-60' : ''}`}
                 >
                   <SiteLogo domain={r.domain} name={r.name} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" plate />
                   <span className={`min-w-0 truncate text-[14px] leading-5 ${r.domain === OWN.domain ? 'font-semibold text-ink' : 'font-medium text-stone-900'}`}>{r.name}</span>
-                  <span className="ml-auto text-[14px] leading-5 font-semibold text-ink tabular-nums">{r.prompts}</span>
                   {/* the slice-colour dot is the row's only link to the pie */}
-                  <span className="flex w-14 shrink-0 items-center justify-end gap-1.5 text-[13px] leading-[18px] text-stone-500 tabular-nums">
+                  <span className="ml-auto flex shrink-0 items-center justify-end gap-1.5 text-[14px] leading-5 font-semibold text-ink tabular-nums">
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: r.color }} aria-hidden />{r.share}%
                   </span>
                 </button>
@@ -153,7 +152,7 @@ export default function PromptCoverage() {
             )
           })}
         </ul>
-        {noBrand > 0 && <p className="mt-2 text-[13px] leading-[18px] text-stone-500 tabular-nums">{noBrand} {noBrand === 1 ? 'prompt mentions' : 'prompts mention'} no brand</p>}
+        {noBrand > 0 && <p className="mt-2 text-[13px] leading-[18px] text-stone-500 tabular-nums">{Math.round((noBrand / Math.max(1, trackedPrompts.length)) * 100)}% of prompts mention no brand</p>}
       </div>
 
       <div className="mt-auto pb-3 pt-2"><Insight explain={explain} {...insight} /></div>

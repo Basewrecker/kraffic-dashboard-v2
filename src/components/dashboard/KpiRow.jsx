@@ -59,6 +59,8 @@ export default function KpiRow() {
         </KpiCard>
         <KpiCard label="Missed prompts" icon={EyeOff} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} link="View opportunities" onOpen={() => goToSection('missed-prompts', isOwnBrand ? { sort: { key: 'appearingFor', dir: 'desc' } } : undefined)}>
           <Num value={kpis.missed} />
+          {/* prompts without a result yet (for this engine filter): visible + missed + these = every tracked prompt */}
+          {kpis.notScanned > 0 && <div className="mt-0.5 text-[12px] leading-4 text-stone-500 tabular-nums md:text-[13px] md:leading-[18px]">+ {kpis.notScanned} not scanned yet</div>}
         </KpiCard>
         <KpiCard label="Cited sources" icon={Link} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} link="View top pages" onOpen={(e) => openEngineDrawer({ engine, tab: 'pages', opener: e?.currentTarget })}>
           <Num value={kpis.citedSources} />

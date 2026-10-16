@@ -44,11 +44,14 @@ export const account = {
   },
 }
 
+// ?kpis=not-scanned: 3 prompts without a result yet (visible + missed + not scanned = total)
+const notScannedPreview = (() => { try { return new URLSearchParams(window.location.search).get('kpis') === 'not-scanned' } catch { return false } })()
 export const kpis = {
   score: 73,
   scoreDelta: 6,
   visible: 111,
-  missed: 41,
+  missed: notScannedPreview ? 38 : 41,
+  notScanned: notScannedPreview ? 3 : 0,
   total: 152,
   citedSources: 30,
 }
