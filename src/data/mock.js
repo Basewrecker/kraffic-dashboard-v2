@@ -1079,7 +1079,8 @@ export const krafficTracking = {
 // Options: lib/llm-region-options.js (REGIONS, COUNTRIES, COUNTRY_TO_REGION, CURRENCIES) and the language and
 // frequency lists in app/admin/llm-settings/LLMSettingsForm.js. Every row saves through the one PUT.
 // Engines: enabled_engines { aio, gemini, chatgpt, claude, grok } (at least one stays on; the API turns AI Overview
-// back on otherwise). Sync now: not a settings field (the app's scans run from its own routes), so it's left out.
+// back on otherwise). Sync now: POST /api/admin/sync-user-prompts (the superadmin Sync modes; Full sync = forceRescan),
+// then its progress until the sync completes.
 export const appTrackingOptions = {
   regions: [
     { value: 'North America', countries: ['USA', 'Canada', 'Mexico'] },
@@ -1103,6 +1104,7 @@ export const appTracking = {
   onSetEngine: (id, enabled) => settle({ [id]: enabled }),
   onSaveMarket: (patch) => settle(patch),
   onSetFrequency: (frequency) => settle({ frequency }),
+  onSyncNow: trackingActions.onSyncNow,
 }
 
 // ---------------------------------------------------------------------------------------------------------------
