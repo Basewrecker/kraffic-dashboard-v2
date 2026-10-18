@@ -6,7 +6,9 @@ import { useToast } from '../dashboard/overlays'
 import ConfirmPopover from '../prompts/ConfirmPopover'
 import Select from '../ui/Select'
 import Switch from '../ui/Switch'
-import { account } from '../../data/mock'
+import SyncSheet, { SYNC_ENGINE } from './SyncSheet'
+import { account, missedPrompts, syncModes } from '../../data/mock'
+import { role } from '../../store/workspace'
 import { linkClick } from '../../router'
 import { fmtAvailable, fmtDay, useTracking } from '../../store/trackingSettings'
 
@@ -107,11 +109,19 @@ export default function LlmSettingsPage({
     run().then(() => flash(key), () => setFailed({ key, retry: () => save(key, run) }))
   }
   const failedFor = (key) => (failed?.key === key ? failed : null)
-  const syncNow = () => {
+  // Sync now: a sheet first (what runs and roughly how many paid calls), then the sync; "Sync started" once the server
+  // took it, the engines' progress while it runs, "still running in the background" when it outlasts the wait (followed
+  // to the end), "Sync finished" when the results are in
+  const [syncSheet, setSyncSheet] = useState(false)
+  const modes = account.domain ? syncModes.website : syncModes.brand
+  const syncNow = (mode) => {
     setFailed(null)
-    t.syncNow(onSyncNow).then(() => toast('Sync finished'), () => setFailed({ key: 'sync', retry: syncNow }))
-    toast('Sync started')
+    setSyncSheet(false)
+    t.syncNow(onSyncNow, { mode, onAccepted: () => toast('Sync started'), onDone: () => toast('Sync finished') })
+      .then((res) => res?.status === 'complete' && toast('Sync finished'), () => setFailed({ key: 'sync', retry: () => syncNow(mode) }))
   }
+  // client users don't start syncs (their agency or Kraffic runs them): no button, a line saying so
+  const canSync = Boolean(onSyncNow) && role() !== 'client'
 
   // which rows this backend can save
   const regionList = onSaveMarket && regions?.length ? regions : null
@@ -160,13 +170,14 @@ export default function LlmSettingsPage({
         <div className="flex flex-wrap items-center gap-3 md:pt-1">
           {failed?.key === 'sync' && <Failed onRetry={failed.retry} />}
           {/* too soon for another sync: when it's possible again */}
-          {onSyncNow && tooSoon && !t.syncing && <span className="text-[13px] leading-[18px] text-stone-500 tabular-nums max-md:order-last max-md:w-full">Available {fmtAvailable(t.schedule.nextScanAt)}</span>}
+          {canSync && tooSoon && !t.syncing && <span className="text-[13px] leading-[18px] text-stone-500 tabular-nums max-md:order-last max-md:w-full">Available {fmtAvailable(t.schedule.nextScanAt)}</span>}
           <span className="hidden text-[13px] leading-[18px] text-stone-600 tabular-nums md:inline">{updated}</span>
-          {onSyncNow && (
+          {onSyncNow && !canSync && <span className="text-[13px] leading-[18px] text-stone-500">Your agency runs syncs</span>}
+          {canSync && (
           <button
             type="button"
-            onClick={syncNow}
-            disabled={t.syncing || tooSoon}
+            onClick={() => setSyncSheet(true)}
+            disabled={t.syncing || t.syncBackground || tooSoon}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-small font-medium text-stone-700 max-md:flex-1 md:h-9 outline-none transition-colors duration-150 ease-out hover:bg-stone-50 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-60"
           >
             <RefreshCw size={14} className={t.syncing ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />
@@ -175,6 +186,19 @@ export default function LlmSettingsPage({
           )}
         </div>
       </div>
+
+      {/* a sync on its way: starting, each engine's progress, or still running in the background */}
+      {canSync && (t.syncing || t.syncBackground) && (
+        <p role="status" className="-mt-3 text-[13px] leading-[18px] text-stone-600 tabular-nums">
+          {t.syncBackground
+            ? 'Still running in the background. Results appear as each engine finishes.'
+            : !t.syncAccepted ? 'Starting the sync…'
+              : t.syncProgress ? Object.entries(t.syncProgress).map(([e, p]) => `${SYNC_ENGINE[e] ?? e} ${p.done}/${p.total}`).join(' · ')
+                : 'Sync started'}
+        </p>
+      )}
+      <SyncSheet open={syncSheet} onClose={() => setSyncSheet(false)} name={account.name} modes={modes}
+        counts={{ prompts, missed: missedPrompts.length }} onStart={syncNow} />
 
       {/* 1 — platforms: on/off switches when the backend saves them; otherwise read-only (ready or not) */}
       <SettingsCard
