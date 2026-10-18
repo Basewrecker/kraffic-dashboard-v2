@@ -917,20 +917,30 @@ export const firstSetupStates = {
   brand: setupState(setupBrand, [], [], { status: 'idle' }),
   competitors: setupState(setupBrand, setupCompetitors, [], { status: 'idle' }),
   prompts: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'idle' }),
-  scanning: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'running', startedAt: minutesAgo(2.2) }),
+  scanning: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'running', scanned: 3, total: setupPrompts.length }),
+  'scan-none': setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'none' }),
   done: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'done' }),
+  // the scan finished but some prompts got no result (a timed-out search): the dashboard opens anyway
+  'scan-partial': setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'done', scanned: setupPrompts.length - 2, total: setupPrompts.length, failed: 2 }),
   'name-only': setupState({ name: 'Brightside Botanics', domain: null }, [], [], { status: 'idle' }),
 }
 export const firstSetupScanMinutes = 10
 // the client the brand belongs to (the agency / superadmin "Viewing … as" banner)
 export const firstSetupClient = 'Brightside'
-// First-time setup saves. Here: they settle after a moment; the mock's first scan finishes after 8s.
+// First-time setup saves. Here: they settle after a moment; the mock's first scan reaches every prompt in a few polls.
 // A brand, competitors and research go through setupActions / promptActions (Brand Setup, Prompt Hub).
+// onSavePrompts: every new prompt in one request (saving them starts the first scan) · onScanProgress: where the first
+// scan is ({ status: 'running' | 'done' | 'none', scanned, total, failed }); done once the scan has finished with
+// results, failed: prompts it couldn't check (they're checked again with the next sync); ?mock=scan-none: no scan running
+const firstScan = { scanned: 0 }
 export const firstSetupActions = {
-  onAddPrompts: (items) => new Promise((resolve) => setTimeout(() => resolve(items.map((it, i) => ({ id: `np${Date.now()}${i}`, text: it.text }))), 300)),
-  onStartScan: () => new Promise((resolve) => setTimeout(() => resolve({ startedAt: new Date().toISOString() }), 300)),
-  // → resolves when the scan has finished
-  onScanDone: () => new Promise((resolve) => setTimeout(resolve, 8000)),
+  onSavePrompts: (items) => new Promise((resolve) => setTimeout(() => resolve(items.map((it, i) => ({ id: `np${Date.now()}${i}`, text: it.text }))), 600)),
+  onScanProgress: () => new Promise((resolve) => setTimeout(() => {
+    if (new URLSearchParams(window.location.search).get('mock') === 'scan-none') { resolve({ status: 'none' }); return }
+    const total = setupPrompts.length
+    firstScan.scanned = Math.min(total, firstScan.scanned + Math.ceil(total / 3))
+    resolve(firstScan.scanned >= total ? { status: 'done', scanned: total, total } : { status: 'running', scanned: firstScan.scanned, total })
+  }, 300)),
 }
 
 // Brand Setup saves. Here: they settle after a moment (the page updates first and keeps the change).

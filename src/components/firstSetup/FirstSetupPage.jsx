@@ -63,12 +63,12 @@ export default function FirstSetupPage() {
     brand: <BrandStep brand={s.brand} onSave={(b) => { update({ brand: b }); next() }} editing={editing === 0} onCancel={() => setEditing(null)} />,
     competitors: <CompetitorsStep brand={s.brand} list={s.competitors} suggested={s.suggested} update={update} toast={toast} onContinue={next} />,
     prompts: <PromptsStep brand={s.brand} prompts={s.prompts} competitors={s.competitors} update={update} toast={toast} onContinue={next} />,
-    scan: <ScanStep prompts={s.prompts.length} scan={s.scan} update={update} />,
+    scan: <ScanStep scan={s.scan} update={update} />,
   }[id])
 
   return (
     <div className="mx-auto flex w-full max-w-[760px] flex-col pt-2">
-      <ViewAsBanner />
+      <ViewAsBanner name={name ?? firstSetupClient} />
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Set up {name ?? 'your brand'}</h1>
@@ -97,7 +97,7 @@ export default function FirstSetupPage() {
                     <h2 className="shrink-0 text-[15px] leading-5 font-semibold text-stone-900">{step.title}</h2>
                     <span className={`flex min-w-0 flex-1 items-center text-[13px] leading-[18px] ${t2}`}>{summary[step.id]}</span>
                     {/* a scan that started can't be undone, so Brand and the rest stay editable only before it */}
-                    {s.scan.status === 'idle' && <button type="button" onClick={() => setEditing(i)} className={textBtn}>Edit</button>}
+                    {(s.scan.status === 'idle' || s.scan.status === 'none') && <button type="button" onClick={() => setEditing(i)} className={textBtn}>Edit</button>}
                   </div>
                 ) : (
                   <div className="flex h-7 items-center gap-3">
@@ -125,15 +125,16 @@ function Marker({ n, state }) {
   )
 }
 
-// an agency (or superadmin) working inside a client's brand: who they are and the way back. ?viewer=superadmin
-function ViewAsBanner() {
+// an agency (or superadmin) working inside a client's brand: the brand's full name, who they are, the way back.
+// ?viewer=superadmin
+function ViewAsBanner({ name }) {
   const viewer = new URLSearchParams(window.location.search).get('viewer')
   const superadmin = viewer === 'superadmin'
   if (!superadmin && role() !== 'agency') return null
   return (
     <div role="status" className={`mb-6 flex h-10 items-center gap-2 rounded-[10px] bg-tint px-4 text-[13px] leading-[18px] ${t2}`}>
       <Eye size={14} className="shrink-0 text-stone-500" aria-hidden />
-      <span className="min-w-0 flex-1 truncate">Viewing <span className="font-medium text-stone-900">{firstSetupClient}</span> as {superadmin ? 'superadmin' : agency.name}</span>
+      <span className="min-w-0 flex-1 truncate">Viewing <span className="font-medium text-stone-900">{name}</span> as {superadmin ? 'superadmin' : agency.name}</span>
       <a href={HOME} className={textBtn}>{superadmin ? 'Exit' : <><span className="md:hidden">Back</span><span className="max-md:hidden">Back to {agency.name}</span></>}</a>
     </div>
   )
