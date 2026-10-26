@@ -262,8 +262,6 @@ function BrandIdentity({ brand, syncing, onEdit, onDelete }) {
               {/* what's tracked: a website, or a name with no site of its own */}
               {brand.type && <>{brand.domain && <span aria-hidden>·</span>}{brand.type === 'website' ? 'Website' : 'Brand name'}</>}
             </span>
-            {/* no other names: one muted line here instead of an empty "Also counts as" card */}
-            {!(brand.aliases ?? []).length && <span className="block text-[13px] leading-[18px] text-stone-500">No other names</span>}
           </span>
         </span>
         <span className="flex items-center gap-3">
@@ -334,7 +332,7 @@ function NamesCard({ brand, update, toast }) {
   const editable = Boolean(setupActions.onAddAlias)
   const chips = useAnimatedList(aliases, (a) => a, 150)
   const [failed, save] = useCardSave()
-  // no aliases and nothing to add with: the brand card says "No other names" instead of an empty card
+  // no aliases and nothing to add with: no card (nothing to show or add)
   if (!aliases.length && !editable) return null
   const counts = brand.aliasAnswers // null: not known, so no counts
   const shape = 'h-9 rounded-lg text-[14px]'
