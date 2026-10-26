@@ -813,6 +813,20 @@ export const promptActions = {
     await sleep(150)
     if (!promptCategories.includes(name)) promptCategories.push(name)
   },
+  // a topic renamed / deleted (its prompts go to Uncategorized; the prompts stay)
+  async onRenameCategory(from, to) {
+    await sleep(150)
+    trackedPrompts.forEach((p) => { if (p.category === from) p.category = to })
+  },
+  async onDeleteCategory(name) {
+    await sleep(150)
+    trackedPrompts.forEach((p) => { if (p.category === name) p.category = 'Uncategorized' })
+  },
+  // several prompts moved to one topic (bulk "Set topic")
+  async onSetCategory(ids, name) {
+    await sleep(150)
+    trackedPrompts.forEach((p) => { if (ids.includes(p.id)) p.category = name })
+  },
   async onRerunResearch() {
     await sleep(600)
   },
@@ -948,6 +962,9 @@ const settle = (value) => new Promise((resolve) => setTimeout(() => resolve(valu
 let setupSeq = 100
 export const setupActions = {
   onAddTopic: (brandId, name) => settle({ name, promptCount: 0 }),
+  // rename one; delete one (its prompts move to Uncategorized, the prompts stay)
+  onRenameTopic: (brandId, from, to) => settle({ name: to }),
+  onDeleteTopic: (brandId, name) => settle(name),
   onAddCompetitor: (brandId, { name, domain }) => settle({ id: `c${++setupSeq}`, name, domain }),
   onRenameCompetitor: (brandId, competitor, name) => settle({ ...competitor, name }),
   onRemoveCompetitor: (brandId, competitor) => settle(competitor),

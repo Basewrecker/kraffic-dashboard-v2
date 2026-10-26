@@ -24,10 +24,10 @@ const subscribe = (l) => { listeners.add(l); return () => listeners.delete(l) }
 export const allCategories = () => [...promptCategories, ...custom]
 export const isCustom = (name) => custom.includes(name)
 
-// 2–24 characters, trimmed, no case-insensitive duplicate (except the one being renamed)
+// 1–40 characters, trimmed, no case-insensitive duplicate (except the one being renamed)
 export function categoryError(raw, except = null) {
   const v = raw.trim().replace(/\s+/g, ' ')
-  if (v.length < 2 || v.length > 24) return 'Use 2–24 characters'
+  if (v.length < 1 || v.length > 40) return 'Use 1–40 characters'
   const dup = [...allCategories(), UNCATEGORIZED].find((c) => c !== except && c.toLowerCase() === v.toLowerCase())
   return dup ? `${dup} already exists` : null
 }
@@ -37,6 +37,6 @@ export function renameCategory(from, to) { set(custom.map((c) => (c === from ? t
 export function deleteCategory(name) { set(custom.filter((c) => c !== name)) }
 
 export function useCategories() {
-  const c = useSyncExternalStore(subscribe, () => custom)
+  const c = useSyncExternalStore(subscribe, () => custom, () => custom)
   return { all: [...promptCategories, ...c], custom: c }
 }

@@ -7,11 +7,12 @@ import {
 } from '../../store/categories'
 import { promptActions } from '../../data/mock'
 
-// Category combobox (toolbar filter, add-prompt row, inline edit): search the categories, or create one.
+// Topic combobox (toolbar filter, add-prompt row, inline edit, bulk "Set topic"): search the topics, or create one.
 //   value / onChange(name)      the selected category ('all' when allLabel is set and nothing is picked)
 //   counts                      prompts per category shown in the list; usage = prompts per category overall
 //                               (what a delete would move); defaults to counts
-//   allLabel                    adds an "All categories" option (filter mode)
+//   allLabel                    adds an "All topics" option (filter mode)
+//   placeholder                 the trigger's text while nothing is picked (bulk "Set topic")
 //   onCreated(name) / onRenamed(from, to) / onDeleted(name, moved)   the page updates prompts + toasts
 // The menu renders in a portal (tables clip), marked data-popover so open inline edits ignore its clicks.
 // ↑/↓ move, Enter picks / creates, Esc closes.
@@ -19,7 +20,7 @@ const row = 'flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2 t
 const iconBtn = 'grid h-6 w-6 shrink-0 place-items-center rounded text-stone-500 outline-none hover:bg-surface hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus'
 
 export default function CategorySelect({
-  value, onChange, counts = {}, usage, allLabel = null, label = 'Category', triggerClassName, onCreated, onRenamed, onDeleted,
+  value, onChange, counts = {}, usage, allLabel = null, label = 'Topic', placeholder = null, triggerClassName, onCreated, onRenamed, onDeleted,
 }) {
   const { all } = useCategories()
   const [open, setOpen] = useState(false)
@@ -113,7 +114,7 @@ export default function CategorySelect({
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close() }
     else if (e.key === 'Tab') close(false)
   }
-  const shown = value === 'all' ? allLabel : value
+  const shown = value === 'all' ? allLabel : value ?? placeholder
 
   return (
     <>
@@ -192,7 +193,7 @@ export default function CategorySelect({
                 </div>
               )
             })}
-            {!matches.length && !create && <p className="px-2 py-2 text-[13px] text-stone-500">No categories</p>}
+            {!matches.length && !create && <p className="px-2 py-2 text-[13px] text-stone-500">No topics</p>}
           </div>
 
           <div className="mt-1 border-t border-line pt-1">
@@ -200,7 +201,7 @@ export default function CategorySelect({
               onMouseEnter={() => setActive(createIdx)} onClick={() => choose(createIdx)}
               className={`${row} gap-1.5 font-medium ${create ? 'text-ink' : 'text-stone-600'} ${active === createIdx ? 'bg-tint' : ''}`}>
               <Plus size={14} className="shrink-0" aria-hidden />
-              <span className="truncate">{create ? `Create “${tidyCategory(q)}”` : 'New category'}</span>
+              <span className="truncate">{create ? `Create “${tidyCategory(q)}”` : 'New topic'}</span>
             </div>
           </div>
         </div>,
