@@ -23,6 +23,7 @@ export const groups = [
   { label: 'Settings', items: [
     { label: 'Brand Setup', icon: Settings2, href: '/brands' },
     { label: 'Tracking', icon: Cpu, href: '/tracking' },
+    { label: 'Team', icon: Users, href: '/team' },
   ] },
 ]
 
@@ -62,7 +63,7 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
     )
   }
   const foot = [
-    ['Team', Users, null],
+    ['Team', Users, '/team'],
     ['Billing', CreditCard, '/billing'],
     ['Settings', Settings2, '/brands'],
     ['Profile', UserRound, null],
