@@ -13,6 +13,14 @@ export function syncSummary(m, counts) {
   if (!n) return m.prompts === 'missed' ? 'No missed Google prompts to re-check' : 'No prompts to sync yet'
   return `${fmt(n)} ${n === 1 ? 'prompt' : 'prompts'} · estimated ${lo === hi ? fmt(lo) : `${fmt(lo)}–${fmt(hi)}`} paid calls`
 }
+// one option's line in the list: the prompt count is in the subtitle once, so an option names it only when it differs
+// (missed prompts); "Paid scan · estimated 170–322 paid calls" · "Paid scan · 41 missed prompts · estimated 59–305 …"
+function optionLine(m, counts) {
+  const { n, lo, hi } = estimateSync(m, counts)
+  if (!n) return `Paid scan · ${syncSummary(m, counts)}`
+  const calls = `estimated ${lo === hi ? fmt(lo) : `${fmt(lo)}–${fmt(hi)}`} paid calls`
+  return m.prompts === 'missed' ? `Paid scan · ${fmt(n)} missed ${n === 1 ? 'prompt' : 'prompts'} · ${calls}` : `Paid scan · ${calls}`
+}
 
 // Sync now: what runs and roughly how many paid calls it makes; nothing starts until Start sync. Phones: a bottom sheet.
 //   modes: one mode (Tracking: the full scan, nothing to pick) or several (the agency Clients list: the app's Sync menu,
@@ -29,7 +37,7 @@ export default function SyncSheet({ open, onClose, name, modes, counts, onStart 
       onClose={onClose}
       size="md"
       title="Sync now"
-      subtitle={`Checks ${name}’s prompts again. Every sync is a paid scan, charged per prompt and engine.`}
+      subtitle={`Checks ${name}’s ${single ? '' : `${fmt(counts.prompts)} `}prompts again. Every sync is a paid scan, charged per prompt and engine.`}
       footer={(
         <>
           {/* one mode: its estimate here; several: each option shows its own, so the footer only names the pick */}
@@ -57,7 +65,7 @@ export default function SyncSheet({ open, onClose, name, modes, counts, onStart 
                 <span className="min-w-0">
                   <span className="block text-[14px] leading-5 font-medium text-stone-900">{x.title}</span>
                   <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-600">{x.description}</span>
-                  <span className="mt-1 block text-[12px] leading-4 text-stone-500 tabular-nums">Paid scan · {syncSummary(x, counts)}</span>
+                  <span className="mt-1 block text-[12px] leading-4 text-stone-500 tabular-nums">{optionLine(x, counts)}</span>
                 </span>
               </button>
             )
