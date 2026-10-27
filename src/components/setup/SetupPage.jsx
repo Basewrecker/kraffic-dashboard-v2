@@ -724,8 +724,8 @@ export default function SetupPage() {
               <NamesCard brand={brand} update={update} toast={toast} />
               <TopicsCard brand={brand} update={update} toast={toast} />
               <CompetitorsCard brand={brand} update={update} toast={toast} />
-              {/* marketplaces: accounts with ecommerce, when the backend keeps the brand's stores */}
-              {account.features?.ecommerce !== false && Array.isArray(brand.marketplaces) && <MarketplacesCard brand={brand} update={update} toast={toast} />}
+              {/* marketplaces: the data layer gives a brand its stores when the account has ecommerce (null otherwise) */}
+              {Array.isArray(brand.marketplaces) && <MarketplacesCard brand={brand} update={update} toast={toast} />}
             </div>
           )
         })
