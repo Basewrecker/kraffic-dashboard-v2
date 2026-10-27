@@ -507,7 +507,7 @@ function PromptHub() {
           )}
           {brandFilter && (
             <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-line bg-tint pl-2.5 pr-1 text-[13px] font-medium text-stone-900">
-              <span className="font-normal text-stone-500">Mentions</span> {brandFilter.name}{brandFilter.engine && <span className="font-normal text-stone-500">· {engineName(brandFilter.engine)}</span>}
+              <span className="font-normal text-stone-500">Appears for</span> {brandFilter.name}{brandFilter.engine && <span className="font-normal text-stone-500">· {engineName(brandFilter.engine)}</span>}
               <button type="button" aria-label={`Clear brand ${brandFilter.name}`} onClick={() => setBrandFilter(null)} className="grid h-6 w-6 place-items-center rounded text-stone-500 outline-none hover:bg-surface hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><X size={12} aria-hidden /></button>
             </span>
           )}
