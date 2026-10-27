@@ -46,7 +46,7 @@ export const account = {
 
 export const kpis = {
   score: 73,
-  scoreDelta: 6,
+  scoreDelta: 7,
   visible: 111,
   missed: 41,
   total: 152,
@@ -65,7 +65,7 @@ export const history = [
   { date: 'Sep 7', dermasuri: 71, paulas: 2, cerave: 20, ordinary: 12 },
   { date: 'Sep 16', dermasuri: 74, paulas: 2, cerave: 21, ordinary: 9 },
   { date: 'Sep 21', dermasuri: 71, paulas: 3, cerave: 19, ordinary: 6 },
-  { date: 'Sep 28', dermasuri: 67, paulas: 3, cerave: 17, ordinary: 9 },
+  { date: 'Sep 28', dermasuri: 66, paulas: 3, cerave: 17, ordinary: 9 },
   { date: 'Oct 5', dermasuri: 73, paulas: 3, cerave: 18, ordinary: 4 },
 ]
 
@@ -532,8 +532,8 @@ const srand = mulberry32(440)
 // PLACEHOLDER: the first 5 scores come from the weekly history; everything else must be
 // replaced with the exact screenshot values.
 export const syncHistory = [
-  { date: 'Oct 5, 2026', visibility: 73, mentions: 111, cited: 30, visible: 111, missed: 41, delta: 6 },
-  { date: 'Sep 28, 2026', visibility: 67, mentions: 102, cited: 27, visible: 102, missed: 50, delta: -4 },
+  { date: 'Oct 5, 2026', visibility: 73, mentions: 111, cited: 30, visible: 111, missed: 41, delta: 7 },
+  { date: 'Sep 28, 2026', visibility: 66, mentions: 101, cited: 27, visible: 101, missed: 51, delta: -5 },
   { date: 'Sep 21, 2026', visibility: 71, mentions: 108, cited: 29, visible: 108, missed: 44, delta: -3 },
   { date: 'Sep 16, 2026', visibility: 74, mentions: 112, cited: 31, visible: 112, missed: 40, delta: 3 },
   { date: 'Sep 7, 2026', visibility: 71, mentions: 108, cited: 28, visible: 108, missed: 44, delta: 2 },
@@ -581,7 +581,7 @@ export const syncTotal = 40
     const prev = syncHistory[i + 1]
     if (!prev) { r.changes = null; return } // oldest sync in the mock: nothing to compare against
     if (i === 0) {
-      r.changes = { vs: short(prev.date), deltas: { mentions: 16, citedPages: 10, missed: -9 }, gained: gainedLatest.map(item), lost: lostLatest.map(item) }
+      r.changes = { vs: short(prev.date), deltas: { mentions: 16, citedPages: 10, missed: -10 }, gained: gainedLatest.map(item), lost: lostLatest.map(item) }
       return
     }
     const dVisible = r.visible - prev.visible

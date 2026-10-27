@@ -256,6 +256,9 @@ function applyEngine(base, engine) {
     cited: Math.round(r.cited * citedRatio),
     changes: r.changes && { ...r.changes, gained: r.changes.gained.filter((g) => visIds.has(g.id)) },
   }))
+  // the latest row is the score the card shows on this engine; an engine that never shows the brand loses nothing
+  if (syncRows[0]) syncRows[0].visibility = pct(onEngine.size, TOTAL)
+  if (!ratio) syncRows.forEach((r) => { if (r.changes) r.changes = { ...r.changes, lost: [] } })
   syncRows.forEach((r, i) => { r.delta = i < syncRows.length - 1 ? r.visibility - syncRows[i + 1].visibility : Math.round(r.delta * ratio) })
 
   // top cited pages on this engine
