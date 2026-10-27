@@ -208,6 +208,11 @@ export function weekInsight({ metric, rows, changes, you = true, name }) {
   }
 }
 
+// the drawer waits on this each time it opens (production: reads the weeks from the server; here, a short pause so the
+// skeleton shows). Resolves when citationWeeks / weekRows have the brand's weeks.
+const LOAD_MS = 450
+export const loadWeeks = () => new Promise((resolve) => setTimeout(resolve, LOAD_MS))
+
 // mock states (?cmMock=loading | empty)
 export const historyMock = () => {
   try { return new URLSearchParams(window.location.search).get('cmMock') } catch { return null }
