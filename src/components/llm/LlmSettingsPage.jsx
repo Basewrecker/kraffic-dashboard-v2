@@ -7,7 +7,7 @@ import ConfirmPopover from '../prompts/ConfirmPopover'
 import Select from '../ui/Select'
 import Switch from '../ui/Switch'
 import SyncSheet, { SYNC_ENGINE } from '../clients/SyncSheet'
-import { account, missedPrompts, syncModes } from '../../data/mock'
+import { account, missedPrompts, trackingSyncMode } from '../../data/mock'
 import { role } from '../../store/workspace'
 import { linkClick } from '../../router'
 import { fmtAvailable, fmtDay, useTracking } from '../../store/trackingSettings'
@@ -110,11 +110,12 @@ export default function LlmSettingsPage({
     run().then(() => flash(key), () => setFailed({ key, retry: () => save(key, run) }))
   }
   const failedFor = (key) => (failed?.key === key ? failed : null)
-  // Sync now: a sheet first (what runs and roughly how many paid calls), then the sync; "Sync started" once the server
-  // took it, the engines' progress while it runs, "still running in the background" when it outlasts the wait (followed
-  // to the end), "Sync finished" when the results are in
+  // Sync now: always one full paid scan (no partial modes here; those are on the agency Clients list). A sheet first
+  // says what runs and roughly how many paid calls, then the sync; "Sync started" once the server took it, the engines'
+  // progress while it runs, "still running in the background" when it outlasts the wait (followed to the end), "Sync
+  // finished" when the results are in
   const [syncSheet, setSyncSheet] = useState(false)
-  const modes = account.domain ? syncModes.website : syncModes.brand
+  const modes = [trackingSyncMode(Boolean(account.domain))]
   const syncNow = (mode) => {
     setFailed(null)
     setSyncSheet(false)

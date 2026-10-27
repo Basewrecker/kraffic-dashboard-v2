@@ -1009,10 +1009,12 @@ export const SYNC_AFTER = 9
 // roughly how many paid calls a mode makes: { n: prompts it runs, lo, hi }. counts: { prompts, missed, domains, aiMode }
 export const estimateSync = (m, { prompts, missed, domains = 1, aiMode = false }) => {
   const n = m.prompts === 'missed' ? missed : prompts
-  if (!m.engines.length || !n) return { n, lo: 0, hi: 0 }
+  if (!n) return { n, lo: 0, hi: 0 }
   const [lo, hi] = m.engines.reduce(([a, b], e) => [a + SYNC_CALLS[e][0] * n, b + (SYNC_CALLS[e][1] + (e === 'aio' && aiMode ? SYNC_AI_MODE : 0)) * n], [0, 0])
   return { n, lo: lo + SYNC_AFTER * domains, hi: hi + SYNC_AFTER * domains }
 }
+// Every mode is a paid scan (no mode without engines). Tracking's Sync now runs only the full scan (trackingSyncMode);
+// the partial ones (missed prompts, one engine) are offered only on the agency Clients list, each labelled a paid scan.
 export const syncModes = {
   website: [
     { id: 'full', title: 'Full sync', description: 'Runs Google (SERP + AI Mode), ChatGPT, Gemini, and Claude for every prompt.', engines: ['aio', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
@@ -1021,14 +1023,13 @@ export const syncModes = {
     { id: 'gemini_only', title: 'Gemini sync', description: 'Runs Gemini for every prompt. Skips Google, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
     { id: 'claude_only', title: 'Claude sync', description: 'Runs Claude for every prompt. Skips Google, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
   ],
+  // a name-only brand: only Tracking's Sync now, so only the full scan
   brand: [
     { id: 'brand_full', title: 'Full brand sync', description: 'Runs every platform for this brand and its competitors, then rebuilds the Brand vs Brand comparison.', engines: ['aio', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
-    { id: 'brand_insights', title: 'Rebuild insights only', description: 'Re-reads the answers already stored and regenerates the topic comparison and recommendations. No new scans, no scan cost.', engines: [], prompts: 'all' },
-    { id: 'gemini_only', title: 'Gemini only', description: 'Runs Gemini for every prompt. Skips Google, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
-    { id: 'chatgpt_only', title: 'ChatGPT only', description: 'Runs ChatGPT for every prompt. Skips Google, Gemini, and Claude.', engines: ['chatgpt'], prompts: 'all' },
-    { id: 'claude_only', title: 'Claude only', description: 'Runs Claude for every prompt. Skips Google, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
   ],
 }
+// Tracking's Sync now: one full paid scan, nothing to pick (a website brand, else a name-only brand)
+export const trackingSyncMode = (hasDomain) => (hasDomain ? syncModes.website : syncModes.brand)[0]
 // a sync here: accepted after a moment, then each engine works through its prompts (progress). ?sync=slow: it outlasts
 // the page's wait, so the page says it's still running in the background and keeps following it until it finishes
 // (onDone); ?sync=fail: refused (a sync already running for the brand)
