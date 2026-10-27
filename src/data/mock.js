@@ -656,7 +656,9 @@ export const citedPagesOther = [
 // ---------------------------------------------------------------------------
 const YOU = brandName(account.domain) // "Dermasuri": the account's own segment is named after the brand
 const MARKET_TOTAL = visiblePrompts.length + missedPrompts.length // = trackedPrompts.length (built from these below)
-const MARKET_YOURS = 18
+// ?mktMock=empty: no answer links to your listings yet (Marketplace visibility's empty state)
+const MARKET_EMPTY = (() => { try { return new URLSearchParams(window.location.search).get('mktMock') === 'empty' } catch { return false } })()
+const MARKET_YOURS = MARKET_EMPTY ? 0 : 18
 const MARKET_OTHERS = [{ label: 'cerave.com', value: 41 }, { label: 'theordinary.com', value: 29 }, { label: 'paulaschoice.com', value: 18 }, { label: 'Category pages', icon: 'category', value: 24, muted: true }]
 const MARKET_OTHERS_N = MARKET_OTHERS.reduce((n, r) => n + r.value, 0) // 112
 const MARKET_NONE = MARKET_TOTAL - MARKET_YOURS - MARKET_OTHERS_N // 22
@@ -670,7 +672,7 @@ export const marketplace = {
     { key: 'yours', label: YOU, count: MARKET_YOURS, color: 'var(--donut-yours)',
       headline: `link to a ${YOU} listing`,
       breakdownTitle: 'By marketplace',
-      rows: [{ label: 'Target', icon: 'target', domain: 'target.com', value: 12 },
+      rows: MARKET_EMPTY ? [] : [{ label: 'Target', icon: 'target', domain: 'target.com', value: 12 },
              { label: 'Amazon', icon: 'amazon', domain: 'amazon.com', value: 8 }],
       note: '2 prompts link to both',
       action: { label: `View ${MARKET_YOURS} prompts`, filter: 'yours' } },
@@ -709,7 +711,7 @@ export const marketplace = {
   // one "who/what gets cited" bucket per prompt, straight from the segment breakdowns
   const seg = Object.fromEntries(marketplace.segments.map((x) => [x.key, x]))
   // yours: 10 Target-only, 6 Amazon-only, 2 both → Target 12, Amazon 8 listings over 18 prompts
-  const yourMarkets = [...Array(10).fill(['Target']), ...Array(6).fill(['Amazon']), ['Target', 'Amazon'], ['Target', 'Amazon']]
+  const yourMarkets = MARKET_EMPTY ? [] : [...Array(10).fill(['Target']), ...Array(6).fill(['Amazon']), ['Target', 'Amazon'], ['Target', 'Amazon']]
   const buckets = shuffle([
     ...yourMarkets.map((markets) => ({ result: 'yours', markets, source: 'dermasuri' })),
     ...seg.others.rows.filter((r) => !r.you).flatMap((r) => Array(r.value).fill(r.label)).map((label) =>
