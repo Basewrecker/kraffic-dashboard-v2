@@ -253,11 +253,14 @@ function FitChips({ items, chip, more, measureKey }) {
         {shown.map((s) => chip(s, fit.small))}
         {rest.length > 0 && more(rest, fit.small)}
       </div>
-      {/* off-screen copies at both sizes, for the widths */}
-      <div ref={probe} aria-hidden inert="" className="pointer-events-none invisible absolute left-0 top-0 flex w-max whitespace-nowrap">
-        {items.map((s) => <span key={`md-${s.key}`} data-probe="md" className="inline-flex">{chip(s, false)}</span>)}
-        {items.map((s) => <span key={`sm-${s.key}`} data-probe="sm" className="inline-flex">{chip(s, true)}</span>)}
-        <span data-probe="more" className="inline-flex"><MoreTrigger n={items.length} small /></span>
+      {/* off-screen copies at both sizes, for the widths; clipped, so the copies never widen the page (on phones that
+          made the whole layout, and every drawer, wider than the screen) */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div ref={probe} aria-hidden inert="" className="invisible absolute left-0 top-0 flex w-max whitespace-nowrap">
+          {items.map((s) => <span key={`md-${s.key}`} data-probe="md" className="inline-flex">{chip(s, false)}</span>)}
+          {items.map((s) => <span key={`sm-${s.key}`} data-probe="sm" className="inline-flex">{chip(s, true)}</span>)}
+          <span data-probe="more" className="inline-flex"><MoreTrigger n={items.length} small /></span>
+        </div>
       </div>
     </div>
   )

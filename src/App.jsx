@@ -32,6 +32,7 @@ import { DashboardViewProvider } from './hooks/useBrandView'
 import AnswerDrawer from './components/answer/AnswerDrawer'
 import EngineDrawer from './components/answer/EngineDrawer'
 import SyncDrawer from './components/answer/SyncDrawer'
+import CitationsDrawer from './components/answer/CitationsDrawer'
 import { AppLoading, PageError, PageLoading, PageNotFound } from './components/ui/PageState'
 import { CardGate } from './components/ui/CardState'
 import CookieBanner from './components/ui/CookieBanner'
@@ -68,6 +69,7 @@ function DashboardPage() {
           <AnswerDrawer />
           <EngineDrawer />
           <SyncDrawer />
+          <CitationsDrawer />
           </PlatformFilterProvider>
           </DashboardViewProvider>
     </>

@@ -1,7 +1,7 @@
 // Run with: npm test
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { citationWeeks, weekChanges, weekTotals } from './citationHistory.js'
+import { citationWeeks, weekChanges, weekRows, weekSummary, weekTotals } from './citationHistory.js'
 import { pagePath } from './brandViews.js'
 import { citationsMentions } from './mock.js'
 
@@ -25,15 +25,23 @@ test('a failed engine scan is unknown, never 0', () => {
 })
 
 test('gained − lost matches the week’s change for citations and cited pages', () => {
-  const { weeks, syncs } = citationWeeks('dermasuri.com')
+  const { syncs } = citationWeeks('dermasuri.com')
+  const rows = weekRows('dermasuri.com', 'all', ALL)
   for (const metric of ['citations', 'pages']) {
-    for (let i = 0; i < weeks.length - 1; i++) {
-      const totals = weekTotals(weeks[i], 'all', ALL), prev = weekTotals(weeks[i + 1], 'all', ALL)
-      const c = weekChanges({ domain: 'dermasuri.com', metric, index: i, totals, prevTotals: prev, sync: syncs[i] })
+    for (const row of rows) {
+      const c = weekChanges({ domain: 'dermasuri.com', metric, row, engine: 'all', sync: syncs[row.index] })
       if (!c) continue
-      assert.equal(c.gained.length - c.lost.length, totals[metric] - prev[metric], `${metric} week ${i}`)
+      assert.equal(c.gained.length - c.lost.length, row.delta[metric], `${metric} week ${row.index}`)
     }
   }
+})
+
+test('week summaries: a failed week says so; mentions count the sync’s prompts', () => {
+  const { syncs } = citationWeeks('dermasuri.com')
+  const rows = weekRows('dermasuri.com', 'all', ALL)
+  assert.equal(weekSummary({ metric: 'mentions', row: rows[4], changes: null }), 'Scan didn’t complete this week')
+  const c = weekChanges({ domain: 'dermasuri.com', metric: 'mentions', row: rows[0], engine: 'all', sync: syncs[0] })
+  assert.equal(weekSummary({ metric: 'mentions', row: rows[0], changes: c }), `+${c.gained.length} prompts now mention you · ${c.lost.length} dropped`)
 })
 
 test('a page with or without utm_ parameters counts once', () => {

@@ -1,16 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
-import { ChevronRight } from 'lucide-react'
+import { ArrowRight, ChevronRight } from 'lucide-react'
 import Card from './Card'
-import Segmented from './Segmented'
-import CitationsHistory from './CitationsHistory'
 import Gauge from '../ui/Gauge'
 import Insight, { hl, useExplain } from '../ui/Insight'
 import { platformEvidence } from './insights'
 import { useCardBrand } from './BrandSelect'
 import { PlatformIcon } from './icons'
 import { openEngineDrawer } from '../answer/EngineDrawer'
-import { ENGINES, OWN, brandByDomain, engineName, getBrandView } from '../../data/brandViews'
+import { openCitationsDrawer } from '../answer/CitationsDrawer'
+import { ENGINES, OWN, brandByDomain, getBrandView } from '../../data/brandViews'
+import { weekRows } from '../../data/citationHistory'
 import { citationsMentions, trackedPrompts } from '../../data/mock'
 import { useBrandView, useCountUp } from '../../hooks/useBrandView'
 import { platformRates } from '../../utils/platformInsight'
@@ -30,27 +28,26 @@ function Clickable({ value, label, onOpen, children }) {
   return <button type="button" onClick={onOpen} aria-label={label} className={cell}>{children}<Chevron /></button>
 }
 
-const Stat = ({ label, children, gap = 'mt-1' }) => (
+const Stat = ({ label, children, gap = 'mt-1', foot = null }) => (
   <div className="min-w-0">
     <div className="text-[13px] leading-[18px] font-medium text-stone-600">{label}</div>
     <div className={`${gap} flex items-end gap-3`}>{children}</div>
+    {foot}
   </div>
 )
+
+// "+22 vs last week" under a big number (the change, negative token when down); opens the week-by-week drawer on it
+function VsLastWeek({ d, label, onOpen }) {
+  if (d == null) return null
+  return (
+    <button type="button" onClick={onOpen} aria-label={`${label}: ${d === 0 ? 'no change' : d > 0 ? `up ${d}` : `down ${Math.abs(d)}`} vs last week. Open week by week`}
+      className="-mx-1 mt-0.5 block rounded px-1 text-left text-[12px] leading-4 text-stone-500 tabular-nums outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">
+      {d === 0 ? 'No change' : <span className={d < 0 ? 'text-negative' : ''}>{d > 0 ? `+${d}` : `−${Math.abs(d)}`}</span>} vs last week
+    </button>
+  )
+}
 const Big = ({ value }) => <span className="text-[24px] leading-8 font-semibold tabular-nums md:text-[32px]">{useCountUp(value)}</span>
 const Num = ({ value }) => <span className="text-[14px] leading-5 font-medium tabular-nums">{useCountUp(value)}</span>
-
-// Now | History (?cm=history): Now is the card as it always was; History compares the three numbers week by week
-// (CitationsHistory). Switching animates the card's height while the two views cross-fade (200ms).
-const MODES = [{ value: 'now', label: 'Now' }, { value: 'history', label: 'History' }]
-const SWAP_MS = 200
-const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-const readMode = () => (new URLSearchParams(window.location.search).get('cm') === 'history' ? 'history' : 'now')
-function writeMode(m) {
-  const url = new URL(window.location.href)
-  if (m === 'history') url.searchParams.set('cm', 'history')
-  else url.searchParams.delete('cm')
-  window.history.replaceState(window.history.state, '', url)
-}
 
 // "Claude and Grok" / "Claude, Grok and Perplexity"
 const listOf = (names) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`)
@@ -83,39 +80,9 @@ export default function CitationsMentions() {
   // drawer for this card's brand (not necessarily the page's "Viewing as")
   const open = (engine, tab, e) => openEngineDrawer({ engine, tab, brand: domain, opener: e.currentTarget })
   const shownScore = useCountUp(score)
-
-  // Now | History. The card's height goes from the old view's to the new one's while the old view fades out on top
-  const [mode, setModeState] = useState(readMode)
-  const [leaving, setLeaving] = useState(null) // the view fading out
-  const [visited, setVisited] = useState(() => readMode() === 'history') // History mounts the first time it's opened
-  const timer = useRef(null)
-  useEffect(() => () => clearTimeout(timer.current), [])
-  const setMode = (next) => {
-    if (next === mode) return
-    const el = explain.cardRef.current
-    const from = el?.getBoundingClientRect().height
-    clearTimeout(timer.current)
-    for (const k of ['height', 'align-self']) el?.style.removeProperty(k)
-    flushSync(() => { setModeState(next); setVisited(true); setLeaving(reduced() ? null : mode) })
-    writeMode(next)
-    if (!el || reduced()) return
-    const to = el.getBoundingClientRect().height
-    // while it animates the card sizes itself, so the neighbouring card doesn't stretch along with it
-    el.style.alignSelf = 'start'
-    el.style.height = `${from}px`
-    el.style.overflow = 'hidden'
-    void el.offsetHeight
-    el.style.transition = `height ${SWAP_MS}ms ease-out`
-    el.style.height = `${to}px`
-    timer.current = setTimeout(() => {
-      for (const k of ['height', 'overflow', 'transition', 'align-self']) el.style.removeProperty(k)
-      setLeaving(null)
-    }, SWAP_MS)
-  }
-  // a view's wrapper: the shown one in the flow (fading in), the leaving one laid over it (fading out), else hidden
-  const panel = (v) => (v === mode
-    ? `flex flex-1 flex-col ${leaving ? 'motion-safe:animate-[fade-in_200ms_ease-out]' : ''}`
-    : v === leaving ? 'pointer-events-none absolute inset-x-0 top-0 flex flex-col opacity-0 transition-opacity duration-200 ease-out' : 'hidden')
+  // this week vs last (all of the brand's engines, as the numbers above): the drawer has the weeks before
+  const [thisWeek] = weekRows(domain, 'all', enabled, 2)
+  const week = (metric, e) => openCitationsDrawer({ metric, brand: domain, opener: e.currentTarget })
 
   // insight: about the engine that cites the brand most (else mentions it most), compared with the others
   const insightRows = rows.map((r) => {
@@ -131,27 +98,23 @@ export default function CitationsMentions() {
 
 
   return (
-    // History sizes to its rows (self-start) so the card beside it keeps its own height; Now stretches to the row
-    <Card ref={explain.cardRef} id="platforms" className={`flex min-w-0 scroll-mt-6 flex-col px-5 pt-5 ${mode === 'history' ? 'self-start' : 'h-full'}`}>
+    <Card ref={explain.cardRef} id="platforms" className="flex h-full min-w-0 scroll-mt-6 flex-col px-5 pt-5">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="text-[17px] leading-6 font-semibold text-stone-900">Citations and Mentions</h2>
-          {/* wraps rather than truncates: the Now | History control takes some of the line */}
-          <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums" title={mode === 'now' ? silentLine ?? undefined : undefined}>
-            {mode === 'now'
-              ? <>Across {TOTAL} prompts{silentLine && ` · ${silentLine}`}</>
-              : <>Week by week · {TOTAL} prompts{page.engine !== 'all' && ` · ${engineName(page.engine)}`}</>}
+          <p className="mt-0.5 truncate text-[13px] leading-[18px] text-stone-600 tabular-nums" title={silentLine ?? undefined}>
+            Across {TOTAL} prompts{silentLine && ` · ${silentLine}`}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {/* the brand menu is Now's; History picks brands in its own row */}
-          {mode === 'now' && brandSelect}
-          <Segmented size="sm" label="View" value={mode} onChange={setMode} options={MODES} />
+        <div className="flex shrink-0 items-center gap-3">
+          {/* the Marketplace card's "View prompts →" link style */}
+          <button type="button" onClick={(e) => week('mentions', e)}
+            className="hidden items-center gap-1 whitespace-nowrap rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus sm:inline-flex">
+            Week by week <ArrowRight size={14} aria-hidden />
+          </button>
+          {brandSelect}
         </div>
       </div>
-
-      <div className="relative flex flex-1 flex-col">
-      <div className={panel('now')} inert={mode === 'now' ? undefined : ''} aria-hidden={mode !== 'now'}>
 
       {/* headline stats */}
       <div className={`${COLS} mt-4`} aria-live="polite">
@@ -160,14 +123,14 @@ export default function CitationsMentions() {
           <Gauge value={shownScore} />
           <span className="text-[24px] leading-none font-semibold text-stone-900 tabular-nums md:text-[32px]">{Math.round(shownScore)}</span>
         </Stat>
-        <Stat label="Mentions">
+        <Stat label="Mentions" foot={mentions != null && <VsLastWeek d={thisWeek?.delta.mentions} label="Mentions" onOpen={(e) => week('mentions', e)} />}>
           {mentions == null ? <span className="text-[24px] leading-none font-semibold md:text-[32px]">{dash}</span> : (
           <Clickable value={mentions} label={`View all ${mentions} ${brand?.name} mentions`} onOpen={(e) => open('all', 'mentions', e)}>
             <span className="text-stone-900"><Big value={mentions} /></span>
           </Clickable>
           )}
         </Stat>
-        <Stat label="Citations">
+        <Stat label="Citations" foot={<VsLastWeek d={thisWeek?.delta.citations} label="Citations" onOpen={(e) => week('citations', e)} />}>
           <Clickable value={citations} label={`View all ${citations} ${brand?.name} citations`} onOpen={(e) => open('all', 'pages', e)}>
             <span className="text-stone-900"><Big value={citations} /></span>
           </Clickable>
@@ -217,13 +180,6 @@ export default function CitationsMentions() {
 
       {/* footer: at least 16px under the body, pinned to the bottom when the row is taller */}
       {insight && <div className="mt-auto pb-3"><Insight explain={explain} {...insight} /></div>}
-      </div>
-      {visited && (
-        <div className={panel('history')} inert={mode === 'history' ? undefined : ''} aria-hidden={mode !== 'history'}>
-          <CitationsHistory domain={domain} active={mode === 'history'} />
-        </div>
-      )}
-      </div>
     </Card>
   )
 }

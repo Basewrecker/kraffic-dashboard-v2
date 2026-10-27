@@ -56,7 +56,7 @@ function middle(path, max = 46) {
   return head.length + 1 + keep >= path.length ? path : `${head}…${tail.slice(-keep)}`
 }
 
-function download(name, rows) {
+export function download(name, rows) {
   const esc = (v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v))
   const blob = new Blob([rows.map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv' })
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name })
