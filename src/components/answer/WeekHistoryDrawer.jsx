@@ -113,6 +113,7 @@ function chartPoints(rows, vsRows, metric) {
 function WeekTip({ active, payload, rows, metric, metrics, rival, changes }) {
   if (!active || !payload?.length) return null
   const p = payload[0].payload
+  if (p.pad) return null
   const r = rows[p.i]
   const v = r.totals[metric]
   const c = changes[p.i]
@@ -149,10 +150,17 @@ function WeekTip({ active, payload, rows, metric, metrics, rival, changes }) {
   )
 }
 
+// a short history (under 6 weeks) keeps 6 week slots: the weeks so far sit on the right, the empty slots on the left
+// have no line and no ticks, so 2–3 points never stretch across the chart like a long trend
+const MIN_SLOTS = 6
 function WeekChart({ rows, vsRows, metric, metrics, rival, changes, explain, onPick }) {
   const mobile = useIsMobile()
-  const { pts, gapKeys } = chartPoints(rows, vsRows, metric)
-  const { domain, ticks } = yScale([...pts.map((p) => p.v), ...(vsRows ? pts.map((p) => p.vs) : [])])
+  const built = chartPoints(rows, vsRows, metric)
+  const pad = Math.max(0, MIN_SLOTS - built.pts.length)
+  const pts = [...Array.from({ length: pad }, (_, k) => ({ label: `pad${k}`, pad: true, v: null, vs: null, failed: false })), ...built.pts]
+  const { gapKeys } = built
+  // a short history starts the axis at 0: a few weeks of small moves shouldn't read as a big swing
+  const { domain, ticks } = yScale([...pts.map((p) => p.v), ...(vsRows ? pts.map((p) => p.vs) : []), ...(pad ? [0] : [])])
   const m = metrics.find((x) => x.id === metric)
   const last = pts.length - 1
   const anim = { animationDuration: 300, animationEasing: 'ease-out', isAnimationActive: !reduced() }
@@ -179,10 +187,10 @@ function WeekChart({ rows, vsRows, metric, metrics, rival, changes, explain, onP
     <div className="mt-4 h-[168px] cursor-pointer" aria-label={`${m.label} by week`} role="group">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={pts} margin={{ top: 22, right: 8, bottom: 0, left: 0 }}
-          onClick={(s) => { const k = s?.activeTooltipIndex; if (k != null && pts[Number(k)]) onPick(pts[Number(k)].i) }}>
+          onClick={(s) => { const k = s?.activeTooltipIndex; if (k != null && pts[Number(k)] && !pts[Number(k)].pad) onPick(pts[Number(k)].i) }}>
           <CartesianGrid vertical={false} stroke={chart.track} strokeWidth={1} />
           <XAxis dataKey="label" tickMargin={12} tickLine={false} axisLine={false} tick={tick} padding={{ left: 16, right: 16 }} interval={0}
-            tickFormatter={(v, k) => ((last - k) % 2 ? '' : v)} />
+            tickFormatter={(v, k) => (pts[k]?.pad || (last - k) % 2 ? '' : v)} />
           <YAxis width={36} tickMargin={mobile ? 4 : 8} domain={domain} ticks={ticks} tickLine={false} axisLine={false} tick={tick} tickFormatter={m.pct ? (v) => `${v}%` : undefined} />
           <Tooltip cursor={{ stroke: chart.c3, strokeWidth: 1 }} content={<WeekTip rows={rows} metric={metric} metrics={metrics} rival={rival} changes={changes} />} />
           {vsRows && (
@@ -507,7 +515,7 @@ export default function WeekHistoryDrawer({ source }) {
               <div ref={explain.cardRef} className="min-h-0 flex-1 overflow-y-auto">
                 <header className="border-b border-line px-6">
                   <h2 className="mt-3 text-[20px] leading-7 font-semibold text-stone-900">{source.title}</h2>
-                  <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums">{brand.name} · 152 prompts{off ? '' : ` · last ${plural(rows.length, 'week')}`}</p>
+                  <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums">{brand.name} · 152 prompts{off ? '' : ` · ${source.span?.(rows) ?? `last ${plural(rows.length, 'week')}`}`}</p>
                   {off ? <div className="pb-4" /> : loading ? <SkeletonHead /> : empty ? <div className="pb-4" /> : (
                     <>
                       {/* the metric: text tabs, the big number + change under each label; the selected one ink with
@@ -531,6 +539,9 @@ export default function WeekHistoryDrawer({ source }) {
                       </div>
 
                       <WeekChart rows={rows} vsRows={vsRows} metric={metric} metrics={METRICS} rival={rival} changes={changes} explain={explain} onPick={pick} />
+
+                      {/* a short history says so, in plain words (no pill) */}
+                      {source.note?.(rows) && <p className="mt-3 text-[13px] leading-[18px] text-stone-600">{source.note(rows)}</p>}
 
                       {insight && (
                         <div className="mt-3">

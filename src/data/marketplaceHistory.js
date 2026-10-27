@@ -9,7 +9,10 @@
 // PORT NOTE: production should store, per scan, which prompt's answer linked to which listing (marketplace, path,
 // engine). A failed engine scan is null, never 0. Each linking prompt here links on one engine (the mock's
 // simplification); production counts a prompt once in "All engines" however many engines link it.
-// Previews: ?mktMock=loading (skeleton) · ?mktMock=empty (no marketplace links yet) · ?off=ecommerce (flag off)
+// Previews: ?mktMock=loading (skeleton) · ?mktMock=empty (no marketplace links yet) · ?mktMock=short (3 weekly scans
+// so far) · ?mktMock=one (the first scan only: nothing to compare) · ?off=ecommerce (flag off)
+// History starts with the first scan and grows weekly: the drawer shows every week there is (no cap), and under
+// COLLECTING weeks it says it's still collecting.
 import { ENGINE_ORDER, OWN, TRACKED_BRANDS, getBrandView } from './brandViews.js'
 import { FAILED, weekLabel, weekMonth } from './citationHistory.js'
 import { marketplace } from './mock.js'
@@ -73,7 +76,8 @@ export function marketWeeks(mock = null) {
     sets.push(prev)
     set = prev
   }
-  const weeks = syncs.map((s, i) => ({ id: s.id, date: s.date, label: weekLabel(s.date), month: weekMonth(s.date), links: sets[i] ?? new Map() }))
+  const scans = mock === 'one' ? 1 : mock === 'short' ? 3 : syncs.length
+  const weeks = syncs.slice(0, scans).map((s, i) => ({ id: s.id, date: s.date, label: weekLabel(s.date), month: weekMonth(s.date), links: sets[i] ?? new Map() }))
   const out = { weeks, syncs, byId }
   cache.set(key, out)
   return out
@@ -190,7 +194,7 @@ export const MARKET_RIVALS = TRACKED_BRANDS.filter((b) => !b.you)
 export function rivalRows(domain, engine, enabled, count, mock = null) {
   const { weeks } = marketWeeks(mock)
   const mine = marketplace.prompts.filter((p) => p.result === 'competitor' && p.brand === domain)
-  return weeks.slice(0, count).map((w, i) => {
+  return (count ? weeks.slice(0, count) : weeks).map((w, i) => {
     if (failedIn(i, engine, enabled).length) return { totals: Object.fromEntries(MARKET_METRICS.map((m) => [m.id, null])) }
     // the newest week is the card; older weeks drift down a little, with deterministic noise
     const scale = i === 0 ? 1 : 1 - i * 0.025 + ((hash(`${domain}|${i}`) % 7) - 3) / 100
@@ -202,6 +206,19 @@ export function rivalRows(domain, engine, enabled, count, mock = null) {
     return { totals: t }
   })
 }
+
+// a short history: "Collecting history: weekly from Sep 21. Trends get clearer after a few more weeks." (null when
+// there are COLLECTING weeks or more). The subtitle counts what's there: "3 weekly scans so far" / "last 10 weeks".
+export const COLLECTING = 6
+const shortDate = (d) => d.replace(/, \d{4}$/, '')
+export function collectingNote(rows) {
+  if (!rows.length || rows.length >= COLLECTING) return null
+  const from = shortDate(rows.at(-1).week.date)
+  return rows.length === 1
+    ? `Collecting history: weekly from ${from}. Changes show from the next scan.`
+    : `Collecting history: weekly from ${from}. Trends get clearer after a few more weeks.`
+}
+export const historySpan = (rows) => (rows.length < COLLECTING ? `${plural(rows.length, 'weekly scan')} so far` : `last ${plural(rows.length, 'week')}`)
 
 // the drawer waits on this each time it opens (production: the server; here a short pause so the skeleton shows)
 export const loadMarketWeeks = () => new Promise((resolve) => setTimeout(resolve, 450))

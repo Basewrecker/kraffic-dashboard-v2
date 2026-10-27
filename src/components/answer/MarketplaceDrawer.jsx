@@ -1,8 +1,8 @@
 import { Store } from 'lucide-react'
-import WeekHistoryDrawer, { WEEKS } from './WeekHistoryDrawer'
+import WeekHistoryDrawer from './WeekHistoryDrawer'
 import { OWN } from '../../data/brandViews'
 import { account } from '../../data/mock'
-import { MARKET_ENGINES, MARKET_METRICS, MARKET_RIVALS, loadMarketWeeks, marketChanges, marketInsight, marketMock, marketRows, marketSummary, rivalRows } from '../../data/marketplaceHistory'
+import { MARKET_ENGINES, MARKET_METRICS, MARKET_RIVALS, collectingNote, historySpan, loadMarketWeeks, marketChanges, marketInsight, marketMock, marketRows, marketSummary, rivalRows } from '../../data/marketplaceHistory'
 
 // Marketplace visibility → "Marketplace visibility" week by week, in the shared drawer (WeekHistoryDrawer): metric
 // tabs Linking prompts (prompts whose answer links to your listing) · Share (% of tracked prompts) · one per
@@ -28,15 +28,18 @@ const source = {
   engines: () => MARKET_ENGINES,
   mock: marketMock,
   load: loadMarketWeeks,
-  rows: ({ engine, enabled, mock }) => marketRows(engine, enabled, WEEKS, mock),
-  vsRows: ({ rival, engine, enabled, mock }) => rivalRows(rival.domain, engine, enabled, WEEKS, mock),
+  // every week there is (history grows weekly; no cap)
+  rows: ({ engine, enabled, mock }) => marketRows(engine, enabled, null, mock),
+  vsRows: ({ rival, engine, enabled, mock }) => rivalRows(rival.domain, engine, enabled, null, mock),
   changes: ({ metric, row, engine, mock }) => marketChanges({ metric, row, engine, mock }),
   summary: marketSummary,
   insight: marketInsight,
   noun: () => 'prompt',
   emptyText: (rows, brand) => (rows.length && rows.every((r) => !r.totals.linking)
     ? { icon: Store, title: `No AI answer links to a ${brand.name} listing yet`, text: 'When an answer links to your listing on Target or Amazon, it shows here week by week, with the prompts behind each change.' }
-    : rows.length < 2 ? 'History appears after your second weekly scan.' : null),
+    : null),
+  span: historySpan,
+  note: collectingNote,
   off: () => !account.features.ecommerce,
   offText: {
     title: 'Marketplace visibility isn’t switched on for this account',

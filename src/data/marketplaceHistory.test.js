@@ -54,3 +54,30 @@ test('the insight line and Compare with', () => {
 test('no marketplace links yet: every week is 0 (the empty state), never invented', () => {
   assert.ok(marketRows('all', ALL, 10, 'empty').every((r) => r.totals.linking === 0 || r.totals.linking === null))
 })
+
+test('short history: every week there is, a truthful span, and a "collecting history" note', async () => {
+  const { collectingNote, historySpan } = await import('./marketplaceHistory.js')
+  assert.equal(rows.length, 10)
+  assert.equal(historySpan(rows), 'last 10 weeks')
+  assert.equal(collectingNote(rows), null)
+  const short = marketRows('all', ALL, null, 'short')
+  assert.equal(short.length, 3)
+  assert.equal(historySpan(short), '3 weekly scans so far')
+  assert.equal(collectingNote(short), 'Collecting history: weekly from Sep 21. Trends get clearer after a few more weeks.')
+  assert.equal(short[0].delta.linking, 3) // two weeks to compare: the change is real
+  assert.equal(rivalRows('cerave.com', 'all', ALL, null, 'short').length, 3)
+})
+
+test('one scan: the week shows, with no change, no gained / lost and no insight', async () => {
+  const { collectingNote, historySpan } = await import('./marketplaceHistory.js')
+  const one = marketRows('all', ALL, null, 'one')
+  assert.equal(one.length, 1)
+  assert.equal(one[0].totals.linking, 18)
+  assert.equal(one[0].prev, null)
+  assert.ok(Object.values(one[0].delta).every((d) => d === null))
+  assert.equal(marketChanges({ metric: 'linking', row: one[0], engine: 'all' }), null)
+  assert.equal(marketSummary({ metric: 'linking', row: one[0], changes: null }), 'First week in this history')
+  assert.equal(marketInsight({ metric: 'linking', rows: one, changes: [null] }), null)
+  assert.equal(historySpan(one), '1 weekly scan so far')
+  assert.equal(collectingNote(one), 'Collecting history: weekly from Oct 5. Changes show from the next scan.')
+})

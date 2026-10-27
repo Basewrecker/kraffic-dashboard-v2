@@ -10,6 +10,7 @@ import { marketplace } from '../../data/mock'
 import { VsLastWeek } from './CitationsMentions'
 import { openMarketplaceDrawer } from '../answer/MarketplaceDrawer'
 import { marketMock, marketRows } from '../../data/marketplaceHistory'
+import { ArrowRight } from 'lucide-react'
 import { ENGINE_ORDER } from '../../data/brandViews'
 import SiteLogo from '../ui/SiteLogo'
 import { brandName, isDomain } from '../../utils/brand'
@@ -206,6 +207,14 @@ function MarketplaceCard() {
                 </div>
                 {/* your listings: the change since last week, the way into week by week */}
                 {s.key === 'yours' && thisWeek?.delta.linking != null && (thisWeek.totals.linking > 0 || thisWeek.prev.linking > 0) && <VsLastWeek d={thisWeek.delta.linking} label="Prompts linking to your listings" onOpen={week} className="mt-1" />}
+                {s.key === 'yours' && thisWeek && !thisWeek.prev && thisWeek.totals.linking > 0 && (
+                  // the first scan: nothing to compare yet
+                  <button type="button" onClick={week} aria-label="Collecting history: the first weekly scan. Open week by week"
+                    className="group/vs relative -mx-1 mt-1 inline-flex cursor-pointer items-center whitespace-nowrap rounded px-1 text-left text-[12px] leading-4 text-stone-500 outline-none transition-colors duration-150 hover:text-ink focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-focus">
+                    <span className="decoration-1 underline-offset-2 group-hover/vs:underline group-focus-visible/vs:underline">Collecting history · first scan {thisWeek.week.date.replace(/, \d{4}$/, '')}</span>
+                    <ArrowRight size={12} aria-hidden className="pointer-events-none absolute left-full top-1/2 -translate-x-1 -translate-y-1/2 text-ink opacity-0 transition duration-150 ease-out group-hover/vs:translate-x-0 group-hover/vs:opacity-100 group-focus-visible/vs:translate-x-0 group-focus-visible/vs:opacity-100 motion-reduce:transition-none" />
+                  </button>
+                )}
                 {/* plain rows: logo · name ……… count. Dermasuri is marked only by its weight */}
                 <ul className="mt-3 w-full">
                   {sortRows(s.rows).map((r) => {
