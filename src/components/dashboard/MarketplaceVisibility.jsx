@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Cell, Pie as RPie, PieChart } from 'recharts'
-import { ArrowRight, Globe, LayoutGrid, MessagesSquare, RefreshCw, Star, Store } from 'lucide-react'
+import { Globe, LayoutGrid, MessageSquareText, MessagesSquare, RefreshCw, Star, Store } from 'lucide-react'
+import { HeaderIconButton } from './PageHeader'
 import Card from './Card'
 import Insight, { hl, hlOpacity, useExplain } from '../ui/Insight'
 import { marketplaceEvidence } from './insights'
@@ -101,29 +102,17 @@ function MarketplaceCard() {
 
   return (
     <Card ref={explain.cardRef} className="flex h-full min-w-0 flex-col px-5 pt-5">
+      {/* header actions: icon buttons styled like the dropdowns (HeaderIconButton), centred on the 26px title line */}
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="text-title font-semibold text-stone-900">Marketplace visibility</h2>
           <p className="mt-0.5 text-[13px] leading-[18px] font-normal text-stone-600 proportional-nums">How {m.total} tracked prompts link to {storeList(m.stores)}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <button
-            type="button"
-            onClick={() => showMarketplacePrompts(active.action.filter)}
-            title={active.action.label}
-            className="inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus"
-          >
-            View prompts <ArrowRight size={14} aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={recheck}
-            aria-label={`Re-check · last checked ${lastChecked}`}
-            title={`Re-check · last checked ${lastChecked}`}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-[var(--tint)] hover:text-ink focus-visible:ring-2 focus-visible:ring-focus"
-          >
+        <div className="-mt-[3px] flex shrink-0 items-center gap-2">
+          <HeaderIconButton label={active.action.label} icon={MessageSquareText} onClick={() => showMarketplacePrompts(active.action.filter)} />
+          <HeaderIconButton label={`Re-check · last checked ${lastChecked}`} onClick={recheck} tipAlign="right">
             <RefreshCw size={16} className={checking ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />
-          </button>
+          </HeaderIconButton>
         </div>
       </div>
 

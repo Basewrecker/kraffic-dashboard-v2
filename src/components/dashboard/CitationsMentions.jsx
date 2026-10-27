@@ -1,4 +1,5 @@
-import { ArrowRight, ChevronRight } from 'lucide-react'
+import { ArrowRight, ChevronRight, History } from 'lucide-react'
+import { HeaderIconButton } from './PageHeader'
 import Card from './Card'
 import Gauge from '../ui/Gauge'
 import Insight, { hl, useExplain } from '../ui/Insight'
@@ -36,13 +37,20 @@ const Stat = ({ label, children, gap = 'mt-1', foot = null }) => (
   </div>
 )
 
-// "+22 vs last week" under a big number (the change, negative token when down); opens the week-by-week drawer on it
+// "+22 vs last week" under a big number: the card's main way into week by week (opens the drawer on that metric).
+// t3; on hover or focus it underlines, turns ink and a small → slides in (outside the text box, so it takes no width
+// and the two lines never collide on a phone). A drop’s number
+// keeps the negative token.
 function VsLastWeek({ d, label, onOpen }) {
   if (d == null) return null
   return (
     <button type="button" onClick={onOpen} aria-label={`${label}: ${d === 0 ? 'no change' : d > 0 ? `up ${d}` : `down ${Math.abs(d)}`} vs last week. Open week by week`}
-      className="-mx-1 mt-0.5 block rounded px-1 text-left text-[12px] leading-4 text-stone-500 tabular-nums outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">
-      {d === 0 ? 'No change' : <span className={d < 0 ? 'text-negative' : ''}>{d > 0 ? `+${d}` : `−${Math.abs(d)}`}</span>} vs last week
+      className="group/vs relative -mx-1 mt-0.5 inline-flex cursor-pointer items-center whitespace-nowrap rounded px-1 text-left text-[12px] leading-4 text-stone-500 tabular-nums outline-none transition-colors duration-150 hover:text-ink focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-focus">
+      <span className="decoration-1 underline-offset-2 group-hover/vs:underline group-focus-visible/vs:underline">
+        {d === 0 ? 'No change' : <span className={d < 0 ? 'text-negative' : ''}>{d > 0 ? `+${d}` : `−${Math.abs(d)}`}</span>} vs last week
+      </span>
+      <ArrowRight size={12} aria-hidden
+        className="pointer-events-none absolute left-full top-1/2 -translate-x-1 -translate-y-1/2 text-ink opacity-0 transition duration-150 ease-out group-hover/vs:translate-x-0 group-hover/vs:opacity-100 group-focus-visible/vs:translate-x-0 group-focus-visible/vs:opacity-100 motion-reduce:transition-none" />
     </button>
   )
 }
@@ -99,19 +107,17 @@ export default function CitationsMentions() {
 
   return (
     <Card ref={explain.cardRef} id="platforms" className="flex h-full min-w-0 scroll-mt-6 flex-col px-5 pt-5">
+      {/* title + subtitle take the rest of the row and wrap (never truncate); the controls keep their width, centred
+          on the title line (32px controls on a 24px line: -mt-1) */}
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="text-[17px] leading-6 font-semibold text-stone-900">Citations and Mentions</h2>
-          <p className="mt-0.5 truncate text-[13px] leading-[18px] text-stone-600 tabular-nums" title={silentLine ?? undefined}>
-            Across {TOTAL} prompts{silentLine && ` · ${silentLine}`}
+          <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums [text-wrap:pretty]">
+            {TOTAL} prompts{silentLine && ` · ${silentLine}`}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {/* the Marketplace card's "View prompts →" link style */}
-          <button type="button" onClick={(e) => week('mentions', e)}
-            className="hidden items-center gap-1 whitespace-nowrap rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus sm:inline-flex">
-            Week by week <ArrowRight size={14} aria-hidden />
-          </button>
+        <div className="-mt-1 flex shrink-0 items-center gap-2">
+          <HeaderIconButton label="Week by week" icon={History} onClick={(e) => week('mentions', e)} />
           {brandSelect}
         </div>
       </div>
