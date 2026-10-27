@@ -8,7 +8,7 @@ import { ChangeRows, ChangeTabs, EngineChips } from './ChangeParts'
 import { openAnswer } from './AnswerDrawer'
 import { download } from './EngineDrawer'
 import { ENGINES, ENGINE_ORDER, OWN, TRACKED_BRANDS, brandByDomain, engineName } from '../../data/brandViews'
-import { METRICS, brandEngines, citationWeeks, historyMock, weekChanges, weekInsight, weekRows, weekSummary } from '../../data/citationHistory'
+import { METRICS, brandEngines, citationWeeks, historyMock, loadWeeks, weekChanges, weekInsight, weekRows, weekSummary } from '../../data/citationHistory'
 import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
 import { useIsMobile } from '../../hooks/useMedia'
@@ -26,7 +26,6 @@ export function openCitationsDrawer({ metric = 'mentions', brand = null, opener 
 }
 
 const WEEKS = 10
-const LOAD_MS = 450
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`
 const fmtDelta = (d) => (d > 0 ? `+${d}` : `−${Math.abs(d)}`)
@@ -274,8 +273,9 @@ export default function CitationsDrawer() {
   // the insight's "Why?" highlights its weeks in the chart; it resets when what the chart shows changes
   const explain = useExplain(`${open}|${domain}|${metric}|${engine}|${rival?.key}`)
 
-  const rows = useMemo(() => (open ? weekRows(domain, engine, enabled, mock === 'empty' ? 1 : WEEKS) : []), [open, domain, engine, enabled.join(), mock]) // eslint-disable-line react-hooks/exhaustive-deps
-  const vsRows = useMemo(() => (open && rival ? weekRows(rival.domain, engine, enabled, WEEKS) : null), [open, rival, engine, enabled.join()]) // eslint-disable-line react-hooks/exhaustive-deps
+  // read again once the weeks have loaded (loading → false)
+  const rows = useMemo(() => (open ? weekRows(domain, engine, enabled, mock === 'empty' ? 1 : WEEKS) : []), [open, loading, domain, engine, enabled.join(), mock]) // eslint-disable-line react-hooks/exhaustive-deps
+  const vsRows = useMemo(() => (open && rival ? weekRows(rival.domain, engine, enabled, WEEKS) : null), [open, loading, rival, engine, enabled.join()]) // eslint-disable-line react-hooks/exhaustive-deps
   const syncs = open ? citationWeeks(domain).syncs : []
   const changesOf = useCallback((r, m) => weekChanges({ domain, metric: m, row: r, engine, sync: syncs[r.index] }), [domain, engine, syncs])
   const changes = useMemo(() => rows.map((r) => changesOf(r, metric)), [rows, metric, changesOf])
@@ -312,12 +312,13 @@ export default function CitationsDrawer() {
     return () => cancelAnimationFrame(r)
   }, [open])
   useEffect(() => { if (open && shown && !swapped) panel.current?.focus() }, [open, shown]) // eslint-disable-line react-hooks/exhaustive-deps
-  // a short fetch each time the drawer opens (the mock's data is instant); ?cmMock=loading holds the skeleton
+  // the weeks load each time the drawer opens (data/citationHistory loadWeeks); ?cmMock=loading holds the skeleton
   useEffect(() => {
     if (!open || !loading || mock === 'loading') return
-    const t = setTimeout(() => setLoading(false), LOAD_MS)
-    return () => clearTimeout(t)
-  }, [open, loading, mock])
+    let alive = true
+    loadWeeks(domain).finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [open, loading, mock, domain])
 
   const finish = useCallback(() => {
     if (pushed.current) { pushed.current = false; window.history.back() } else setState(null)
