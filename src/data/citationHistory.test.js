@@ -65,3 +65,16 @@ test('the insight line: the newest week against the period, never a 0 for a fail
   // months for grouping
   assert.equal(rows[0].week.month, 'October')
 })
+
+test('the week after a failed scan compares with the last complete week', () => {
+  const { syncs } = citationWeeks('dermasuri.com')
+  const rows = weekRows('dermasuri.com', 'all', ALL)
+  const after = rows[3] // Sep 14 – 20; Sep 7 – 13 (rows[4]) didn't complete
+  assert.equal(after.skipped, true)
+  assert.equal(after.prevWeek, rows[5].week)
+  assert.equal(after.delta.mentions, after.totals.mentions - rows[5].totals.mentions)
+  const c = weekChanges({ domain: 'dermasuri.com', metric: 'mentions', row: after, engine: 'all', sync: syncs[3] })
+  assert.ok(c, 'it can be drilled into')
+  assert.match(weekSummary({ metric: 'mentions', row: after, changes: c }), new RegExp(`^\\+${after.delta.mentions} vs ${rows[5].week.label} · `))
+  assert.equal(rows[2].skipped, false)
+})

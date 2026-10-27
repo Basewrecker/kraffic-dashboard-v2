@@ -86,15 +86,22 @@ export function weekTotals(week, engine, enabled) {
   return { mentions: sum('mentions'), citations: sum('citations'), pages: engine === 'all' ? week.allPages : sum('pages'), failed }
 }
 
-// every week of a brand in a scope, newest first: [{ week, totals, prev, delta: { mentions, … } }]
+// every week of a brand in a scope, newest first: [{ week, totals, prev, prevWeek, skipped, delta: { mentions, … } }]
+// a week compares with the last COMPLETE week before it: after a failed scan that's two weeks back (skipped: true,
+// "+16 vs Aug 31 – Sep 6"), never "nothing to compare"
 export function weekRows(domain, engine, enabled, count) {
   const { weeks } = citationWeeks(domain)
   const list = count ? weeks.slice(0, count) : weeks
   return list.map((w, i) => {
     const totals = weekTotals(w, engine, enabled)
-    const prev = list[i + 1] ? weekTotals(list[i + 1], engine, enabled) : null
+    let prev = null, prevWeek = null
+    for (let j = i + 1; j < weeks.length; j++) {
+      const t = weekTotals(weeks[j], engine, enabled)
+      if (!t.failed.length) { prev = t; prevWeek = weeks[j]; break }
+    }
+    const skipped = prevWeek != null && prevWeek !== weeks[i + 1]
     const d = (k) => (prev && totals[k] != null && prev[k] != null ? totals[k] - prev[k] : null)
-    return { week: w, index: i, totals, prev, delta: { mentions: d('mentions'), citations: d('citations'), pages: d('pages') } }
+    return { week: w, index: i, totals, prev, prevWeek, skipped, delta: { mentions: d('mentions'), citations: d('citations'), pages: d('pages') } }
   })
 }
 
@@ -148,6 +155,12 @@ export function weekSummary({ metric, row, changes, you = true, name }) {
   if (row.totals.failed.length) return 'Scan didn’t complete this week'
   if (!row.prev) return 'First week in this history'
   if (!changes) return 'The week before didn’t complete: nothing to compare'
+  // after a failed scan: what it's compared with comes first ("+16 vs Aug 31 – Sep 6 · …")
+  if (row.skipped) {
+    const d = row.delta[metric]
+    const rest = weekSummary({ metric, row: { ...row, skipped: false }, changes, you, name })
+    return `${d === 0 ? 'No change' : d > 0 ? `+${d}` : `−${Math.abs(d)}`} vs ${row.prevWeek.label} · ${rest}`
+  }
   const g = changes.gained.length, l = changes.lost.length
   if (!g && !l) return `No change in ${metric === 'pages' ? 'cited pages' : metric === 'citations' ? 'citations' : 'mentions'}`
   if (metric === 'mentions') {
@@ -176,13 +189,13 @@ export function weekInsight({ metric, rows, changes, you = true, name }) {
   }
   const d = now.delta[metric]
   const c = changes[0]
-  if (d == null || !c) return { text: `${now.totals[metric]} ${label} this week; the week before has nothing to compare`, calc: `${rows[1].week.label} didn’t complete, so this week has no change to show.`, keys: [0] }
+  if (d == null || !c) return { text: `${now.totals[metric]} ${label} this week; the week before has nothing to compare`, calc: `No earlier week completed, so this week has no change to show.`, keys: [0] }
   const who = you ? 'you' : name
   const g = c.gained.length, l = c.lost.length
   const gainLine = { mentions: `${plural(g, 'prompt')} started mentioning ${who}`, citations: `${plural(g, 'prompt')} started citing ${who}`, pages: `${plural(g, 'page')} cited for the first time` }[metric]
   const lossLine = { mentions: `${plural(l, 'prompt')} stopped mentioning ${who}`, citations: `${plural(l, 'prompt')} stopped citing ${who}`, pages: `${plural(l, 'page')} no longer cited` }[metric]
   const span = `${rows.length} weeks`
-  if (d === 0) return { text: `No change in ${label} this week${g ? `: ${g} gained, ${l} dropped` : ''}`, calc: `${now.week.label} has as many ${label} as ${rows[1].week.label}.`, keys: [0, 1] }
+  if (d === 0) return { text: `No change in ${label} this week${g ? `: ${g} gained, ${l} dropped` : ''}`, calc: `${now.week.label} has as many ${label} as ${now.prevWeek.label}.`, keys: [0, rows.findIndex((r) => r.week === now.prevWeek)].filter((k) => k >= 0) }
   const up = d > 0
   const j = rows.findIndex((r, i) => i > 0 && r.delta[metric] != null && (up ? r.delta[metric] >= d : r.delta[metric] <= d))
   const since = j === -1 ? `in ${span}` : `since ${rows[j].week.month === now.week.month ? rows[j].week.label.split(' – ')[0] : rows[j].week.month}`

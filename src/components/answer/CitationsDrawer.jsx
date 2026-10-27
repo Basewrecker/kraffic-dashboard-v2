@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ArrowLeft, ChevronRight, X } from 'lucide-react'
 import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
-import Insight, { hlOpacity, useExplain } from '../ui/Insight'
+import Insight, { useExplain } from '../ui/Insight'
 import { Favicon } from '../dashboard/overlays'
 import { ChangeRows, ChangeTabs, EngineChips } from './ChangeParts'
 import { openAnswer } from './AnswerDrawer'
@@ -11,9 +11,11 @@ import { ENGINES, ENGINE_ORDER, OWN, TRACKED_BRANDS, brandByDomain, engineName }
 import { METRICS, brandEngines, citationWeeks, historyMock, weekChanges, weekInsight, weekRows, weekSummary } from '../../data/citationHistory'
 import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
+import { useIsMobile } from '../../hooks/useMedia'
+import { chart } from '../../theme/chart'
 
 // Citations and Mentions → "Mentions and citations": the card's numbers week by week, in the drawer family (same
-// shell, width, header and footer as the Sync drawer). Text tabs pick the metric; a 10-week column chart and an
+// shell, width, header and footer as the Sync drawer). Text tabs pick the metric; a 10-week line chart and an
 // insight line sit under them; the weeks below (grouped by month) say what happened in plain words; a week drills in
 // (same drawer, slides across) to the Sync drawer's own Lost | Gained list for that week. Esc goes back, then closes.
 // openCitationsDrawer({ metric, brand, opener }). URL (replaceState while open, pushed on open so Back closes):
@@ -57,109 +59,140 @@ function urlFor(s, focal) {
   return url
 }
 
-// the small hover popover (LogoStack's): fixed, portalled above the drawer
-// centred over its point, but kept 8px inside the window (the newest bar sits at the drawer's right edge)
-function Tip({ tip }) {
-  const ref = useRef(null)
-  const [left, setLeft] = useState(null)
-  useLayoutEffect(() => {
-    if (!tip || !ref.current) return
-    const w = ref.current.offsetWidth
-    setLeft(Math.min(Math.max(8, tip.x - w / 2), window.innerWidth - w - 8))
-  }, [tip])
-  if (!tip) return null
-  return createPortal(
-    <span ref={ref} role="tooltip" style={{ left: left ?? tip.x, top: tip.y - 8, visibility: left == null ? 'hidden' : undefined }}
-      className="pointer-events-none fixed z-[70] -translate-y-full whitespace-nowrap rounded-md border border-line bg-raised px-2.5 py-1.5 text-[12px] leading-4 text-stone-700 shadow-sm tabular-nums">
-      {tip.lines.map((l, i) => <span key={i} className={`block ${i ? 'text-stone-500' : 'font-medium text-stone-900'}`}>{l}</span>)}
-    </span>,
-    document.body,
+// ---- the hero chart: the selected metric over the weeks, oldest → newest, in Visibility history's line style
+// (2.5px monotone line, track gridlines, 13px stone-500 ticks, hover guide in c3, the same tooltip box). Ink for the
+// brand; Compare adds the competitor as a second line in t3. The newest week is a filled ink dot with its value. A
+// failed week breaks the line: a dashed t3 bridge across the gap and a hollow marker ("No data", never 0). The y axis
+// fits the data with ~10% padding on 3 round gridlines. Switching metric morphs the line (300ms).
+const tick = { fontSize: 13, fontWeight: 400, fill: 'var(--color-stone-500)', className: 'num' }
+const INK = 'var(--ink)'
+const T3 = 'var(--color-stone-500)'
+const NICE = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8]
+function yScale(values) {
+  const v = values.filter((x) => x != null)
+  if (!v.length) return { domain: [0, 2], ticks: [0, 1, 2] }
+  const lo0 = Math.min(...v), hi0 = Math.max(...v)
+  const pad = Math.max((hi0 - lo0) * 0.1, 1)
+  const lo = Math.max(0, lo0 - pad), hi = hi0 + pad
+  for (let p = 1; p < 1e7; p *= 10) {
+    for (const m of NICE) {
+      const step = m * p
+      if (!Number.isInteger(step) || step * 2 < hi - lo) continue
+      const start = Math.floor(lo / step) * step
+      if (start + 2 * step >= hi) return { domain: [start, start + 2 * step], ticks: [start, start + step, start + 2 * step] }
+    }
+  }
+  return { domain: [0, hi], ticks: [0, hi / 2, hi] }
+}
+
+// oldest → newest points: { label, i (row index), v, vs, gap0…: the dashed bridges over failed weeks, failed }
+function chartPoints(rows, vsRows, metric) {
+  const pts = [...rows].reverse().map((r) => ({ label: startOf(r.week.label), i: r.index, v: r.totals[metric], vs: vsRows?.[r.index]?.totals[metric] ?? null, failed: r.totals[metric] == null }))
+  const gaps = []
+  for (let k = 0; k < pts.length; k++) {
+    if (!pts[k].failed) continue
+    let m = k
+    while (pts[m + 1]?.failed) m++
+    gaps.push([k, m])
+    k = m
+  }
+  gaps.forEach(([k, m], g) => {
+    const key = `gap${g}`
+    const a = pts[k - 1]?.v, b = pts[m + 1]?.v
+    if (a != null) pts[k - 1][key] = a
+    if (b != null) pts[m + 1][key] = b
+    for (let j = k; j <= m; j++) {
+      // the hollow marker sits on the bridge (interpolated), or level with the one neighbour at an end
+      pts[j][key] = a != null && b != null ? a + ((b - a) * (j - k + 1)) / (m - k + 2) : (a ?? b ?? null)
+    }
+  })
+  return { pts, gapKeys: gaps.map((_, g) => `gap${g}`) }
+}
+
+function WeekTip({ active, payload, rows, metric, rival, changes }) {
+  if (!active || !payload?.length) return null
+  const p = payload[0].payload
+  const r = rows[p.i]
+  const v = r.totals[metric]
+  const c = changes[p.i]
+  const d = r.delta[metric]
+  const label = METRICS.find((m) => m.id === metric).label
+  return (
+    <div className="rounded-lg border border-stone-200 bg-raised px-3 py-2 text-small shadow-sm">
+      <div className="mb-1 font-semibold text-stone-900">{r.week.label}</div>
+      {v == null ? (
+        <div className="text-stone-600">No data · the scan didn’t complete</div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-6">
+            <span className="inline-flex items-center gap-1.5 font-medium text-stone-900"><span className="h-2 w-2 rounded-[2px] bg-ink" />{label}</span>
+            <span className="num font-semibold text-stone-900">{v}</span>
+          </div>
+          {rival && (
+            <div className="flex items-center justify-between gap-6">
+              <span className="inline-flex items-center gap-1.5 text-stone-600"><span className="h-2 w-2 rounded-[2px] bg-stone-500" />{rival.name}</span>
+              <span className="num text-stone-900">{p.vs ?? '—'}</span>
+            </div>
+          )}
+          {d != null && (
+            <div className="mt-1 flex justify-between gap-6 border-t border-stone-100 pt-1 text-stone-600">
+              <span>{r.skipped ? `vs ${r.prevWeek.label}` : 'vs last week'}</span>
+              <span className={`num font-semibold ${d < 0 ? 'text-negative' : 'text-stone-900'}`}>{d === 0 ? '0' : fmtDelta(d)}</span>
+            </div>
+          )}
+          {c && (c.gained.length > 0 || c.lost.length > 0) && <div className="num text-stone-600">+{c.gained.length} gained · {c.lost.length} dropped</div>}
+        </>
+      )}
+    </div>
   )
 }
 
-// gridline step: 3 levels that cover the tallest bar, on round whole numbers (1, 2, 2.5, 3, 4, 5 × 10ⁿ)
-function niceStep(max) {
-  const x = Math.max(1, max / 3)
-  const pow = 10 ** Math.floor(Math.log10(x))
-  return [1, 2, 2.5, 3, 4, 5, 10].map((m) => m * pow).find((s) => s >= x && Number.isInteger(s)) ?? Math.ceil(x)
-}
-
-// ---- the hero chart: the selected metric over the weeks, oldest → newest. Bars are the line-strong token, the newest
-// week and the hovered bar ink; a failed week is a hatched stub at the baseline ("No data", never 0). Compare adds a
-// thin t3 marker per bar at the competitor's value (same scale). Heights animate (300ms) when the metric changes.
-const BAR_H = 112 // plot height; + 8 top room + 20 for the week labels = 140
-function WeekChart({ rows, vsRows, metric, rival, changes, explain, onTip, onPick }) {
-  const [hover, setHover] = useState(null)
-  const order = rows.map((r, i) => ({ r, i })).reverse() // oldest left, newest right
-  const vals = rows.map((r) => r.totals[metric])
-  const vs = vsRows?.map((r) => r.totals[metric]) ?? null
-  const max = Math.max(1, ...vals.filter((v) => v != null), ...(vs ?? []).filter((v) => v != null))
-  const step = niceStep(max)
-  const top = step * 3
-  const pct = (v) => `${(v / top) * 100}%`
-  const label = METRICS.find((m) => m.id === metric).label.toLowerCase()
-
-  const tipFor = (i, el) => {
-    const r = rows[i]
-    const v = r.totals[metric]
-    const c = changes[i]
-    const box = el.getBoundingClientRect()
-    const lines = v == null
-      ? [`${r.week.label} · No data`, 'Scan didn’t complete this week']
-      : [
-          `${r.week.label} · ${v} ${label}`,
-          r.delta[metric] == null ? 'Nothing to compare with the week before' : r.delta[metric] === 0 ? 'No change on the week before' : `${fmtDelta(r.delta[metric])} on the week before`,
-          ...(c && (c.gained.length || c.lost.length) ? [`+${c.gained.length} gained · ${c.lost.length} dropped`] : []),
-        ]
-    if (vs) lines.push(`${rival.name} ${vs[i] ?? 'no data'}`)
-    onTip({ x: box.left + box.width / 2, y: box.top, lines })
+function WeekChart({ rows, vsRows, metric, rival, changes, explain, onPick }) {
+  const mobile = useIsMobile()
+  const { pts, gapKeys } = chartPoints(rows, vsRows, metric)
+  const { domain, ticks } = yScale([...pts.map((p) => p.v), ...(vsRows ? pts.map((p) => p.vs) : [])])
+  const last = pts.length - 1
+  const anim = { animationDuration: 300, animationEasing: 'ease-out', isAnimationActive: !reduced() }
+  const explaining = explain.on
+  const lit = (i) => explain.keys.includes(`week:${i}`)
+  const dot = (p) => {
+    const pt = pts[p.index]
+    if (pt.v == null || p.cy == null) return <g key={`d${p.index}`} />
+    if (p.index === last) {
+      return (
+        <g key={`d${p.index}`}>
+          <circle cx={p.cx} cy={p.cy} r={4} fill={INK} stroke="var(--color-surface)" strokeWidth={2} />
+          <text x={p.cx} y={p.cy - 11} textAnchor="middle" fontSize={12} fontWeight={600} fill={INK} className="num">{pt.v}</text>
+        </g>
+      )
+    }
+    if (explaining && lit(pt.i)) return <circle key={`d${p.index}`} cx={p.cx} cy={p.cy} r={4} fill={INK} stroke="var(--color-surface)" strokeWidth={2} />
+    return <g key={`d${p.index}`} />
   }
-
+  const hollow = (key) => (p) => (pts[p.index]?.failed && p.cy != null
+    ? <circle key={`${key}${p.index}`} cx={p.cx} cy={p.cy} r={4} fill="var(--color-surface)" stroke={T3} strokeWidth={1.5} />
+    : <g key={`${key}${p.index}`} />)
   return (
-    <div className="mt-5 grid grid-cols-[auto_1fr] gap-x-2" onMouseLeave={() => { setHover(null); onTip(null) }}>
-      {/* y axis: 0 and three levels */}
-      <div className="relative mt-2 w-7 text-right text-[11px] leading-none text-stone-500 tabular-nums" style={{ height: BAR_H }} aria-hidden>
-        {[0, 1, 2, 3].map((k) => <span key={k} className="absolute right-0 translate-y-1/2" style={{ bottom: `${(k / 3) * 100}%` }}>{k * step}</span>)}
-      </div>
-      <div className="relative mt-2" style={{ height: BAR_H }}>
-        {[1, 2, 3].map((k) => <span key={k} className="absolute inset-x-0 h-px bg-[var(--div)]" style={{ bottom: `${(k / 3) * 100}%` }} aria-hidden />)}
-        <span className="absolute inset-x-0 bottom-0 h-px bg-[var(--color-line)]" aria-hidden />
-        <div className="absolute inset-0 flex" role="group" aria-label={`${METRICS.find((m) => m.id === metric).label} by week`}>
-          {order.map(({ r, i }) => {
-            const v = vals[i]
-            const on = hover === i || (hover == null && i === 0)
-            const dim = hlOpacity(explain, `bar:${i}`)
-            return (
-              <button key={r.week.id} type="button" tabIndex={-1}
-                aria-label={`${r.week.label}: ${v ?? 'no data'}. Show this week`}
-                onClick={() => onPick(i)}
-                onMouseEnter={(e) => { setHover(i); tipFor(i, e.currentTarget.querySelector('[data-bar]')) }}
-                className="relative flex h-full min-w-0 flex-1 cursor-pointer items-end justify-center outline-none">
-                {v == null ? (
-                  <span data-bar className="h-3 w-[56%] max-w-9 rounded-t-[3px] transition-opacity duration-150"
-                    style={{ opacity: dim ?? 1, backgroundImage: `repeating-linear-gradient(135deg, ${hover === i ? 'var(--color-stone-500)' : 'var(--color-line-strong)'} 0 1.5px, transparent 1.5px 4.5px)`, boxShadow: `inset 0 1px 0 ${hover === i ? 'var(--color-stone-500)' : 'var(--color-line-strong)'}` }} />
-                ) : (
-                  <span data-bar className={`w-[56%] max-w-9 rounded-t-[3px] transition-[height,background-color,opacity] duration-300 ease-out motion-reduce:transition-none ${on ? 'bg-ink' : 'bg-[var(--color-line-strong)]'}`}
-                    style={{ height: pct(v), minHeight: v > 0 ? 2 : 0, opacity: dim ?? 1 }} />
-                )}
-                {vs?.[i] != null && (
-                  <span className="pointer-events-none absolute left-1/2 h-0.5 w-[72%] max-w-11 -translate-x-1/2 translate-y-1/2 rounded-full bg-stone-500 transition-[bottom] duration-300 ease-out motion-reduce:transition-none"
-                    style={{ bottom: pct(vs[i]) }} aria-hidden />
-                )}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-      {/* week labels under every other bar (the newest always labelled) */}
-      <span aria-hidden />
-      <div className="flex h-5 items-end" aria-hidden>
-        {order.map(({ r, i }) => (
-          <span key={r.week.id} className="relative flex min-w-0 flex-1 justify-center">
-            {i % 2 === 0 && <span className="whitespace-nowrap text-[11px] leading-none text-stone-500 tabular-nums">{startOf(r.week.label)}</span>}
-          </span>
-        ))}
-      </div>
+    <div className="mt-4 h-[168px] cursor-pointer" aria-label={`${METRICS.find((m) => m.id === metric).label} by week`} role="group">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={pts} margin={{ top: 22, right: 8, bottom: 0, left: 0 }}
+          onClick={(s) => { const k = s?.activeTooltipIndex; if (k != null && pts[Number(k)]) onPick(pts[Number(k)].i) }}>
+          <CartesianGrid vertical={false} stroke={chart.track} strokeWidth={1} />
+          <XAxis dataKey="label" tickMargin={12} tickLine={false} axisLine={false} tick={tick} padding={{ left: 16, right: 16 }} interval={0}
+            tickFormatter={(v, k) => ((last - k) % 2 ? '' : v)} />
+          <YAxis width={36} tickMargin={mobile ? 4 : 8} domain={domain} ticks={ticks} tickLine={false} axisLine={false} tick={tick} />
+          <Tooltip cursor={{ stroke: chart.c3, strokeWidth: 1 }} content={<WeekTip rows={rows} metric={metric} rival={rival} changes={changes} />} />
+          {vsRows && (
+            <Line dataKey="vs" type="monotone" stroke={T3} strokeWidth={1.5} strokeLinecap="round" dot={false}
+              activeDot={{ r: 4, fill: T3, stroke: 'var(--color-surface)', strokeWidth: 2 }} {...anim} />
+          )}
+          {gapKeys.map((k) => (
+            <Line key={k} dataKey={k} type="linear" connectNulls stroke={T3} strokeWidth={1.5} strokeDasharray="3 4" dot={hollow(k)} activeDot={false} legendType="none" tooltipType="none" {...anim} />
+          ))}
+          <Line dataKey="v" type="monotone" stroke={INK} strokeOpacity={explaining ? 0.35 : 1} strokeWidth={2.5} strokeLinecap="round" connectNulls={false}
+            dot={dot} activeDot={{ r: 5, fill: INK, stroke: 'var(--color-surface)', strokeWidth: 2 }} {...anim} />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   )
 }
@@ -169,17 +202,20 @@ function Delta({ d, className = 'text-[12px] leading-4' }) {
   return <span className={`${className} font-medium tabular-nums ${d > 0 ? 'text-stone-600' : 'text-negative'}`}>{fmtDelta(d)}</span>
 }
 
-// a week's gained / dropped, diverging from a centre tick: gained right in ink, dropped left in the negative token,
-// widths in proportion to the biggest count in the period. Nothing known (failed / first week): the space only.
+// a week's gained / dropped: 120px, a 1px centre line in the border token; gained runs right in ink, dropped left in
+// the negative token, both 4px tall with rounded ends, scaled to the largest count in the visible weeks (a non-zero
+// count is at least 3px). Nothing known (failed / first week): the space only.
 // Hidden on phones, where the summary needs the room (the change is in the number column).
+const HALF = 59 // px each side of the centre line
+const barPx = (n, scale) => (n > 0 ? Math.max(3, Math.round((n / scale) * HALF)) : 0)
 function Diverge({ c, scale }) {
   return (
-    <span className="relative hidden h-3 w-20 shrink-0 sm:block" aria-hidden>
+    <span className="relative hidden h-3 w-[120px] shrink-0 sm:block" aria-hidden>
       {c && (
         <>
-          <span className="absolute left-1/2 top-0 h-3 w-px -translate-x-1/2 bg-[var(--color-line-strong)]" />
-          {c.lost.length > 0 && <span className="absolute right-1/2 top-1/2 h-1 -translate-y-1/2 rounded-l-full bg-negative" style={{ width: `calc(${(c.lost.length / scale) * 50}% - 1px)`, marginRight: 1 }} />}
-          {c.gained.length > 0 && <span className="absolute left-1/2 top-1/2 h-1 -translate-y-1/2 rounded-r-full bg-ink" style={{ width: `calc(${(c.gained.length / scale) * 50}% - 1px)`, marginLeft: 1 }} />}
+          <span className="absolute left-1/2 top-0 h-3 w-px -translate-x-1/2 bg-[var(--color-line)]" />
+          {c.lost.length > 0 && <span className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-negative" style={{ right: 'calc(50% + 1px)', width: barPx(c.lost.length, scale) }} />}
+          {c.gained.length > 0 && <span className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-ink" style={{ left: 'calc(50% + 1px)', width: barPx(c.gained.length, scale) }} />}
         </>
       )}
     </span>
@@ -193,7 +229,7 @@ function SkeletonHead() {
       <div className="mt-5 flex gap-8 border-b border-[var(--div)] pb-3">
         {[0, 1, 2].map((i) => <div key={i}><div className={`${bar} h-3 w-16`} /><div className={`${bar} mt-2 h-7 w-20`} /></div>)}
       </div>
-      <div className={`${bar} mt-5 h-[140px] w-full`} />
+      <div className={`${bar} mt-4 h-[168px] w-full`} />
       <div className={`${bar} mb-4 mt-5 h-4 w-72 max-w-full`} />
     </div>
   )
@@ -218,7 +254,6 @@ export default function CitationsDrawer() {
   const [shown, setShown] = useState(false)
   const [loading, setLoading] = useState(true)
   const [swapped, setSwapped] = useState(false)
-  const [tip, setTip] = useState(null)
   const pushed = useRef(false)
   const panel = useRef(null)
   const opener = useRef(null)
@@ -286,18 +321,17 @@ export default function CitationsDrawer() {
 
   const finish = useCallback(() => {
     if (pushed.current) { pushed.current = false; window.history.back() } else setState(null)
-    setSwapped(false); setDrillKeep(null); setTip(null)
+    setSwapped(false); setDrillKeep(null)
     opener.current?.focus?.()
   }, [])
-  const close = useCallback(() => { setShown(false); setTip(null); setTimeout(finish, reduced() ? 0 : 200) }, [finish])
+  const close = useCallback(() => { setShown(false); setTimeout(finish, reduced() ? 0 : 200) }, [finish])
   const set = (patch) => setState((s) => ({ ...s, ...patch }))
   const focusIn = (q) => setTimeout(() => panel.current?.querySelector(q)?.focus({ preventScroll: true }), reduced() ? 0 : 260)
-  const drill = (i) => { setTip(null); explain.off(); set({ week: i, tab: 'lost' }); focusIn('[data-back]') }
+  const drill = (i) => { explain.off(); set({ week: i, tab: 'lost' }); focusIn('[data-back]') }
   const back = () => { const i = state.week; set({ week: null }); focusIn(`[data-week="${i}"]`) }
 
   // a bar in the chart → its week's row: scrolled into view, then a tint that fades out over 1.5s
   const pick = (i) => {
-    setTip(null)
     const li = explain.cardRef.current?.querySelector(`[data-row="${i}"]`)
     if (!li) return
     li.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' })
@@ -457,7 +491,7 @@ export default function CitationsDrawer() {
           <div ref={panes} className={`flex h-full w-[200%] transition-transform duration-[250ms] ease-out motion-reduce:transition-none ${drilled ? '-translate-x-1/2' : 'translate-x-0'}`}>
             {/* ---- all weeks: the header (tabs, chart, insight, compare) scrolls with the weeks */}
             <section className="flex h-full w-1/2 min-w-0 flex-col" inert={drilled ? '' : undefined} aria-hidden={drilled}>
-              <div ref={explain.cardRef} className="min-h-0 flex-1 overflow-y-auto" onScroll={() => tip && setTip(null)}>
+              <div ref={explain.cardRef} className="min-h-0 flex-1 overflow-y-auto">
                 <header className="border-b border-line px-6">
                   <h2 className="mt-3 text-[20px] leading-7 font-semibold text-stone-900">Mentions and citations</h2>
                   <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums">{brand.name} · 152 prompts · last {plural(rows.length, 'week')}</p>
@@ -483,13 +517,13 @@ export default function CitationsDrawer() {
                         })}
                       </div>
 
-                      <WeekChart rows={rows} vsRows={vsRows} metric={metric} rival={rival} changes={changes} explain={explain} onTip={setTip} onPick={pick} />
+                      <WeekChart rows={rows} vsRows={vsRows} metric={metric} rival={rival} changes={changes} explain={explain} onPick={pick} />
 
                       {insight && (
                         <div className="mt-3">
                           <Insight explain={explain} text={`${insight.text}.`}
                             evidence={{
-                              keys: insight.keys.map((i) => `bar:${i}`),
+                              keys: insight.keys.map((i) => `week:${i}`),
                               calc: insight.calc,
                               source: `(${short(fmtDay(tracking.schedule.lastSync))} update)`,
                               ...(changes[0] ? { action: { label: 'See the week', onClick: () => drill(0) } } : {}),
@@ -518,9 +552,9 @@ export default function CitationsDrawer() {
                 ) : (
                   // the week summaries cross-fade when the metric changes
                   <div key={`${metric}|${engine}`} className="motion-safe:animate-[fade-in_150ms_ease-out]" aria-label={`${sel.label} by week`} role="list">
-                    {months.map((g) => (
+                    {months.map((g, gi) => (
                       <div key={g.month} role="listitem">
-                        <h3 className="sticky top-0 z-[1] border-b border-[var(--div)] bg-surface px-6 pb-1.5 pt-4 text-[13px] leading-[18px] font-medium text-stone-500">{g.month}</h3>
+                        <h3 className={`sticky top-0 z-[1] bg-surface px-6 pb-1 pt-4 text-[12px] leading-4 font-medium text-stone-500 ${gi ? 'border-t border-[var(--div)]' : ''}`}>{g.month}</h3>
                         <ul className="divide-y divide-[var(--div)]" aria-label={g.month}>{g.items.map(row)}</ul>
                       </div>
                     ))}
@@ -540,7 +574,7 @@ export default function CitationsDrawer() {
                     </button>
                     <h2 className="mt-2 text-[20px] leading-7 font-semibold text-stone-900">Changes on {dRow.week.label}</h2>
                     <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums">
-                      {sel.label} · compared with {rows[dRow.index + 1]?.week.label} · {brand.name}
+                      {sel.label} · compared with {dRow.prevWeek?.label} · {brand.name}
                     </p>
                     <ChangeTabs tab={tab} counts={counts} onChange={(id) => set({ tab: id })} />
                   </header>
@@ -557,7 +591,7 @@ export default function CitationsDrawer() {
         <footer className={`flex shrink-0 items-center justify-between gap-3 border-t border-line px-4 pt-3 text-[13px] leading-[18px] text-stone-600 md:px-6 ${SHEET_FOOTER_PAD}`}>
           <span className="min-w-0 truncate tabular-nums">
             {drilled
-              ? `${plural(counts[tab], noun)} ${tab} since ${rows[dRow.index + 1]?.week.label}`
+              ? `${plural(counts[tab], noun)} ${tab} since ${dRow.prevWeek?.label}`
               : `${plural(rows.length, 'week')} · ${engineLabel} · updated ${short(fmtDay(tracking.schedule.lastSync))}`}
           </span>
           {!loading && !empty && (
@@ -566,7 +600,6 @@ export default function CitationsDrawer() {
         </footer>
         <div className="sr-only" aria-live="polite">{loading ? '' : drilled ? `${plural(counts[tab], noun)} ${tab}` : `${sel.label} selected`}</div>
       </div>
-      <Tip tip={tip} />
     </div>
   )
 }
