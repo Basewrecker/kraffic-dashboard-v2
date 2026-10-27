@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
-import { ArrowRight, ChevronRight, X } from 'lucide-react'
-import { PlatformIcon } from '../dashboard/icons'
+import { ArrowRight, X } from 'lucide-react'
+import { ChangeRows, ChangeTabs, EngineChips } from './ChangeParts'
 import { ENGINES, getBrandView } from '../../data/brandViews'
 import { isoOf, shortDate, slugOf, syncChanges } from '../../data/syncChanges'
 import { useBrandView } from '../../hooks/useBrandView'
@@ -18,7 +18,6 @@ export function openSyncDrawer({ syncId, tab = 'lost', opener }) {
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`
-const TABS = [['lost', 'Lost'], ['gained', 'Gained']]
 
 function readUrl() {
   const q = new URLSearchParams(window.location.search)
@@ -119,15 +118,6 @@ export default function SyncDrawer() {
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
     }
   }
-  const arrows = (list, value, pick, attr) => (e) => {
-    const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key]
-    if (!step) return
-    e.preventDefault()
-    const i = list.indexOf(value)
-    const next = list[(i + step + list.length) % list.length]
-    pick(next)
-    requestAnimationFrame(() => panel.current?.querySelector(`[${attr}="${next}"]`)?.focus())
-  }
 
   if (!open || !row) return null
   const chips = [{ id: 'all', name: 'All' }, ...engines]
@@ -147,18 +137,7 @@ export default function SyncDrawer() {
         <SheetHandle panelRef={panel} onClose={close} />
         <header className="shrink-0 border-b border-line px-6 pb-0 pt-5">
           <div className="flex items-center justify-between gap-3">
-            <div role="tablist" aria-label="Engine" onKeyDown={arrows(chips.map((c) => c.id), engine, (id) => set({ engine: id }), 'data-chip')}
-              className="inline-flex h-8 min-w-0 items-center overflow-x-auto rounded-lg bg-tint p-0.5 [scrollbar-width:none]">
-              {chips.map((c) => {
-                const on = c.id === engine
-                return (
-                  <button key={c.id} data-chip={c.id} type="button" role="tab" aria-selected={on} tabIndex={on ? 0 : -1} onClick={() => set({ engine: c.id })}
-                    className={`inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-[13px] leading-[18px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'bg-raised text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'}`}>
-                    {c.id !== 'all' && <PlatformIcon id={c.id} size={14} />}{c.name}
-                  </button>
-                )
-              })}
-            </div>
+            <EngineChips chips={chips} value={engine} onChange={(id) => set({ engine: id })} />
             <button type="button" onClick={close} aria-label="Close"
               className="grid h-7 w-7 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
               <X size={16} />
@@ -168,37 +147,12 @@ export default function SyncDrawer() {
           <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums">
             {prev ? `Compared with ${shortDate(prev.date)}` : 'First sync in this history'} · {total} prompts{focal.you ? '' : ` · ${focal.name}`}
           </p>
-          <div role="tablist" aria-label="Lost and gained" onKeyDown={arrows(TABS.map((t) => t[0]), tab, (id) => set({ tab: id }), 'data-tab')} className="mt-4 flex gap-6">
-            {TABS.map(([id, label]) => (
-              <button key={id} data-tab={id} type="button" role="tab" aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} onClick={() => set({ tab: id })}
-                className={`-mb-px inline-flex h-10 items-center gap-1.5 border-b-2 text-[14px] leading-5 font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${tab === id ? 'border-ink text-stone-900' : 'border-transparent text-stone-600 hover:text-stone-900'}`}>
-                {label}<span className="text-[13px] leading-[18px] font-normal text-stone-500 tabular-nums">{counts[id]}</span>
-              </button>
-            ))}
-          </div>
+          <ChangeTabs tab={tab} counts={counts} onChange={(id) => set({ tab: id })} />
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {items.length === 0 ? (
-            <p className="px-6 py-12 text-center text-[14px] leading-5 text-stone-600">
-              {changes ? `No prompts ${tab} on ${engine === 'all' ? 'any engine' : chips.find((c) => c.id === engine)?.name} this sync` : 'Nothing to compare: this is the first sync here'}
-            </p>
-          ) : (
-            <ul className="divide-y divide-[var(--div)]">
-              {items.map((it) => (
-                <li key={it.key}>
-                  <button type="button" data-nav onClick={(e) => openPrompt(it, e.currentTarget)}
-                    className="group flex h-[60px] w-full items-center gap-3 px-6 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{it.prompt}</span>
-                      <span className="block truncate text-[12.5px] leading-[18px] text-stone-600">{it.meta}</span>
-                    </span>
-                    <ChevronRight size={14} className="shrink-0 text-stone-500 transition-colors group-hover:text-stone-900" aria-hidden />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ChangeRows items={items} onOpen={openPrompt}
+            empty={changes ? `No prompts ${tab} on ${engine === 'all' ? 'any engine' : chips.find((c) => c.id === engine)?.name} this sync` : 'Nothing to compare: this is the first sync here'} />
         </div>
 
         <footer className={`flex shrink-0 items-center justify-between gap-3 border-t border-line px-4 pt-3 text-[13px] leading-[18px] text-stone-600 md:px-6 ${SHEET_FOOTER_PAD}`}>

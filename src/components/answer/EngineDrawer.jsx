@@ -56,7 +56,7 @@ function middle(path, max = 46) {
   return head.length + 1 + keep >= path.length ? path : `${head}…${tail.slice(-keep)}`
 }
 
-function download(name, rows) {
+export function download(name, rows) {
   const esc = (v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v))
   const blob = new Blob([rows.map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv' })
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name })
@@ -355,7 +355,7 @@ export default function EngineDrawer() {
 
         <footer className={`flex shrink-0 items-center justify-between gap-3 border-t border-line px-4 pt-3 text-[13px] leading-[18px] text-stone-600 md:px-6 ${SHEET_FOOTER_PAD}`}>
           <span className="min-w-0 truncate tabular-nums">
-            {tab === 'mentions' ? plural(data.mentions.length, 'prompt') : `${plural(data.citations, 'citation')} across ${plural(data.pages.length, 'page')}`} · {name} · updated {short(fmtDay(tracking.schedule.lastSync))}
+            {tab === 'mentions' ? plural(data.mentions.length, 'prompt') : `${plural(data.citations, 'citation')} · ${plural(data.pages.length, 'page')}`} · {name} · updated {short(fmtDay(tracking.schedule.lastSync))}
           </span>
           <span className="flex shrink-0 items-center gap-4">
             {/* engine filtering lives in the header select; this is the shortcut from here (and closes the drawer) */}

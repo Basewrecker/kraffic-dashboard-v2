@@ -11,6 +11,21 @@ import { fmtDay, useTracking } from '../../store/trackingSettings'
 const triggerClass = (size) =>
   `inline-flex ${size === 'sm' ? 'h-8 rounded-md px-3 text-[13px]' : 'h-10 rounded-lg px-3.5 text-small'} shrink-0 items-center gap-2 whitespace-nowrap border border-line bg-raised outline-none focus-visible:ring-2 focus-visible:ring-focus`
 
+// A card header's icon action, next to its dropdowns: the 'sm' trigger's height, border, radius, surface and focus
+// ring, square. Icon t2, ink on hover. The label is its aria-label and a small tooltip (hover after 300ms, or focus);
+// tipAlign "right" for the rightmost control, so the tooltip stays inside the card.
+export function HeaderIconButton({ label, icon: Icon, onClick, children, tipAlign = 'center', className = '' }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={label}
+      className={`group/hib relative grid h-8 w-8 shrink-0 place-items-center rounded-md border border-line bg-raised text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus ${className}`}>
+      {children ?? <Icon size={16} aria-hidden />}
+      <span aria-hidden className={`pointer-events-none absolute top-full z-20 mt-1.5 ${tipAlign === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2'} whitespace-nowrap rounded-md border border-line bg-raised px-2 py-1 text-[12px] leading-4 font-medium text-stone-700 opacity-0 shadow-sm transition-opacity duration-150 group-hover/hib:opacity-100 group-hover/hib:delay-300 group-focus-visible/hib:opacity-100 motion-reduce:transition-none`}>
+        {label}
+      </span>
+    </button>
+  )
+}
+
 const score = (domain) => getBrandView(domain).kpis.score
 // header selects: full width, 40px tall below lg; exactly the old h-8 trigger from lg
 const MOBILE_TRIGGER = `${triggerClass('sm')} max-lg:h-10 max-lg:w-full max-lg:rounded-lg max-lg:text-[14px] [&>svg:last-child]:max-lg:ml-auto`
