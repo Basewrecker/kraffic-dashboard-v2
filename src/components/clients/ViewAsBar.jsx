@@ -5,11 +5,12 @@ import { textBtn } from './shared'
 
 // An agency (or a superadmin, ?viewer=superadmin) working inside a client's account, in the same tab: who they are and
 // the way back. Shown once View as (or Add client) opened the client; Back clears it and returns to the Clients list.
-// fallback: the client's name when nothing opened it (First-time setup's own preview)
-export default function ViewAsBar({ fallback = null, className = '' }) {
+// name: the brand's full name when the page knows it (First-time setup); fallback: the client's name when nothing
+// opened it (First-time setup's own preview)
+export default function ViewAsBar({ name = null, fallback = null, className = '' }) {
   const q = new URLSearchParams(window.location.search)
   const superadmin = q.get('viewer') === 'superadmin'
-  const client = q.get('client') ?? viewingClient() ?? fallback
+  const client = name ?? q.get('client') ?? viewingClient() ?? fallback
   if (!client || (!superadmin && role() !== 'agency')) return null
   return (
     <div role="status" className={`flex h-10 items-center gap-2 rounded-[10px] bg-tint px-4 text-[13px] leading-[18px] text-stone-600 ${className}`}>

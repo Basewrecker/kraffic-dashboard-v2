@@ -46,7 +46,7 @@ export const account = {
 
 export const kpis = {
   score: 73,
-  scoreDelta: 6,
+  scoreDelta: 7,
   visible: 111,
   missed: 41,
   total: 152,
@@ -65,7 +65,7 @@ export const history = [
   { date: 'Sep 7', dermasuri: 71, paulas: 2, cerave: 20, ordinary: 12 },
   { date: 'Sep 16', dermasuri: 74, paulas: 2, cerave: 21, ordinary: 9 },
   { date: 'Sep 21', dermasuri: 71, paulas: 3, cerave: 19, ordinary: 6 },
-  { date: 'Sep 28', dermasuri: 67, paulas: 3, cerave: 17, ordinary: 9 },
+  { date: 'Sep 28', dermasuri: 66, paulas: 3, cerave: 17, ordinary: 9 },
   { date: 'Oct 5', dermasuri: 73, paulas: 3, cerave: 18, ordinary: 4 },
 ]
 
@@ -532,8 +532,8 @@ const srand = mulberry32(440)
 // PLACEHOLDER: the first 5 scores come from the weekly history; everything else must be
 // replaced with the exact screenshot values.
 export const syncHistory = [
-  { date: 'Oct 5, 2026', visibility: 73, mentions: 111, cited: 30, visible: 111, missed: 41, delta: 6 },
-  { date: 'Sep 28, 2026', visibility: 67, mentions: 102, cited: 27, visible: 102, missed: 50, delta: -4 },
+  { date: 'Oct 5, 2026', visibility: 73, mentions: 111, cited: 30, visible: 111, missed: 41, delta: 7 },
+  { date: 'Sep 28, 2026', visibility: 66, mentions: 101, cited: 27, visible: 101, missed: 51, delta: -5 },
   { date: 'Sep 21, 2026', visibility: 71, mentions: 108, cited: 29, visible: 108, missed: 44, delta: -3 },
   { date: 'Sep 16, 2026', visibility: 74, mentions: 112, cited: 31, visible: 112, missed: 40, delta: 3 },
   { date: 'Sep 7, 2026', visibility: 71, mentions: 108, cited: 28, visible: 108, missed: 44, delta: 2 },
@@ -581,7 +581,7 @@ export const syncTotal = 40
     const prev = syncHistory[i + 1]
     if (!prev) { r.changes = null; return } // oldest sync in the mock: nothing to compare against
     if (i === 0) {
-      r.changes = { vs: short(prev.date), deltas: { mentions: 16, citedPages: 10, missed: -9 }, gained: gainedLatest.map(item), lost: lostLatest.map(item) }
+      r.changes = { vs: short(prev.date), deltas: { mentions: 16, citedPages: 10, missed: -10 }, gained: gainedLatest.map(item), lost: lostLatest.map(item) }
       return
     }
     const dVisible = r.visible - prev.visible
@@ -838,7 +838,7 @@ export const guessCategory = topicOf
 // ---------------------------------------------------------------------------
 // Brand Setup (/brands), shaped like the production API. The workspace's brands, the current one first:
 //   brand        a project: id, name, domain (primaryDomain), lastSync (its latest scan), prompts (tracked)
-//   aliases      project.brandAliases (read-only: the API can't change aliases once a brand exists)
+//   aliases      project.brandAliases (added and removed in Brand Setup: setupActions.onAddAlias / onRemoveAlias)
 //   aliasAnswers answers each alias was counted in (left out when the app can't count them)
 //   topics       prompt clusters (GET /projects/:id/prompts/clusters): name, promptCount
 //   competitors  approved competitors (GET /projects/:id/competitors/evidence): id, name, domain
@@ -917,20 +917,30 @@ export const firstSetupStates = {
   brand: setupState(setupBrand, [], [], { status: 'idle' }),
   competitors: setupState(setupBrand, setupCompetitors, [], { status: 'idle' }),
   prompts: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'idle' }),
-  scanning: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'running', startedAt: minutesAgo(2.2) }),
+  scanning: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'running', scanned: 3, total: setupPrompts.length }),
+  'scan-none': setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'none' }),
   done: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'done' }),
+  // the scan finished but some prompts got no result (a timed-out search): the dashboard opens anyway
+  'scan-partial': setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'done', scanned: setupPrompts.length - 2, total: setupPrompts.length, failed: 2 }),
   'name-only': setupState({ name: 'Brightside Botanics', domain: null }, [], [], { status: 'idle' }),
 }
 export const firstSetupScanMinutes = 10
 // the client the brand belongs to (the agency / superadmin "Viewing … as" banner)
 export const firstSetupClient = 'Brightside'
-// First-time setup saves. Here: they settle after a moment; the mock's first scan finishes after 8s.
+// First-time setup saves. Here: they settle after a moment; the mock's first scan reaches every prompt in a few polls.
 // A brand, competitors and research go through setupActions / promptActions (Brand Setup, Prompt Hub).
+// onSavePrompts: every new prompt in one request (saving them starts the first scan) · onScanProgress: where the first
+// scan is ({ status: 'running' | 'done' | 'none', scanned, total, failed }); done once the scan has finished with
+// results, failed: prompts it couldn't check (they're checked again with the next sync); ?mock=scan-none: no scan running
+const firstScan = { scanned: 0 }
 export const firstSetupActions = {
-  onAddPrompts: (items) => new Promise((resolve) => setTimeout(() => resolve(items.map((it, i) => ({ id: `np${Date.now()}${i}`, text: it.text }))), 300)),
-  onStartScan: () => new Promise((resolve) => setTimeout(() => resolve({ startedAt: new Date().toISOString() }), 300)),
-  // → resolves when the scan has finished
-  onScanDone: () => new Promise((resolve) => setTimeout(resolve, 8000)),
+  onSavePrompts: (items) => new Promise((resolve) => setTimeout(() => resolve(items.map((it, i) => ({ id: `np${Date.now()}${i}`, text: it.text }))), 600)),
+  onScanProgress: () => new Promise((resolve) => setTimeout(() => {
+    if (new URLSearchParams(window.location.search).get('mock') === 'scan-none') { resolve({ status: 'none' }); return }
+    const total = setupPrompts.length
+    firstScan.scanned = Math.min(total, firstScan.scanned + Math.ceil(total / 3))
+    resolve(firstScan.scanned >= total ? { status: 'done', scanned: total, total } : { status: 'running', scanned: firstScan.scanned, total })
+  }, 300)),
 }
 
 // Brand Setup saves. Here: they settle after a moment (the page updates first and keeps the change).
@@ -946,6 +956,9 @@ export const setupActions = {
   onDismissSuggestion: (brandId, s) => settle(s),
   onCreateBrand: ({ name, domain, aliases, competitors: list }) => settle({ id: `b${++setupSeq}`, name, domain, aliases, competitors: list.map((c, i) => ({ id: `c${++setupSeq + i}`, ...c })) }),
   onUpdateBrand: (id, { name, domain }) => settle({ id, name, domain }),
+  // "Also counts as": one name variant at a time
+  onAddAlias: (brandId, name) => settle(name),
+  onRemoveAlias: (brandId, name) => settle(name),
   onDeleteBrand: (id) => settle(id),
   // Marketplaces (shown when the account has ecommerce): the brand's stores, saved one change at a time
   onAddMarketplace: (brandId, { name, domain }) => settle({ id: `m${++setupSeq}`, name, domain, cited: 0 }),
@@ -1016,11 +1029,12 @@ export const syncModes = {
     { id: 'claude_only', title: 'Claude only', description: 'Runs Claude for every prompt. Skips Google, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
   ],
 }
-// a sync here: accepted after a moment, then each engine works through its prompts (progress), done after a few seconds.
-// ?sync=slow: it outlasts the page's wait, so the page says it's still running in the background; ?sync=fail: refused
+// a sync here: accepted after a moment, then each engine works through its prompts (progress). ?sync=slow: it outlasts
+// the page's wait, so the page says it's still running in the background and keeps following it until it finishes
+// (onDone); ?sync=fail: refused (a sync already running for the brand)
 const syncPreview = (() => { try { return new URLSearchParams(window.location.search).get('sync') } catch { return null } })()
 // counts: { prompts, missed } for another brand than the current one (the agency Clients list); preview: overrides ?sync=
-const syncSettle = ({ mode = 'full', onAccepted, onProgress, waitMs = 6000, counts, preview = syncPreview } = {}) => new Promise((resolve, reject) => {
+const syncSettle = ({ mode = 'full', onAccepted, onProgress, onDone, waitMs = 6000, counts, preview = syncPreview } = {}) => new Promise((resolve, reject) => {
   if (preview === 'fail') { setTimeout(() => reject(new Error('A sync is already running for this brand')), 600); return }
   const m = [...syncModes.website, ...syncModes.brand].find((x) => x.id === mode) || syncModes.website[0]
   const total = m.prompts === 'missed' ? counts?.missed ?? missedPrompts.length : counts?.prompts ?? trackedPrompts.length
@@ -1029,15 +1043,20 @@ const syncSettle = ({ mode = 'full', onAccepted, onProgress, waitMs = 6000, coun
   setTimeout(() => {
     onAccepted?.()
     const started = Date.now()
+    let waiting = true
     const tick = setInterval(() => {
       for (const e of m.engines) done[e] = Math.min(total, done[e] + step + (e === 'aio' ? 0 : 1))
       onProgress?.(Object.fromEntries(m.engines.map((e) => [e, { done: done[e], total }])))
       const finished = m.engines.every((e) => done[e] >= total)
-      if (finished || Date.now() - started > waitMs) {
+      const d = new Date()
+      const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+      if (finished) {
         clearInterval(tick)
-        const d = new Date()
-        const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
-        resolve(finished ? { status: 'complete', lastSync: iso(d), nextScanAt: null } : { status: 'running' })
+        const res = { status: 'complete', lastSync: iso(d), nextScanAt: null }
+        if (waiting) resolve(res); else onDone?.(res)
+      } else if (waiting && Date.now() - started > waitMs) {
+        waiting = false
+        resolve({ status: 'running' })
       }
     }, 400)
   }, 600)
@@ -1098,7 +1117,8 @@ export const clientActions = {
 // Options: lib/llm-region-options.js (REGIONS, COUNTRIES, COUNTRY_TO_REGION, CURRENCIES) and the language and
 // frequency lists in app/admin/llm-settings/LLMSettingsForm.js. Every row saves through the one PUT.
 // Engines: enabled_engines { aio, gemini, chatgpt, claude, grok } (at least one stays on; the API turns AI Overview
-// back on otherwise). Sync now: not a settings field (the app's scans run from its own routes), so it's left out.
+// back on otherwise). Sync now: POST /api/admin/sync-user-prompts (the superadmin Sync modes; Full sync = forceRescan),
+// then its progress until the sync completes.
 export const appTrackingOptions = {
   regions: [
     { value: 'North America', countries: ['USA', 'Canada', 'Mexico'] },
@@ -1122,6 +1142,7 @@ export const appTracking = {
   onSetEngine: (id, enabled) => settle({ [id]: enabled }),
   onSaveMarket: (patch) => settle(patch),
   onSetFrequency: (frequency) => settle({ frequency }),
+  onSyncNow: trackingActions.onSyncNow,
 }
 
 // ---------------------------------------------------------------------------------------------------------------

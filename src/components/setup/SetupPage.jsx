@@ -262,8 +262,6 @@ function BrandIdentity({ brand, syncing, onEdit, onDelete }) {
               {/* what's tracked: a website, or a name with no site of its own */}
               {brand.type && <>{brand.domain && <span aria-hidden>·</span>}{brand.type === 'website' ? 'Website' : 'Brand name'}</>}
             </span>
-            {/* no other names: one muted line here instead of an empty "Also counts as" card */}
-            {!(brand.aliases ?? []).length && <span className="block text-[13px] leading-[18px] text-stone-500">No other names</span>}
           </span>
         </span>
         <span className="flex items-center gap-3">
@@ -326,34 +324,74 @@ function ChipAdder({ label, placeholder, shape, add }) {
 
 const animClass = (state) => (state === 'enter' ? 'chip-in' : state === 'leaving' ? 'chip-out' : '')
 
-// "Also counts as": one line of chips, the brand's aliases (read-only: they're set when the brand is added), each
-// with how many answers counted it when that's known
-function NamesCard({ brand }) {
+// "Also counts as": one line of chips, the brand's name variants (an answer naming one counts as a mention of the brand),
+// each with how many answers counted it when that's known. Add one with Add; remove one with its × (Undo in the toast).
+// A backend that can't save them (no onAddAlias) shows them read-only, and nothing when there are none.
+function NamesCard({ brand, update, toast }) {
   const aliases = brand.aliases ?? []
-  // no aliases: the brand card says "No other names" instead of an empty card
-  if (!aliases.length) return null
+  const editable = Boolean(setupActions.onAddAlias)
+  const chips = useAnimatedList(aliases, (a) => a, 150)
+  const [failed, save] = useCardSave()
+  // no aliases and nothing to add with: no card (nothing to show or add)
+  if (!aliases.length && !editable) return null
   const counts = brand.aliasAnswers // null: not known, so no counts
   const shape = 'h-9 rounded-lg text-[14px]'
+  const setList = (fn) => update((b) => ({ ...b, aliases: fn(b.aliases ?? []) }))
+  const problem = (v) => {
+    const low = v.toLowerCase()
+    if (low === String(brand.name).toLowerCase() || low === String(brand.domain ?? '').toLowerCase()) return 'That’s the brand itself'
+    return aliases.some((x) => x.toLowerCase() === low) ? 'Already added' : null
+  }
+  const add = (name) => save(`“${name}”`, {
+    apply: () => setList((xs) => [...xs, name]),
+    revert: () => setList((xs) => xs.filter((x) => x !== name)),
+    call: () => setupActions.onAddAlias(brand.id, name),
+    done: () => toast(`“${name}” added`),
+  })
+  const restore = (name, i) => save(`“${name}”`, {
+    apply: () => setList((xs) => (xs.includes(name) ? xs : [...xs.slice(0, i), name, ...xs.slice(i)])),
+    revert: () => setList((xs) => xs.filter((x) => x !== name)),
+    call: () => setupActions.onAddAlias(brand.id, name),
+  })
+  const remove = (name) => {
+    const i = aliases.indexOf(name)
+    save(`“${name}”`, {
+      apply: () => setList((xs) => xs.filter((x) => x !== name)),
+      revert: () => setList((xs) => (xs.includes(name) ? xs : [...xs.slice(0, i), name, ...xs.slice(i)])),
+      call: () => setupActions.onRemoveAlias(brand.id, name),
+      done: () => toast(`“${name}” removed`, { duration: 5000, action: { label: 'Undo', onClick: () => restore(name, i) } }),
+    })
+  }
 
   return (
     <SettingsCard id={`aliases-${brand.id}`} title="Also counts as" count={aliases.length} description={`Name variants that count as a ${brand.name} mention`} compact
       body={(
-        <div className="flex flex-wrap items-center gap-2.5 px-5 pb-4">
-          {aliases.map((a) => {
-            const Icon = isDomain(a) ? Globe : Type // what kind of variant: a domain / URL, or a name
-            const seen = counts?.[a] ?? 0
-            return (
-            <span key={a} className={`${shape} inline-flex items-center gap-2 border border-line bg-surface pl-2.5 pr-3 font-medium text-stone-900`}>
-              <Icon size={16} className="shrink-0 text-stone-500" aria-label={isDomain(a) ? 'Domain' : 'Name'} />
-              {a}
-              {counts && (
-                <span title={seen ? `Counted in ${seen} answer${seen === 1 ? '' : 's'}` : 'Not seen in answers yet'}
-                  className="inline-flex h-5 items-center rounded bg-tint px-1.5 text-[12px] leading-none font-medium text-stone-600 tabular-nums">{seen}</span>
-              )}
-            </span>
-            )
-          })}
-        </div>
+        <>
+          <div className="flex flex-wrap items-center gap-2.5 px-5 pb-4">
+            {chips.map(({ item: a, key, state }) => {
+              const Icon = isDomain(a) ? Globe : Type // what kind of variant: a domain / URL, or a name
+              const seen = counts?.[a] ?? 0
+              return (
+              <span key={key} className={`${shape} inline-flex items-center gap-2 border border-line bg-surface pl-2.5 ${editable ? 'pr-1' : 'pr-3'} font-medium text-stone-900 ${animClass(state)}`}>
+                <Icon size={16} className="shrink-0 text-stone-500" aria-label={isDomain(a) ? 'Domain' : 'Name'} />
+                {a}
+                {counts && (
+                  <span title={seen ? `Counted in ${seen} answer${seen === 1 ? '' : 's'}` : 'Not seen in answers yet'}
+                    className="inline-flex h-5 items-center rounded bg-tint px-1.5 text-[12px] leading-none font-medium text-stone-600 tabular-nums">{seen}</span>
+                )}
+                {editable && (
+                  <button type="button" onClick={() => remove(a)} aria-label={`Remove ${a}`}
+                    className="grid h-7 w-7 place-items-center rounded-md text-stone-500 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
+                    <X size={14} aria-hidden />
+                  </button>
+                )}
+              </span>
+              )
+            })}
+            {editable && <ChipAdder label="Add" placeholder="e.g. Derma Suri" shape={shape} add={(v) => problem(v) ?? add(v) ?? null} />}
+          </div>
+          <SaveFailed failed={failed} />
+        </>
       )}
     />
   )
@@ -683,7 +721,7 @@ export default function SetupPage() {
           return (
             <div key={b.id} className={`flex flex-col gap-4 ${i > 0 ? 'mt-6' : ''} ${b.id === newId ? 'card-in' : ''}`}>
               <BrandIdentity brand={brand} syncing={b.id === primary?.id && tracking.syncing} onEdit={(x) => setModal({ brand: x })} onDelete={deleteBrand} />
-              <NamesCard brand={brand} />
+              <NamesCard brand={brand} update={update} toast={toast} />
               <TopicsCard brand={brand} update={update} toast={toast} />
               <CompetitorsCard brand={brand} update={update} toast={toast} />
               {/* marketplaces: accounts with ecommerce, when the backend keeps the brand's stores */}

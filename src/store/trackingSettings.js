@@ -24,7 +24,7 @@ function reducer(state, action) {
     case 'schedule':
       return { ...state, schedule: { ...state.schedule, ...action.patch } }
     // a sync: syncing (asked) → accepted (the server took it) → progress per engine → done, or still running in the
-    // background when it outlasts the page's wait (not a failure: the scans go on)
+    // background when it outlasts the page's wait (not a failure: the scans go on, and the page follows them to the end)
     case 'syncStart':
       return { ...state, syncing: true, syncAccepted: false, syncProgress: null, syncBackground: false }
     case 'syncAccepted':
@@ -32,7 +32,7 @@ function reducer(state, action) {
     case 'syncProgress':
       return { ...state, syncProgress: action.progress }
     case 'syncDone':
-      return { ...state, syncing: false, syncProgress: null, schedule: { ...state.schedule, lastSync: action.lastSync, nextScanAt: action.nextScanAt } }
+      return { ...state, syncing: false, syncBackground: false, syncProgress: null, schedule: { ...state.schedule, lastSync: action.lastSync, nextScanAt: action.nextScanAt } }
     case 'syncBackground':
       return { ...state, syncing: false, syncBackground: true }
     case 'syncFail':
@@ -71,22 +71,26 @@ export function TrackingProvider({ initial = initialTracking, children }) {
     const before = current.current.schedule.daily
     return optimistic({ type: 'schedule', patch: { daily } }, { type: 'schedule', patch: { daily: before } }, () => save(daily))
   }, [optimistic])
-  // run({ mode, onAccepted, onProgress }) resolves { status: 'complete', lastSync, nextScanAt } or { status: 'running' };
-  // onAccepted: the caller's own reaction (the "Sync started" toast), after the server took the request
-  const syncNow = useCallback(async (run = trackingActions.onSyncNow, { mode, onAccepted } = {}) => {
+  // run({ mode, onAccepted, onProgress, onDone }) resolves { status: 'complete', lastSync, nextScanAt } or { status: 'running' }
+  // (it keeps going: onDone(result) when it finishes); onAccepted: the caller's own reaction (the "Sync started" toast),
+  // after the server took the request; onDone: the caller's reaction to a finish in the background. One sync at a time
+  // from this page: a second start while one runs (or runs in the background) is ignored.
+  const syncNow = useCallback(async (run = trackingActions.onSyncNow, { mode, onAccepted, onDone } = {}) => {
     if (syncing.current) return null
     syncing.current = true
     dispatch({ type: 'syncStart' })
+    const finish = (res) => { syncing.current = false; dispatch({ type: 'syncDone', lastSync: res?.lastSync, nextScanAt: res?.nextScanAt ?? null }) }
     try {
       const res = await run({
         mode,
         onAccepted: () => { dispatch({ type: 'syncAccepted' }); onAccepted?.() },
         onProgress: (progress) => dispatch({ type: 'syncProgress', progress }),
+        onDone: (later) => { finish(later); onDone?.(later) },
       })
       if (res?.status === 'running') dispatch({ type: 'syncBackground' })
-      else dispatch({ type: 'syncDone', lastSync: res?.lastSync, nextScanAt: res?.nextScanAt ?? null })
+      else finish(res)
       return res
-    } catch (err) { dispatch({ type: 'syncFail' }); throw err } finally { syncing.current = false }
+    } catch (err) { syncing.current = false; dispatch({ type: 'syncFail' }); throw err }
   }, [])
   const actions = useMemo(() => ({ setPlatform, setMarket, setFrequency, setDaily, syncNow }), [setPlatform, setMarket, setFrequency, setDaily, syncNow])
   const value = useMemo(() => ({ ...state, ...actions }), [state, actions])

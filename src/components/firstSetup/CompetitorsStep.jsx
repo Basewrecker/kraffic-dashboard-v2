@@ -14,7 +14,9 @@ export default function CompetitorsStep({ brand, list, suggested, update, toast,
   const adding = ed.editing === 'new' || (!list.length && ed.editing == null)
   const setList = (fn) => update((s) => ({ competitors: fn(s.competitors) }))
   const setSuggested = (fn) => update((s) => ({ suggested: fn(s.suggested) }))
-  const fail = (name, retry) => toast(`Couldn’t save ${name}`, { duration: 6000, action: { label: 'Retry', onClick: retry } })
+  // Retry runs once (a second click on the same toast sends nothing)
+  const once = (fn) => { let used = false; return () => { if (!used) { used = true; fn() } } }
+  const fail = (name, retry) => toast(`Couldn’t save ${name}`, { duration: 6000, action: { label: 'Retry', onClick: once(retry) } })
 
   const validate = ({ name, domain }) => {
     const d = normalizeDomain(domain)

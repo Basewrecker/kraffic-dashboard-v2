@@ -1,5 +1,6 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { ENGINES, OWN, TRACKED_BRANDS, getBrandView } from '../data/brandViews'
+import { withSyncChanges } from '../utils/syncChange'
 
 // "Viewing as": which brand the dashboard is seen from (?view=<key>, absent = Dermasuri), and the
 // engine filter every card follows (?engine=gemini, absent = all engines). replaceState, so switching
@@ -54,7 +55,8 @@ export function useBrandView(focalDomain) {
   const ctx = useDashboardView()
   const domain = focalDomain ?? ctx.focal
   return useMemo(
-    () => ({ ...getBrandView(domain, ctx.engine), setView: ctx.setView, setEngine: ctx.setEngine }),
+    // the score card and Sync history agree on "vs last sync" (see utils/syncChange)
+    () => ({ ...withSyncChanges(getBrandView(domain, ctx.engine)), setView: ctx.setView, setEngine: ctx.setEngine }),
     [domain, ctx.engine, ctx.setView, ctx.setEngine],
   )
 }

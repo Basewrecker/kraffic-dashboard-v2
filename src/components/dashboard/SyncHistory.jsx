@@ -7,19 +7,24 @@ import { useTracking } from '../../store/trackingSettings'
 import SectionHeader from './SectionHeader'
 import { openSyncDrawer } from '../answer/SyncDrawer'
 import { useBrandView } from '../../hooks/useBrandView'
+import { changeParts } from '../../utils/syncChange'
 
 const PREVIEW = 5
 const short = (d) => d.replace(/, \d{4}$/, '') // "Oct 5, 2026" → "Oct 5"
-// chevron | date | visibility | prompts split
-// phones: narrower date / % columns and no bar (the count says it)
-const ROW = 'grid grid-cols-[20px_92px_84px_minmax(0,1fr)] items-center gap-x-3 sm:grid-cols-[20px_112px_96px_minmax(0,1fr)]'
+// chevron | date | visibility + change | prompts split
+// the change gets its full width and the bar takes what's left; phones: "Latest" under the date, the change under the
+// score, and no bar (the count says it)
+const ROW = 'grid grid-cols-[20px_52px_minmax(0,1fr)_auto] items-center gap-x-3 sm:grid-cols-[20px_112px_auto_minmax(0,1fr)]'
 
+// "▲ 7 pts · +10 prompts": the row's score minus the row below's, and gained − lost (see utils/syncChange)
 // ▲ ink · ▼ negative (the only hue in the system) · — muted
-export function Delta({ d, className = 'text-[12px] leading-4' }) {
-  if (d == null || d === 0) return <span className={`${className} font-medium text-stone-500`}>—</span>
+export function Delta({ d, prompts = null, className = 'text-[12px] leading-4' }) {
+  const change = changeParts(d, prompts, { suffix: '' })
+  if (!change || (!change.arrow && prompts == null)) return <span className={`${className} font-medium text-stone-500`}>—</span>
+  const tone = !change.arrow ? 'text-stone-500' : change.arrow === '▲' ? 'text-ink' : 'text-negative'
   return (
-    <span className={`${className} font-medium tabular-nums whitespace-nowrap ${d > 0 ? 'text-ink' : 'text-negative'}`}>
-      {d > 0 ? '▲' : '▼'} {Math.abs(d)}
+    <span className={`${className} min-w-0 truncate font-medium tabular-nums whitespace-nowrap ${tone}`}>
+      {change.arrow ? `${change.arrow} ` : ''}{change.text}
     </span>
   )
 }
@@ -121,14 +126,14 @@ export default function SyncHistory() {
                 className={`${ROW} group -mx-2 h-11 w-[calc(100%+16px)] rounded-md px-2 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus ${explain.on && explain.keys.includes(`sync:${r.id}`) ? 'bg-tint' : ''}`}
               >
                 <ChevronRight size={14} className={`text-stone-500 transition-transform duration-150 ease-out motion-reduce:transition-none ${isOpen ? 'rotate-90' : ''}`} aria-hidden />
-                <span className="flex items-center gap-2 whitespace-nowrap">
+                <span className="flex flex-col items-start whitespace-nowrap sm:flex-row sm:items-center sm:gap-2">
                   <span className="text-[14px] leading-5 text-stone-900 tabular-nums">{short(r.date)}</span>
                   {/* row hover is bg-tint too, so the pill swaps to the card colour to stay visible */}
                   {i === 0 && <span className={`inline-flex h-5 items-center rounded px-1.5 text-[11px] leading-none font-medium text-stone-700 transition-colors duration-150 ${explain.on && explain.keys.includes(`sync:${r.id}`) ? 'bg-surface' : 'bg-tint group-hover:bg-surface'}`}>Latest</span>}
                 </span>
-                <span className="flex items-baseline gap-2">
+                <span className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-2">
                   <span className="text-[14px] leading-5 font-semibold text-ink tabular-nums">{r.visibility}%</span>
-                  <Delta d={r.delta} />
+                  <Delta d={r.delta} prompts={r.netPrompts ?? null} />
                 </span>
                 <span className="flex min-w-0 items-center justify-end gap-3 sm:justify-start">
                   <span className="hidden h-1.5 w-full max-w-[160px] min-w-[48px] overflow-hidden rounded-full sm:flex" style={{ background: 'var(--data-track)' }} aria-hidden>

@@ -256,6 +256,9 @@ function applyEngine(base, engine) {
     cited: Math.round(r.cited * citedRatio),
     changes: r.changes && { ...r.changes, gained: r.changes.gained.filter((g) => visIds.has(g.id)) },
   }))
+  // the latest row is the score the card shows on this engine; an engine that never shows the brand loses nothing
+  if (syncRows[0]) syncRows[0].visibility = pct(onEngine.size, TOTAL)
+  if (!ratio) syncRows.forEach((r) => { if (r.changes) r.changes = { ...r.changes, lost: [] } })
   syncRows.forEach((r, i) => { r.delta = i < syncRows.length - 1 ? r.visibility - syncRows[i + 1].visibility : Math.round(r.delta * ratio) })
 
   // top cited pages on this engine
@@ -312,6 +315,14 @@ export function sharedAnswers(domain, withDomain = OWN.domain) {
 // ------------------------------------------------------------------ engine drawer ("Where ChatGPT mentions …")
 // Mentions = prompts whose answer on this engine names the focal brand; citations = those that also link its site,
 // grouped by page. engine 'all' = any engine (each row keeps the first engine, in ENGINE_ORDER, that mentions/cites it).
+// "/p?utm_source=chatgpt.com&ref=x#top" → "/p?ref=x": utm_* parameters and the fragment don't make a different page
+export function pagePath(url) {
+  const [rest] = url.split('#')
+  const [path, query = ''] = rest.split('?')
+  const kept = query.split('&').filter((kv) => kv && !/^utm_/i.test(kv))
+  return kept.length ? `${path}?${kept.join('&')}` : path
+}
+
 export function engineDetail(domain, engine = 'all') {
   const pids = engine === 'all' ? ENGINE_ORDER.map((id) => [id, PLATFORM_ID[id]]) : [[engine, PLATFORM_ID[engine]]]
   const mentions = []
@@ -324,7 +335,9 @@ export function engineDetail(domain, engine = 'all') {
     if (on) mentions.push({ key: p.id, prompt: p.prompt, category: p.category, engine: on[0], cited: !!citedOn })
     if (citedOn) {
       citations++
-      ;(pages[a.citedPage] ??= []).push({ key: p.id, prompt: p.prompt, engine: citedOn[0] })
+      // ChatGPT links carry ?utm_source=chatgpt.com; the same page with or without tracking parameters is one page
+      const url = citedOn[0] === 'chatgpt' ? `${a.citedPage}?utm_source=chatgpt.com` : a.citedPage
+      ;(pages[pagePath(url)] ??= []).push({ key: p.id, prompt: p.prompt, engine: citedOn[0] })
     }
   })
   return {

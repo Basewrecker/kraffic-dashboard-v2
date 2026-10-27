@@ -1,4 +1,5 @@
-import { ChevronRight } from 'lucide-react'
+import { ArrowRight, ChevronRight, History } from 'lucide-react'
+import { HeaderIconButton } from './PageHeader'
 import Card from './Card'
 import Gauge from '../ui/Gauge'
 import Insight, { hl, useExplain } from '../ui/Insight'
@@ -6,7 +7,9 @@ import { platformEvidence } from './insights'
 import { useCardBrand } from './BrandSelect'
 import { PlatformIcon } from './icons'
 import { openEngineDrawer } from '../answer/EngineDrawer'
+import { openCitationsDrawer } from '../answer/CitationsDrawer'
 import { ENGINES, OWN, brandByDomain, getBrandView } from '../../data/brandViews'
+import { weekRows } from '../../data/citationHistory'
 import { citationsMentions, trackedPrompts } from '../../data/mock'
 import { useBrandView, useCountUp } from '../../hooks/useBrandView'
 import { platformRates } from '../../utils/platformInsight'
@@ -26,12 +29,31 @@ function Clickable({ value, label, onOpen, children }) {
   return <button type="button" onClick={onOpen} aria-label={label} className={cell}>{children}<Chevron /></button>
 }
 
-const Stat = ({ label, children, gap = 'mt-1' }) => (
+const Stat = ({ label, children, gap = 'mt-1', foot = null }) => (
   <div className="min-w-0">
     <div className="text-[13px] leading-[18px] font-medium text-stone-600">{label}</div>
     <div className={`${gap} flex items-end gap-3`}>{children}</div>
+    {foot}
   </div>
 )
+
+// "+22 vs last week" under a big number: the card's main way into week by week (opens the drawer on that metric).
+// t3; on hover or focus it underlines, turns ink and a small → slides in (outside the text box, so it takes no width
+// and the two lines never collide on a phone). A drop’s number
+// keeps the negative token.
+function VsLastWeek({ d, label, onOpen }) {
+  if (d == null) return null
+  return (
+    <button type="button" onClick={onOpen} aria-label={`${label}: ${d === 0 ? 'no change' : d > 0 ? `up ${d}` : `down ${Math.abs(d)}`} vs last week. Open week by week`}
+      className="group/vs relative -mx-1 mt-0.5 inline-flex cursor-pointer items-center whitespace-nowrap rounded px-1 text-left text-[12px] leading-4 text-stone-500 tabular-nums outline-none transition-colors duration-150 hover:text-ink focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-focus">
+      <span className="decoration-1 underline-offset-2 group-hover/vs:underline group-focus-visible/vs:underline">
+        {d === 0 ? 'No change' : <span className={d < 0 ? 'text-negative' : ''}>{d > 0 ? `+${d}` : `−${Math.abs(d)}`}</span>} vs last week
+      </span>
+      <ArrowRight size={12} aria-hidden
+        className="pointer-events-none absolute left-full top-1/2 -translate-x-1 -translate-y-1/2 text-ink opacity-0 transition duration-150 ease-out group-hover/vs:translate-x-0 group-hover/vs:opacity-100 group-focus-visible/vs:translate-x-0 group-focus-visible/vs:opacity-100 motion-reduce:transition-none" />
+    </button>
+  )
+}
 const Big = ({ value }) => <span className="text-[24px] leading-8 font-semibold tabular-nums md:text-[32px]">{useCountUp(value)}</span>
 const Num = ({ value }) => <span className="text-[14px] leading-5 font-medium tabular-nums">{useCountUp(value)}</span>
 
@@ -66,6 +88,9 @@ export default function CitationsMentions() {
   // drawer for this card's brand (not necessarily the page's "Viewing as")
   const open = (engine, tab, e) => openEngineDrawer({ engine, tab, brand: domain, opener: e.currentTarget })
   const shownScore = useCountUp(score)
+  // this week vs last (all of the brand's engines, as the numbers above): the drawer has the weeks before
+  const [thisWeek] = weekRows(domain, 'all', enabled, 2)
+  const week = (metric, e) => openCitationsDrawer({ metric, brand: domain, opener: e.currentTarget })
 
   // insight: about the engine that cites the brand most (else mentions it most), compared with the others
   const insightRows = rows.map((r) => {
@@ -82,14 +107,19 @@ export default function CitationsMentions() {
 
   return (
     <Card ref={explain.cardRef} id="platforms" className="flex h-full min-w-0 scroll-mt-6 flex-col px-5 pt-5">
+      {/* title + subtitle take the rest of the row and wrap (never truncate); the controls keep their width, centred
+          on the title line (32px controls on a 24px line: -mt-1) */}
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="text-[17px] leading-6 font-semibold text-stone-900">Citations and Mentions</h2>
-          <p className="mt-0.5 truncate text-[13px] leading-[18px] text-stone-600 tabular-nums" title={silentLine ?? undefined}>
-            Across {TOTAL} prompts{silentLine && ` · ${silentLine}`}
+          <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums [text-wrap:pretty]">
+            {TOTAL} prompts{silentLine && ` · ${silentLine}`}
           </p>
         </div>
-        {brandSelect}
+        <div className="-mt-1 flex shrink-0 items-center gap-2">
+          <HeaderIconButton label="Week by week" icon={History} onClick={(e) => week('mentions', e)} />
+          {brandSelect}
+        </div>
       </div>
 
       {/* headline stats */}
@@ -99,14 +129,14 @@ export default function CitationsMentions() {
           <Gauge value={shownScore} />
           <span className="text-[24px] leading-none font-semibold text-stone-900 tabular-nums md:text-[32px]">{Math.round(shownScore)}</span>
         </Stat>
-        <Stat label="Mentions">
+        <Stat label="Mentions" foot={mentions != null && <VsLastWeek d={thisWeek?.delta.mentions} label="Mentions" onOpen={(e) => week('mentions', e)} />}>
           {mentions == null ? <span className="text-[24px] leading-none font-semibold md:text-[32px]">{dash}</span> : (
           <Clickable value={mentions} label={`View all ${mentions} ${brand?.name} mentions`} onOpen={(e) => open('all', 'mentions', e)}>
             <span className="text-stone-900"><Big value={mentions} /></span>
           </Clickable>
           )}
         </Stat>
-        <Stat label="Citations">
+        <Stat label="Citations" foot={<VsLastWeek d={thisWeek?.delta.citations} label="Citations" onOpen={(e) => week('citations', e)} />}>
           <Clickable value={citations} label={`View all ${citations} ${brand?.name} citations`} onOpen={(e) => open('all', 'pages', e)}>
             <span className="text-stone-900"><Big value={citations} /></span>
           </Clickable>
