@@ -881,7 +881,8 @@ export const setupBrands = [
       { id: 's1', name: 'La Roche-Posay', domain: 'laroche-posay.us', reason: 'Sells sunscreen and barrier creams to the same shoppers' },
       { id: 's2', name: 'Neutrogena', domain: 'neutrogena.com', reason: 'Named next to you in answers about daily SPF' },
     ],
-    marketplaces: setupMarketplaces,
+    // Marketplaces shows only for accounts with ecommerce: the data decides (null = no card), not the page
+    marketplaces: account.features.ecommerce ? setupMarketplaces : null,
   },
 ]
 
