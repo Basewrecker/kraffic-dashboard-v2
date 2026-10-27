@@ -355,7 +355,7 @@ export default function EngineDrawer() {
 
         <footer className={`flex shrink-0 items-center justify-between gap-3 border-t border-line px-4 pt-3 text-[13px] leading-[18px] text-stone-600 md:px-6 ${SHEET_FOOTER_PAD}`}>
           <span className="min-w-0 truncate tabular-nums">
-            {tab === 'mentions' ? plural(data.mentions.length, 'prompt') : `${plural(data.citations, 'citation')} across ${plural(data.pages.length, 'page')}`} · {name} · updated {short(fmtDay(tracking.schedule.lastSync))}
+            {tab === 'mentions' ? plural(data.mentions.length, 'prompt') : `${plural(data.citations, 'citation')} · ${plural(data.pages.length, 'page')}`} · {name} · updated {short(fmtDay(tracking.schedule.lastSync))}
           </span>
           <span className="flex shrink-0 items-center gap-4">
             {/* engine filtering lives in the header select; this is the shortcut from here (and closes the drawer) */}

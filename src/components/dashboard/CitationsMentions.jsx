@@ -1,12 +1,16 @@
+import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { ChevronRight } from 'lucide-react'
 import Card from './Card'
+import Segmented from './Segmented'
+import CitationsHistory from './CitationsHistory'
 import Gauge from '../ui/Gauge'
 import Insight, { hl, useExplain } from '../ui/Insight'
 import { platformEvidence } from './insights'
 import { useCardBrand } from './BrandSelect'
 import { PlatformIcon } from './icons'
 import { openEngineDrawer } from '../answer/EngineDrawer'
-import { ENGINES, OWN, brandByDomain, getBrandView } from '../../data/brandViews'
+import { ENGINES, OWN, brandByDomain, engineName, getBrandView } from '../../data/brandViews'
 import { citationsMentions, trackedPrompts } from '../../data/mock'
 import { useBrandView, useCountUp } from '../../hooks/useBrandView'
 import { platformRates } from '../../utils/platformInsight'
@@ -34,6 +38,19 @@ const Stat = ({ label, children, gap = 'mt-1' }) => (
 )
 const Big = ({ value }) => <span className="text-[24px] leading-8 font-semibold tabular-nums md:text-[32px]">{useCountUp(value)}</span>
 const Num = ({ value }) => <span className="text-[14px] leading-5 font-medium tabular-nums">{useCountUp(value)}</span>
+
+// Now | History (?cm=history): Now is the card as it always was; History compares the three numbers week by week
+// (CitationsHistory). Switching animates the card's height while the two views cross-fade (200ms).
+const MODES = [{ value: 'now', label: 'Now' }, { value: 'history', label: 'History' }]
+const SWAP_MS = 200
+const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+const readMode = () => (new URLSearchParams(window.location.search).get('cm') === 'history' ? 'history' : 'now')
+function writeMode(m) {
+  const url = new URL(window.location.href)
+  if (m === 'history') url.searchParams.set('cm', 'history')
+  else url.searchParams.delete('cm')
+  window.history.replaceState(window.history.state, '', url)
+}
 
 // "Claude and Grok" / "Claude, Grok and Perplexity"
 const listOf = (names) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`)
@@ -67,6 +84,39 @@ export default function CitationsMentions() {
   const open = (engine, tab, e) => openEngineDrawer({ engine, tab, brand: domain, opener: e.currentTarget })
   const shownScore = useCountUp(score)
 
+  // Now | History. The card's height goes from the old view's to the new one's while the old view fades out on top
+  const [mode, setModeState] = useState(readMode)
+  const [leaving, setLeaving] = useState(null) // the view fading out
+  const [visited, setVisited] = useState(() => readMode() === 'history') // History mounts the first time it's opened
+  const timer = useRef(null)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  const setMode = (next) => {
+    if (next === mode) return
+    const el = explain.cardRef.current
+    const from = el?.getBoundingClientRect().height
+    clearTimeout(timer.current)
+    for (const k of ['height', 'align-self']) el?.style.removeProperty(k)
+    flushSync(() => { setModeState(next); setVisited(true); setLeaving(reduced() ? null : mode) })
+    writeMode(next)
+    if (!el || reduced()) return
+    const to = el.getBoundingClientRect().height
+    // while it animates the card sizes itself, so the neighbouring card doesn't stretch along with it
+    el.style.alignSelf = 'start'
+    el.style.height = `${from}px`
+    el.style.overflow = 'hidden'
+    void el.offsetHeight
+    el.style.transition = `height ${SWAP_MS}ms ease-out`
+    el.style.height = `${to}px`
+    timer.current = setTimeout(() => {
+      for (const k of ['height', 'overflow', 'transition', 'align-self']) el.style.removeProperty(k)
+      setLeaving(null)
+    }, SWAP_MS)
+  }
+  // a view's wrapper: the shown one in the flow (fading in), the leaving one laid over it (fading out), else hidden
+  const panel = (v) => (v === mode
+    ? `flex flex-1 flex-col ${leaving ? 'motion-safe:animate-[fade-in_200ms_ease-out]' : ''}`
+    : v === leaving ? 'pointer-events-none absolute inset-x-0 top-0 flex flex-col opacity-0 transition-opacity duration-200 ease-out' : 'hidden')
+
   // insight: about the engine that cites the brand most (else mentions it most), compared with the others
   const insightRows = rows.map((r) => {
     const p = { id: r.id, name: r.name, visible: r.mentions, cited: r.citations, total: TOTAL }
@@ -81,16 +131,27 @@ export default function CitationsMentions() {
 
 
   return (
-    <Card ref={explain.cardRef} id="platforms" className="flex h-full min-w-0 scroll-mt-6 flex-col px-5 pt-5">
+    // History sizes to its rows (self-start) so the card beside it keeps its own height; Now stretches to the row
+    <Card ref={explain.cardRef} id="platforms" className={`flex min-w-0 scroll-mt-6 flex-col px-5 pt-5 ${mode === 'history' ? 'self-start' : 'h-full'}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="text-[17px] leading-6 font-semibold text-stone-900">Citations and Mentions</h2>
-          <p className="mt-0.5 truncate text-[13px] leading-[18px] text-stone-600 tabular-nums" title={silentLine ?? undefined}>
-            Across {TOTAL} prompts{silentLine && ` · ${silentLine}`}
+          {/* wraps rather than truncates: the Now | History control takes some of the line */}
+          <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums" title={mode === 'now' ? silentLine ?? undefined : undefined}>
+            {mode === 'now'
+              ? <>Across {TOTAL} prompts{silentLine && ` · ${silentLine}`}</>
+              : <>Week by week · {TOTAL} prompts{page.engine !== 'all' && ` · ${engineName(page.engine)}`}</>}
           </p>
         </div>
-        {brandSelect}
+        <div className="flex shrink-0 items-center gap-2">
+          {/* the brand menu is Now's; History picks brands in its own row */}
+          {mode === 'now' && brandSelect}
+          <Segmented size="sm" label="View" value={mode} onChange={setMode} options={MODES} />
+        </div>
       </div>
+
+      <div className="relative flex flex-1 flex-col">
+      <div className={panel('now')} inert={mode === 'now' ? undefined : ''} aria-hidden={mode !== 'now'}>
 
       {/* headline stats */}
       <div className={`${COLS} mt-4`} aria-live="polite">
@@ -156,6 +217,13 @@ export default function CitationsMentions() {
 
       {/* footer: at least 16px under the body, pinned to the bottom when the row is taller */}
       {insight && <div className="mt-auto pb-3"><Insight explain={explain} {...insight} /></div>}
+      </div>
+      {visited && (
+        <div className={panel('history')} inert={mode === 'history' ? undefined : ''} aria-hidden={mode !== 'history'}>
+          <CitationsHistory domain={domain} active={mode === 'history'} />
+        </div>
+      )}
+      </div>
     </Card>
   )
 }
