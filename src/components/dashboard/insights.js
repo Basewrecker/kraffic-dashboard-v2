@@ -187,8 +187,7 @@ export function syncEvidence(shown, { view, tracking, openRows }) {
 
 // ---------------------------------------------------------------- Top cited pages
 // keys: 'page:<path>' (rows; the "N other pages" row is 'page:other')
-export function citedEvidence(pages, { view, tracking, engine }) {
-  const total = pages.reduce((n, p) => n + p.count, 0)
+export function citedEvidence(pages, { view, tracking, engine, total = pages.reduce((n, p) => n + p.count, 0) }) {
   const top = pages.filter((p) => p.path).reduce((a, p) => (!a || p.count > a.count ? p : a), null)
   const source = sourceLine(tracking)
   if (!top) return { text: `No ${view.focal.name} pages cited yet.`, evidence: { keys: [], calc: `We found no answer linking to a ${view.focal.name} page yet.`, source } }

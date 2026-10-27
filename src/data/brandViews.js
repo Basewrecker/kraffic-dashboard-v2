@@ -310,26 +310,28 @@ export function sharedAnswers(domain, withDomain = OWN.domain) {
 }
 
 // ------------------------------------------------------------------ engine drawer ("Where ChatGPT mentions …")
-// Mentions = prompts whose answer on this engine names the focal brand; citations = those that also link its site,
-// grouped by page. engine 'all' = any engine (each row keeps the first engine, in ENGINE_ORDER, that mentions/cites it).
+// One rule for every mention / citation / page number (app.kraffic.ai: citationStats): Mentions = answers (prompt ×
+// engine) naming the brand, Citations = answers linking to its site, pages = distinct pages; a page's count is the
+// answers linking to it. The Mentions list shows each prompt once (with the first engine, in ENGINE_ORDER, naming it).
 export function engineDetail(domain, engine = 'all') {
   const pids = engine === 'all' ? ENGINE_ORDER.map((id) => [id, PLATFORM_ID[id]]) : [[engine, PLATFORM_ID[engine]]]
   const mentions = []
   const pages = {}
+  let mentionCount = 0
   let citations = 0
   trackedPrompts.forEach((p) => {
     const a = appearances[p.id][domain]
-    const on = pids.find(([, pid]) => a.platforms.includes(pid))
-    const citedOn = pids.find(([, pid]) => a.citedPlatforms.includes(pid))
-    if (on) mentions.push({ key: p.id, prompt: p.prompt, category: p.category, engine: on[0], cited: !!citedOn })
-    if (citedOn) {
-      citations++
-      ;(pages[a.citedPage] ??= []).push({ key: p.id, prompt: p.prompt, engine: citedOn[0] })
-    }
+    const on = pids.filter(([, pid]) => a.platforms.includes(pid))
+    const citedOn = pids.filter(([, pid]) => a.citedPlatforms.includes(pid))
+    mentionCount += on.length
+    citations += citedOn.length
+    if (on.length) mentions.push({ key: p.id, prompt: p.prompt, category: p.category, engine: on[0][0], cited: citedOn.length > 0 })
+    for (const [id] of citedOn) (pages[a.citedPage] ??= []).push({ key: p.id, prompt: p.prompt, engine: id })
   })
   return {
     mentions,
-    pages: Object.entries(pages).map(([path, prompts]) => ({ path, prompts })).sort((a, b) => b.prompts.length - a.prompts.length || a.path.localeCompare(b.path)),
+    mentionCount,
+    pages: Object.entries(pages).map(([path, prompts]) => ({ path, prompts, count: prompts.length })).sort((a, b) => b.count - a.count || a.path.localeCompare(b.path)),
     citations,
   }
 }

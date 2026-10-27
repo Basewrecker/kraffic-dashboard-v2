@@ -10,6 +10,8 @@ import { fmtDay, useTracking } from '../../store/trackingSettings'
 import { openAnswer } from './AnswerDrawer'
 
 // "Where ChatGPT mentions Dermasuri": the prompts an engine mentions the focal brand in, and the brand's pages it cites.
+// Counts (one rule): Mentions = answers (prompt × engine) naming the brand, Citations = answers linking to its site,
+// pages = distinct pages. A page row's number is the answers linking to that page.
 // openEngineDrawer({ engine, tab, opener, brand }): engine = 'all' | 'aio' | …; tab = 'mentions' | 'pages';
 // brand = a tracked domain to see it for (default: the page's "Viewing as").
 // URL: ?drawer=engine&tab=mentions|cited&drawerEngine=<engine>[&drawerBrand=<key>] (?engine= is the dashboard's filter).
@@ -120,14 +122,17 @@ function MentionsTab({ rows, focalDomain, onOpen }) {
 
 function PageRow({ page, domain, onOpen }) {
   const [all, setAll] = useState(false)
-  const chips = all ? page.prompts : page.prompts.slice(0, 2)
-  const more = page.prompts.length - chips.length
+  // each prompt once (a page cited on two engines for one prompt is two citations, one chip)
+  const prompts = page.prompts.filter((p, i, list) => list.findIndex((x) => x.key === p.key) === i)
+  const chips = all ? prompts : prompts.slice(0, 2)
+  const href = page.url ?? `https://${domain}${page.path}`
+  const more = prompts.length - chips.length
   const chip = 'inline-flex h-6 max-w-full items-center rounded-md bg-tint px-2 text-[12px] leading-4 text-stone-700 outline-none transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_10%,transparent)] hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus'
   return (
     <li className="group px-6 py-4">
       <div className="flex items-center gap-2">
         <span title={page.path} className="min-w-0 truncate text-[14px] leading-5 font-medium text-stone-900">{middle(page.path)}</span>
-        <a href={`https://${domain}${page.path}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${domain}${page.path}`}
+        <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`Open ${href.replace(/^https:\/\//, '')}`}
           className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-stone-500 opacity-0 outline-none transition-[opacity,color,background-color] duration-150 hover:bg-tint hover:text-stone-900 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-focus group-hover:opacity-100 touch:opacity-100 [@media(hover:none)]:opacity-100">
           <ArrowUpRight size={14} aria-hidden />
         </a>
@@ -135,15 +140,15 @@ function PageRow({ page, domain, onOpen }) {
       <div className="mt-1 text-[12px] leading-4">
         <span className="text-stone-500">{domain}</span>
         <span className="text-stone-500"> · </span>
-        <span className="text-stone-600 tabular-nums">{plural(page.prompts.length, 'prompt')}</span>
+        <span className="text-stone-600 tabular-nums">{plural(page.count ?? page.prompts.length, 'citation')}</span>
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {chips.map((p, i) => (
-          <button key={p.key} type="button" {...(i === 0 && { 'data-nav': '' })} onClick={(e) => onOpen(p, page.prompts, e.currentTarget)} className={chip}>
+          <button key={p.key} type="button" {...(i === 0 && { 'data-nav': '' })} onClick={(e) => onOpen(p, prompts, e.currentTarget)} className={chip}>
             <span className="truncate">{p.prompt}</span>
           </button>
         ))}
-        {more > 0 && <button type="button" onClick={() => setAll(true)} aria-label={`Show ${more} more prompts`} className={`${chip} font-medium tabular-nums`}>+{more}</button>}
+        {more > 0 && <button type="button" onClick={() => setAll(true)} aria-label={`Show ${more} more`} className={`${chip} font-medium tabular-nums`}>+{more}</button>}
       </div>
     </li>
   )
@@ -160,14 +165,14 @@ function PagesTab({ pages, domain, onOpen }) {
         <span className="relative inline-flex">
           <select aria-label="Sort pages" value={sort} onChange={(e) => setSort(e.target.value)}
             className="h-8 cursor-pointer appearance-none rounded-md border border-line bg-raised pl-3 pr-8 text-[13px] font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus">
-            <option value="prompts">Most prompts</option>
+            <option value="prompts">Most cited</option>
             <option value="az">A–Z</option>
           </select>
           <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-500" aria-hidden />
         </span>
       </div>
       <ul className="divide-y divide-[var(--color-line-soft)] border-t border-[var(--color-line-soft)]">
-        {sorted.map((p) => <PageRow key={p.path} page={p} domain={domain} onOpen={onOpen} />)}
+        {sorted.map((p) => <PageRow key={p.key ?? p.path} page={p} domain={domain} onOpen={onOpen} />)}
       </ul>
     </>
   )
@@ -285,7 +290,7 @@ export default function EngineDrawer() {
 
   if (!open) return null
   const name = engineName(engine)
-  const counts = { mentions: data.mentions.length, pages: data.pages.length }
+  const counts = { mentions: data.mentionCount ?? data.mentions.length, pages: data.pages.length }
   const engineChips = [{ id: 'all', name: 'All' }, ...engines]
   // ←/→ move between the engine chips
   const onChipKey = (e) => {
@@ -300,7 +305,7 @@ export default function EngineDrawer() {
   const exportCsv = () => {
     const slug = `${focal.name}-${engine}`.toLowerCase().replace(/[^a-z0-9]+/g, '-')
     if (tab === 'mentions') download(`${slug}-mentions.csv`, [['Prompt', 'Category', 'Engine', 'Cited'], ...data.mentions.map((r) => [r.prompt, r.category, engineName(r.engine), r.cited ? 'Yes' : 'No'])])
-    else download(`${slug}-cited-pages.csv`, [['Page', 'Prompts', 'Prompt list'], ...data.pages.map((p) => [`https://${focal.domain}${p.path}`, p.prompts.length, p.prompts.map((x) => x.prompt).join(' | ')])])
+    else download(`${slug}-cited-pages.csv`, [['Page', 'Citations', 'Prompt list'], ...data.pages.map((p) => [p.url ?? `https://${focal.domain}${p.path}`, p.count ?? p.prompts.length, [...new Set(p.prompts.map((x) => x.prompt))].join(' | ')])])
   }
 
   return (
@@ -355,7 +360,7 @@ export default function EngineDrawer() {
 
         <footer className={`flex shrink-0 items-center justify-between gap-3 border-t border-line px-4 pt-3 text-[13px] leading-[18px] text-stone-600 md:px-6 ${SHEET_FOOTER_PAD}`}>
           <span className="min-w-0 truncate tabular-nums">
-            {tab === 'mentions' ? plural(data.mentions.length, 'prompt') : `${plural(data.citations, 'citation')} across ${plural(data.pages.length, 'page')}`} · {name} · updated {short(fmtDay(tracking.schedule.lastSync))}
+            {tab === 'mentions' ? `${plural(counts.mentions, 'mention')} · ${plural(data.mentions.length, 'prompt')}` : `${plural(data.citations, 'citation')} · ${plural(data.pages.length, 'page')}`} · {name} · updated {short(fmtDay(tracking.schedule.lastSync))}
           </span>
           <span className="flex shrink-0 items-center gap-4">
             {/* engine filtering lives in the header select; this is the shortcut from here (and closes the drawer) */}

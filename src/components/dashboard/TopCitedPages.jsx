@@ -47,7 +47,7 @@ export default function TopCitedPages() {
   const tracking = useTracking()
   const { citedAll, focal, isOwnBrand, engine } = view
   const explain = useExplain(`${focal.domain}|${engine}`)
-  const total = citedAll.reduce((n, p) => n + p.count, 0)
+  const total = view.citations ?? citedAll.reduce((n, p) => n + p.count, 0)
   const uncitedList = isOwnBrand ? uncitedPages : []
   // every cited page, all engines: the same drawer as the Citations and Mentions card
   const openAll = (e) => openEngineDrawer({ engine: 'all', tab: 'pages', brand: focal.domain, opener: e.currentTarget })
@@ -58,7 +58,7 @@ export default function TopCitedPages() {
   const uncitedShown = uncitedList.slice(0, uncited)
   const insight = uncitedShown.length
     ? uncitedEvidence(uncitedShown[0], { tracking })
-    : citedEvidence(citedAll, { view, tracking, engine })
+    : citedEvidence(citedAll, { view, tracking, engine, total })
 
   return (
     <Card ref={explain.cardRef} id="top-cited-pages" className="flex h-full min-w-0 flex-col p-5">
@@ -80,7 +80,7 @@ export default function TopCitedPages() {
             {shown.map((p) => (
               <li key={p.path} className={`${ROW} row-in h-11`} {...hl(explain, `page:${p.path}`, { row: true })}>
                 <a
-                  href={`https://${focal.domain}${p.path}`}
+                  href={p.url ?? `https://${focal.domain}${p.path}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={`${focal.domain}${p.path}`}

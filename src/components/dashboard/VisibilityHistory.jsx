@@ -406,7 +406,9 @@ export default function VisibilityHistory() {
     const name = focal.name
     const d = end.deltas?.[YOU]
     const move = d == null ? `is at ${end[YOU]}%` : d > 0 ? `rose ${d} point${d === 1 ? '' : 's'}` : d < 0 ? `fell ${-d} point${d === -1 ? '' : 's'}` : 'held steady'
-    const when = d == null ? '' : ` this ${stats.unit}`
+    // the previous point is the previous week / month; with no complete scan then there's nothing to compare
+    const gapBefore = d == null && end.hasPrev && end.prevs?.[YOU] == null
+    const when = d == null ? (gapBefore ? ` this ${stats.unit} (no complete scan the ${stats.unit} before)` : '') : ` this ${stats.unit}`
     const top = (p, val) => historySeries.filter((x) => val(p, x) != null).sort((a, b) => val(p, b) - val(p, a))[0]
     const leader = top(end, (p, x) => p[x.key])
     const before = end.prevs ? top(end, (p, x) => p.prevs[x.key]) : null
