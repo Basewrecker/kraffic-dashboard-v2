@@ -5,6 +5,7 @@ import { useBrandView, useCountUp } from '../../hooks/useBrandView'
 import { goToSection } from '../../utils/navigate'
 import { openEngineDrawer } from '../answer/EngineDrawer'
 import { engineName } from '../../data/brandViews'
+import { changeParts } from '../../utils/syncChange'
 
 // how the visibility score is worked out, for the engine filter (the previous dashboard's definitions, kept as they were)
 export function scoreHint(engine, isOwnBrand, name) {
@@ -41,7 +42,8 @@ const Count = ({ value }) => useCountUp(value)
 
 export default function KpiRow() {
   const { kpis, isOwnBrand, engine, focal } = useBrandView()
-  const d = kpis.scoreDelta
+  // "▲ 7 pts vs last sync · +10 prompts": the score shown minus the previous sync's, and that sync's gained − lost
+  const change = changeParts(kpis.scoreDelta, kpis.netPrompts)
   return (
       // phones / tablets: 2 × 2
       <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
@@ -50,7 +52,7 @@ export default function KpiRow() {
             <ScoreRing value={kpis.score} />
             <span className="text-small font-semibold text-stone-600 tabular-nums">
               {/* no previous sync (null): nothing to compare, no delta line */}
-              {d == null ? null : d === 0 ? <span className="text-stone-500">No change vs last sync</span> : <><span className={d > 0 ? 'text-ink' : 'text-negative'}>{d > 0 ? '▲' : '▼'}</span> {Math.abs(d)} vs last sync</>}
+              {!change ? null : !change.arrow ? <span className="text-stone-500">{change.text}</span> : <><span className={change.arrow === '▲' ? 'text-ink' : 'text-negative'}>{change.arrow}</span> {change.text}</>}
             </span>
           </div>
         </KpiCard>
