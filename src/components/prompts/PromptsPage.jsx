@@ -15,7 +15,7 @@ import { useInlineEdit } from '../../hooks/useInlineEdit'
 import ResearchModal from './ResearchModal'
 import ImportModal from './ImportModal'
 import CategorySelect from './CategorySelect'
-import { UNCATEGORIZED, allCategories, deleteCategory } from '../../store/categories'
+import { UNCATEGORIZED, allCategories, createCategory, deleteCategory, renameCategory } from '../../store/categories'
 import { DashboardViewProvider, useDashboardView } from '../../hooks/useBrandView'
 import { ENGINES, OWN, TRACKED_BRANDS, appearances, engineName, enginePid, getBrandView } from '../../data/brandViews'
 import { slugOf, trackedKey } from '../../data/syncChanges'
@@ -180,6 +180,8 @@ function PromptHub() {
   const [rowErrors, setRowErrors] = useState({}) // id → { message, retry }
   const setRowError = (id, error) => setRowErrors((e) => { const n = { ...e }; if (error) n[id] = error; else delete n[id]; return n })
   const failed = (err) => err?.message || 'Couldn’t save this change'
+  // the reason a save was refused, for a toast (" · That topic already exists"); nothing when there's none
+  const why = (err) => (err?.message ? ` · ${err.message}` : '')
   const replaceId = (from, to) => {
     setPrompts((ps) => ps.map((r) => (r.id === from ? { ...r, id: to } : r)))
     setRowError(from, null)
@@ -311,6 +313,18 @@ function PromptHub() {
     })
   }
 
+  // ---- bulk "Set topic": the rows move at once; a failed save puts them back and says why
+  const setTopicFor = (ids, name) => {
+    const before = new Map(prompts.filter((r) => ids.includes(r.id)).map((r) => [r.id, r.category]))
+    setPrompts((ps) => ps.map((r) => (before.has(r.id) ? { ...r, category: name } : r)))
+    setSelected(new Set())
+    toast(`${plural(before.size, 'prompt')} moved to “${name}”`)
+    promptActions.onSetCategory(ids, name).catch((err) => {
+      setPrompts((ps) => ps.map((r) => (before.has(r.id) ? { ...r, category: before.get(r.id) } : r)))
+      toast(`Couldn’t move the prompts to “${name}”${why(err)}`)
+    })
+  }
+
   // the brand cells are the dashboard's Missed prompts cells; both sort by how many brands are in the cell
   const byPrompt = (r) => r.prompt.toLowerCase()
   const noData = <span className="text-small text-stone-400">—</span>
@@ -319,28 +333,43 @@ function PromptHub() {
   const categoryEvents = {
     usage: totalCounts,
     onCreated: (name) => {
-      toast(`Category “${name}” created`)
-      promptActions.onAddCategory(name).catch(() => {
+      toast(`Topic “${name}” created`)
+      promptActions.onAddCategory(name).catch((err) => {
         deleteCategory(name)
         setCategory((c) => (c === name ? 'all' : c))
         setAdding((a) => (a && a.category === name ? { ...a, category: usualTopic } : a))
         setEditing((e) => (e && e.category === name ? { ...e, category: e.originalCategory } : e))
-        toast(`Couldn’t save the category “${name}”`)
+        toast(`Couldn’t save the topic “${name}”${why(err)}`)
       })
     },
+    // a rename or delete shows at once; a failed save puts it back and says why
     onRenamed: (from, to) => {
-      setPrompts((ps) => ps.map((r) => (r.category === from ? { ...r, category: to } : r)))
-      setCategory((c) => (c === from ? to : c))
-      setAdding((a) => (a && a.category === from ? { ...a, category: to } : a))
-      setEditing((e) => (e && e.category === from ? { ...e, category: to } : e))
+      const move = (a, b) => {
+        setPrompts((ps) => ps.map((r) => (r.category === a ? { ...r, category: b } : r)))
+        setCategory((c) => (c === a ? b : c))
+        setAdding((x) => (x && x.category === a ? { ...x, category: b } : x))
+        setEditing((e) => (e && e.category === a ? { ...e, category: b } : e))
+      }
+      move(from, to)
       toast(`Renamed to “${to}”`)
+      promptActions.onRenameCategory(from, to).catch((err) => {
+        renameCategory(to, from)
+        move(to, from)
+        toast(`Couldn’t rename “${from}”${why(err)}`)
+      })
     },
     onDeleted: (name, moved) => {
+      const ids = prompts.filter((r) => r.category === name).map((r) => r.id)
       setPrompts((ps) => ps.map((r) => (r.category === name ? { ...r, category: UNCATEGORIZED } : r)))
       setCategory((c) => (c === name ? 'all' : c))
       setAdding((a) => (a && a.category === name ? { ...a, category: UNCATEGORIZED } : a))
       setEditing((e) => (e && e.category === name ? { ...e, category: UNCATEGORIZED } : e))
       toast(moved ? `“${name}” deleted · ${plural(moved, 'prompt')} moved to ${UNCATEGORIZED}` : `“${name}” deleted`)
+      promptActions.onDeleteCategory(name).catch((err) => {
+        createCategory(name)
+        setPrompts((ps) => ps.map((r) => (ids.includes(r.id) ? { ...r, category: name } : r)))
+        toast(`Couldn’t delete “${name}”${why(err)}`)
+      })
     },
   }
   const columns = [
@@ -495,7 +524,7 @@ function PromptHub() {
           {sortButton}
           <div className="no-scrollbar flex items-center gap-2 max-md:-mx-4 max-md:w-[calc(100%+32px)] max-md:overflow-x-auto max-md:px-4 md:contents">
           <Segmented label="Status" value={status} onChange={setStatus} options={statusOptions} />
-          <CategorySelect value={category} onChange={setCategory} allLabel="All categories" counts={categoryCounts} usage={totalCounts}
+          <CategorySelect value={category} onChange={setCategory} allLabel="All topics" counts={categoryCounts} usage={totalCounts}
             triggerClassName="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-line bg-raised px-2.5 text-small font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus" {...categoryEvents} />
           <MenuSelect prefix="Engine" value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" showIcon align="left"
             triggerClassName="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-line bg-raised px-2.5 text-small outline-none focus-visible:ring-2 focus-visible:ring-focus" />
@@ -541,6 +570,10 @@ function PromptHub() {
             >
               Rescan
             </button>
+          )}
+          {promptActions.canManageCategories && (
+            <CategorySelect value={null} placeholder="Set topic" label="Set topic" onChange={(c) => setTopicFor(ids, c)} counts={totalCounts}
+              triggerClassName={`${ghostCls} text-stone-700 hover:bg-stone-100 hover:text-stone-900`} {...categoryEvents} />
           )}
           <button
             type="button"
