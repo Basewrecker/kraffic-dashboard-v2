@@ -28,6 +28,12 @@ function weekLabel(date) {
   const md = (x) => `${MONTHS[x.getMonth()]} ${x.getDate()}`
   return start.getMonth() === end.getMonth() ? `${md(start)} – ${end.getDate()}` : `${md(start)} – ${md(end)}`
 }
+// the month a week starts in ("October"): the drawer groups weeks by it
+const LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+function weekMonth(date) {
+  const d = new Date(`${date} 12:00`)
+  return LONG[new Date(d.getTime() - ((d.getDay() + 6) % 7) * DAY).getMonth()]
+}
 
 // deterministic noise per brand / week / engine
 const hash = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)
@@ -55,7 +61,7 @@ export function citationWeeks(domain) {
       const citedRatio = base.cited ? s.cited / base.cited : 1
       engines[e] = { mentions: scale(m0, s.visible / base.visible, 1), citations: scale(c0, citedRatio, 1), pages: scale(p0, citedRatio, 0) }
     }
-    return { id: s.id, syncId: s.id, date: s.date, label: weekLabel(s.date), engines }
+    return { id: s.id, syncId: s.id, date: s.date, label: weekLabel(s.date), month: weekMonth(s.date), engines }
   })
   // cited pages across engines: a page cited by two engines counts once, so "all" isn't the sum of the engines
   const allPages0 = engineDetail(domain, 'all').pages.length
@@ -153,6 +159,40 @@ export function weekSummary({ metric, row, changes, you = true, name }) {
     return [g && `Newly cited: ${first}${g > 1 ? ` and ${g - 1} more` : ''}`, l && `${l} lost`].filter(Boolean).join(' · ')
   }
   return [g && `${plural(g, 'new page')} · ${changes.gained[0].prompt} first cited`, l && `${l} no longer cited`].filter(Boolean).join(' · ')
+}
+
+// the drawer's insight line (under the chart): the newest week against the period, for one metric.
+// changes: weekChanges per row (same order as rows). Returns { text, calc, keys: [row indexes it's about] } or null.
+//   up:   "Your best week since August: 14 prompts started mentioning you" (since = the last week that did as well)
+//   down: "Your biggest drop since Aug 24: 7 prompts stopped mentioning you"
+export function weekInsight({ metric, rows, changes, you = true, name }) {
+  const now = rows[0]
+  if (!now || rows.length < 2) return null
+  const label = METRICS.find((m) => m.id === metric).label.toLowerCase()
+  const whose = you ? 'Your' : `${name}’s`
+  if (now.totals.failed.length) {
+    const last = rows.find((r) => !r.totals.failed.length)
+    return { text: `This week’s scan didn’t complete${last ? `: the last full week was ${last.week.label}` : ''}`, calc: `${now.week.label} has no ${label}: the scan didn’t finish on every engine, so it isn’t counted as 0.`, keys: [0] }
+  }
+  const d = now.delta[metric]
+  const c = changes[0]
+  if (d == null || !c) return { text: `${now.totals[metric]} ${label} this week; the week before has nothing to compare`, calc: `${rows[1].week.label} didn’t complete, so this week has no change to show.`, keys: [0] }
+  const who = you ? 'you' : name
+  const g = c.gained.length, l = c.lost.length
+  const gainLine = { mentions: `${plural(g, 'prompt')} started mentioning ${who}`, citations: `${plural(g, 'prompt')} started citing ${who}`, pages: `${plural(g, 'page')} cited for the first time` }[metric]
+  const lossLine = { mentions: `${plural(l, 'prompt')} stopped mentioning ${who}`, citations: `${plural(l, 'prompt')} stopped citing ${who}`, pages: `${plural(l, 'page')} no longer cited` }[metric]
+  const span = `${rows.length} weeks`
+  if (d === 0) return { text: `No change in ${label} this week${g ? `: ${g} gained, ${l} dropped` : ''}`, calc: `${now.week.label} has as many ${label} as ${rows[1].week.label}.`, keys: [0, 1] }
+  const up = d > 0
+  const j = rows.findIndex((r, i) => i > 0 && r.delta[metric] != null && (up ? r.delta[metric] >= d : r.delta[metric] <= d))
+  const since = j === -1 ? `in ${span}` : `since ${rows[j].week.month === now.week.month ? rows[j].week.label.split(' – ')[0] : rows[j].week.month}`
+  const what = up ? (g ? gainLine : `${label} up ${d} to ${now.totals[metric]}`) : (l ? lossLine : `${label} down ${Math.abs(d)} to ${now.totals[metric]}`)
+  const fmt = (n) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`)
+  return {
+    text: `${whose} ${up ? 'best week' : 'biggest drop'} ${since}: ${what}`,
+    calc: `Each week’s ${label} against the week before: ${now.week.label} is ${fmt(d)}${j === -1 ? `, the ${up ? 'most' : 'largest drop'} in the last ${span}` : `; the last week ${up ? 'as good' : 'as bad'} was ${rows[j].week.label} (${fmt(rows[j].delta[metric])})`}.`,
+    keys: j === -1 ? [0] : [0, j],
+  }
 }
 
 // mock states (?cmMock=loading | empty)

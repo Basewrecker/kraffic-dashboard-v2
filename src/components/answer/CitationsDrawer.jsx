@@ -2,18 +2,20 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import { ArrowLeft, ChevronRight, X } from 'lucide-react'
 import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
+import Insight, { hlOpacity, useExplain } from '../ui/Insight'
+import { Favicon } from '../dashboard/overlays'
 import { ChangeRows, ChangeTabs, EngineChips } from './ChangeParts'
 import { openAnswer } from './AnswerDrawer'
 import { download } from './EngineDrawer'
 import { ENGINES, ENGINE_ORDER, OWN, TRACKED_BRANDS, brandByDomain, engineName } from '../../data/brandViews'
-import { METRICS, brandEngines, citationWeeks, historyMock, weekChanges, weekRows, weekSummary } from '../../data/citationHistory'
+import { METRICS, brandEngines, citationWeeks, historyMock, weekChanges, weekInsight, weekRows, weekSummary } from '../../data/citationHistory'
 import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
 
 // Citations and Mentions → "Mentions and citations": the card's numbers week by week, in the drawer family (same
-// shell, width, header and footer as the Sync drawer). Three figures with sparklines pick the metric; the weeks
-// below say what happened in plain words; a week drills in (same drawer, slides across) to the Sync drawer's own
-// Lost | Gained list for that week. Esc goes back, then closes.
+// shell, width, header and footer as the Sync drawer). Text tabs pick the metric; a 10-week column chart and an
+// insight line sit under them; the weeks below (grouped by month) say what happened in plain words; a week drills in
+// (same drawer, slides across) to the Sync drawer's own Lost | Gained list for that week. Esc goes back, then closes.
 // openCitationsDrawer({ metric, brand, opener }). URL (replaceState while open, pushed on open so Back closes):
 //   ?drawer=weeks&metric=mentions|citations|pages[&drawerBrand=<key>][&vs=<key>][&week=<index>&tab=lost|gained][&drawerEngine=]
 const EVENT = 'citations-drawer:open'
@@ -27,6 +29,7 @@ const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').ma
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`
 const fmtDelta = (d) => (d > 0 ? `+${d}` : `−${Math.abs(d)}`)
 const short = (d) => d.replace(/, \d{4}$/, '')
+const startOf = (label) => label.split(' – ')[0] // "Oct 5 – 11" → "Oct 5"
 
 function readUrl() {
   const q = new URLSearchParams(window.location.search)
@@ -55,63 +58,109 @@ function urlFor(s, focal) {
 }
 
 // the small hover popover (LogoStack's): fixed, portalled above the drawer
+// centred over its point, but kept 8px inside the window (the newest bar sits at the drawer's right edge)
 function Tip({ tip }) {
+  const ref = useRef(null)
+  const [left, setLeft] = useState(null)
+  useLayoutEffect(() => {
+    if (!tip || !ref.current) return
+    const w = ref.current.offsetWidth
+    setLeft(Math.min(Math.max(8, tip.x - w / 2), window.innerWidth - w - 8))
+  }, [tip])
   if (!tip) return null
   return createPortal(
-    <span role="tooltip" style={{ left: tip.x, top: tip.y - 8 }}
-      className="pointer-events-none fixed z-[70] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-line bg-raised px-2.5 py-1.5 text-[12px] leading-4 text-stone-700 shadow-sm tabular-nums">
+    <span ref={ref} role="tooltip" style={{ left: left ?? tip.x, top: tip.y - 8, visibility: left == null ? 'hidden' : undefined }}
+      className="pointer-events-none fixed z-[70] -translate-y-full whitespace-nowrap rounded-md border border-line bg-raised px-2.5 py-1.5 text-[12px] leading-4 text-stone-700 shadow-sm tabular-nums">
       {tip.lines.map((l, i) => <span key={i} className={`block ${i ? 'text-stone-500' : 'font-medium text-stone-900'}`}>{l}</span>)}
     </span>,
     document.body,
   )
 }
 
-// ---- sparkline: last 10 weeks, oldest → newest; a failed week is a gap. Ink when its metric is selected, t3 when not;
-// the competitor's is a thinner t3 line. Hovering a week shows a dot and "Sep 28 – Oct 4 · 233".
-const H = 32
-function linePath(values, lo, hi) {
-  const n = values.length
-  let d = '', pen = false
-  values.forEach((v, i) => {
-    if (v == null) { pen = false; return }
-    const x = n < 2 ? 50 : (i / (n - 1)) * 100
-    const y = H - 3 - ((v - lo) / Math.max(1, hi - lo)) * (H - 6)
-    d += `${pen ? 'L' : 'M'}${x.toFixed(2)} ${y.toFixed(2)} `
-    pen = true
-  })
-  return d.trim() || 'M0 0'
+// gridline step: 3 levels that cover the tallest bar, on round whole numbers (1, 2, 2.5, 3, 4, 5 × 10ⁿ)
+function niceStep(max) {
+  const x = Math.max(1, max / 3)
+  const pow = 10 ** Math.floor(Math.log10(x))
+  return [1, 2, 2.5, 3, 4, 5, 10].map((m) => m * pow).find((s) => s >= x && Number.isInteger(s)) ?? Math.ceil(x)
 }
-function Sparkline({ values, vs, labels, on, rivalName, onTip }) {
+
+// ---- the hero chart: the selected metric over the weeks, oldest → newest. Bars are the line-strong token, the newest
+// week and the hovered bar ink; a failed week is a hatched stub at the baseline ("No data", never 0). Compare adds a
+// thin t3 marker per bar at the competitor's value (same scale). Heights animate (300ms) when the metric changes.
+const BAR_H = 112 // plot height; + 8 top room + 20 for the week labels = 140
+function WeekChart({ rows, vsRows, metric, rival, changes, explain, onTip, onPick }) {
   const [hover, setHover] = useState(null)
-  // each line on its own scale: the sparkline compares shapes (their sizes are in the rows' "vs N" and the tooltip)
-  const range = (list) => { const v = (list ?? []).filter((x) => x != null); return [Math.min(...v), Math.max(...v)] }
-  const [lo, hi] = range(values)
-  const [vlo, vhi] = range(vs)
-  const n = values.length
-  const yOf = (v) => H - 3 - ((v - lo) / Math.max(1, hi - lo)) * (H - 6)
-  const stroke = 'transition-[d,stroke,stroke-width] duration-[250ms] ease-out motion-reduce:transition-none'
+  const order = rows.map((r, i) => ({ r, i })).reverse() // oldest left, newest right
+  const vals = rows.map((r) => r.totals[metric])
+  const vs = vsRows?.map((r) => r.totals[metric]) ?? null
+  const max = Math.max(1, ...vals.filter((v) => v != null), ...(vs ?? []).filter((v) => v != null))
+  const step = niceStep(max)
+  const top = step * 3
+  const pct = (v) => `${(v / top) * 100}%`
+  const label = METRICS.find((m) => m.id === metric).label.toLowerCase()
+
+  const tipFor = (i, el) => {
+    const r = rows[i]
+    const v = r.totals[metric]
+    const c = changes[i]
+    const box = el.getBoundingClientRect()
+    const lines = v == null
+      ? [`${r.week.label} · No data`, 'Scan didn’t complete this week']
+      : [
+          `${r.week.label} · ${v} ${label}`,
+          r.delta[metric] == null ? 'Nothing to compare with the week before' : r.delta[metric] === 0 ? 'No change on the week before' : `${fmtDelta(r.delta[metric])} on the week before`,
+          ...(c && (c.gained.length || c.lost.length) ? [`+${c.gained.length} gained · ${c.lost.length} dropped`] : []),
+        ]
+    if (vs) lines.push(`${rival.name} ${vs[i] ?? 'no data'}`)
+    onTip({ x: box.left + box.width / 2, y: box.top, lines })
+  }
+
   return (
-    <span className="relative mt-2 block h-8 w-full" onMouseLeave={() => { setHover(null); onTip(null) }}>
-      <svg viewBox={`0 0 100 ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
-        {vs && <path className={stroke} style={{ d: `path("${linePath(vs, vlo, vhi)}")` }} fill="none" stroke="var(--color-stone-500)" strokeWidth={1} strokeOpacity={0.7} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />}
-        <path className={stroke} style={{ d: `path("${linePath(values, lo, hi)}")`, stroke: on ? 'var(--ink)' : 'var(--color-stone-500)', strokeWidth: on ? 2 : 1.25 }} fill="none" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-      </svg>
-      {hover != null && values[hover] != null && (
-        <span className="pointer-events-none absolute h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-[var(--color-surface)]"
-          style={{ left: `${n < 2 ? 50 : (hover / (n - 1)) * 100}%`, top: `${(yOf(values[hover]) / H) * 100}%`, background: on ? 'var(--ink)' : 'var(--color-stone-500)' }} />
-      )}
-      <span className="absolute inset-0 flex">
-        {values.map((v, i) => (
-          <span key={i} className="h-full flex-1"
-            onMouseEnter={(e) => {
-              setHover(i)
-              const r = e.currentTarget.parentElement.getBoundingClientRect()
-              const x = r.left + (n < 2 ? 0.5 : i / (n - 1)) * r.width
-              onTip({ x, y: r.top, lines: [`${labels[i]} · ${v ?? '—'}`, ...(v == null ? ['Scan didn’t complete this week'] : []), ...(vs ? [`${rivalName} ${vs[i] ?? '—'}`] : [])] })
-            }} />
+    <div className="mt-5 grid grid-cols-[auto_1fr] gap-x-2" onMouseLeave={() => { setHover(null); onTip(null) }}>
+      {/* y axis: 0 and three levels */}
+      <div className="relative mt-2 w-7 text-right text-[11px] leading-none text-stone-500 tabular-nums" style={{ height: BAR_H }} aria-hidden>
+        {[0, 1, 2, 3].map((k) => <span key={k} className="absolute right-0 translate-y-1/2" style={{ bottom: `${(k / 3) * 100}%` }}>{k * step}</span>)}
+      </div>
+      <div className="relative mt-2" style={{ height: BAR_H }}>
+        {[1, 2, 3].map((k) => <span key={k} className="absolute inset-x-0 h-px bg-[var(--div)]" style={{ bottom: `${(k / 3) * 100}%` }} aria-hidden />)}
+        <span className="absolute inset-x-0 bottom-0 h-px bg-[var(--color-line)]" aria-hidden />
+        <div className="absolute inset-0 flex" role="group" aria-label={`${METRICS.find((m) => m.id === metric).label} by week`}>
+          {order.map(({ r, i }) => {
+            const v = vals[i]
+            const on = hover === i || (hover == null && i === 0)
+            const dim = hlOpacity(explain, `bar:${i}`)
+            return (
+              <button key={r.week.id} type="button" tabIndex={-1}
+                aria-label={`${r.week.label}: ${v ?? 'no data'}. Show this week`}
+                onClick={() => onPick(i)}
+                onMouseEnter={(e) => { setHover(i); tipFor(i, e.currentTarget.querySelector('[data-bar]')) }}
+                className="relative flex h-full min-w-0 flex-1 cursor-pointer items-end justify-center outline-none">
+                {v == null ? (
+                  <span data-bar className="h-3 w-[56%] max-w-9 rounded-t-[3px] transition-opacity duration-150"
+                    style={{ opacity: dim ?? 1, backgroundImage: `repeating-linear-gradient(135deg, ${hover === i ? 'var(--color-stone-500)' : 'var(--color-line-strong)'} 0 1.5px, transparent 1.5px 4.5px)`, boxShadow: `inset 0 1px 0 ${hover === i ? 'var(--color-stone-500)' : 'var(--color-line-strong)'}` }} />
+                ) : (
+                  <span data-bar className={`w-[56%] max-w-9 rounded-t-[3px] transition-[height,background-color,opacity] duration-300 ease-out motion-reduce:transition-none ${on ? 'bg-ink' : 'bg-[var(--color-line-strong)]'}`}
+                    style={{ height: pct(v), minHeight: v > 0 ? 2 : 0, opacity: dim ?? 1 }} />
+                )}
+                {vs?.[i] != null && (
+                  <span className="pointer-events-none absolute left-1/2 h-0.5 w-[72%] max-w-11 -translate-x-1/2 translate-y-1/2 rounded-full bg-stone-500 transition-[bottom] duration-300 ease-out motion-reduce:transition-none"
+                    style={{ bottom: pct(vs[i]) }} aria-hidden />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      {/* week labels under every other bar (the newest always labelled) */}
+      <span aria-hidden />
+      <div className="flex h-5 items-end" aria-hidden>
+        {order.map(({ r, i }) => (
+          <span key={r.week.id} className="relative flex min-w-0 flex-1 justify-center">
+            {i % 2 === 0 && <span className="whitespace-nowrap text-[11px] leading-none text-stone-500 tabular-nums">{startOf(r.week.label)}</span>}
+          </span>
         ))}
-      </span>
-    </span>
+      </div>
+    </div>
   )
 }
 
@@ -120,11 +169,32 @@ function Delta({ d, className = 'text-[12px] leading-4' }) {
   return <span className={`${className} font-medium tabular-nums ${d > 0 ? 'text-stone-600' : 'text-negative'}`}>{fmtDelta(d)}</span>
 }
 
-const bar = 'rounded bg-tint motion-safe:animate-pulse'
-function SkeletonFigures() {
+// a week's gained / dropped, diverging from a centre tick: gained right in ink, dropped left in the negative token,
+// widths in proportion to the biggest count in the period. Nothing known (failed / first week): the space only.
+// Hidden on phones, where the summary needs the room (the change is in the number column).
+function Diverge({ c, scale }) {
   return (
-    <div className="mt-5 grid grid-cols-3 gap-4 pb-4 md:gap-8" role="status" aria-label="Loading">
-      {[0, 1, 2].map((i) => <div key={i}><div className={`${bar} h-3 w-16`} /><div className={`${bar} mt-2 h-7 w-20`} /><div className={`${bar} mt-2 h-8 w-full`} /></div>)}
+    <span className="relative hidden h-3 w-20 shrink-0 sm:block" aria-hidden>
+      {c && (
+        <>
+          <span className="absolute left-1/2 top-0 h-3 w-px -translate-x-1/2 bg-[var(--color-line-strong)]" />
+          {c.lost.length > 0 && <span className="absolute right-1/2 top-1/2 h-1 -translate-y-1/2 rounded-l-full bg-negative" style={{ width: `calc(${(c.lost.length / scale) * 50}% - 1px)`, marginRight: 1 }} />}
+          {c.gained.length > 0 && <span className="absolute left-1/2 top-1/2 h-1 -translate-y-1/2 rounded-r-full bg-ink" style={{ width: `calc(${(c.gained.length / scale) * 50}% - 1px)`, marginLeft: 1 }} />}
+        </>
+      )}
+    </span>
+  )
+}
+
+const bar = 'rounded bg-tint motion-safe:animate-pulse'
+function SkeletonHead() {
+  return (
+    <div role="status" aria-label="Loading">
+      <div className="mt-5 flex gap-8 border-b border-[var(--div)] pb-3">
+        {[0, 1, 2].map((i) => <div key={i}><div className={`${bar} h-3 w-16`} /><div className={`${bar} mt-2 h-7 w-20`} /></div>)}
+      </div>
+      <div className={`${bar} mt-5 h-[140px] w-full`} />
+      <div className={`${bar} mb-4 mt-5 h-4 w-72 max-w-full`} />
     </div>
   )
 }
@@ -166,11 +236,14 @@ export default function CitationsDrawer() {
   const sel = METRICS.find((m) => m.id === metric)
   const rival = state?.vs && state.vs !== brand.key ? TRACKED_BRANDS.find((b) => b.key === state.vs) : null
   const rivals = TRACKED_BRANDS.filter((b) => b.domain !== domain)
+  // the insight's "Why?" highlights its weeks in the chart; it resets when what the chart shows changes
+  const explain = useExplain(`${open}|${domain}|${metric}|${engine}|${rival?.key}`)
 
   const rows = useMemo(() => (open ? weekRows(domain, engine, enabled, mock === 'empty' ? 1 : WEEKS) : []), [open, domain, engine, enabled.join(), mock]) // eslint-disable-line react-hooks/exhaustive-deps
   const vsRows = useMemo(() => (open && rival ? weekRows(rival.domain, engine, enabled, WEEKS) : null), [open, rival, engine, enabled.join()]) // eslint-disable-line react-hooks/exhaustive-deps
   const syncs = open ? citationWeeks(domain).syncs : []
   const changesOf = useCallback((r, m) => weekChanges({ domain, metric: m, row: r, engine, sync: syncs[r.index] }), [domain, engine, syncs])
+  const changes = useMemo(() => rows.map((r) => changesOf(r, metric)), [rows, metric, changesOf])
 
   const drilled = open && !loading && state.week != null && rows[state.week] && changesOf(rows[state.week], metric) != null
   const drillRow = drilled ? rows[state.week] : null
@@ -219,8 +292,22 @@ export default function CitationsDrawer() {
   const close = useCallback(() => { setShown(false); setTip(null); setTimeout(finish, reduced() ? 0 : 200) }, [finish])
   const set = (patch) => setState((s) => ({ ...s, ...patch }))
   const focusIn = (q) => setTimeout(() => panel.current?.querySelector(q)?.focus({ preventScroll: true }), reduced() ? 0 : 260)
-  const drill = (i) => { setTip(null); set({ week: i, tab: 'lost' }); focusIn('[data-back]') }
+  const drill = (i) => { setTip(null); explain.off(); set({ week: i, tab: 'lost' }); focusIn('[data-back]') }
   const back = () => { const i = state.week; set({ week: null }); focusIn(`[data-week="${i}"]`) }
+
+  // a bar in the chart → its week's row: scrolled into view, then a tint that fades out over 1.5s
+  const pick = (i) => {
+    setTip(null)
+    const li = explain.cardRef.current?.querySelector(`[data-row="${i}"]`)
+    if (!li) return
+    li.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' })
+    li.querySelector('[data-nav]')?.focus({ preventScroll: true })
+    li.getAnimations().forEach((a) => a.cancel())
+    li.animate(
+      [{ backgroundColor: 'var(--tint)' }, { backgroundColor: 'var(--tint)', offset: 0.25 }, { backgroundColor: 'transparent' }],
+      { duration: 2000, easing: reduced() ? 'steps(1, end)' : 'ease-out' },
+    )
+  }
 
   // a prompt in the drill-in → the Answer drawer stands in for this one (as from the Sync drawer)
   const openPrompt = (it, el) => {
@@ -238,7 +325,13 @@ export default function CitationsDrawer() {
   }
 
   const onKeyDown = (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); if (drilled) back(); else close(); return }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      if (explain.on) explain.off() // the insight's explanation first, then the drill-in, then the drawer
+      else if (drilled) back()
+      else close()
+      return
+    }
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.target.closest('[role=tablist]')) {
       const pane = panes.current?.children[drilled ? 1 : 0]
       const list = [...(pane?.querySelectorAll('[data-nav]') ?? [])]
@@ -253,8 +346,8 @@ export default function CitationsDrawer() {
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
     }
   }
-  // the metric figures: a tablist, arrows move and pick
-  const onFigureKey = (e) => {
+  // the metric tabs: a tablist, arrows move and pick
+  const onMetricKey = (e) => {
     const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key]
     if (!step) return
     e.preventDefault()
@@ -267,11 +360,23 @@ export default function CitationsDrawer() {
   if (!open) return null
   const chips = [{ id: 'all', name: 'All' }, ...ENGINES.filter((e) => shownEngines.includes(e.id))]
   const empty = rows.length < 2
-  const series = (list, m) => [...list].reverse().map((r) => r.totals[m])
-  const labels = [...rows].reverse().map((r) => r.week.label)
   const noun = metric === 'pages' ? 'page' : 'prompt'
   const counts = { lost: dChanges?.lost.length ?? 0, gained: dChanges?.gained.length ?? 0 }
   const engineLabel = engine === 'all' ? 'All engines' : engineName(engine)
+  const insight = empty || loading ? null : weekInsight({ metric, rows, changes, you: brand.you, name: brand.name })
+  // the period's biggest gain and biggest drop get a quiet note on their row
+  const deltas = rows.map((r) => r.delta[metric])
+  const best = Math.max(...deltas.filter((d) => d != null))
+  const worst = Math.min(...deltas.filter((d) => d != null))
+  const bestAt = best > 0 ? deltas.indexOf(best) : -1
+  const worstAt = worst < 0 ? deltas.indexOf(worst) : -1
+  const scale = Math.max(1, ...changes.map((c) => (c ? Math.max(c.gained.length, c.lost.length) : 0)))
+  // weeks grouped by the month they start in, newest first
+  const months = []
+  rows.forEach((r, i) => {
+    if (months.at(-1)?.month !== r.week.month) months.push({ month: r.week.month, items: [] })
+    months.at(-1).items.push(i)
+  })
 
   const exportCsv = () => {
     if (drilled) {
@@ -280,6 +385,50 @@ export default function CitationsDrawer() {
       download(`${brand.key}-weekly-citations.csv`, [['Week', ...METRICS.map((m) => m.label), ...(rival ? [`${rival.name} ${sel.label.toLowerCase()}`] : [])],
         ...rows.map((r, i) => [r.week.label, ...METRICS.map((m) => r.totals[m.id] ?? ''), ...(rival ? [vsRows?.[i]?.totals[metric] ?? ''] : [])])])
     }
+  }
+
+  const row = (i) => {
+    const r = rows[i]
+    const v = r.totals[metric]
+    const c = changes[i]
+    const summary = weekSummary({ metric, row: r, changes: c, you: brand.you, name: brand.name })
+    const note = i === bestAt ? 'best week' : i === worstAt ? 'biggest drop' : null
+    const vs = vsRows?.[i]?.totals[metric]
+    const body = (
+      <>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[14px] leading-5 font-medium text-stone-900 tabular-nums">{r.week.label}</span>
+          <span className="flex min-w-0 text-[12.5px] leading-[18px]">
+            <span className={`truncate ${r.totals.failed.length ? 'text-stone-500' : 'text-stone-600'}`}>{summary}</span>
+            {note && <span className="shrink-0 whitespace-pre text-stone-500"> · {note}</span>}
+          </span>
+        </span>
+        <Diverge c={c} scale={scale} />
+        <span className="flex shrink-0 items-baseline gap-1.5">
+          <span className={`w-9 text-right text-[14px] leading-5 tabular-nums ${v == null ? 'text-stone-500' : 'font-semibold text-ink'}`}>{v ?? '—'}</span>
+          <span className="w-8"><Delta d={r.delta[metric]} /></span>
+          {rival && <span className="w-14 text-right text-[12px] leading-4 text-stone-500 tabular-nums">vs {vs ?? '—'}</span>}
+        </span>
+        {/* the chevron column is always there, so every row's right edge lines up */}
+        <span className="w-3.5 shrink-0" aria-hidden>
+          {c && <ChevronRight size={14} className="text-stone-500 transition-colors group-hover:text-stone-900" />}
+        </span>
+      </>
+    )
+    return (
+      <li key={r.week.id} data-row={i}>
+        {c ? (
+          <button type="button" data-nav data-week={i} onClick={() => drill(i)}
+            aria-label={`${r.week.label}: ${sel.label.toLowerCase()} ${v}${r.delta[metric] ? ` (${fmtDelta(r.delta[metric])})` : ''}. ${summary}${note ? `. ${note}` : ''}`}
+            className="group flex h-[60px] w-full items-center gap-3 px-6 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
+            {body}
+          </button>
+        ) : (
+          // nothing to drill into: a failed scan, or no week before it to compare with
+          <div className="flex h-[60px] items-center gap-3 px-6">{body}</div>
+        )}
+      </li>
+    )
   }
 
   return (
@@ -306,88 +455,76 @@ export default function CitationsDrawer() {
         {/* two panes side by side: the weeks, and one week's changes; drilling in slides across (250ms) */}
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <div ref={panes} className={`flex h-full w-[200%] transition-transform duration-[250ms] ease-out motion-reduce:transition-none ${drilled ? '-translate-x-1/2' : 'translate-x-0'}`}>
-            {/* ---- all weeks */}
+            {/* ---- all weeks: the header (tabs, chart, insight, compare) scrolls with the weeks */}
             <section className="flex h-full w-1/2 min-w-0 flex-col" inert={drilled ? '' : undefined} aria-hidden={drilled}>
-              <header className="shrink-0 border-b border-line px-6">
-                <h2 className="mt-3 text-[20px] leading-7 font-semibold text-stone-900">Mentions and citations</h2>
-                <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums">{brand.name} · 152 prompts · last {plural(rows.length, 'week')}</p>
-                {loading ? <SkeletonFigures /> : empty ? <div className="pb-4" /> : (
-                  <>
-                    {/* the metric: three figures with their sparklines; the selected one is ink with the underline */}
-                    <div role="tablist" aria-label="Metric" onKeyDown={onFigureKey} className="mt-5 grid grid-cols-3 gap-4 md:gap-8">
-                      {METRICS.map((m) => {
-                        const on = m.id === metric
-                        const r0 = rows[0]
-                        return (
-                          <button key={m.id} data-metric={m.id} type="button" role="tab" aria-selected={on} tabIndex={on ? 0 : -1} onClick={() => set({ metric: m.id })}
-                            aria-label={`${m.label} ${r0.totals[m.id] ?? 'not known'}${r0.delta[m.id] ? `, ${fmtDelta(r0.delta[m.id])} vs last week` : ''}`}
-                            className={`group min-w-0 rounded-md border-b-2 pb-3 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'border-ink' : 'border-transparent'}`}>
-                            <span className={`block text-[13px] leading-[18px] font-medium transition-colors duration-150 ${on ? 'text-stone-900' : 'text-stone-600 group-hover:text-stone-900'}`}>{m.label}</span>
-                            <span className="mt-1 flex items-baseline gap-1.5">
-                              <span className={`text-[24px] leading-8 font-semibold tabular-nums transition-colors duration-150 ${on ? 'text-ink' : 'text-stone-600 group-hover:text-stone-900'}`}>{r0.totals[m.id] ?? '—'}</span>
-                              <Delta d={r0.delta[m.id]} />
-                            </span>
-                            <Sparkline values={series(rows, m.id)} vs={vsRows && series(vsRows, m.id)} labels={labels} on={on} rivalName={rival?.name} onTip={setTip} />
-                          </button>
-                        )
-                      })}
-                    </div>
-                    {/* compare: one competitor at a time (Visibility history's chips); again to turn it off */}
-                    <div className="mt-3 flex min-w-0 items-center gap-1 overflow-x-auto pb-3 [scrollbar-width:none]">
-                      <span className="mr-1 shrink-0 text-[13px] leading-[18px] text-stone-500">Compare with</span>
-                      {rivals.map((b) => {
-                        const on = rival?.key === b.key
-                        return (
-                          <button key={b.key} type="button" aria-pressed={on} onClick={() => set({ vs: on ? null : b.key })}
-                            className={`inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[13px] leading-[18px] outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${on ? 'font-medium text-stone-900' : 'text-stone-600'}`}>
-                            {on && <span className="h-px w-3 bg-stone-500" aria-hidden />}{b.name}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </>
-                )}
-              </header>
-              <div className="min-h-0 flex-1 overflow-y-auto">
+              <div ref={explain.cardRef} className="min-h-0 flex-1 overflow-y-auto" onScroll={() => tip && setTip(null)}>
+                <header className="border-b border-line px-6">
+                  <h2 className="mt-3 text-[20px] leading-7 font-semibold text-stone-900">Mentions and citations</h2>
+                  <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums">{brand.name} · 152 prompts · last {plural(rows.length, 'week')}</p>
+                  {loading ? <SkeletonHead /> : empty ? <div className="pb-4" /> : (
+                    <>
+                      {/* the metric: text tabs, the big number + change under each label; the selected one ink with
+                          the standard 2px underline (Lost | Gained's), the others t3 */}
+                      <div role="tablist" aria-label="Metric" onKeyDown={onMetricKey} className="mt-5 flex gap-8 border-b border-[var(--div)]">
+                        {METRICS.map((m) => {
+                          const on = m.id === metric
+                          const r0 = rows[0]
+                          return (
+                            <button key={m.id} data-metric={m.id} type="button" role="tab" aria-selected={on} tabIndex={on ? 0 : -1} onClick={() => set({ metric: m.id })}
+                              aria-label={`${m.label} ${r0.totals[m.id] ?? 'not known'}${r0.delta[m.id] ? `, ${fmtDelta(r0.delta[m.id])} vs last week` : ''}`}
+                              className={`group -mb-px min-w-0 border-b-2 pb-3 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'border-ink' : 'border-transparent'}`}>
+                              <span className={`block text-[13px] leading-[18px] font-medium transition-colors duration-150 ${on ? 'text-stone-900' : 'text-stone-500 group-hover:text-stone-900'}`}>{m.label}</span>
+                              <span className="mt-1 flex items-baseline gap-1.5">
+                                <span className={`text-[24px] leading-8 font-semibold tabular-nums transition-colors duration-150 ${on ? 'text-ink' : 'text-stone-500 group-hover:text-stone-900'}`}>{r0.totals[m.id] ?? '—'}</span>
+                                <Delta d={r0.delta[m.id]} />
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <WeekChart rows={rows} vsRows={vsRows} metric={metric} rival={rival} changes={changes} explain={explain} onTip={setTip} onPick={pick} />
+
+                      {insight && (
+                        <div className="mt-3">
+                          <Insight explain={explain} text={`${insight.text}.`}
+                            evidence={{
+                              keys: insight.keys.map((i) => `bar:${i}`),
+                              calc: insight.calc,
+                              source: `(${short(fmtDay(tracking.schedule.lastSync))} update)`,
+                              ...(changes[0] ? { action: { label: 'See the week', onClick: () => drill(0) } } : {}),
+                            }} />
+                        </div>
+                      )}
+
+                      {/* compare: one competitor at a time (Visibility history's brand chips, with the real logos) */}
+                      <div className="mt-4 flex min-w-0 items-center gap-1.5 overflow-x-auto pb-4 [scrollbar-width:none]">
+                        <span className="mr-1 shrink-0 text-[13px] leading-[18px] text-stone-500">Compare with</span>
+                        {rivals.map((b) => {
+                          const on = rival?.key === b.key
+                          return (
+                            <button key={b.key} type="button" aria-pressed={on} onClick={() => set({ vs: on ? null : b.key })}
+                              className={`inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full pl-1.5 pr-3 text-[13px] leading-[18px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'bg-tint font-medium text-stone-900' : 'text-stone-600 hover:bg-tint hover:text-stone-900'}`}>
+                              <Favicon domain={b.domain} size={20} />{b.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </>
+                  )}
+                </header>
                 {loading ? <SkeletonRows /> : empty ? (
                   <p className="px-6 py-12 text-center text-[14px] leading-5 text-stone-600">History appears after your second weekly scan.</p>
                 ) : (
                   // the week summaries cross-fade when the metric changes
-                  <ul key={`${metric}|${engine}`} className="divide-y divide-[var(--div)] motion-safe:animate-[fade-in_150ms_ease-out]" aria-label={`${sel.label} by week`}>
-                    {rows.map((r, i) => {
-                      const v = r.totals[metric]
-                      const changes = changesOf(r, metric)
-                      const summary = weekSummary({ metric, row: r, changes, you: brand.you, name: brand.name })
-                      const vs = vsRows?.[i]?.totals[metric]
-                      const body = (
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-baseline gap-3">
-                            <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-stone-900 tabular-nums">{r.week.label}</span>
-                            <span className="flex shrink-0 items-baseline gap-1.5">
-                              <span className={`text-[14px] leading-5 tabular-nums ${v == null ? 'text-stone-500' : 'font-semibold text-ink'}`}>{v ?? '—'}</span>
-                              <span className="w-8"><Delta d={r.delta[metric]} /></span>
-                              {rival && <span className="w-14 text-right text-[12px] leading-4 text-stone-500 tabular-nums">vs {vs ?? '—'}</span>}
-                            </span>
-                          </span>
-                          <span className={`block truncate text-[12.5px] leading-[18px] ${r.totals.failed.length ? 'text-stone-500' : 'text-stone-600'}`}>{summary}</span>
-                        </span>
-                      )
-                      return (
-                        <li key={r.week.id}>
-                          {changes ? (
-                            <button type="button" data-nav data-week={i} onClick={() => drill(i)} aria-label={`${r.week.label}: ${sel.label.toLowerCase()} ${v}${r.delta[metric] ? ` (${fmtDelta(r.delta[metric])})` : ''}. ${summary}`}
-                              className="group flex h-[60px] w-full items-center gap-3 px-6 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
-                              {body}
-                              <ChevronRight size={14} className="shrink-0 text-stone-500 transition-colors group-hover:text-stone-900" aria-hidden />
-                            </button>
-                          ) : (
-                            // nothing to drill into: a failed scan, or no week before it to compare with
-                            <div className="flex h-[60px] items-center gap-3 px-6 pr-[50px]">{body}</div>
-                          )}
-                        </li>
-                      )
-                    })}
-                  </ul>
+                  <div key={`${metric}|${engine}`} className="motion-safe:animate-[fade-in_150ms_ease-out]" aria-label={`${sel.label} by week`} role="list">
+                    {months.map((g) => (
+                      <div key={g.month} role="listitem">
+                        <h3 className="sticky top-0 z-[1] border-b border-[var(--div)] bg-surface px-6 pb-1.5 pt-4 text-[13px] leading-[18px] font-medium text-stone-500">{g.month}</h3>
+                        <ul className="divide-y divide-[var(--div)]" aria-label={g.month}>{g.items.map(row)}</ul>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </section>

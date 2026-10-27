@@ -1,7 +1,7 @@
 // Run with: npm test
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { citationWeeks, weekChanges, weekRows, weekSummary, weekTotals } from './citationHistory.js'
+import { citationWeeks, weekChanges, weekInsight, weekRows, weekSummary, weekTotals } from './citationHistory.js'
 import { pagePath } from './brandViews.js'
 import { citationsMentions } from './mock.js'
 
@@ -48,4 +48,20 @@ test('a page with or without utm_ parameters counts once', () => {
   assert.equal(pagePath('/products/serum?utm_source=chatgpt.com'), '/products/serum')
   assert.equal(pagePath('/products/serum?utm_source=x&utm_medium=y#top'), '/products/serum')
   assert.equal(pagePath('/products/serum?variant=2&utm_source=x'), '/products/serum?variant=2')
+})
+
+test('the insight line: the newest week against the period, never a 0 for a failed scan', () => {
+  const { syncs } = citationWeeks('dermasuri.com')
+  const rows = weekRows('dermasuri.com', 'all', ALL)
+  const changes = rows.map((r) => weekChanges({ domain: 'dermasuri.com', metric: 'mentions', row: r, engine: 'all', sync: syncs[r.index] }))
+  const up = weekInsight({ metric: 'mentions', rows, changes })
+  assert.match(up.text, /^Your best week in 10 weeks: \d+ prompts started mentioning you$/)
+  // one week earlier: −17, the period's biggest drop
+  const down = weekInsight({ metric: 'mentions', rows: rows.slice(1), changes: changes.slice(1) })
+  assert.match(down.text, /^Your biggest drop in 9 weeks: \d+ prompts stopped mentioning you$/)
+  // a failed newest week says so
+  const failed = weekInsight({ metric: 'mentions', rows: rows.slice(4), changes: changes.slice(4) })
+  assert.match(failed.text, /^This week’s scan didn’t complete/)
+  // months for grouping
+  assert.equal(rows[0].week.month, 'October')
 })
