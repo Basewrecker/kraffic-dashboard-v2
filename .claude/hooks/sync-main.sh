@@ -38,12 +38,14 @@ dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
 
 echo "Branch: ${branch} · ${behind} commit(s) behind origin/main · ${ahead} ahead · ${dirty} uncommitted file(s)"
 if [ "$branch" = "main" ] || [ "$branch" = "HEAD" ]; then
-  echo "!!! ON $(echo "$branch" | tr '[:lower:]' '[:upper:]'): do not work here. Start a NEW branch from origin/main: git worktree add -b <task> ~/Documents/kraffic-worktrees/<task> origin/main"
+  echo "!!! ON $(echo "$branch" | tr '[:lower:]' '[:upper:]'): do not work here. Work lands on develop (~/Documents/kraffic-worktrees/develop); unfinished design work on its own branch: git worktree add -b design/<name> ~/Documents/kraffic-worktrees/design-<name> origin/develop"
   exit 0
 fi
 if [ "$behind" != "?" ] && [ "$behind" -gt 0 ]; then
-  echo "!!! STALE BRANCH: ${branch} is ${behind} commit(s) behind origin/main. For a new task start a NEW branch from origin/main; to finish this one: git fetch origin && git merge origin/main (no rebase, no force). On a conflict STOP and show the owner the files (commits, pushes and merges are blocked until then)."
+  echo "!!! STALE BRANCH: ${branch} is ${behind} commit(s) behind origin/main. First: git fetch origin && git merge origin/main (no rebase, no force). On a conflict STOP and show the owner the files (commits, pushes and merges are blocked until then)."
 fi
+# develop lives on (one long-lived branch): the old-branch re-check is for design branches only
+[ "$branch" = "develop" ] && exit 0
 # created = the branch's first reflog entry; without one (a fetched branch), where it forked from main
 created=$(git reflog show --format=%ct "refs/heads/${branch}" 2>/dev/null | tail -1)
 [ -z "$created" ] && created=$(git log -1 --format=%ct "$(git merge-base HEAD origin/main 2>/dev/null)" 2>/dev/null)
