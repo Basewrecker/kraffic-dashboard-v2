@@ -6,24 +6,25 @@ import ActionMenu from '../../components/audit/ActionMenu'
 import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate, usePath } from '../../router'
 import { AUDIENCES, DATES, KINDS, REPORT_BRANDS, VERDICT_TONE, buildReport, dataFor, libraryItems, monthGroup, parseDay, periodRange, runSummary, savedReports, schedules, weeklyRuns } from '../../data/reports'
-import PillComposer from './PillComposer'
-import ReportPage from './ReportPage'
+import ReportThread from './ReportPage'
 import { Block, Thumb, VerdictDot } from './blocks'
 import { DotIllustration } from './DotField'
-import { BrandLogo, ChipMenu, Empty, ReportsHead, brandOf, defaultBrand, fromQuery, inkBtn, lineBtn, menuItem, t2, t3, toQuery } from './parts'
+import { BrandLogo, ChipMenu, Empty, ReportsHead, brandOf, defaultBrand, inkBtn, lineBtn, menuItem, t2, t3 } from './parts'
 
-// /reports → New report (the composer) · /reports/all → All reports · /reports/scheduled → Scheduled
-// /reports/new?… → writing a report · /reports/<id> → a report. ?mock=empty: no reports (Home, All reports, Scheduled)
+// /reports → New report (the empty thread) · /reports/all → All reports · /reports/scheduled → Scheduled
+// /reports/<id> (and /reports/new?… · /reports/view?…) → the report thread. The empty state and every report are the same
+// element (ReportThread), so sending a question turns the page into a thread without remounting it.
+// ?mock=empty: no reports (All reports, Scheduled)
 export default function ReportsRouter() {
   const path = usePath()
   const rest = path.replace(/^\/reports\/?/, '')
   useEffect(() => {
-    document.title = `${rest === '' ? 'New report' : rest === 'all' ? 'Reports' : rest === 'scheduled' ? 'Scheduled reports' : 'Report'} · Kraffic`
+    if (rest === 'all') document.title = 'Reports · Kraffic'
+    else if (rest === 'scheduled') document.title = 'Scheduled reports · Kraffic'
   }, [rest])
-  if (rest === '') return <ReportsHome />
   if (rest === 'all') return <AllReports />
   if (rest === 'scheduled') return <Scheduled />
-  return <ReportPage id={rest} />
+  return <ReportThread rest={rest} />
 }
 const mockEmpty = () => new URLSearchParams(window.location.search).get('mock') === 'empty'
 
@@ -39,50 +40,6 @@ function Delta({ d }) {
     <span className={`whitespace-nowrap text-[12px] tabular-nums ${up ? t2 : 'font-medium text-negative'}`}>
       <span aria-hidden>{up ? '▲' : '▼'}{Math.abs(d)}</span><span className="sr-only">{up ? 'up' : 'down'} {Math.abs(d)}</span>
     </span>
-  )
-}
-
-// ---- New report, ChatGPT-style: nothing but a greeting and the box, together just above the centre. Sending fades the
-// greeting and glides the box to the top of the page, where the report is written under it.
-// Preview-only: ?greet=1|2|3 picks the greeting, ?font=inter shows the page in Inter (loaded only then).
-const GREETINGS = { 1: 'What do you want to know?', 2: 'What should we look into today?', 3: 'What’s on your mind today?' }
-function useInterPreview() {
-  const on = new URLSearchParams(window.location.search).get('font') === 'inter'
-  useEffect(() => {
-    if (!on || document.getElementById('inter-preview')) return
-    const l = Object.assign(document.createElement('link'), { id: 'inter-preview', rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap' })
-    document.head.appendChild(l)
-  }, [on])
-  return on ? { fontFamily: "'Inter', var(--font-sans)" } : undefined
-}
-function ReportsHome() {
-  const init = useRef(fromQuery()).current
-  const home = useRef(init.opts.brand).current
-  const [prompt, setPrompt] = useState(init.prompt)
-  const [opts, setOpts] = useState(init.opts)
-  const [leaving, setLeaving] = useState(null) // the box's glide to the top: { dy }
-  const pill = useRef(null)
-  const font = useInterPreview()
-  const greeting = GREETINGS[new URLSearchParams(window.location.search).get('greet')] ?? GREETINGS[1]
-  const send = (final) => {
-    if (leaving) return
-    const url = `/reports/new?${toQuery(final, prompt.trim())}`
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const main = document.querySelector('main')
-    const box = pill.current?.getBoundingClientRect()
-    if (!main || !box) { navigate(url); return }
-    const top = main.getBoundingClientRect().top + parseFloat(getComputedStyle(main).paddingTop)
-    document.activeElement?.blur()
-    setLeaving({ dy: reduced ? 0 : top - box.top })
-    setTimeout(() => navigate(url), reduced ? 160 : 460)
-  }
-  return (
-    <section style={font} className="flex min-h-[calc(100dvh-120px)] flex-col items-center justify-center pb-[12vh] lg:min-h-[calc(100dvh-72px)]">
-      <h1 className={`mb-6 text-center text-[24px] leading-[1.3] font-medium tracking-normal text-stone-900 transition-opacity duration-200 md:text-[28px] ${leaving ? 'opacity-0' : ''}`}>{greeting}</h1>
-      <div className="w-full" style={leaving ? { transform: `translateY(${leaving.dy}px)`, transition: 'transform 440ms cubic-bezier(.3,.7,.2,1), opacity 160ms', opacity: leaving.dy ? 1 : 0 } : undefined}>
-        <PillComposer ref={pill} homeBrand={home} prompt={prompt} setPrompt={setPrompt} opts={opts} setOpts={setOpts} onSend={send} busy={!!leaving} />
-      </div>
-    </section>
   )
 }
 

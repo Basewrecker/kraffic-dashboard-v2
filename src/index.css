@@ -460,3 +460,14 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
   .thumb-live:is(:hover, :focus-visible) [data-a="settle"] { animation: thumb-settle 420ms cubic-bezier(.34,1.56,.64,1) calc(var(--i) * 28ms) both; }
   .thumb-live:is(:hover, :focus-visible) [data-a="pop"] { animation: thumb-pop 520ms cubic-bezier(.34,1.56,.64,1) calc(var(--i) * 80ms + 120ms) both; }
 }
+
+/* Reports thread: the question bubble (tint in light, the raised layer in dark) and the send / back motion */
+:root { --bubble: var(--tint); }
+html[data-theme="dark"] { --bubble: var(--color-raised); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bubble: var(--color-raised); } }
+@keyframes greet-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes greet-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes step-in { from { opacity: 0; transform: translateY(4px); } }
+/* reduced motion: the thread's entrances are instant (no rise, no stagger) */
+@media (prefers-reduced-motion: reduce) { .thread-motion, .thread-motion * { animation-duration: 1ms !important; animation-delay: 0ms !important; } }

@@ -480,8 +480,7 @@ export const schedules = [
 export function stepsFor(o) {
   const d = dataFor(o.brand)
   const n = d ? 1 + (o.compare?.length ? o.compare.length : d.rivals.length) : 0
-  const when = { week: 'this week’s', '30d': 'this month’s', quarter: 'this quarter’s', custom: 'the period’s' }[o.period] ?? 'this month’s'
-  return [`Reading ${d?.prompts ?? 0} prompts`, `Comparing ${n} brands`, `Checking ${when} wins and gaps`, 'Writing the summary']
+  return [`Reading ${d?.prompts ?? 0} prompts`, `Comparing ${n} brands`, 'Writing the summary']
 }
 
 // ---- the library (All reports) ----------------------------------------------------------------------------------
@@ -557,4 +556,30 @@ export function libraryItems() {
   })
   const runs = REPORT_BRANDS.flatMap((b) => weeklyRuns(b.id)).filter((x) => x.run)
   return [...saved, ...runs].sort((a, b) => parseDay(b.created) - parseDay(a.created))
+}
+
+// ---- the report thread --------------------------------------------------------------------------------------------
+// the options under a question bubble: "This week · Team · One page"
+export function optsLine(o) {
+  const lab = (list, id) => list.find((x) => x.id === id)?.label
+  return [lab(PERIODS, o.period), lab(AUDIENCES, o.audience), lab(LENGTHS, o.length)].filter(Boolean).join(' · ')
+}
+// the box's suggestions once a report is open: changes the report understands (refine)
+export function refineSuggestions(brandId) {
+  const d = dataFor(brandId)
+  const rival = d?.rivals.find((r) => d.h2h[r.key]) ?? d?.rivals[0]
+  return ['Make it shorter', 'Add Gemini', rival && `Focus on ${first(brandName(rival.domain))}`, 'Rewrite for a client'].filter(Boolean)
+}
+// a report written in this session: kept with the saved ones (it opens at /reports/<id> and shows in All reports)
+let made = 0
+export function addReport(prompt, opts) {
+  const o = { ...DEFAULT_OPTS, compare: [], engines: [], ...opts }
+  const id = `r-new-${++made}`
+  savedReports.unshift({ id, brand: o.brand, prompt, opts: o, title: titleFor(prompt, resolveOpts(o, prompt)), created: 'Oct 28', saved: false })
+  return id
+}
+// a change from the thread updates what the report keeps (its latest version)
+export function updateReport(id, opts) {
+  const r = savedReports.find((x) => x.id === id)
+  if (r) r.opts = { ...r.opts, ...opts }
 }

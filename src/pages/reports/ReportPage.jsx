@@ -1,21 +1,33 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertCircle, ArrowDown, ArrowUp, CalendarClock, Check, ChevronDown, Copy, Download, HelpCircle, Link2, Loader2, MoreHorizontal, Printer, X } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, CalendarClock, Check, Copy, Crosshair, Download, HelpCircle, Link2, Loader2, Minimize2, MoreHorizontal, Plus, Printer, UserRound, X } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import Segmented from '../../components/dashboard/Segmented'
 import Switch from '../../components/ui/Switch'
 import ActionMenu from '../../components/audit/ActionMenu'
 import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate } from '../../router'
-import { buildReport, refine, reportById, resolveOpts, stepsFor } from '../../data/reports'
+import { addReport, buildReport, optsLine, refine, refineSuggestions, reportById, stepsFor, updateReport } from '../../data/reports'
 import PillComposer from './PillComposer'
-import { Block, WIDE, blockName, explainFor } from './blocks'
 import { DotAssemble } from './DotField'
+import { Block, Thumb, WIDE, blockName, explainFor } from './blocks'
 import { brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
 
-const STEP_MS = 900
-const HINTS = ['Make it shorter', 'Add Gemini', 'Focus on Longbridge', 'Rewrite for a client']
+// Reports as a chat thread, ChatGPT-style. /reports is the empty state: a greeting and the box at the centre. Sending
+// turns the page into a thread in one motion: the greeting fades up and out, the box glides to the bottom and docks
+// there, the question appears as the user's bubble, and the reply streams in under it (the steps tick, the dots gather
+// into the hero, then the report fades in block by block). The URL becomes /reports/<id> without a reload, and the
+// report is kept in All reports. In the thread the box changes the report (refine): each change adds a bubble and a new
+// version, and the earlier one folds into a compact card. /reports/<id> opens straight into the thread; New report goes
+// back to the empty state with the motion reversed. Transform / opacity only; reduced motion: instant, plain fades.
+// ?mock=generating (held on step 2) · failed · ?print=1 the A4 view · ?greet=1|2|3 · ?font=inter (preview only)
+
+const STEP_MS = 850
+const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 const FIXED = new Set(['header', 'scoreline', 'hero', 'sources']) // the fixed rhythm: explain only
 const FIRST_MOVABLE = 3 // after header, scoreline, hero
+const GREETINGS = { 1: 'What do you want to know?', 2: 'What should we look into today?', 3: 'What’s on your mind today?' }
+const REFINE_ICONS = [Minimize2, Plus, Crosshair, UserRound]
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 // sections side by side on wide screens: two narrow sections next to each other share a row
 function spans(blocks) {
   const half = (b) => b?.type === 'section' && !WIDE.has(b.data.visual.kind)
@@ -24,267 +36,405 @@ function spans(blocks) {
   return out
 }
 const numbers = (blocks) => { let n = 0; return blocks.map((b) => (b.type === 'section' ? ++n : null)) }
+const sameOpts = (a, b) => ['brand', 'period', 'audience', 'length'].every((k) => a[k] === b[k]) && ['engines', 'compare'].every((k) => (a[k] ?? []).join() === (b[k] ?? []).join())
 
-// /reports/new?… writes a report (the steps tick off, then the blocks fade in) · /reports/view?… and /reports/<id> show one.
-// ?mock=generating (held on step 3) · failed · refining (held mid-update) · ?print=1 the A4 view
-export default function ReportPage({ id }) {
+// a turn: the user's message (ask) and the reply — a report version (built from the report's question + options), or a
+// note when the message isn't a change a report can make
+let seq = 0
+function makeTurn(ask, prompt, opts, { done = false, change = null } = {}) {
+  const built = buildReport(opts, prompt)
+  return { id: `t${++seq}`, ask, prompt, opts: built.opts ?? opts, built, blocks: built.ok ? built.blocks : [], status: !built.ok ? 'thin' : done ? 'done' : 'steps', step: 0, live: !done, change }
+}
+const noteTurn = (ask, note) => ({ id: `t${++seq}`, ask, note, status: 'note', live: true })
+
+function initFor(rest) {
+  if (rest === '') return { mode: 'empty', turns: [], ownId: null }
+  if (rest === 'new' || rest === 'view') {
+    const f = fromQuery()
+    return { mode: 'thread', turns: [makeTurn(f.prompt, f.prompt, f.opts, { done: rest === 'view' })], ownId: null }
+  }
+  const saved = reportById(rest)
+  if (!saved) return { mode: 'thread', turns: [], ownId: rest, missing: true }
+  return { mode: 'thread', turns: [makeTurn(saved.prompt || saved.title, saved.prompt, saved.opts, { done: true })], ownId: rest }
+}
+
+export default function ReportThread({ rest }) {
   const q = new URLSearchParams(window.location.search)
+  if (q.get('print') === '1') {
+    const saved = rest !== 'new' && rest !== 'view' ? reportById(rest) : null
+    const f = saved ? { prompt: saved.prompt, opts: saved.opts, title: saved.title } : { ...fromQuery(), title: null }
+    return <PrintView prompt={f.prompt} opts={f.opts} title={f.title} />
+  }
+  return <Thread rest={rest} mock={q.get('mock')} greeting={GREETINGS[q.get('greet')] ?? GREETINGS[1]} inter={q.get('font') === 'inter'} />
+}
+
+function Thread({ rest, mock, greeting, inter }) {
   const init = useRef(null)
-  if (!init.current) {
-    const saved = id !== 'new' && id !== 'view' ? reportById(id) : null
-    init.current = saved ? { prompt: saved.prompt, opts: saved.opts, title: saved.title }
-      : id === 'new' || id === 'view' ? { ...fromQuery(), title: null } : { missing: true }
-  }
-  if (init.current.missing) {
-    return (
-      <div className="mx-auto w-full max-w-[860px] rounded-2xl border border-line bg-surface p-6 text-center">
-        <p className="text-[15px] font-semibold text-stone-900">This report doesn’t exist any more</p>
-        <p className={`mt-1 text-[13px] ${t2}`}>It may have been deleted. <a href="/reports/all" onClick={linkClick('/reports/all')} className="font-medium text-stone-900 underline underline-offset-4">All reports</a></p>
-      </div>
-    )
-  }
-  if (q.get('print') === '1') return <PrintView prompt={init.current.prompt} opts={init.current.opts} title={init.current.title} />
-  return <Report id={id} init={init.current} mock={q.get('mock')} />
-}
-
-function makeVersion(n, opts, prompt, change, title) {
-  const r = buildReport(opts, prompt)
-  return { n, opts: r.opts, change, title: title ?? r.title, blocks: r.ok ? r.blocks : [], edited: false }
-}
-
-function Report({ id, init, mock }) {
-  const writing = id === 'new'
-  const [prompt, setPrompt] = useState(init.prompt)
-  const [opts, setOpts] = useState(init.opts)
-  const [phase, setPhase] = useState(writing ? 'generating' : 'done')
-  const [step, setStep] = useState(0)
-  const [reveal, setReveal] = useState(false)
-  const [versions, setVersions] = useState(() => {
-    if (writing) return []
-    const v1 = makeVersion(1, init.opts, init.prompt, 'Original', init.title)
-    return mock === 'refining' ? [v1] : [v1]
-  })
-  const [cur, setCur] = useState(0)
-  const [refining, setRefining] = useState(mock === 'refining' && !writing ? 'Make it shorter' : null)
-  const [ask, setAsk] = useState('')
-  const [askNote, setAskNote] = useState('')
+  if (!init.current) init.current = initFor(rest)
+  const [mode, setMode] = useState(init.current.mode)
+  const [turns, setTurns] = useState(init.current.turns)
+  const [missing, setMissing] = useState(!!init.current.missing)
+  const [prompt, setPrompt] = useState(rest === '' ? fromQuery().prompt : '')
+  const [opts, setOpts] = useState(() => (init.current.turns.at(-1)?.opts ?? fromQuery().opts))
+  const [open, setOpen] = useState({}) // an earlier version shown again
   const [explain, setExplain] = useState(null)
   const [scheduling, setScheduling] = useState(false)
+  const [ghost, setGhost] = useState(null) // the greeting, fading up and out where it was
+  const [greetIn, setGreetIn] = useState(false)
+  const [showDown, setShowDown] = useState(false)
+  const [dotsFor, setDotsFor] = useState(null) // the turn whose hero the dots are gathering into
   const [toastNode, toast] = useToast({ position: 'center' })
-  const timer = useRef(null)
-  const run = useRef(0)
+  const own = useRef(init.current.ownId)
+  const modeRef = useRef(mode)
+  modeRef.current = mode
+  const timers = useRef({})
+  const dock = useRef(null)
+  const greetRef = useRef(null)
+  const threadRef = useRef(null)
   const heroRef = useRef(null)
-  const pillRef = useRef(null)
-  // the dots that become the hero while it's written (they fade out under the finished report)
-  const [dots, setDots] = useState(writing)
-  useEffect(() => {
-    if (phase === 'generating') return undefined
-    const t = setTimeout(() => setDots(false), 700)
-    return () => clearTimeout(t)
-  }, [phase])
-  const steps = stepsFor(resolveOpts(init.opts, init.prompt))
-  const built = buildReport(init.opts, init.prompt)
+  const flipFrom = useRef(null)
+  const follow = useRef(true)
+  const streaming = useRef(false)
+  useInterFont(inter)
 
-  // writing: tick the steps, then show the report, and move the URL to the report (the sidebar then shows All reports)
-  const start = () => {
-    const me = ++run.current
-    clearTimeout(timer.current)
-    setStep(0)
-    if (!built.ok) { setPhase('thin'); return }
-    setPhase('generating')
-    setDots(true)
-    if (mock === 'generating') { setStep(2); return }
+  const patch = (id, p) => setTurns((ts) => ts.map((t) => (t.id === id ? { ...t, ...(typeof p === 'function' ? p(t) : p) } : t)))
+  // writing: the steps tick off one by one, then the report streams in
+  const run = (t) => {
+    const steps = stepsFor(t.opts).length
+    clearTimeout(timers.current[t.id])
+    setDotsFor(t.id)
     const tick = (n) => {
-      timer.current = setTimeout(() => {
-        if (run.current !== me) return
-        if (mock === 'failed' && n === 3) { setStep(3); setPhase('failed'); return }
-        if (n < steps.length) { setStep(n + 1); tick(n + 1); return }
-        setVersions([makeVersion(1, init.opts, init.prompt, 'Original')])
-        setCur(0)
-        setReveal(true)
-        setPhase('done')
-        window.history.replaceState(null, '', `/reports/view?${toQuery(init.opts, init.prompt)}`)
-        window.dispatchEvent(new Event('app:navigate'))
-      }, n === steps.length ? 350 : STEP_MS)
+      timers.current[t.id] = setTimeout(() => {
+        if (mock === 'failed' && n === 2) { patch(t.id, { status: 'failed', step: 2 }); return }
+        if (mock === 'generating' && n === 2) return
+        if (n < steps) { patch(t.id, { step: n + 1 }); tick(n + 1); return }
+        patch(t.id, { status: 'done' })
+      }, n === steps ? 250 : STEP_MS)
     }
+    patch(t.id, { status: 'steps', step: 0 })
     tick(0)
   }
+  useEffect(() => () => Object.values(timers.current).forEach(clearTimeout), [])
+  // a turn that's still being written keeps the view following it; the dots fade under the finished report
   useEffect(() => {
-    if (writing) start()
-    return () => { run.current++; clearTimeout(timer.current) }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  const cancel = () => { run.current++; clearTimeout(timer.current); setPhase('cancelled') }
+    const live = turns.some((t) => t.status === 'steps')
+    if (live) { streaming.current = true; return undefined }
+    const t = setTimeout(() => { streaming.current = false; setDotsFor(null) }, 1800)
+    return () => clearTimeout(t)
+  }, [turns])
 
-  const v = versions[cur]
-  const send = (final) => navigate(`/reports/new?${toQuery(final ?? opts, prompt.trim())}`)
-  const setBlocks = (blocks) => setVersions((vs) => vs.map((x, i) => (i === cur ? { ...x, blocks, edited: true } : x)))
-  const move = (bid, dir) => {
-    const bs = v.blocks
+  // /reports/new?… (an older link): write it now, and give it its own address
+  useEffect(() => {
+    if (rest !== 'new') return
+    const t = turns[0]
+    if (!t?.built.ok) return
+    own.current = addReport(t.prompt, t.opts)
+    window.history.replaceState(null, '', `/reports/${own.current}`)
+    window.dispatchEvent(new Event('app:navigate'))
+    run(t)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // the address changed from outside: New report → back to the empty state (reversed); another report → open it
+  useEffect(() => {
+    if (rest === '' && modeRef.current === 'thread') {
+      Object.values(timers.current).forEach(clearTimeout)
+      flipFrom.current = reducedMotion() ? null : dock.current?.getBoundingClientRect() ?? null
+      setGreetIn(!reducedMotion())
+      setMode('empty'); setTurns([]); setMissing(false); setPrompt(''); setOpts(fromQuery('').opts); setOpen({}); own.current = null
+    } else if (rest !== '' && rest !== 'new' && rest !== 'view' && rest !== own.current) {
+      const n = initFor(rest)
+      own.current = n.ownId
+      setMode(n.mode); setTurns(n.turns); setMissing(!!n.missing); setOpts(n.turns.at(-1)?.opts ?? opts); setOpen({})
+    }
+  }, [rest]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // the box's glide between the centre and the dock (FLIP: measured before and after the change, transform only;
+  // measuring mid-glide includes the current transform, so a glide can be reversed halfway)
+  useLayoutEffect(() => {
+    const from = flipFrom.current
+    flipFrom.current = null
+    const el = dock.current
+    if (!from || !el) return
+    if (mode === 'empty') window.scrollTo(0, 0)
+    el.getAnimations().forEach((a) => a.cancel())
+    const to = el.getBoundingClientRect()
+    const dx = from.left - to.left
+    const dy = from.top - to.top
+    if (Math.abs(dx) + Math.abs(dy) < 1) return
+    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 400, easing: EASE })
+  }, [mode])
+
+  // following the stream: down as it grows, unless you scroll up (then a ↓ button brings you back)
+  useEffect(() => {
+    const atEnd = () => window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 96
+    const onScroll = () => { const end = atEnd(); if (end) follow.current = true; setShowDown(!end && !follow.current) }
+    const onWheel = (e) => { if (e.deltaY < 0) follow.current = false }
+    const onTouch = () => { follow.current = false }
+    const onKey = (e) => { if (['ArrowUp', 'PageUp', 'Home'].includes(e.key) && !e.target.closest?.('textarea,input,[role=menu],[role=listbox]')) follow.current = false }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('wheel', onWheel, { passive: true })
+    window.addEventListener('touchmove', onTouch, { passive: true })
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('wheel', onWheel); window.removeEventListener('touchmove', onTouch); window.removeEventListener('keydown', onKey) }
+  }, [])
+  useEffect(() => {
+    const el = threadRef.current
+    if (!el) return undefined
+    const ro = new ResizeObserver(() => {
+      if (follow.current && streaming.current) window.scrollTo({ top: document.documentElement.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [mode])
+  useEffect(() => {
+    if (mode !== 'thread') return undefined
+    const id = setInterval(() => {
+      if (!follow.current || !streaming.current) return
+      const max = document.documentElement.scrollHeight - window.innerHeight
+      if (max - window.scrollY > 4) window.scrollTo({ top: max, behavior: reducedMotion() ? 'auto' : 'smooth' })
+    }, 250)
+    return () => clearInterval(id)
+  }, [mode])
+  const jumpDown = () => { follow.current = true; setShowDown(false); window.scrollTo({ top: document.documentElement.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' }) }
+
+  const latest = [...turns].reverse().find((t) => t.built?.ok)
+  useEffect(() => { document.title = `${mode === 'empty' ? 'New report' : latest?.built.title ?? 'Report'} · Kraffic` }, [mode, latest?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const send = (final) => {
+    const text = prompt.trim()
+    if (!text) return
+    follow.current = true
+    if (mode === 'empty') {
+      const t = makeTurn(text, text, final)
+      if (!reducedMotion()) {
+        const g = greetRef.current?.getBoundingClientRect()
+        if (g) setGhost({ rect: { left: g.left, top: g.top, width: g.width }, text: greeting })
+        flipFrom.current = dock.current?.getBoundingClientRect() ?? null
+      }
+      document.activeElement?.blur()
+      setTurns([t]); setMode('thread'); setPrompt(''); setOpts(t.opts); setGreetIn(false)
+      if (t.built.ok) {
+        own.current = addReport(text, t.opts)
+        window.history.pushState(null, '', `/reports/${own.current}`)
+        window.dispatchEvent(new Event('app:navigate'))
+        run(t)
+      }
+      return
+    }
+    // in the thread: a change to the latest report (the box's dropdowns count as part of the change)
+    setPrompt('')
+    if (!latest) return
+    const r = refine(opts, text)
+    const next = r?.opts ?? (sameOpts(opts, latest.opts) ? null : opts)
+    if (!next) {
+      setTurns((ts) => [...ts, noteTurn(text, 'That isn’t a change a report can make yet. It can change the length, the audience, the engines, the period or the competitors: try “Make it shorter” or one of the suggestions.')])
+      return
+    }
+    const t = makeTurn(text, latest.prompt, next, { change: r?.change ?? 'Changed the options' })
+    setTurns((ts) => [...ts, t])
+    setOpts(t.opts)
+    setOpen({})
+    if (own.current) updateReport(own.current, t.opts)
+    if (t.built.ok) run(t)
+  }
+
+  // block actions on a version: move, remove (with undo), explain
+  const setBlocks = (id, blocks) => patch(id, { blocks })
+  const move = (t, bid, dir) => {
+    const bs = t.blocks
     const i = bs.findIndex((b) => b.id === bid)
     const j = i + dir
     if (j < FIRST_MOVABLE || j > bs.length - 2) return // header, scoreline and hero stay first; sources last
     const n = [...bs];
     [n[i], n[j]] = [n[j], n[i]]
-    setBlocks(n)
+    setBlocks(t.id, n)
   }
-  const remove = (bid) => {
-    const before = v.blocks
-    setBlocks(before.filter((b) => b.id !== bid))
-    if (explain === bid) setExplain(null)
-    toast(`Removed “${blockName(before.find((b) => b.id === bid))}”`, { action: { label: 'Undo', onClick: () => setBlocks(before) } })
+  const remove = (t, bid) => {
+    const before = t.blocks
+    setBlocks(t.id, before.filter((b) => b.id !== bid))
+    toast(`Removed “${blockName(before.find((b) => b.id === bid))}”`, { action: { label: 'Undo', onClick: () => setBlocks(t.id, before) } })
   }
-
-  // refining: one instruction → a new version, written in place (v2, v3…)
-  const submitAsk = (text = ask) => {
-    const t = text.trim()
-    if (!t || refining) return
-    const r = refine(v.opts, t)
-    if (!r) { setAskNote('That isn’t something a report can change yet. It can change the length, the audience, the engines, the period or the competitors.'); return }
-    setAskNote('')
-    setAsk('')
-    setRefining(t)
-    const nextN = versions.length + 1
-    setTimeout(() => {
-      setVersions((vs) => [...vs, makeVersion(nextN, r.opts, init.prompt, r.change, v.title)])
-      setCur(nextN - 1)
-      setRefining(null)
-      setReveal(true)
-      toast(`${r.change}: version ${nextN}`)
-    }, 1400)
-  }
-
-  const shareUrl = () => `${window.location.origin}${id !== 'new' && id !== 'view' ? `/reports/${id}` : `/reports/view?${toQuery(v?.opts ?? init.opts, init.prompt)}`}`
-  const copyLink = () => { try { navigator.clipboard?.writeText(shareUrl()) } catch { /* no clipboard: the toast still says what a share link does */ } toast('Link copied. Anyone at PTA Agency with the link can open it.') }
-  const pdf = () => window.open(`/reports/view?${toQuery(v.opts, init.prompt)}&print=1`, '_blank', 'noopener')
-  const actions = [
-    { label: 'Download PDF', icon: Download, onClick: pdf },
-    { label: 'Copy share link', icon: Link2, onClick: copyLink },
-    { label: 'Schedule this report', icon: CalendarClock, onClick: () => setScheduling(true) },
-    { label: 'Duplicate', icon: Copy, onClick: () => toast(`Duplicated as “${v.title} (copy)” in All reports`) },
+  const shareUrl = () => `${window.location.origin}/reports/${own.current ?? ''}`
+  const actionsFor = (t) => [
+    { label: 'Download PDF', icon: Download, onClick: () => window.open(`/reports/view?${toQuery(t.opts, t.prompt)}&print=1`, '_blank', 'noopener') },
+    { label: 'Copy link', icon: Link2, onClick: () => { try { navigator.clipboard?.writeText(shareUrl()) } catch { /* no clipboard: the toast still says what the link does */ } toast('Link copied. Anyone at PTA Agency with the link can open it.') } },
+    { label: 'Schedule', icon: CalendarClock, onClick: () => setScheduling(true) },
+    { label: 'Duplicate', icon: Copy, onClick: () => toast(`Duplicated as “${t.built.title} (copy)” in All reports`) },
   ]
 
+  const versions = turns.filter((t) => t.built?.ok)
+  const thread = mode === 'thread'
+  const refineList = latest ? refineSuggestions(latest.opts.brand).map((text, i) => ({ id: `r${i}`, text, icon: REFINE_ICONS[i] })) : null
   return (
-    <div className="mx-auto flex w-full max-w-[860px] flex-col gap-4">
-      <PillComposer ref={pillRef} suggest={false} prompt={prompt} setPrompt={setPrompt} opts={opts} setOpts={setOpts} onSend={send} busy={phase === 'generating'} />
-
-      {phase === 'generating' && <Generating steps={steps} step={step} kind={built.kind} heroRef={heroRef} onCancel={cancel} />}
-      {dots && built.ok && <DotAssemble brandId={built.opts.brand} kind={built.kind} targetRef={heroRef} fromRef={pillRef} done={phase !== 'generating'} />}
-      {phase === 'failed' && (
-        <StateCard icon={<AlertCircle size={18} className="text-negative" aria-hidden />} title="The report couldn’t be written"
-          actions={<><button type="button" onClick={start} className={inkBtn}>Try again</button><a href="/reports" onClick={linkClick('/reports')} className={lineBtn}>Back to New report</a></>}>
-          Writing the summary timed out after your data was read. Your data is fine and nothing was saved. Trying again usually works.
-          <Steps steps={steps} step={3} failed />
-        </StateCard>
+    <div style={inter ? { fontFamily: "'Inter', var(--font-sans)" } : undefined}
+      className="thread-motion relative flex min-h-[calc(100dvh-88px)] w-full flex-col lg:min-h-[calc(100dvh-72px)]">
+      {!thread && (
+        <div key="hello" className="flex flex-1 flex-col items-center justify-end pb-6">
+          <h1 ref={greetRef} className="text-center text-[24px] leading-[1.3] font-medium tracking-normal text-stone-900 md:text-[28px]"
+            style={greetIn ? { animation: `greet-in 220ms ${EASE} 120ms both` } : undefined}>{greeting}</h1>
+        </div>
       )}
-      {phase === 'cancelled' && (
-        <StateCard title="Stopped" actions={<><button type="button" onClick={start} className={inkBtn}>Start again</button><button type="button" onClick={() => document.getElementById('report-q')?.focus()} className={lineBtn}>Edit the question</button></>}>
-          Nothing was saved. Change the question or the chips above, then send it again.
-        </StateCard>
-      )}
-      {phase === 'thin' && <NotEnough r={built} />}
-
-      {phase === 'done' && v && (
-        <>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <VersionMenu versions={versions} cur={cur} setCur={(i) => { setCur(i); setReveal(false) }} />
-            <div className="flex items-center gap-1.5">
-              {actions.map((a) => (
-                <button key={a.label} type="button" onClick={a.onClick} aria-label={a.label} title={a.label} className={`${lineBtn} max-lg:w-9 max-lg:px-0`}>
-                  <a.icon size={14} aria-hidden /><span className="max-lg:sr-only">{a.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          {refining && (
-            <div role="status" className={`flex items-center gap-2 text-[13px] ${t2}`}>
-              <Loader2 size={14} className="animate-spin motion-reduce:animate-none" aria-hidden />Updating the report: {refining.charAt(0).toLowerCase() + refining.slice(1)}…
-            </div>
+      {thread && (
+        <div key="thread" ref={threadRef} className="mx-auto flex w-full max-w-[880px] flex-1 flex-col gap-8 pb-4 pt-2">
+          {missing && (
+            <StateCard title="This report doesn’t exist any more">
+              It may have been deleted. <a href="/reports/all" onClick={linkClick('/reports/all')} className="font-medium text-stone-900 underline underline-offset-4">All reports</a>
+            </StateCard>
           )}
-          <article aria-label={v.title} aria-busy={!!refining} className={`${ARTICLE} transition-opacity duration-300 ${refining ? 'opacity-40' : ''}`}>
-            {v.blocks.map((b, i) => (
-              <BlockFrame key={`${v.n}-${b.id}`} b={b} i={i} n={v.blocks.length} span={spans(v.blocks)[i]} num={numbers(v.blocks)[i]} reveal={reveal} explainOpen={explain === b.id}
-                onExplain={() => setExplain((e) => (e === b.id ? null : b.id))} onUp={() => move(b.id, -1)} onDown={() => move(b.id, 1)} onRemove={() => remove(b.id)}
-                explainText={explainFor(b)}>
-                <Block block={b} title={v.title} n={numbers(v.blocks)[i]} />
-              </BlockFrame>
-            ))}
-          </article>
-          <FollowUp value={ask} setValue={setAsk} onSend={submitAsk} note={askNote} busy={!!refining} />
-        </>
+          {turns.map((t) => {
+            const n = versions.indexOf(t) + 1
+            const isLatest = t === latest
+            return (
+              <Turn key={t.id} t={t} n={n} isLatest={isLatest} many={versions.length > 1} heroRef={isLatest ? heroRef : null}
+                open={isLatest || !!open[t.id]} onToggle={() => setOpen((o) => ({ ...o, [t.id]: !o[t.id] }))}
+                onRetry={() => run(t)} onCancel={() => { clearTimeout(timers.current[t.id]); patch(t.id, { status: 'cancelled' }) }}
+                explain={explain} setExplain={setExplain} move={(bid, d) => move(t, bid, d)} remove={(bid) => remove(t, bid)} actions={actionsFor(t)} />
+            )
+          })}
+        </div>
       )}
-      <ScheduleModal open={scheduling} onClose={() => setScheduling(false)} title={v?.title} brand={brandOf(v?.opts.brand ?? init.opts.brand)?.name}
+      <div key="dock" className={thread ? 'sticky bottom-0 z-20 -mx-4 px-4 pb-6 pt-10 md:-mx-6 md:px-6' : 'flex flex-[1.2] flex-col'}
+        style={thread ? { background: 'linear-gradient(to bottom, transparent, var(--color-page) 36px)' } : undefined}>
+        {thread && showDown && (
+          <button type="button" onClick={jumpDown} aria-label="Jump to the latest"
+            className="absolute left-1/2 top-0 grid h-9 w-9 -translate-x-1/2 place-items-center rounded-full border border-line bg-raised text-stone-700 shadow-md outline-none transition-colors duration-150 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus motion-safe:animate-[fade-in_150ms_ease-out]">
+            <ArrowDown size={16} aria-hidden />
+          </button>
+        )}
+        <div ref={dock}>
+          <PillComposer docked={thread} prompt={prompt} setPrompt={setPrompt} opts={opts} setOpts={setOpts} onSend={send}
+            busy={turns.some((t) => t.status === 'steps')} homeBrand={thread ? null : fromQuery('').opts.brand}
+            placeholder={thread ? 'Change this report…' : null} suggestions={thread ? refineList : null} />
+        </div>
+      </div>
+      {ghost && (
+        <h1 aria-hidden className="pointer-events-none fixed z-30 text-center text-[24px] leading-[1.3] font-medium tracking-normal text-stone-900 md:text-[28px]"
+          style={{ left: ghost.rect.left, top: ghost.rect.top, width: ghost.rect.width, animation: `greet-out 150ms ${EASE} both` }}
+          onAnimationEnd={() => setGhost(null)}>{ghost.text}</h1>
+      )}
+      {dotsFor && turns.find((t) => t.id === dotsFor)?.built?.ok && (
+        <DotAssemble brandId={turns.find((t) => t.id === dotsFor).opts.brand} kind={turns.find((t) => t.id === dotsFor).built.kind} targetRef={heroRef} fromRef={dock}
+          done={turns.find((t) => t.id === dotsFor).status !== 'steps'} />
+      )}
+      <ScheduleModal open={scheduling} onClose={() => setScheduling(false)} title={latest?.built.title} brand={brandOf(latest?.opts.brand)?.name}
         onSave={(line) => { setScheduling(false); toast(`Scheduled ${line}`, { action: { label: 'View', onClick: () => navigate('/reports/scheduled') } }) }} />
       {toastNode}
     </div>
   )
 }
 
-const ARTICLE = 'grid grid-cols-1 gap-x-12 gap-y-10 rounded-xl border border-line bg-surface px-12 py-10 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)] lg:grid-cols-2 max-md:gap-y-9 max-md:px-5 max-md:py-7'
+// ?font=inter: load Inter for the comparison (preview only)
+function useInterFont(on) {
+  useEffect(() => {
+    if (!on || document.getElementById('inter-preview')) return
+    document.head.appendChild(Object.assign(document.createElement('link'), { id: 'inter-preview', rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap' }))
+  }, [on])
+}
 
-// ---- generating: the steps tick off in a line; under them the report's frame, where the dots (DotAssemble) settle
-// into the hero's place; then the report replaces it, section by section. Cancel stops it.
-const HERO_H = { weekly: 248, ceo: 280, rival: 330, content: 270 }
-function Generating({ steps, step, kind, heroRef, onCancel }) {
-  const bar = 'block rounded-md bg-tint'
+// ---- one turn: the user's message on the right, then the reply
+function Turn({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCancel, explain, setExplain, move, remove, actions }) {
+  const enter = (delay) => (t.live ? { animation: `bubble-in 200ms ${EASE} ${delay}ms both` } : undefined)
   return (
-    <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ol aria-live="polite" aria-label="Writing your report" className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          {steps.map((s, i) => {
-            const done = i < step
-            const now = i === step
-            return (
-              <li key={s} className={`flex items-center gap-2 text-[13px] leading-5 transition-colors duration-200 ${done ? 'text-stone-700' : now ? 'font-medium text-stone-900' : 'text-stone-500'}`}>
-                <span className="grid h-4 w-4 shrink-0 place-items-center" aria-hidden>
-                  {done ? <span className="grid h-4 w-4 place-items-center rounded-full bg-ink motion-safe:animate-[icon-pop_200ms_ease-out]"><Check size={10} strokeWidth={3} style={{ color: 'var(--line-check)' }} /></span>
-                    : now ? <Loader2 size={14} className="animate-spin text-stone-700 motion-reduce:animate-none" />
-                      : <span className="h-3 w-3 rounded-full border border-stone-300" />}
-                </span>
-                {s}{now ? '…' : ''}<span className="sr-only">{done ? ', done' : now ? ', in progress' : ', waiting'}</span>
-              </li>
-            )
-          })}
-        </ol>
-        <button type="button" onClick={onCancel} className={lineBtn}>Cancel</button>
+    <section aria-label={n ? `Version ${n}` : 'Message'} className="flex flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-[760px] flex-col items-end gap-1.5" style={enter(100)}>
+        <p className="max-w-[70%] rounded-[18px] px-4 py-2.5 text-[15px] leading-6 text-stone-900 [text-wrap:pretty]" style={{ background: 'var(--bubble)' }}>{t.ask}</p>
+        {t.built?.ok && <span className={`px-1 text-[12px] leading-4 ${t3}`}>{optsLine(t.opts)}{many ? ` · v${n}` : ''}</span>}
       </div>
-      <article aria-hidden className={ARTICLE}>
-        <div className="flex flex-col gap-3 lg:col-span-2">
-          <span className={`${bar} h-3 w-60 max-w-full`} />
-          <span className={`${bar} h-6 w-24 rounded-full`} />
-          <span className={`${bar} h-7 w-[86%]`} />
-          <span className={`${bar} h-7 w-[58%]`} />
-        </div>
-        <div className="grid grid-cols-2 gap-6 md:grid-cols-4 lg:col-span-2">
-          {[0, 1, 2, 3].map((i) => <span key={i} className="flex flex-col gap-2"><span className={`${bar} h-3 w-20`} /><span className={`${bar} h-7 w-14`} /><span className={`${bar} h-4 w-full opacity-60`} /></span>)}
-        </div>
-        <div ref={heroRef} className="lg:col-span-2" style={{ height: HERO_H[kind] ?? 260 }} />
-        {[0, 1].map((i) => <span key={i} className="flex flex-col gap-2.5"><span className={`${bar} h-4 w-40`} /><span className={`${bar} h-3 w-[90%] opacity-60`} /><span className={`${bar} h-24 w-full opacity-40`} /></span>)}
-      </article>
-    </>
+      <Reply t={t} n={n} isLatest={isLatest} many={many} heroRef={heroRef} open={open} onToggle={onToggle} onRetry={onRetry} onCancel={onCancel}
+        explain={explain} setExplain={setExplain} move={move} remove={remove} actions={actions} />
+    </section>
   )
 }
-function Steps({ steps, step, failed = false }) {
+
+function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCancel, explain, setExplain, move, remove, actions }) {
+  const col = 'mx-auto w-full max-w-[760px]'
+  if (t.status === 'note') return <p className={`${col} text-[15px] leading-6 ${t2}`} style={{ animation: `bubble-in 200ms ${EASE} 200ms both` }}>{t.note}</p>
+  if (t.status === 'thin') return <div className={col}><NotEnough r={t.built} /></div>
+  if (t.status === 'failed') {
+    return (
+      <div className={col}>
+        <StateCard icon={<AlertCircle size={18} className="text-negative" aria-hidden />} title="The report couldn’t be written"
+          actions={<button type="button" onClick={onRetry} className={inkBtn}>Try again</button>}>
+          Writing the summary timed out after your data was read. Your data is fine and nothing was saved. Trying again usually works.
+        </StateCard>
+      </div>
+    )
+  }
+  if (t.status === 'cancelled') return <p className={`${col} text-[14px] ${t3}`}>Stopped. Nothing was saved; change the question below and send it again.</p>
+  if (t.status === 'steps') {
+    const steps = stepsFor(t.opts)
+    return (
+      <div className="flex flex-col gap-5">
+        <div className={`${col} flex items-start justify-between gap-3`}>
+          <ol aria-live="polite" aria-label="Writing the report" className="flex flex-col gap-2">
+            {steps.slice(0, t.step + 1).map((s, i) => {
+              const done = i < t.step
+              return (
+                <li key={s} className={`flex items-center gap-2.5 text-[14px] leading-5 ${done ? t2 : 'text-stone-900'}`} style={{ animation: `step-in 200ms ${EASE} both` }}>
+                  <span className="grid h-4 w-4 shrink-0 place-items-center" aria-hidden>
+                    {done ? <Check size={14} strokeWidth={2.5} className="text-stone-600 motion-safe:animate-[icon-pop_200ms_ease-out]" /> : <Loader2 size={14} className="animate-spin text-stone-700 motion-reduce:animate-none" />}
+                  </span>
+                  {s}{done ? '' : '…'}<span className="sr-only">{done ? ', done' : ', in progress'}</span>
+                </li>
+              )
+            })}
+          </ol>
+          <button type="button" onClick={onCancel} className="h-8 shrink-0 rounded-full px-3 text-[13px] text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Stop</button>
+        </div>
+        <Skeleton kind={t.built.kind} heroRef={heroRef} />
+      </div>
+    )
+  }
+  // a finished version: open, or (an earlier one) folded into a compact card
   return (
-    <ol className="mt-4 flex flex-col gap-2.5" aria-live="polite">
-      {steps.map((s, i) => {
-        const done = i < step
-        const now = i === step
-        return (
-          <li key={s} className={`flex items-center gap-2.5 text-[14px] leading-5 transition-colors duration-200 ${done || now ? 'text-stone-900' : 'text-stone-500'}`}>
-            <span className="grid h-5 w-5 shrink-0 place-items-center" aria-hidden>
-              {done ? <span className="grid h-5 w-5 place-items-center rounded-full bg-ink motion-safe:animate-[icon-pop_200ms_ease-out]"><Check size={12} strokeWidth={3} style={{ color: 'var(--line-check)' }} /></span>
-                : now && failed ? <X size={16} className="text-negative" />
-                  : now ? <Loader2 size={16} className="animate-spin text-stone-700 motion-reduce:animate-none" />
-                    : <span className="h-4 w-4 rounded-full border border-stone-300" />}
-            </span>
-            <span className={now && failed ? 'text-negative' : undefined}>{s}{now && !failed ? '…' : ''}</span>
-            <span className="sr-only">{done ? ', done' : now ? (failed ? ', failed' : ', in progress') : ', waiting'}</span>
-          </li>
-        )
-      })}
-    </ol>
+    <div className="flex flex-col">
+      {!open && (
+        <div className={`${col} flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 motion-safe:animate-[fade-in_200ms_ease-out]`}>
+          <span className="grid h-9 w-14 shrink-0 place-items-center rounded-lg bg-tint"><Thumb kind={t.built.kind} className="h-7 w-11" /></span>
+          <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-stone-900">{t.built.headline}</span>
+          <span className={`shrink-0 text-[13px] tabular-nums ${t3}`}>v{n}</span>
+          <button type="button" onClick={onToggle} className="h-8 shrink-0 rounded-full px-3 text-[13px] font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Show</button>
+        </div>
+      )}
+      <div className="grid transition-[grid-template-rows] duration-300 motion-reduce:transition-none" style={{ gridTemplateRows: open ? '1fr' : '0fr', transitionTimingFunction: EASE }}>
+        <div className="min-h-0 overflow-hidden">
+          {!isLatest && open && (
+            <div className={`${col} mb-2 flex justify-end`}>
+              <button type="button" onClick={onToggle} className="h-8 rounded-full px-3 text-[13px] font-medium text-stone-600 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Hide v{n}</button>
+            </div>
+          )}
+          <article aria-label={t.built.title} className={ARTICLE}>
+            {t.blocks.map((b, i) => (
+              <BlockFrame key={`${t.id}-${b.id}`} b={b} i={i} n={t.blocks.length} span={spans(t.blocks)[i]} reveal={t.live} explainOpen={explain === `${t.id}|${b.id}`}
+                onExplain={() => setExplain((e) => (e === `${t.id}|${b.id}` ? null : `${t.id}|${b.id}`))} onUp={() => move(b.id, -1)} onDown={() => move(b.id, 1)} onRemove={() => remove(b.id)}
+                explainText={explainFor(b)}>
+                <Block block={b} title={t.built.title} n={numbers(t.blocks)[i]} />
+              </BlockFrame>
+            ))}
+          </article>
+          <div className={`${col} mt-3 flex flex-wrap items-center gap-x-1 gap-y-1`} style={t.live ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
+            {many && <span className={`mr-2 text-[13px] tabular-nums ${t3}`}>v{n}{t.change ? ` · ${t.change}` : ''}</span>}
+            {actions.map((a) => (
+              <button key={a.label} type="button" onClick={a.onClick}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[13px] text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
+                <a.icon size={15} aria-hidden />{a.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
+
+const ARTICLE = 'grid grid-cols-1 gap-x-12 gap-y-10 rounded-xl border border-line bg-surface px-12 py-10 lg:grid-cols-2 max-md:gap-y-9 max-md:px-5 max-md:py-7'
+
+// while it's written: only the hero's place, where the dots gather (short, so the question stays in view)
+const HERO_H = { weekly: 220, ceo: 240, rival: 280, content: 240 }
+function Skeleton({ kind, heroRef }) {
+  return <div ref={heroRef} aria-hidden className="mx-auto w-full max-w-[760px]" style={{ height: HERO_H[kind] ?? 240 }} />
+}
+
 function StateCard({ icon, title, actions, children }) {
   return (
     <div className="rounded-2xl border border-line bg-surface p-5 max-md:p-4">
@@ -298,7 +448,7 @@ function NotEnough({ r }) {
   const had = r.syncs === 0 ? 'hasn’t had a sync yet' : r.syncs === 1 ? 'has had one sync' : `has ${r.syncs} syncs in this period`
   return (
     <StateCard title="Not enough data for a report yet"
-      actions={<><a href="/tracking" onClick={linkClick('/tracking')} className={inkBtn}>Open Tracking</a><a href="/reports" onClick={linkClick('/reports')} className={lineBtn}>Back to New report</a></>}>
+      actions={<><a href="/tracking" onClick={linkClick('/tracking')} className={inkBtn}>Open Tracking</a><a href="/reports" onClick={linkClick('/reports')} className={lineBtn}>New report</a></>}>
       {r.brand} {had}. A report compares at least two syncs, so nothing in it could be measured yet, and Kraffic doesn’t estimate.
       {r.nextSync ? ` The next sync is ${r.nextSync}; you can write a report after it.` : ' Run the first sync from Tracking.'}
     </StateCard>
@@ -312,7 +462,7 @@ function BlockFrame({ b, i, n, span = 2, reveal, explainOpen, explainText, onExp
   const iconBtn = 'grid h-7 w-7 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-30'
   return (
     <div role="group" aria-label={name} className={`group/block relative -mx-3 min-w-0 rounded-xl px-3 py-2 ${span === 2 ? 'lg:col-span-2' : ''} transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] focus-within:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] max-md:-mx-2 max-md:px-2 max-md:pr-9`}
-      style={reveal ? { animation: `card-in 460ms cubic-bezier(.2,.8,.2,1) ${i * 130}ms both` } : undefined}>
+      style={reveal ? { animation: `card-in 420ms cubic-bezier(0.22, 1, 0.36, 1) ${i * 120}ms both` } : undefined}>
       <div className="absolute -top-3.5 right-2 z-10 hidden items-center gap-0.5 rounded-lg border border-line bg-raised p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover/block:opacity-100 group-focus-within/block:opacity-100 md:flex">
         {!fixed && <button type="button" onClick={onUp} disabled={i <= FIRST_MOVABLE} aria-label={`Move “${name}” up`} title="Move up" className={iconBtn}><ArrowUp size={14} aria-hidden /></button>}
         {!fixed && <button type="button" onClick={onDown} disabled={i >= n - 2} aria-label={`Move “${name}” down`} title="Move down" className={iconBtn}><ArrowDown size={14} aria-hidden /></button>}
@@ -337,45 +487,6 @@ function BlockFrame({ b, i, n, span = 2, reveal, explainOpen, explainText, onExp
           <button type="button" onClick={onExplain} aria-label="Close the explanation" className="-m-1 grid h-6 w-6 shrink-0 place-items-center rounded text-stone-500 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><X size={13} aria-hidden /></button>
         </div>
       )}
-    </div>
-  )
-}
-
-// ---- versions: v1 is what was written; each change from the box under the report adds one
-function VersionMenu({ versions, cur, setCur }) {
-  const v = versions[cur]
-  return (
-    <ActionMenu label="Versions" align="left" heading="Versions"
-      items={versions.map((x, i) => ({ label: `v${x.n} · ${x.change}${x.edited ? ' (edited)' : ''}`, checked: i === cur, onClick: () => setCur(i) }))}
-      className="inline-flex h-9 max-w-full items-center gap-1.5 rounded-lg px-2.5 text-small font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
-      <span className="tabular-nums">v{v.n}</span>
-      <span className={`max-w-[28ch] truncate font-normal ${t3}`}>{v.change}{v.edited ? ' · edited' : ''}</span>
-      <ChevronDown size={13} className="shrink-0 text-stone-500" aria-hidden />
-    </ActionMenu>
-  )
-}
-
-// ---- refine: one instruction, and the report updates in place
-function FollowUp({ value, setValue, onSend, note, busy }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2 rounded-2xl border border-line bg-surface py-1.5 pl-4 pr-1.5 transition-shadow duration-150 focus-within:border-line-strong focus-within:shadow-[0_0_0_4px_var(--tint)]">
-        <label htmlFor="refine" className="sr-only">Change this report</label>
-        <input id="refine" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onSend() } }}
-          placeholder="Change this report: make it shorter, focus on a competitor…" disabled={busy}
-          className="h-9 min-w-0 flex-1 bg-transparent text-[15px] text-stone-900 outline-none placeholder:text-stone-500 disabled:opacity-60" />
-        <button type="button" onClick={() => onSend()} disabled={!value.trim() || busy} aria-label="Update the report"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-on-ink outline-none transition-opacity duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-30">
-          <ArrowUp size={18} strokeWidth={2.25} aria-hidden />
-        </button>
-      </div>
-      {note && <p className={`px-1 text-[13px] leading-[18px] ${t2}`} role="status">{note}</p>}
-      <div className="flex flex-wrap gap-1.5">
-        {HINTS.map((h) => (
-          <button key={h} type="button" disabled={busy} onClick={() => onSend(h)}
-            className="h-8 rounded-full border border-line px-3 text-[13px] text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50">{h}</button>
-        ))}
-      </div>
     </div>
   )
 }

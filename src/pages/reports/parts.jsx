@@ -47,6 +47,7 @@ export function ReportsHead({ title, subtitle, actions }) {
 export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256, ghost = false, align = null, children }) {
   const [open, setOpen] = useState(false)
   const [place, setPlace] = useState({ left: true, shift: 0 })
+  const [up, setUp] = useState(false) // no room below (a box docked at the bottom): the menu opens upward
   const wrap = useRef(null)
   const btn = useRef(null)
   const menu = useRef(null)
@@ -54,6 +55,7 @@ export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256
     if (!open || !menu.current || !btn.current) return
     const b = btn.current.getBoundingClientRect()
     const w = menu.current.offsetWidth
+    setUp(b.bottom + menu.current.offsetHeight + 16 > window.innerHeight && b.top > menu.current.offsetHeight + 16)
     // a phone widens its layout to fit anything that overflows, so the screen's width is the real limit
     const vw = Math.min(window.innerWidth, window.screen?.width || window.innerWidth)
     if (align === 'right' && b.right - w >= 16) setPlace({ left: false, shift: 0 })
@@ -92,7 +94,7 @@ export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256
       </button>
       {open && (
         <div ref={menu} role="menu" aria-label={label} style={{ width: `min(${width}px, calc(100vw - 32px))`, ...(place.shift ? { left: `${place.shift}px` } : {}) }}
-          className={`absolute ${place.left ? 'left-0' : 'right-0'} top-full z-40 mt-1.5 rounded-lg border border-line bg-raised p-1 shadow-md motion-safe:animate-[fade-in_120ms_ease-out]`}>
+          className={`absolute ${place.left ? 'left-0' : 'right-0'} ${up ? 'bottom-full mb-1.5' : 'top-full mt-1.5'} z-40 rounded-lg border border-line bg-raised p-1 shadow-md motion-safe:animate-[fade-in_120ms_ease-out]`}>
           {children(close)}
         </div>
       )}

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DATES, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
+import { DATES, addReport, optsLine, refineSuggestions, reportById, updateReport, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
 
 const types = (r) => r.blocks.map((b) => b.type)
 const block = (r, type) => r.blocks.find((b) => b.type === type)?.data
@@ -134,4 +134,19 @@ test('suggestions: four, the competitor one names the closest tracked rival; eac
   assert.deepEqual(s.map((x) => x.text), ['Weekly summary: what moved this week', 'CEO summary: are we winning in AI search?', 'Where is CeraVe beating us?', 'What should we write next?'])
   for (const x of s) assert.equal(buildReport({ brand: 'dermasuri', ...x.sets }, x.text).kind, x.kind, x.id)
   assert.equal(suggestionsFor('foa')[2].text, 'Where is Longbridge beating us?')
+})
+
+test('the thread: the options line, the refine suggestions (each one understood), and a new report kept with the saved ones', () => {
+  assert.equal(optsLine({ period: 'week', audience: 'team', length: 'one' }), 'This week · Team · One page')
+  assert.deepEqual(stepsFor({ brand: 'foa', period: 'week' }), ['Reading 113 prompts', 'Comparing 7 brands', 'Writing the summary'])
+  const s = refineSuggestions('dermasuri')
+  assert.deepEqual(s, ['Make it shorter', 'Add Gemini', 'Focus on CeraVe', 'Rewrite for a client'])
+  for (const x of s) assert.ok(refine({ brand: 'dermasuri', engines: ['aio'], compare: [], length: 'detailed', audience: 'team' }, x), x)
+  const before = libraryItems().length
+  const id = addReport('Where is CeraVe beating us?', { brand: 'dermasuri', period: '30d', audience: 'team', length: 'one' })
+  assert.equal(reportById(id).title, 'Where is CeraVe beating us?')
+  assert.equal(libraryItems().length, before + 1)
+  assert.equal(libraryItems()[0].id, id)
+  updateReport(id, { length: 'detailed' })
+  assert.equal(reportById(id).opts.length, 'detailed')
 })

@@ -24,7 +24,9 @@ const Box = ({ on }) => (
   </span>
 )
 
-const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts, setOpts, onSend, busy = false, homeBrand, autoFocus = false, suggest = true }, ref) {
+// docked: the box sits at the bottom of a thread, so its suggestions and menus open upward. placeholder / suggestions:
+// the thread's own ("Change this report…" and the refine options: { id, text, icon }).
+const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts, setOpts, onSend, busy = false, homeBrand, autoFocus = false, suggest = true, docked = false, placeholder = null, suggestions = null }, ref) {
   const area = useRef(null)
   const [focused, setFocused] = useState(false)
   const [active, setActive] = useState(-1)
@@ -46,13 +48,13 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
   const set = (patch) => setOpts((o) => ({ ...o, ...patch }))
   const shown = shownOpts(opts, prompt)
   const canSend = prompt.trim().length > 0 && !busy
-  const send = () => { if (canSend) onSend(shownOpts(opts, prompt)) }
+  const send = () => { if (canSend) { setClosed(true); onSend(shownOpts(opts, prompt)) } }
   const brand = brandOf(opts.brand)
   const rivals = rivalsOf(opts.brand)
   // suggestions: shown while the empty box is focused. They fade up in a stagger, and fade out together (their space
   // kept until the fade ends). Transitions, not keyframes, so focusing again mid-fade carries on from where it is.
   const want = suggest && focused && !closed && !prompt
-  const list = suggestionsFor(opts.brand).slice(0, 4)
+  const list = (suggestions ?? suggestionsFor(opts.brand)).slice(0, 4)
   const [phase, setPhase] = useState('gone') // gone → pre (mounted, hidden) → in → out → gone
   const seq = useRef(0)
   useEffect(() => {
@@ -71,7 +73,7 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
   const sugg = want ? list : []
   const pick = (s) => {
     setPrompt(s.text)
-    setOpts((o) => ({ ...o, kind: null, compare: [], ...s.sets }))
+    if (s.sets) setOpts((o) => ({ ...o, kind: null, compare: [], ...s.sets }))
     setActive(-1)
     requestAnimationFrame(() => { const el = area.current; el?.focus(); el?.setSelectionRange(s.text.length, s.text.length) })
   }
@@ -123,12 +125,12 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
           role="combobox" aria-expanded={phase === 'in'} aria-controls="report-suggestions" aria-autocomplete="list" aria-activedescendant={active >= 0 && sugg[active] ? `sugg-${sugg[active].id}` : undefined}
           onChange={(e) => { setPrompt(e.target.value); setClosed(false) }} onKeyDown={onKey}
           onFocus={() => { setFocused(true); setClosed(false) }} onBlur={() => { setFocused(false); setActive(-1) }}
-          placeholder={`Ask about ${brand?.name ?? 'your brand'}’s AI visibility`}
+          placeholder={placeholder ?? `Ask about ${brand?.name ?? 'your brand'}’s AI visibility`}
           className="block min-h-10 w-full resize-none bg-transparent p-0 text-[16px] leading-6 font-normal tracking-normal text-stone-900 outline-none placeholder:text-stone-500" />
         <div className="mt-5 flex items-end gap-2 md:gap-3">
           {/* one wrapping row: "+" (12px to what follows), chips, the dropdowns 6px apart */}
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1.5">
-            <PlusMenu opts={opts} set={set} rivals={rivals} />
+            <PlusMenu opts={opts} set={set} rivals={rivals} up={docked} />
             {chips.map((c) => (
               <span key={c.key} className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-tint pl-2.5 pr-1 text-[13px] leading-4 text-stone-800 motion-safe:animate-[chip-in_160ms_ease-out]">
                 {c.logo}{c.label}
@@ -146,13 +148,13 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
         </div>
       </div>
       {phase !== 'gone' && (
-        <ul id="report-suggestions" role="listbox" aria-label="Suggestions" aria-hidden={phase === 'out' || undefined} className={`absolute inset-x-0 top-full z-20 mt-3 flex flex-col px-2 ${phase === 'out' ? 'pointer-events-none' : ''}`}>
+        <ul id="report-suggestions" role="listbox" aria-label="Suggestions" aria-hidden={phase === 'out' || undefined} className={`absolute inset-x-0 z-20 flex flex-col px-2 ${docked ? 'bottom-full mb-2 rounded-2xl border border-line bg-raised p-1.5 shadow-md' : 'top-full mt-3'} ${phase === 'out' ? 'pointer-events-none' : ''}`}>
           {list.map((s, i) => (
             <li key={s.id} id={`sugg-${s.id}`} role="option" aria-selected={i === active}
               onMouseDown={(e) => e.preventDefault()} onClick={() => pick(s)} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(-1)}
               className={`flex min-h-10 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-[15px] leading-6 font-normal ${i === active ? 'bg-tint text-stone-900' : 'text-stone-600'}`}
               style={rowStyle(i)}>
-              <MiniIcon kind={s.kind} />{s.text}
+              {s.icon ? <s.icon size={18} strokeWidth={1.5} className="shrink-0" aria-hidden /> : <MiniIcon kind={s.kind} />}{s.text}
             </li>
           ))}
         </ul>
@@ -163,7 +165,7 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
 export default PillComposer
 
 // "+": brand, engines, competitors — a short list; each opens its options (← goes back)
-function PlusMenu({ opts, set, rivals }) {
+function PlusMenu({ opts, set, rivals, up = false }) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState(null)
   const wrap = useRef(null)
@@ -206,7 +208,7 @@ function PlusMenu({ opts, set, rivals }) {
       </button>
       {open && (
         <div ref={menu} role="menu" aria-label={view ? rows.find((r) => r.id === view).label : 'Options'} style={{ width: 'min(288px, calc(100vw - 32px))' }}
-          className="absolute left-0 top-full z-40 mt-2 rounded-xl border border-line bg-raised p-1 shadow-md motion-safe:animate-[fade-in_120ms_ease-out]">
+          className={`absolute left-0 z-40 rounded-xl border border-line bg-raised p-1 shadow-md motion-safe:animate-[fade-in_120ms_ease-out] ${up ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
           {!view && rows.map((r) => (
             <button key={r.id} type="button" role="menuitem" onClick={() => setView(r.id)} className={`${menuItem} text-stone-900`}>
               <span className="min-w-0 flex-1"><span className="block font-medium">{r.label}</span><span className={`block truncate text-[12px] leading-4 ${t3}`}>{r.value}</span></span>
