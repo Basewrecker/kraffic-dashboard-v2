@@ -81,14 +81,14 @@ export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256
       <button ref={btn} type="button" aria-haspopup="menu" aria-expanded={open} aria-label={ghost ? `${label}: ${value}` : undefined} onClick={() => setOpen((o) => !o)}
         title={inferred ? `${label}: ${value}, from your question` : label}
         className={ghost
-          ? `inline-flex h-9 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[13px] leading-[18px] font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus max-md:px-1.5 ${open ? 'bg-tint text-stone-900' : ''}`
+          ? `inline-flex h-9 items-center whitespace-nowrap rounded-full px-2 text-[14px] leading-5 font-normal text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus max-md:px-1 max-md:text-[13px] ${open ? 'bg-tint text-stone-900' : ''}`
           : `inline-flex h-8 max-w-[15rem] items-center max-md:max-w-full gap-1.5 whitespace-nowrap rounded-full border px-3 text-[13px] leading-[18px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
           set ? 'border-transparent bg-tint font-medium text-stone-900'
             : inferred ? 'border-dashed border-stone-400 text-stone-800 hover:bg-tint'
               : 'border-line text-stone-600 hover:bg-tint hover:text-stone-900'}`}>
-        {logo ?? (Icon && <Icon size={ghost ? 15 : 14} className={`${ghost ? 'text-stone-600 max-md:hidden' : set || inferred ? 'text-stone-700' : 'text-stone-500'}`} aria-hidden />)}
+        {logo ?? (Icon && <Icon size={ghost ? 16 : 14} className={`${ghost ? 'mr-1.5 max-md:hidden' : set || inferred ? 'text-stone-700' : 'text-stone-500'}`} aria-hidden />)}
         <span className="truncate">{value ?? label}</span>
-        <ChevronDown size={ghost ? 12 : 13} className={`shrink-0 text-stone-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} aria-hidden />
+        <ChevronDown size={ghost ? 14 : 13} className={`${ghost ? 'ml-1' : ''} shrink-0 text-stone-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} aria-hidden />
       </button>
       {open && (
         <div ref={menu} role="menu" aria-label={label} style={{ width: `min(${width}px, calc(100vw - 32px))`, ...(place.shift ? { left: `${place.shift}px` } : {}) }}

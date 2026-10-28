@@ -42,8 +42,19 @@ function Delta({ d }) {
   )
 }
 
-// ---- New report, ChatGPT-style: nothing but the greeting and the box, centred. Sending fades the greeting and
-// glides the box to the top of the page, where the report is written under it.
+// ---- New report, ChatGPT-style: nothing but a greeting and the box, together just above the centre. Sending fades the
+// greeting and glides the box to the top of the page, where the report is written under it.
+// Preview-only: ?greet=1|2|3 picks the greeting, ?font=inter shows the page in Inter (loaded only then).
+const GREETINGS = { 1: 'What do you want to know?', 2: 'What should we look into today?', 3: 'What’s on your mind today?' }
+function useInterPreview() {
+  const on = new URLSearchParams(window.location.search).get('font') === 'inter'
+  useEffect(() => {
+    if (!on || document.getElementById('inter-preview')) return
+    const l = Object.assign(document.createElement('link'), { id: 'inter-preview', rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap' })
+    document.head.appendChild(l)
+  }, [on])
+  return on ? { fontFamily: "'Inter', var(--font-sans)" } : undefined
+}
 function ReportsHome() {
   const init = useRef(fromQuery()).current
   const home = useRef(init.opts.brand).current
@@ -51,7 +62,8 @@ function ReportsHome() {
   const [opts, setOpts] = useState(init.opts)
   const [leaving, setLeaving] = useState(null) // the box's glide to the top: { dy }
   const pill = useRef(null)
-  const brand = brandOf(opts.brand)
+  const font = useInterPreview()
+  const greeting = GREETINGS[new URLSearchParams(window.location.search).get('greet')] ?? GREETINGS[1]
   const send = (final) => {
     if (leaving) return
     const url = `/reports/new?${toQuery(final, prompt.trim())}`
@@ -65,13 +77,8 @@ function ReportsHome() {
     setTimeout(() => navigate(url), reduced ? 160 : 460)
   }
   return (
-    <section className="flex min-h-[calc(100dvh-120px)] flex-col items-center justify-center pb-[14vh] lg:min-h-[calc(100dvh-72px)]">
-      <h1 className={`mb-7 text-center text-[26px] leading-[34px] font-normal tracking-[-0.025em] text-stone-900 [text-wrap:balance] transition-opacity duration-200 md:mb-9 md:text-[34px] md:leading-[44px] ${leaving ? 'opacity-0' : ''}`}>
-        What do you want to know about{' '}
-        <span className="whitespace-nowrap font-semibold">
-          <BrandLogo id={opts.brand} className="relative -top-[3px] mr-2 inline-block h-6 w-6 align-middle md:h-8 md:w-8" />{brand?.name ?? 'your brand'}?
-        </span>
-      </h1>
+    <section style={font} className="flex min-h-[calc(100dvh-120px)] flex-col items-center justify-center pb-[12vh] lg:min-h-[calc(100dvh-72px)]">
+      <h1 className={`mb-6 text-center text-[24px] leading-[1.3] font-medium tracking-normal text-stone-900 transition-opacity duration-200 md:text-[28px] ${leaving ? 'opacity-0' : ''}`}>{greeting}</h1>
       <div className="w-full" style={leaving ? { transform: `translateY(${leaving.dy}px)`, transition: 'transform 440ms cubic-bezier(.3,.7,.2,1), opacity 160ms', opacity: leaving.dy ? 1 : 0 } : undefined}>
         <PillComposer ref={pill} homeBrand={home} prompt={prompt} setPrompt={setPrompt} opts={opts} setOpts={setOpts} onSend={send} busy={!!leaving} />
       </div>
