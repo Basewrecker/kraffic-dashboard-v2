@@ -23,7 +23,7 @@ import TrendsPage from './pages/trends/TrendsPage'
 import ToolkitPage from './pages/toolkit/ToolkitPage'
 import ToolRouter from './pages/toolkit/ToolRouter'
 import BillingRouter from './pages/billing/BillingRouter'
-import TeamPlaceholder from './pages/team/TeamPlaceholder'
+import TeamPage from './pages/team/TeamPage'
 import EmptyBrand from './components/EmptyBrand'
 import InsightsRouter from './pages/insights/InsightsRouter'
 import { usePath } from './router'
@@ -86,7 +86,7 @@ const TrackingPage = () => <LlmSettingsPage {...(krafficBackend ? krafficTrackin
 
 export default function App() {
   const path = usePath()
-  const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/team': TeamPlaceholder, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter }
+  const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/team': TeamPage, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter }
   // /trends/:runId and /more-tools/<tool>[/…] are one page each (they read the rest of the path)
   const route = path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/billing/') ? '/billing' : path
   const navPath = route.startsWith('/more-tools') ? '/more-tools' : route // tool pages light up Toolkit
