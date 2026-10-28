@@ -337,3 +337,21 @@ export function changeSummary(prev, now) {
 }
 // the ribbons for one column: only the pages that changed tone from the previous run into this one (none for the first)
 export const ribbonsInto = (runsPages, i) => (i > 0 ? toneChanges(runsPages[i - 1], runsPages[i]) : [])
+
+// ---- Over time sizing ------------------------------------------------------------------------------------------------
+
+// the chart sized to its content: columns share the width (at least `minCol` each); only when they can't fit does the
+// chart scroll sideways (phones). The height covers the score labels, the tallest stacks up and down, the dates and
+// the change line, with padding (ribbons stay between the stacks, so they need no more).
+//   width: the space there is · n: runs · up / down: the most rows of squares above / below the baseline
+export function chartLayout({ width, n, up, down, L = 64, R = 8, minCol = 96, pitch = 16, gap = 14, scoreH = 22, dates = 22, change = 20, pad = 8 }) {
+  const avail = Math.max(0, width - L - R)
+  const fits = n * minCol <= avail
+  const colW = fits ? avail / Math.max(1, n) : minCol
+  const plotW = colW * n
+  const scoreTop = pad // the score labels' top
+  const base = scoreTop + scoreH + gap + up * pitch + 4 // the baseline
+  const dotsBottom = base + gap + down * pitch + 4
+  const H = dotsBottom + dates + change + pad
+  return { scroll: !fits, colW, plotW, contentW: L + plotW + R, base, dotsBottom, H, scoreY: base - gap - up * pitch - 8 }
+}

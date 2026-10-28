@@ -16,7 +16,7 @@ import { useIsMobile } from '../../hooks/useMedia'
 import {
   TONES, TONE_LABEL, countTones, heroLine, runPages, scoreOf, sentimentFor, sentimentInsight, sortPages, tonePercents, withScores,
 } from '../../data/sentiment'
-import { alsoSaidOn, biggestChange, byReach, capStack, changeSummary, divergingStack, dotPlan, pageHref, ribbonsInto, groupThemes, layoutSwarm, lanesFor, leadQuote, matchIds, moveNote, neighbour, reachOf, scoreX, springEasing, staggerDelays, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen, toneChanges, topChange } from '../../utils/spectrum'
+import { alsoSaidOn, biggestChange, byReach, capStack, changeSummary, chartLayout, divergingStack, dotPlan, pageHref, ribbonsInto, groupThemes, layoutSwarm, lanesFor, leadQuote, matchIds, moveNote, neighbour, reachOf, scoreX, springEasing, staggerDelays, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen, toneChanges, topChange } from '../../utils/spectrum'
 import { fmtDay, lineBtn, t2, t3 } from './parts'
 
 // /sentiment: one visual page about how third-party pages talk about the brand.
@@ -717,7 +717,7 @@ function ThemeRow({ t, hurting, reach, scale, total, open, lit, onToggle, onClos
 // neutral count on the baseline, the date, and a change line (more / fewer positive and negative pages than the run
 // before). Hover or focus a column: only the ribbons from the previous run into it draw in (pages that changed tone,
 // matched by URL), the rest dims. Click for that run in the spectrum. Grows in on scroll (none with reduced motion).
-const TF = { score: 50, pitch: 16, sq: 12, gap: 14, dates: 22, change: 20, perRow: 2, minCol: 76 }
+const TF = { pitch: 16, sq: 12, gap: 14, dates: 22, change: 20, perRow: 2, minCol: 96 }
 const TONE_FILL = { positive: 'var(--ink)', neutral: 'var(--color-stone-500)', negative: 'var(--negative)' }
 function ChangeLine({ parts }) {
   if (parts == null) return <span className={t3}>First run</span>
@@ -742,6 +742,7 @@ function OverTime({ runs, run, onPick, pagesOf }) {
   const [ribOn, setRibOn] = useState(false)
   const leaveT = useRef(null)
   const [seen, setSeen] = useState(() => reduced())
+  const [fade, setFade] = useState({ l: false, r: false }) // phones: soft edges where there's more to swipe to
   const cols = useRef([])
   useLayoutEffect(() => {
     if (!box.current) return
@@ -756,7 +757,9 @@ function OverTime({ runs, run, onPick, pagesOf }) {
     io.observe(box.current)
     return () => io.disconnect()
   }, [seen])
-  useLayoutEffect(() => { if (scroller.current) scroller.current.scrollLeft = scroller.current.scrollWidth }, [w])
+  // phones: the latest run in view; the edge fades follow the scroll position
+  const edges = () => { const el = scroller.current; if (el) setFade({ l: el.scrollLeft > 2, r: el.scrollLeft < el.scrollWidth - el.clientWidth - 2 }) }
+  useLayoutEffect(() => { if (scroller.current) { scroller.current.scrollLeft = scroller.current.scrollWidth; edges() } }, [w]) // eslint-disable-line react-hooks/exhaustive-deps
   const n = runs.length
   const data = useMemo(() => runs.map((r) => ({ r, pages: pagesOf(r) })), [runs]) // eslint-disable-line react-hooks/exhaustive-deps
   if (n < 2) {
@@ -768,18 +771,22 @@ function OverTime({ runs, run, onPick, pagesOf }) {
     )
   }
   const L = 64
-  const plotW = Math.max(w - L, n * TF.minCol)
-  const colW = plotW / n
-  const cx = (i) => L + colW * i + colW / 2
   const stacks = data.map(({ pages }) => divergingStack(pages, { perRow: TF.perRow, pitch: TF.pitch, gap: TF.gap }))
   const up = Math.max(...stacks.map((s) => s.up)), down = Math.max(...stacks.map((s) => s.down))
-  const base = TF.score + TF.gap + up * TF.pitch + 4
-  const dotsBottom = base + TF.gap + down * TF.pitch + 4
-  const H = dotsBottom + TF.dates + TF.change
+  // sized to its content: no scrolling unless the columns can't fit (phones), then a hidden-scrollbar swipe
+  const lay = chartLayout({ width: w, n, up, down, L, minCol: TF.minCol, pitch: TF.pitch, gap: TF.gap, dates: TF.dates, change: TF.change })
+  const { colW, plotW, base, dotsBottom, H } = lay
+  const cx = (i) => L + colW * i + colW / 2
   const stackW = TF.perRow * TF.pitch
   const big = biggestChange(runs)
   const latest = runs.at(-1)
-  const clampX = (x) => { const sl = scroller.current?.scrollLeft ?? 0, vw = scroller.current?.clientWidth ?? w; return Math.max(sl + 150, Math.min(sl + vw - 150, x)) }
+  // tooltips live outside the swipe area (never clipped, never scrolling it): x in the chart → x on screen
+  const clampX = (x) => Math.max(150, Math.min(w - 150, x - (lay.scroll ? scroller.current?.scrollLeft ?? 0 : 0)))
+  const tipSide = (i) => {
+    if (lay.scroll) return { left: '50%', cls: '-translate-x-1/2' }
+    const x = cx(i)
+    return x > w * 0.55 ? { left: x - colW * 0.32, cls: '-translate-x-full' } : { left: x + colW * 0.32, cls: '' }
+  }
   const grow = (i) => ({ transform: seen ? 'scaleY(1)' : 'scaleY(0)', transformOrigin: `0 ${base}px`, transition: reduced() ? 'none' : `transform 420ms cubic-bezier(.2,.8,.2,1) ${i * 60}ms` })
   // ribbons into the hovered column (from the previous run): a square's edge (or the baseline, for neutral)
   const point = (i, p, side) => {
@@ -802,10 +809,13 @@ function OverTime({ runs, run, onPick, pagesOf }) {
   return (
     <section aria-labelledby="time-h">
       <h2 id="time-h" className={h2}>Over time</h2>
-      <div ref={box} className="relative mt-6">
-        <div ref={scroller} className="overflow-x-auto [scrollbar-width:thin]" onMouseLeave={leaveCol}>
-          <div className="relative" style={{ width: L + plotW, height: H }}>
-            <div className="absolute rounded-lg bg-tint" style={{ left: L + colW * (n - 1) + 4, width: colW - 8, top: 0, height: H }} aria-hidden />
+      <div ref={box} className="relative mt-6" onMouseLeave={leaveCol}>
+        <div ref={scroller} onScroll={lay.scroll ? edges : undefined}
+          className={lay.scroll ? 'overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'overflow-visible'}
+          style={lay.scroll ? { WebkitMaskImage: `linear-gradient(to right, ${fade.l ? 'transparent' : '#000'}, #000 32px, #000 calc(100% - 32px), ${fade.r ? 'transparent' : '#000'})`, maskImage: `linear-gradient(to right, ${fade.l ? 'transparent' : '#000'}, #000 32px, #000 calc(100% - 32px), ${fade.r ? 'transparent' : '#000'})` } : undefined}>
+          <div className="relative" style={{ width: lay.contentW, height: H }}>
+            {/* the latest column, tinted: inset from the column and the chart's edges */}
+            <div className="absolute rounded-lg bg-tint" style={{ left: L + colW * (n - 1) + 8, width: colW - 16, top: 2, height: H - 4 }} aria-hidden />
             <svg className="absolute inset-0 overflow-visible" width={L + plotW} height={H}>
               <line x1={L} x2={L + plotW} y1={base} y2={base} stroke="var(--color-line)" aria-hidden />
               <text x={0} y={base - TF.gap - 2} fontSize={12} fill="var(--color-stone-500)" aria-hidden>Positive</text>
@@ -861,12 +871,16 @@ function OverTime({ runs, run, onPick, pagesOf }) {
                 className="absolute top-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-focus"
                 style={{ left: L + colW * i + colW / 2 - stackW / 2 - 14, width: stackW + 28, height: H }} />
             ))}
+          </div>
+        </div>
+        {/* tooltips: outside the swipe area, so they never clip or make it scroll */}
             {tip?.kind === 'col' && (() => {
               const { r, pages } = data[tip.i]
               const ch = topChange(ribbonsInto(data.map((d) => d.pages), tip.i))
               return (
-                <div role="tooltip" className="pointer-events-none absolute z-20 -translate-x-1/2 whitespace-nowrap rounded-lg border border-line bg-raised px-3 py-2 text-small shadow-md tabular-nums"
-                  style={{ left: clampX(cx(tip.i)), top: dotsBottom + TF.dates + TF.change + 4 }}>
+                // beside its column, inside the chart (right of it, or left when it's on the right half); phones: centred
+                <div role="tooltip" className={`pointer-events-none absolute z-20 whitespace-nowrap rounded-lg border border-line bg-raised px-3 py-2 text-small shadow-md tabular-nums ${tipSide(tip.i).cls}`}
+                  style={{ left: tipSide(tip.i).left, top: base - 34 }}>
                   <div className="font-semibold text-stone-900">{fmtDay(r.date)} · {r.score}{r.delta != null && <span className={`ml-1.5 font-medium ${r.delta < 0 ? 'text-negative' : 'text-stone-600'}`}>{r.delta > 0 ? '▲' : r.delta < 0 ? '▼' : ''}{r.delta ? Math.abs(r.delta) : 'no change'}</span>}</div>
                   <div className="mt-0.5 text-stone-600">{r.counts.positive} positive · {r.counts.neutral} neutral · <span className={r.counts.negative ? 'text-negative' : undefined}>{r.counts.negative} negative</span> pages</div>
                   {ch && <div className="mt-0.5 text-stone-600">Top change: {ch.page.domain}, {ch.from} → <span className={ch.to === 'negative' ? 'text-negative' : undefined}>{ch.to}</span></div>}
@@ -880,8 +894,6 @@ function OverTime({ runs, run, onPick, pagesOf }) {
                 <span className="font-medium text-stone-900">{tip.rb.page.domain}</span> · {tip.rb.from} → <span className={tip.rb.to === 'negative' ? 'text-negative' : 'text-stone-900'}>{tip.rb.to}</span>
               </div>
             )}
-          </div>
-        </div>
       </div>
     </section>
   )

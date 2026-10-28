@@ -305,3 +305,25 @@ test('the change line under each run, and the ribbons into a column', () => {
   assert.deepEqual(ribbonsInto(runs, 0), [])
   assert.deepEqual(ribbonsInto(runs, 2), toneChanges(runs[1], runs[2]))
 })
+
+import { chartLayout } from './spectrum.js'
+
+test('Over time sizing: fits at desktop widths, scrolls only when it must; the height covers everything', () => {
+  for (const width of [1144, 984, 728, 700]) { // the chart's own width at 1440, 1280, 1024 and a tight 1024
+    const l = chartLayout({ width, n: 6, up: 3, down: 3 })
+    assert.equal(l.scroll, false, `scrolls at ${width}`)
+    assert.ok(l.contentW <= width, `${l.contentW} > ${width}`)
+    assert.ok(l.colW >= 96)
+  }
+  const phone = chartLayout({ width: 358, n: 6, up: 3, down: 3 })
+  assert.equal(phone.scroll, true)
+  assert.equal(phone.colW, 96)
+  // the height: score labels (above the tallest stack), the stacks, dates, change line, padding
+  const l = chartLayout({ width: 1000, n: 6, up: 3, down: 3, pitch: 16, gap: 14, scoreH: 22, dates: 22, change: 20, pad: 8 })
+  assert.ok(l.scoreY - 18 >= 8, 'the tallest score label is inside the top')            // an 18px label above its baseline
+  assert.ok(l.base - 14 - 3 * 16 >= l.scoreY, 'the score sits above the tallest stack')
+  assert.ok(l.dotsBottom >= l.base + 14 + 3 * 16, 'the deepest stack is inside')
+  assert.equal(l.H, l.dotsBottom + 22 + 20 + 8)
+  // more rows → taller
+  assert.ok(chartLayout({ width: 1000, n: 6, up: 5, down: 3 }).H > l.H)
+})
