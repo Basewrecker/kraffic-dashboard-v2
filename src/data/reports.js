@@ -210,6 +210,14 @@ const youKey = (d) => Object.keys(d.share)[0]
 // ---- periods ------------------------------------------------------------------------------------------------------
 export const periodLabel = (id) => PERIODS.find((p) => p.id === id)?.label ?? 'Last 30 days'
 const startIdx = (period) => START[period] ?? START['30d']
+// "Oct 19–26", or "Sep 28 – Oct 26" across months
+export function shortRange(a, b) {
+  const [ma, da] = a.split(' ')
+  const [mb, db] = b.split(' ')
+  return ma === mb ? `${ma} ${da}–${db}` : `${a} – ${b}`
+}
+// a hero's section title
+export const HERO_TITLES = { flow: 'What moved', slope: 'Share of voice', quadrant: 'Head to head', bubbles: 'Where to write' }
 export const periodRange = (period) => `${DATES[startIdx(period)]} – Oct 26, 2026`
 const FROM = { week: 'last week', '30d': 'a month ago', quarter: 'Sep 7', custom: 'the start' }
 
@@ -325,7 +333,7 @@ export function buildReport(rawOpts, prompt = '') {
     S.push({ id: 'where', title: `Where ${first(rn)} wins`, takeaway: `${h.themes[0].theme} alone is ${h.themes[0].prompts.length} of the ${theirs}.`, visual: { kind: 'topicBars', against: true, rows: h.themes.map((t) => ({ theme: t.theme, n: t.prompts.length, prompts: t.prompts })) } })
     const eng = engineRows((e) => ({ value: h.engines[e]?.n ?? 0, series: h.engines[e]?.series ?? [], against: true }))
     const top = eng.filter((x) => !x.off).sort((a, b) => b.value - a.value)[0]
-    S.push({ id: 'engines', title: 'By engine', takeaway: `${top.name} gives ${first(rn)} the most wins.`, visual: { kind: 'engines', unit: '', label: 'prompts they win', rows: eng } })
+    S.push({ id: 'engines', title: 'By engine', takeaway: `${top.name} gives ${first(rn)} the most wins.`, visual: { kind: 'engines', when: o.period === 'week' ? 'this week' : 'in this period', unit: '', label: 'prompts they win', rows: eng } })
     S.push({ id: 'cited', title: 'What AI cites for each of you', takeaway: h.citedNote, visual: { kind: 'citedPair', sides: [{ name: rn, domain: r.domain, rows: h.citedThem, against: true }, { name: d.name, domain: d.domain, rows: h.citedYou }] } })
   } else if (o.kind === 'ceo') {
     const top = ranked[0]
@@ -348,7 +356,7 @@ export function buildReport(rawOpts, prompt = '') {
     S.push({ id: 'lead', title: 'Where we lead, and where we trail', takeaway: `We lead ${d.topicLead.length - behind.length} of ${d.topicLead.length} topics; ${list(behind.slice(-2).map((t) => t.theme.toLowerCase()))} belong to ${list([...new Set(behind.slice(-2).map((t) => t.who))])}.`, visual: { kind: 'diverging', unit: ' pts', rows: d.topicLead.map((t) => ({ theme: t.theme, d: t.d, note: t.who })) } })
     S.push({ id: 'rivals', title: 'The competition', takeaway: `${top.name} is the closest, ${me.at(-1) - top.now} points behind.`, visual: { kind: 'shareBars', rows: [{ key: youKey(d), name: d.name, domain: d.domain, you: true, now: me.at(-1), from: me[i0] }, ...ranked] } })
     const bestEng = Object.entries(d.engines).filter(([e]) => engines.includes(e)).sort((a, b) => b[1].now - a[1].now)[0]
-    S.push({ id: 'engines', title: 'By engine', takeaway: `${ENGINE_NAMES[bestEng[0]]} names us on the most prompts.`, visual: { kind: 'engines', unit: '%', label: 'prompts named', rows: engineRows((e) => ({ value: d.engines[e].now, series: d.engines[e].series })) } })
+    S.push({ id: 'engines', title: 'By engine', takeaway: `${ENGINE_NAMES[bestEng[0]]} names us on the most prompts.`, visual: { kind: 'engines', when: o.period === 'week' ? 'this week' : 'in this period', unit: '%', label: 'prompts named', rows: engineRows((e) => ({ value: d.engines[e].now, series: d.engines[e].series })) } })
   } else if (o.kind === 'content') {
     const missing = d.prompts - d.series.named.at(-1)
     const owned = d.gaps.reduce((a, g) => a + g.owned, 0)
@@ -380,12 +388,12 @@ export function buildReport(rawOpts, prompt = '') {
       metric('sov', 'Share of voice', me, i0, { unit: '%' }),
       metric('cited', 'Pages cited', d.series.cited, i0),
     ]
-    hero = { kind: 'flow', from: o.period === 'week' ? 'Last week' : DATES[i0], to: o.period === 'week' ? 'This week' : 'Oct 26', ...flow, total: d.prompts }
+    hero = { kind: 'flow', from: DATES[i0], to: 'Oct 26', ...flow, total: d.prompts }
     const lost = moved.filter((m) => m.d < 0)
-    S.push({ id: 'moved', title: 'Where it moved', takeaway: lost.length ? `The gains led with ${best.theme.toLowerCase()}; the losses were ${list(lost.map((x) => x.theme.toLowerCase()))}.` : 'Every topic that moved went up.', visual: { kind: 'diverging', unit: '', rows: moved.map((m) => ({ theme: m.theme, d: m.d, prompts: m.prompts })) } })
+    S.push({ id: 'moved', title: 'By topic', takeaway: lost.length ? `The gains led with ${best.theme.toLowerCase()}; the losses were ${list(lost.map((x) => x.theme.toLowerCase()))}.` : 'Every topic that moved went up.', visual: { kind: 'diverging', unit: '', rows: moved.map((m) => ({ theme: m.theme, d: m.d, prompts: m.prompts })) } })
     const ew = engineRows((e) => ({ value: d.engines[e].now, series: d.engines[e].series, won: (d.engines[e][o.period] ?? d.engines[e]['30d'])[0], lost: (d.engines[e][o.period] ?? d.engines[e]['30d'])[1] }))
     const lostIn = ew.filter((x) => !x.off && x.lost > 0)
-    S.push({ id: 'engines', title: 'By engine', takeaway: lostIn.length === 1 ? `${lostIn[0].name} is where the losses were.` : 'Every engine that ran gained.', visual: { kind: 'engines', unit: '%', label: 'prompts named', rows: ew } })
+    S.push({ id: 'engines', title: 'By engine', takeaway: lostIn.length === 1 ? `${lostIn[0].name} is where the losses were.` : 'Every engine that ran gained.', visual: { kind: 'engines', when: o.period === 'week' ? 'this week' : 'in this period', unit: '%', label: 'prompts named', rows: ew } })
     S.push({ id: 'rivals', title: 'Who’s around you', takeaway: `${ranked[0].name} is the closest, at ${ranked[0].now}%.`, visual: { kind: 'shareBars', rows: [{ key: youKey(d), name: d.name, domain: d.domain, you: true, now: me.at(-1), from: me[i0] }, ...ranked.slice(0, 4)] } })
     const fresh = d.cited.find((c) => c.isNew)
     S.push({ id: 'cited', title: 'Pages AI cites', takeaway: fresh ? `${fresh.path} is new on the list.` : `${d.cited[0].path} is cited most.`, visual: { kind: 'cited', domain: d.domain, rows: d.cited } })
@@ -394,12 +402,12 @@ export function buildReport(rawOpts, prompt = '') {
   const secs = o.length === 'one' ? S.slice(0, 2) : S
   const acts = (o.kind === 'rival' ? d.actions.filter((a) => a.about.includes(o.compare[0])) : d.actions).slice(0, 3).map(card)
   const blocks = [
-    { id: 'header', type: 'header', data: { brand: d.name, domain: d.domain, period: periodRange(o.period), audience: o.audience, engines: o.engines.length ? list(o.engines.map((e) => ENGINE_NAMES[e])) : 'All engines', verdict, headline, kind: o.kind } },
+    { id: 'header', type: 'header', data: { brand: d.name, domain: d.domain, period: periodRange(o.period), span: shortRange(DATES[i0], 'Oct 26'), counted: engines.map((e) => ENGINE_NAMES[e]), audience: o.audience, engines: o.engines.length ? list(o.engines.map((e) => ENGINE_NAMES[e])) : 'All engines', verdict, headline, kind: o.kind } },
     { id: 'scoreline', type: 'scoreline', data: { since: DATES[i0], items: scoreline } },
     { id: 'hero', type: 'hero', data: hero },
     ...secs.map((s) => ({ id: `s-${s.id}`, type: 'section', data: s })),
     acts.length ? { id: 'actions', type: 'actions', data: { title: client ? 'What we’re doing next' : o.kind === 'ceo' ? 'Three decisions' : 'What to do', items: acts } } : null,
-    { id: 'sources', type: 'sources', data: { syncs: DATES.length - i0, from: DATES[i0], to: 'Oct 26', engines: engines.map((e) => ENGINE_NAMES[e]), left } },
+    { id: 'sources', type: 'sources', data: { span: shortRange(DATES[i0], 'Oct 26'), off: noData.map((e) => ENGINE_NAMES[e]), period: o.period, syncs: DATES.length - i0, from: DATES[i0], to: 'Oct 26', engines: engines.map((e) => ENGINE_NAMES[e]), left } },
   ].filter(Boolean)
   return { ok: true, kind: o.kind, verdict, headline, title: titleFor(prompt, o), opts: o, blocks }
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DATES, addReport, optsLine, refineSuggestions, reportById, updateReport, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
+import { DATES, shortRange, addReport, optsLine, refineSuggestions, reportById, updateReport, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
 
 const types = (r) => r.blocks.map((b) => b.type)
 const block = (r, type) => r.blocks.find((b) => b.type === type)?.data
@@ -149,4 +149,16 @@ test('the thread: the options line, the refine suggestions (each one understood)
   assert.equal(libraryItems()[0].id, id)
   updateReport(id, { length: 'detailed' })
   assert.equal(reportById(id).opts.length, 'detailed')
+})
+
+test('the report header and footer: the engines that ran, a compact range, what didn’t run', () => {
+  assert.equal(shortRange('Oct 19', 'Oct 26'), 'Oct 19–26')
+  assert.equal(shortRange('Sep 28', 'Oct 26'), 'Sep 28 – Oct 26')
+  const r = buildReport({ brand: 'dermasuri', kind: 'weekly', period: 'week', length: 'detailed' })
+  const h = r.blocks.find((b) => b.type === 'header').data
+  assert.equal(h.span, 'Oct 19–26')
+  assert.deepEqual(h.counted, ['AI Overview', 'ChatGPT'])
+  const f = r.blocks.find((b) => b.type === 'sources').data
+  assert.deepEqual(f.off, ['Gemini', 'Claude'])
+  assert.equal(r.blocks.find((b) => b.type === 'section').data.title, 'By topic')
 })

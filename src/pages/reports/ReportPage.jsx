@@ -35,7 +35,8 @@ function spans(blocks) {
   for (let i = 0; i < blocks.length - 1; i++) if (out[i] === 2 && half(blocks[i]) && half(blocks[i + 1])) { out[i] = 1; out[i + 1] = 1; i++ }
   return out
 }
-const numbers = (blocks) => { let n = 0; return blocks.map((b) => (b.type === 'section' ? ++n : null)) }
+// 01 What moved · 02 By topic · … · the last number is What to do
+const numbers = (blocks) => { let n = 0; return blocks.map((b) => (['hero', 'section', 'actions'].includes(b.type) ? ++n : null)) }
 const sameOpts = (a, b) => ['brand', 'period', 'audience', 'length'].every((k) => a[k] === b[k]) && ['engines', 'compare'].every((k) => (a[k] ?? []).join() === (b[k] ?? []).join())
 
 // a turn: the user's message (ask) and the reply — a report version (built from the report's question + options), or a
@@ -93,6 +94,9 @@ function Thread({ rest, mock, greeting, inter }) {
   const threadRef = useRef(null)
   const heroRef = useRef(null)
   const flipFrom = useRef(null)
+  const dockWrap = useRef(null)
+  const [dockBox, setDockBox] = useState({ left: 0, width: 0 }) // the thread column, for the fixed box
+  const [dockH, setDockH] = useState(0) // the fixed box's height (padding for the thread's end)
   const follow = useRef(true)
   const streaming = useRef(false)
   useInterFont(inter)
@@ -197,6 +201,24 @@ function Thread({ rest, mock, greeting, inter }) {
   }, [mode])
   // the box's stop button: stop whatever is being written
   const stopAll = () => turns.filter((t) => t.status === 'steps').forEach((t) => { clearTimeout(timers.current[t.id]); patch(t.id, { status: 'cancelled' }) })
+  // keep the fixed box over the thread column, and the thread padded by its height
+  useLayoutEffect(() => {
+    if (mode !== 'thread') return undefined
+    const col = threadRef.current
+    const wrap = dockWrap.current
+    if (!col || !wrap) return undefined
+    const measure = () => {
+      const r = col.getBoundingClientRect()
+      setDockBox((b) => (Math.abs(b.left - r.left) < 0.5 && Math.abs(b.width - r.width) < 0.5 ? b : { left: r.left, width: r.width }))
+      setDockH(wrap.offsetHeight)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(col)
+    ro.observe(wrap)
+    window.addEventListener('resize', measure)
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure) }
+  }, [mode])
   const jumpDown = () => { follow.current = true; setShowDown(false); window.scrollTo({ top: document.documentElement.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' }) }
 
   const latest = [...turns].reverse().find((t) => t.built?.ok)
@@ -277,7 +299,7 @@ function Thread({ rest, mock, greeting, inter }) {
         </div>
       )}
       {thread && (
-        <div key="thread" ref={threadRef} className="mx-auto flex w-full max-w-[880px] flex-1 flex-col gap-8 pb-4 pt-2">
+        <div key="thread" ref={threadRef} className="mx-auto flex w-full max-w-[880px] flex-1 flex-col gap-8 pt-2" style={{ paddingBottom: Math.max(0, dockH - 48) }}>
           {missing && (
             <StateCard title="This report doesn’t exist any more">
               It may have been deleted. <a href="/reports/all" onClick={linkClick('/reports/all')} className="font-medium text-stone-900 underline underline-offset-4">All reports</a>
@@ -295,11 +317,13 @@ function Thread({ rest, mock, greeting, inter }) {
           })}
         </div>
       )}
-      <div key="dock" className={thread ? 'sticky bottom-0 z-20 -mx-4 px-4 pb-6 pt-10 md:-mx-6 md:px-6' : 'flex flex-[1.2] flex-col'}
-        style={thread ? { background: 'linear-gradient(to bottom, transparent, var(--color-page) 36px)' } : undefined}>
+      {/* in a thread the box is fixed to the bottom of the viewport, as wide as the thread column (plus its gutters),
+          over a fade to the page so the report scrolls under it; the thread is padded so nothing ends up behind it */}
+      <div key="dock" ref={dockWrap} data-dock className={thread ? 'fixed bottom-0 z-20 px-4 pb-6 pt-10' : 'flex flex-[1.2] flex-col'}
+        style={thread ? { left: dockBox.left - 16, width: dockBox.width + 32, background: 'linear-gradient(to bottom, transparent, var(--color-page) 36px)' } : undefined}>
         {thread && showDown && (
-          <button type="button" onClick={jumpDown} aria-label="Jump to the latest"
-            className="absolute left-1/2 top-0 grid h-9 w-9 -translate-x-1/2 place-items-center rounded-full border border-line bg-raised text-stone-700 shadow-md outline-none transition-colors duration-150 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus motion-safe:animate-[fade-in_150ms_ease-out]">
+          <button type="button" onClick={jumpDown} aria-label="Jump to the latest" style={{ bottom: dockH - 40 + 12 }}
+            className="absolute left-1/2 grid h-9 w-9 -translate-x-1/2 place-items-center rounded-full border border-line bg-raised text-stone-700 shadow-md outline-none transition-colors duration-150 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus motion-safe:animate-[fade-in_150ms_ease-out]">
             <ArrowDown size={16} aria-hidden />
           </button>
         )}
@@ -428,7 +452,8 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
   )
 }
 
-const ARTICLE = 'grid grid-cols-1 gap-x-12 gap-y-10 rounded-xl border border-line bg-surface px-12 py-10 lg:grid-cols-2 max-md:gap-y-9 max-md:px-5 max-md:py-7'
+// 40px inside, 48px between sections (the 32px gap plus each block's 8px frame above and below)
+const ARTICLE = 'grid min-w-0 grid-cols-1 gap-x-12 gap-y-8 overflow-hidden rounded-xl border border-line bg-surface p-10 lg:grid-cols-2 max-md:px-5 max-md:py-7'
 
 // while it's written: only the hero's place, where the dots gather (short, so the question stays in view)
 const HERO_H = { weekly: 220, ceo: 240, rival: 280, content: 240 }
