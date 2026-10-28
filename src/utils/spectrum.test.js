@@ -2,8 +2,9 @@
 // keyboard neighbours, engine lanes, filters, theme → page links and the "no number twice" check.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { PAGES, RUNS, SWOT, withScores } from '../data/sentiment.js'
+import { PAGES, RUNS, SWOT, runPages, withScores } from '../data/sentiment.js'
 import { BAND, biggestChange, capRows, dotGrid, dotRows, groupThemes, hash01, layoutSwarm, lanesFor, leadTheme, matchIds, moveNote, neighbour, numbersIn, repeatedNumbers, scoreStrip, scoreX, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen } from './spectrum.js'
+import { byReach, divergingStack, leadQuote, reachOf, toneChanges, topChange, urlKey } from './spectrum.js'
 
 const ENGINES = [{ id: 'google', name: 'Google search' }, { id: 'chatgpt', name: 'ChatGPT' }, { id: 'claude', name: 'Claude' }]
 
@@ -161,4 +162,58 @@ test('biggest move: the largest change and its note from the data', () => {
   assert.equal(moveNote(runs, null), null)
   const tie = [{ score: 50, counts: { positive: 1, neutral: 1, negative: 1 } }, { score: 53, counts: { positive: 2, neutral: 1, negative: 1 } }, { score: 56, counts: { positive: 3, neutral: 1, negative: 1 } }]
   assert.equal(biggestChange(tie).index, 2)
+})
+
+test('pages match across runs by URL (www, trailing slash and query ignored)', () => {
+  assert.equal(urlKey('https://www.Trustpilot.com/review/dermasuri.com/?utm=x'), urlKey('trustpilot.com/review/dermasuri.com'))
+  assert.notEqual(urlKey('reddit.com/r/a'), urlKey('reddit.com/r/b'))
+})
+
+test('tone changes: only pages in both runs whose tone changed', () => {
+  const a = [{ id: 'x', domain: 'a.com', path: '/1', tone: 'neutral' }, { id: 'y', domain: 'b.com', path: '/2', tone: 'positive' }, { id: 'z', domain: 'c.com', path: '/3', tone: 'neutral' }]
+  const b = [{ id: 'x', domain: 'www.a.com', path: '/1/', tone: 'negative' }, { id: 'y', domain: 'b.com', path: '/2', tone: 'positive' }, { id: 'n', domain: 'd.com', path: '/4', tone: 'negative' }]
+  const c = toneChanges(a, b)
+  assert.deepEqual(c.map((x) => [x.page.id, x.from, x.to]), [['x', 'neutral', 'negative']])
+  assert.equal(topChange(c).page.id, 'x')
+  assert.equal(topChange([]), null)
+  // the mock's runs are consistent by URL: every change is a real flip between two runs
+  const runs = RUNS.map((r, i) => (i === RUNS.length - 1 ? PAGES : runPages(PAGES, r.counts, r.id)))
+  for (let i = 1; i < runs.length; i++) for (const ch of toneChanges(runs[i - 1], runs[i])) assert.notEqual(ch.from, ch.to)
+  assert.ok(toneChanges(runs[1], runs[2]).length > 0)
+})
+
+test('diverging stack: positive up, negative down, rows of two, the same page in the same place', () => {
+  const pages = [
+    { id: 'a', domain: 'a.com', path: '/', tone: 'positive' }, { id: 'b', domain: 'b.com', path: '/', tone: 'positive' }, { id: 'c', domain: 'c.com', path: '/', tone: 'positive' },
+    { id: 'd', domain: 'd.com', path: '/', tone: 'negative' }, { id: 'e', domain: 'e.com', path: '/', tone: 'neutral' },
+  ]
+  const s = divergingStack(pages, { perRow: 2, pitch: 18, gap: 12 })
+  assert.equal(s.up, 2)
+  assert.equal(s.down, 1)
+  for (const id of ['a', 'b', 'c']) assert.ok(s.slots[id].y < 0)
+  assert.ok(s.slots.d.y > 0)
+  assert.equal(s.slots.e, undefined) // neutral: in the band
+  assert.deepEqual([s.slots.a.x, s.slots.b.x, s.slots.c.x], [-9, 9, 0]) // the last row centred
+  assert.deepEqual(divergingStack([...pages].reverse(), { perRow: 2 }).slots, divergingStack(pages, { perRow: 2 }).slots)
+})
+
+test('reach: pages saying a theme ÷ all pages; most widespread first', () => {
+  const g = groupThemes(SWOT, PAGES)
+  for (const t of g.hurting) assert.equal(reachOf(t, PAGES.length), t.pages.length / PAGES.length)
+  assert.equal(reachOf(g.hurting[0], 0), 0)
+  const sorted = byReach(g.working)
+  for (let i = 1; i < sorted.length; i++) assert.ok(sorted[i - 1].pages.length >= sorted[i].pages.length)
+  assert.equal(byReach(g.working).length, g.working.length)
+})
+
+test('lead quote per side: the page most themes cite, a quote in that tone', () => {
+  const g = groupThemes(SWOT, PAGES)
+  const hurt = leadQuote(g.hurting, PAGES, 'negative')
+  assert.equal(hurt.page.domain, 'trustpilot.com') // two Hurting themes cite it
+  assert.equal(hurt.quote.tone, 'negative')
+  const work = leadQuote(g.working, PAGES, 'positive')
+  assert.equal(work.quote.tone, 'positive')
+  assert.equal(leadQuote(g.hurting, PAGES.map((p) => ({ ...p, tone: 'neutral' })), 'negative'), null)
+  const bare = leadQuote(g.working, PAGES.map((p) => ({ ...p, sentences: [] })), 'positive')
+  assert.equal(bare.quote, null) // analysed before quotes: the page, no quote
 })

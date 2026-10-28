@@ -16,7 +16,7 @@ import { useIsMobile } from '../../hooks/useMedia'
 import {
   TONES, TONE_LABEL, countTones, heroLine, runPages, scoreOf, sentimentFor, sentimentInsight, sortPages, tonePercents, withScores,
 } from '../../data/sentiment'
-import { biggestChange, capRows, dotGrid, dotRows, groupThemes, layoutSwarm, lanesFor, leadTheme, matchIds, moveNote, neighbour, scoreStrip, scoreX, tellingSentence, themeQuoteOf, toggleOpen } from '../../utils/spectrum'
+import { biggestChange, byReach, divergingStack, groupThemes, layoutSwarm, lanesFor, leadQuote, matchIds, moveNote, neighbour, reachOf, scoreX, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen, toneChanges, topChange } from '../../utils/spectrum'
 import { fmtDay, lineBtn, t2, t3 } from './parts'
 
 // /sentiment: one visual page about how third-party pages talk about the brand.
@@ -54,7 +54,6 @@ export default function SentimentPage() {
   const [tone, setTone] = useState(null)
   const [openKey, setOpenKey] = useState(null) // the one open theme row, across both columns
   const [hoverTheme, setHoverTheme] = useState(null)
-  const [more, setMore] = useState({}) // a column's "+N more", expanded in place
   const [runId, setRunId] = useState(null) // null = the latest run
   const [confirm, setConfirm] = useState(false)
   const [running, setRunning] = useState(mock === 'running')
@@ -76,7 +75,7 @@ export default function SentimentPage() {
   const isLatest = run === latest
   const pagesOf = (r) => (r === latest ? latestPages : runPages(latestPages, r.counts, r.id))
   const pages = pagesOf(run)
-  useEffect(() => { setRunId(null); setOpenKey(null); setTone(null); setMore({}) }, [domain])
+  useEffect(() => { setRunId(null); setOpenKey(null); setTone(null) }, [domain])
 
   // What AI reads about you: themes from the latest run (?mock=calm has nothing hurting)
   const unlinked = q.get('themes') === 'unlinked'
@@ -94,12 +93,10 @@ export default function SentimentPage() {
     const sides = page.tone === 'positive' ? [groups.working, groups.hurting] : [groups.hurting, groups.working]
     return sides.flat().find((x) => x.sources.includes(page.id)) ?? null
   }
-  // a dot in the hero: opens its row below (expanding "+N more" if it's in there), or its drawer when no theme cites it
+  // a dot in the hero: opens its row below, or its drawer when no theme cites it
   const onDot = (page) => {
     const t = linking ? themeOf(page) : null
     if (!t) { openDrawer('page', page.id); return }
-    const sideKey = groups.hurting.includes(t) ? 'hurting' : 'working'
-    if (groups[sideKey].indexOf(t) >= 5) setMore((m) => ({ ...m, [sideKey]: true }))
     setOpenKey(t.theme)
     requestAnimationFrame(() => document.getElementById(`theme-${t.theme.toLowerCase().replace(/[^a-z]+/g, '-')}`)?.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' }))
   }
@@ -143,10 +140,10 @@ export default function SentimentPage() {
         split={split} setSplit={setSplit} tone={tone} setTone={setTone} theme={shown} clearTheme={() => { setOpenKey(null); setHoverTheme(null) }} onDot={onDot} themeFor={themeFor} />
       </div>
       {swot && (
-        <AiReads groups={groups} unlinked={unlinked} pages={latestPages} openKey={openKey} onToggle={(t) => setOpenKey((k) => toggleOpen(k, t.theme))}
-          lit={shown?.theme} onHover={(t) => setHoverTheme(linking ? t : null)} more={more} setMore={setMore} latest={latest} isLatest={isLatest} />
+        <AiReads groups={groups} unlinked={unlinked} pages={latestPages} openKey={openKey} onToggle={(t) => setOpenKey((k) => toggleOpen(k, t.theme))} onClose={() => setOpenKey(null)}
+          lit={shown?.theme} onHover={(t) => setHoverTheme(linking ? t : null)} latest={latest} isLatest={isLatest} />
       )}
-      <OverTime runs={runs} run={run} onPick={(id) => setRunId(id === latest.id ? null : id)} />
+      <OverTime runs={runs} run={run} pagesOf={pagesOf} onPick={(id) => setRunId(id === latest.id ? null : id)} />
       <AllPages pages={pages} lit={lit} filtered={engine !== 'all' || tone || shown} />
       <PageDrawer pages={pages} brand={brand} />
       {modal}{toastNode}
@@ -442,61 +439,69 @@ function RunningHero({ brand, pages, stuck, onDone }) {
   )
 }
 
-// ---- what AI reads about you: a lead quote (the theme hurting you most), then Hurting you | Working for you. Each
-// column shows five themes, then "+N more" (in place). A row opens to ONE quote, its source and Open page; one row open
-// at a time. Hover a row: its pages light up in the spectrum. ?themes=unlinked: no theme → page links (quotes per page).
+// ---- what AI reads about you: two columns, each led by its strongest quote, then every theme sorted by reach (the
+// share of analysed pages that say it). Hover a row: a floating preview of its best quote, and its pages light up in
+// the spectrum. Click (or Enter) opens it in place to up to three quotes; one open at a time; Esc closes.
+// ?themes=unlinked: no theme → page links (themes as plain rows, the lead quotes from the side's own pages).
 const slug = (s) => s.toLowerCase().replace(/[^a-z]+/g, '-')
-const ROW = 'h-[52px]'
-function AiReads({ groups, unlinked, pages, openKey, onToggle, lit, onHover, more, setMore, latest, isLatest }) {
-  const lead = unlinked ? null : leadTheme(groups)
-  const caps = { hurting: capRows(groups.hurting, more.hurting), working: capRows(groups.working, more.working) }
-  const footer = caps.hurting.more > 0 || caps.working.more > 0 // a "+N more" row on either side: both keep the room
-  const col = (side) => {
-    const hurting = side === 'hurting'
-    const { rows, more: hidden } = caps[side]
-    return (
-      <div className="min-w-0">
-        <h3 className="flex items-baseline gap-2 border-b border-line pb-2 text-[14px] leading-5 font-medium">
-          <span className={hurting ? 'text-negative' : 'text-ink'}>{hurting ? 'Hurting you' : 'Working for you'}</span>
-          <span className={`tabular-nums ${t3}`}>{groups[side].length}</span>
-        </h3>
-        {hurting && !groups.hurting.length ? (
-          <p className={`flex ${ROW} items-center gap-2 border-b border-[var(--div)] text-[15px] text-stone-900`}><Check size={16} className="text-ink" aria-hidden />Nothing negative this run</p>
-        ) : unlinked ? (
-          <UnlinkedColumn list={groups[side]} pages={pages.filter((p) => p.tone === (hurting ? 'negative' : 'positive'))} hurting={hurting} />
-        ) : (
-          <ul>
-            {rows.map((t) => (
-              <ThemeRow key={t.theme} t={t} hurting={hurting} open={openKey === t.theme} lit={lit === t.theme} onToggle={() => onToggle(t)} onHover={onHover} />
-            ))}
-          </ul>
-        )}
-        {!unlinked && footer && (
-          hidden > 0
-            ? <button type="button" onClick={() => setMore((m) => ({ ...m, [side]: true }))} className={`flex h-10 items-center rounded text-[13px] font-medium ${t3} outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus`}>+{hidden} more</button>
-            : <div className="hidden h-10 md:block" aria-hidden />
-        )}
-      </div>
-    )
+function AiReads({ groups, unlinked, pages, openKey, onToggle, onClose, lit, onHover, latest, isLatest }) {
+  const total = pages.length
+  // the bars are scaled to the most widespread theme on either side (exact "N of M pages" in each bar's tooltip)
+  const top = Math.max(1, ...[...groups.hurting, ...groups.working].map((t) => t.pages.length))
+  const side = (key) => {
+    const hurting = key === 'hurting'
+    const tone = hurting ? 'negative' : 'positive'
+    const themes = byReach(groups[key])
+    return { hurting, tone, themes, lead: leadQuote(unlinked ? [] : themes, pages, tone) }
   }
+  const H = side('hurting'), W = side('working')
+  const head = (s) => (
+    <h3 className="flex items-baseline gap-2 border-b border-line pb-2 text-[14px] leading-5 font-medium">
+      <span className={s.hurting ? 'text-negative' : 'text-ink'}>{s.hurting ? 'Hurting you' : 'Working for you'}</span>
+      <span className={`tabular-nums ${t3}`}>{s.themes.length}</span>
+    </h3>
+  )
+  const lead = (s) => (
+    s.lead ? (
+      <figure className="pt-5 pb-6">
+        {s.lead.quote
+          ? <blockquote className="text-[20px] leading-[30px] font-medium tracking-[-0.01em] text-stone-900 max-md:text-[18px] max-md:leading-7 [text-wrap:pretty]"><Phrase s={s.lead.quote} tone={s.tone} /></blockquote>
+          : <><p className="text-[20px] leading-[30px] font-medium text-stone-900">{s.lead.page.title}</p><p className={`mt-1 text-[13px] leading-[18px] ${t3}`}>Quote appears after the next analysis</p></>}
+        <figcaption className="mt-3"><Source page={s.lead.page} /></figcaption>
+      </figure>
+    ) : <p className={`flex items-center gap-2 pt-5 pb-6 text-[15px] leading-[22px] text-stone-900`}><Check size={16} className="text-ink" aria-hidden />{s.hurting ? 'Nothing negative this run' : 'No positive pages this run'}</p>
+  )
+  const list = (s) => (
+    unlinked ? (
+      <ul className="border-t border-[var(--div)]">
+        {s.themes.map((t) => (
+          <li key={t.theme} className="flex h-[52px] items-center gap-2 border-b border-[var(--div)] text-[15px] font-medium text-stone-900">
+            <span className="truncate">{t.theme}</span>{(t.kind === 'opportunity' || t.kind === 'threat') && <span className={`text-[13px] font-normal ${t3}`}>{t.kind}</span>}
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <ul className="border-t border-[var(--div)]">
+        {s.themes.map((t) => (
+          <ThemeRow key={t.theme} t={t} hurting={s.hurting} reach={reachOf(t, total)} scale={t.pages.length / top} total={total} open={openKey === t.theme} lit={lit === t.theme}
+            onToggle={() => onToggle(t)} onClose={onClose} onHover={onHover} />
+        ))}
+      </ul>
+    )
+  )
+  // desktop: the two heads, the two leads and the two lists line up in rows; phones: Hurting you (all of it) first
   return (
     <section aria-labelledby="reads-h">
       <h2 id="reads-h" className={h2}>What AI reads about you</h2>
       {!isLatest && <p className={`mt-1 text-[13px] leading-[18px] ${t3}`}>Themes are from the latest run, {fmtDay(latest.date)}.</p>}
-      {lead && (
-        <figure className="mt-6">
-          {lead.quote ? (
-            <blockquote className="max-w-[880px] text-[22px] leading-[32px] font-medium tracking-[-0.01em] text-stone-900 max-md:text-[19px] max-md:leading-7 [text-wrap:pretty]"><Phrase s={lead.quote} tone="negative" /></blockquote>
-          ) : (
-            <div><p className="text-[22px] leading-[32px] font-medium text-stone-900">{lead.page.title}</p><p className={`mt-1 text-[13px] leading-[18px] ${t3}`}>Quote appears after the next analysis</p></div>
-          )}
-          <figcaption className={`mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-[18px] ${t3}`}>
-            <span>{lead.theme.theme} · <button type="button" onClick={() => openDrawer('page', lead.page.id)} className="rounded outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">{lead.page.domain}</button>{lead.others.length > 0 && ` + ${lead.others.length} more ${lead.others.length === 1 ? 'page' : 'pages'}`}</span>
-            <OpenPage page={lead.page} />
-          </figcaption>
-        </figure>
-      )}
-      <div className="mt-6 grid grid-cols-1 gap-x-12 gap-y-10 md:grid-cols-2">{col('hurting')}{col('working')}</div>
+      <div className="mt-6 grid grid-cols-1 gap-x-12 md:grid-cols-2">
+        <div className="order-1 md:order-none">{head(H)}</div>
+        <div className="order-4 mt-10 md:order-none md:mt-0">{head(W)}</div>
+        <div className="order-2 md:order-none">{lead(H)}</div>
+        <div className="order-5 md:order-none">{lead(W)}</div>
+        <div className="order-3 md:order-none">{list(H)}</div>
+        <div className="order-6 md:order-none">{list(W)}</div>
+      </div>
     </section>
   )
 }
@@ -505,6 +510,15 @@ const OpenPage = ({ page }) => (
   <a href={`https://${page.domain}${page.path}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded text-[13px] font-medium text-stone-900 underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">
     Open page <ArrowUpRight size={14} aria-hidden /><span className="sr-only">(opens in a new tab)</span>
   </a>
+)
+// a quote's source: favicon + domain (opens the page's drawer, every quote) and Open page
+const Source = ({ page }) => (
+  <span className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-[18px] ${t3}`}>
+    <button type="button" onClick={() => openDrawer('page', page.id)} className="inline-flex items-center gap-1.5 rounded outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">
+      <SiteLogo domain={page.domain} name={page.domain} className="h-3.5 w-3.5 rounded-full !border-0" imgPad="p-0" initialClass="text-[7px]" />{page.domain}
+    </button>
+    <OpenPage page={page} />
+  </span>
 )
 const Favicons = ({ pages }) => (
   <span className="flex shrink-0 -space-x-1" aria-hidden>
@@ -515,83 +529,72 @@ const Favicons = ({ pages }) => (
     ))}
   </span>
 )
+const QuoteOrTitle = ({ page, s, tone, size = 'text-[15px] leading-6' }) => (s
+  ? <p className={`${size} text-stone-900 [text-wrap:pretty]`}><Phrase s={s} tone={tone} /></p>
+  : <><p className={`${size} text-stone-900`}>{page.title}</p><p className={`text-[12px] leading-4 ${t3}`}>Quote appears after the next analysis</p></>)
 
-// a theme row: collapsed (52px), or open to one quote + its source + Open page
-function ThemeRow({ t, hurting, open, lit, onToggle, onHover }) {
+// a theme row: 52px collapsed (theme · suffix | favicons, reach bar, engines); hover / focus: a floating preview;
+// open: up to three quotes with their sources
+function ThemeRow({ t, hurting, reach, scale, total, open, lit, onToggle, onClose, onHover }) {
   const id = `theme-${slug(t.theme)}`
-  const q = themeQuoteOf(t)
+  const [preview, setPreview] = useState(false)
+  const best = themeQuoteOf(t)
+  const quotes = t.pages.slice(0, 3).map((p) => ({ p, s: themeQuote(p, t) }))
+  const tone = hurting ? 'negative' : 'positive'
+  const enter = () => { setPreview(true); onHover(t) }
+  const leave = () => { setPreview(false); onHover(null) }
   return (
-    <li id={id} className={`scroll-mt-24 border-b border-[var(--div)] transition-colors duration-150 ${lit && !open ? 'bg-tint' : ''}`}
-      onMouseEnter={() => onHover(t)} onMouseLeave={() => onHover(null)}>
-      <button type="button" aria-expanded={open} aria-controls={`${id}-body`} onClick={onToggle} onFocus={() => onHover(t)} onBlur={() => onHover(null)}
-        className={`flex ${ROW} w-full items-center gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus`}>
+    <li id={id} className={`relative scroll-mt-24 border-b border-[var(--div)] transition-colors duration-150 ${lit && !open ? 'bg-tint' : ''}`} onMouseEnter={enter} onMouseLeave={leave}>
+      <button type="button" aria-expanded={open} aria-controls={`${id}-body`} aria-describedby={preview && !open ? `${id}-preview` : undefined}
+        onClick={() => { onToggle(); setPreview(false) }} onFocus={enter} onBlur={leave}
+        onKeyDown={(e) => { if (e.key === 'Escape') { setPreview(false); onClose() } }}
+        className="flex h-[52px] w-full items-center gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
         <span className="flex min-w-0 flex-1 items-baseline gap-2">
           <span className="truncate text-[15px] leading-[22px] font-medium text-stone-900">{t.theme}</span>
           {(t.kind === 'opportunity' || t.kind === 'threat') && <span className={`shrink-0 text-[13px] ${t3}`}>{t.kind}</span>}
         </span>
-        <span className={`flex shrink-0 items-center gap-2 text-[12px] leading-4 tabular-nums ${t3}`}><Favicons pages={t.pages} />{plural(t.pages.length, 'page')}</span>
+        {/* fixed widths so the favicons, bars and engines line up row to row */}
+        <span className="flex shrink-0 items-center gap-3">
+          <span className="flex w-11 justify-end"><Favicons pages={t.pages} /></span>
+          {/* reach: pages saying it ÷ all pages analysed (the number is in the tooltip) */}
+          <span className="relative flex h-1.5 w-16 overflow-hidden rounded-full bg-[var(--data-track)] max-sm:w-10" title={`${t.pages.length} of ${total} pages say this (${Math.round(reach * 100)}%)`} aria-label={`${t.pages.length} of ${total} pages say this`}>
+            <span className="h-full rounded-full" style={{ width: `${Math.max(8, scale * 100)}%`, background: hurting ? 'var(--negative)' : 'var(--ink)' }} />
+          </span>
+          <span className="flex w-[54px] justify-start max-sm:hidden"><EngineMarks ids={themeEngines(t)} size={14} /></span>
+        </span>
       </button>
-      {/* in place, one row at a time (grid rows 0fr → 1fr; none with reduced motion) */}
+      {/* hover / focus preview: the best quote, floating (nothing moves) */}
+      {preview && !open && best && (
+        <div id={`${id}-preview`} role="tooltip" className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-[min(420px,100%)] rounded-xl border border-line bg-raised p-3.5 shadow-lg motion-safe:animate-[fade-in_120ms_ease-out]">
+          <QuoteOrTitle page={best.page} s={best.quote} tone={tone} size="text-[14px] leading-[22px]" />
+          <p className={`mt-1.5 text-[12px] leading-4 ${t3}`}>{best.page.domain}{best.others.length ? ` and ${best.others.length} more` : ''} · click for the quotes</p>
+        </div>
+      )}
       <div id={`${id}-body`} inert={open ? undefined : ''} className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
         <div className="relative min-h-0 overflow-hidden">
-          {q && (
-            <div className="pb-4">
-              {q.quote
-                ? <p className="text-[16px] leading-[26px] text-stone-900 [text-wrap:pretty]"><Phrase s={q.quote} tone={hurting ? 'negative' : 'positive'} /></p>
-                : <><p className="text-[16px] leading-[26px] text-stone-900">{q.page.title}</p><p className={`text-[13px] leading-[18px] ${t3}`}>Quote appears after the next analysis</p></>}
-              <div className={`mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-[18px] ${t3}`}>
-                <button type="button" onClick={() => openDrawer('page', q.page.id)} className="inline-flex items-center gap-1.5 rounded outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">
-                  <SiteLogo domain={q.page.domain} name={q.page.domain} className="h-3.5 w-3.5 rounded-full !border-0" imgPad="p-0" initialClass="text-[7px]" />{q.page.domain}
-                </button>
-                <OpenPage page={q.page} />
-              </div>
-            </div>
-          )}
+          <ul className="flex flex-col gap-4 pb-5">
+            {quotes.map(({ p, s }) => (
+              <li key={p.id}><QuoteOrTitle page={p} s={s} tone={tone} /><div className="mt-1.5"><Source page={p} /></div></li>
+            ))}
+          </ul>
         </div>
       </div>
     </li>
   )
 }
 
-// fallback without theme → page links: the themes as plain rows, then the side's pages quoted one by one
-function UnlinkedColumn({ list, pages, hurting }) {
-  return (
-    <>
-      <ul>
-        {list.map((t) => (
-          <li key={t.theme} className={`flex ${ROW} items-center gap-2 border-b border-[var(--div)] text-[15px] font-medium text-stone-900`}>
-            <span className="truncate">{t.theme}</span>{(t.kind === 'opportunity' || t.kind === 'threat') && <span className={`text-[13px] font-normal ${t3}`}>{t.kind}</span>}
-          </li>
-        ))}
-      </ul>
-      <ul className="mt-6 flex flex-col gap-4">
-        {pages.map((p) => {
-          const s = tellingSentence(p)
-          return (
-            <li key={p.id}>
-              {s ? <p className="text-[15px] leading-[24px] text-stone-900"><Phrase s={s} tone={hurting ? 'negative' : 'positive'} /></p>
-                : <><p className="text-[15px] leading-[24px] text-stone-900">{p.title}</p><p className={`text-[13px] ${t3}`}>Quote appears after the next analysis</p></>}
-              <div className={`mt-1 flex items-center gap-3 text-[13px] ${t3}`}>
-                <button type="button" onClick={() => openDrawer('page', p.id)} className="rounded outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">{p.domain}</button>
-                <OpenPage page={p} />
-              </div>
-            </li>
-          )
-        })}
-      </ul>
-    </>
-  )
-}
-
-// ---- over time: the hero's width, one column per run. A thin score strip on top (a line, small markers, the score
-// above each, the latest bold, a dashed "50 even"); under it each run's pages as 8px dots in Positive / Neutral /
-// Negative rows (max six a row, centred). Dates under the columns, the latest tinted; the biggest move noted under its
-// pair. Hover a column for the run; click (or Enter) to see its pages in the spectrum.
-const OT = { strip: 78, pitch: 12, dot: 4, bandPad: 14, dates: 26 }
-function OverTime({ runs, run, onPick }) {
+// ---- over time: a diverging tone flow. One column per run around a baseline: positive pages stack up as squares
+// (ink), negative pages down (the negative token), neutral pages a thin hollow band on the baseline with its count.
+// Ribbons join the runs only for pages that changed tone (matched by URL). The score above each column. One note on
+// the biggest move, on its ribbons. Columns grow and ribbons draw when it scrolls in (not with reduced motion).
+const TF = { score: 54, pitch: 16, sq: 12, gap: 14, band: 12, dates: 28, note: 22, perRow: 2, minCol: 76 }
+const TONE_FILL = { positive: 'var(--ink)', neutral: 'var(--color-stone-500)', negative: 'var(--negative)' }
+function OverTime({ runs, run, onPick, pagesOf }) {
   const box = useRef(null)
+  const scroller = useRef(null)
   const [w, setW] = useState(900)
-  const [tip, setTip] = useState(null)
+  const [tip, setTip] = useState(null) // { kind: 'col' | 'ribbon', ... }
+  const [seen, setSeen] = useState(() => reduced())
   const cols = useRef([])
   useLayoutEffect(() => {
     if (!box.current) return
@@ -599,7 +602,18 @@ function OverTime({ runs, run, onPick }) {
     ro.observe(box.current)
     return () => ro.disconnect()
   }, [])
-  if (runs.length < 2) {
+  // grow in when it scrolls into view (once)
+  useEffect(() => {
+    if (seen || !box.current) return
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect() } }, { threshold: 0.35 })
+    io.observe(box.current)
+    return () => io.disconnect()
+  }, [seen])
+  // phones: the chart scrolls sideways inside itself, starting at the latest run
+  useLayoutEffect(() => { if (scroller.current) scroller.current.scrollLeft = scroller.current.scrollWidth }, [w])
+  const n = runs.length
+  const data = useMemo(() => runs.map((r) => ({ r, pages: pagesOf(r) })), [runs]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (n < 2) {
     return (
       <section aria-labelledby="time-h">
         <h2 id="time-h" className={h2}>Over time</h2>
@@ -607,21 +621,31 @@ function OverTime({ runs, run, onPick }) {
       </section>
     )
   }
-  const n = runs.length
-  const narrow = w < 560
-  const L = narrow ? 64 : 84 // the row labels
-  const colW = (w - L) / n
+  const L = 64 // the Positive / Negative labels
+  const plotW = Math.max(w - L, n * TF.minCol)
+  const colW = plotW / n
   const cx = (i) => L + colW * i + colW / 2
-  const perRow = Math.max(2, Math.min(6, Math.floor((colW - 12) / OT.pitch)))
-  const tones = ['positive', 'neutral', 'negative']
-  const bandH = Object.fromEntries(tones.map((k) => [k, Math.max(1, ...runs.map((r) => dotRows(r.counts[k], perRow))) * OT.pitch + OT.bandPad]))
-  const bandTop = { positive: OT.strip, neutral: OT.strip + bandH.positive, negative: OT.strip + bandH.positive + bandH.neutral }
-  const dotsBottom = bandTop.negative + bandH.negative
-  const H = dotsBottom + OT.dates
+  const stacks = data.map(({ pages }) => divergingStack(pages, { perRow: TF.perRow, pitch: TF.pitch, gap: TF.gap }))
+  const up = Math.max(...stacks.map((s) => s.up)), down = Math.max(...stacks.map((s) => s.down))
+  const base = TF.score + TF.gap + up * TF.pitch + 6 // the baseline's y
+  const H = base + TF.gap + down * TF.pitch + 6 + TF.dates
+  const stackW = TF.perRow * TF.pitch
+  const bandW = Math.min(colW - 24, stackW + 16)
+  // ribbons: pages that changed tone between neighbours (matched by URL)
+  const point = (i, p, side) => {
+    const s = stacks[i].slots[p.id]
+    const x = cx(i) + side * (s ? TF.sq / 2 + 1 : bandW / 2) + (s ? s.x : 0)
+    return { x, y: s ? base + s.y : base }
+  }
+  const ribbons = data.slice(1).flatMap(({ pages }, k) => toneChanges(data[k].pages, pages).map((c) => {
+    const a = point(k, data[k].pages.find((p) => p.id === c.page.id) ?? c.page, 1), b = point(k + 1, c.page, -1)
+    const mx = (a.x + b.x) / 2
+    return { ...c, i: k + 1, d: `M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`, mid: { x: mx, y: (a.y + b.y) / 2 } }
+  }))
   const big = biggestChange(runs)
+  const bigRibbons = big ? ribbons.filter((x) => x.i === big.index) : []
   const note = moveNote(runs, big)
-  const strip = scoreStrip(runs.map((r) => r.score), { height: OT.strip - 24, pad: 6 })
-  const sy = (v) => 20 + strip.y(v)
+  const anchor = bigRibbons.length ? { x: bigRibbons.reduce((s, x) => s + x.mid.x, 0) / bigRibbons.length, y: Math.min(...bigRibbons.map((x) => x.mid.y)) } : null
   const latest = runs.at(-1)
   const key = (e, i) => {
     const step = { ArrowRight: 1, ArrowLeft: -1, Home: -n, End: n }[e.key]
@@ -629,65 +653,91 @@ function OverTime({ runs, run, onPick }) {
     e.preventDefault()
     cols.current[Math.max(0, Math.min(n - 1, i + step))]?.focus()
   }
+  // tooltips stay inside the part of the chart that's in view (phones scroll it sideways)
+  const clampX = (x) => { const sl = scroller.current?.scrollLeft ?? 0, vw = scroller.current?.clientWidth ?? w; return Math.max(sl + 150, Math.min(sl + vw - 150, x)) }
+  const grow = (i) => ({ transform: seen ? 'scaleY(1)' : 'scaleY(0)', transformOrigin: `0 ${base}px`, transition: reduced() ? 'none' : `transform 420ms cubic-bezier(.2,.8,.2,1) ${i * 60}ms` })
   return (
     <section aria-labelledby="time-h">
       <h2 id="time-h" className={h2}>Over time</h2>
-      <div ref={box} className="relative mt-6" style={{ height: H + (note ? 24 : 0) }} onMouseLeave={() => setTip(null)}>
-        {/* the latest column, tinted */}
-        <div className="absolute rounded-lg bg-tint" style={{ left: L + colW * (n - 1) + 2, width: colW - 4, top: 0, height: H }} aria-hidden />
-        <svg className="absolute inset-0 overflow-visible" width={w} height={H} aria-hidden>
-          {/* the score strip: dashed even line, the line, markers and their scores */}
-          <line x1={L} x2={w} y1={sy(50)} y2={sy(50)} stroke="var(--color-stone-400)" strokeDasharray="3 4" />
-          <text x={0} y={sy(50)} dy={4} fontSize={12} fill="var(--color-stone-500)">50 even</text>
-          <path d={runs.map((r, i) => `${i ? 'L' : 'M'}${cx(i)},${sy(r.score)}`).join(' ')} fill="none" stroke="var(--ink)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-          {runs.map((r, i) => {
-            const isLast = r === latest, on = r.id === run.id
-            return (
-              <g key={r.id}>
-                {on && !isLast && <circle cx={cx(i)} cy={sy(r.score)} r={7} fill="none" stroke="var(--ink)" strokeOpacity={0.3} strokeWidth={2} />}
-                <circle cx={cx(i)} cy={sy(r.score)} r={isLast ? 4.5 : 3.5} fill="var(--ink)" stroke="var(--color-surface)" strokeWidth={1.5} />
-                <text x={cx(i)} y={sy(r.score) - 9} textAnchor="middle" fontSize={isLast ? 13 : 12} fontWeight={isLast ? 600 : 400} fill={isLast ? 'var(--ink)' : 'var(--color-stone-600)'} stroke="var(--color-surface)" strokeWidth={4} paintOrder="stroke" className="num">{r.score}</text>
-              </g>
-            )
-          })}
-          {/* the dot rows */}
-          {tones.map((k) => <line key={k} x1={L} x2={w} y1={bandTop[k]} y2={bandTop[k]} stroke="var(--div)" />)}
-          <line x1={L} x2={w} y1={dotsBottom} y2={dotsBottom} stroke="var(--color-line)" />
-          {runs.map((r, i) => tones.map((k) => dotGrid(r.counts[k], { perRow, pitch: OT.pitch }).map((d, j) => (
-            <circle key={`${r.id}${k}${j}`} cx={cx(i) + d.x} cy={bandTop[k] + OT.bandPad / 2 + d.y} r={OT.dot - (k === 'neutral' ? 0.75 : 0)}
-              fill={k === 'neutral' ? 'none' : RING[k]} stroke={k === 'neutral' ? 'var(--color-stone-500)' : 'none'} strokeWidth={1.5} />
-          ))))}
-          {/* dates */}
-          {runs.map((r, i) => (
-            <text key={r.id} x={cx(i)} y={dotsBottom + 18} textAnchor="middle" fontSize={12} fontWeight={r.id === run.id ? 600 : 400} fill={r.id === run.id ? 'var(--ink)' : 'var(--color-stone-500)'} className="num">
-              {narrow && i % 2 && r.id !== run.id && i !== n - 1 ? '' : fmtDay(r.date)}
-            </text>
-          ))}
-        </svg>
-        {/* row labels */}
-        {tones.map((k) => (
-          <span key={k} className={`absolute left-0 -translate-y-1/2 text-[12px] leading-4 ${t3}`} style={{ top: bandTop[k] + bandH[k] / 2 }} aria-hidden>{TONE_LABEL[k]}</span>
-        ))}
-        {/* the biggest move, under its pair of columns */}
-        {note && (
-          <span className={`absolute -translate-x-1/2 whitespace-nowrap text-[12px] leading-4 ${t3}`} style={{ top: H + 4, left: Math.max(L + 80, Math.min(w - 120, (cx(big.index - 1) + cx(big.index)) / 2)) }}>{note}</span>
-        )}
-        {/* the columns: hover / focus for the run, click or Enter to see its pages */}
-        {runs.map((r, i) => (
-          <button key={r.id} ref={(el) => { cols.current[i] = el }} type="button" aria-pressed={r.id === run.id}
-            aria-label={`${fmtDay(r.date)}: score ${r.score}. Show this run’s pages`}
-            onClick={() => onPick(r.id)} onKeyDown={(e) => key(e, i)}
-            onMouseEnter={() => setTip({ i, r })} onFocus={() => setTip({ i, r })} onBlur={() => setTip(null)}
-            className="absolute top-0 rounded-lg outline-none transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_3%,transparent)] focus-visible:ring-2 focus-visible:ring-focus"
-            style={{ left: L + colW * i + 2, width: colW - 4, height: H }} />
-        ))}
-        {tip && (
-          <div role="tooltip" className="pointer-events-none absolute z-20 -translate-x-1/2 whitespace-nowrap rounded-lg border border-line bg-raised px-3 py-2 text-small shadow-md tabular-nums"
-            style={{ left: Math.max(130, Math.min(w - 130, cx(tip.i))), top: bandTop.neutral }}>
-            <div className="font-semibold text-stone-900">{fmtDay(tip.r.date)} · {tip.r.score}{tip.r.delta != null && <span className={`ml-1.5 font-medium ${tip.r.delta < 0 ? 'text-negative' : 'text-stone-600'}`}>{tip.r.delta > 0 ? '▲' : tip.r.delta < 0 ? '▼' : ''}{tip.r.delta ? Math.abs(tip.r.delta) : 'no change'}</span>}</div>
-            <div className="mt-0.5 text-stone-600">{tip.r.counts.positive} positive · {tip.r.counts.neutral} neutral · <span className={tip.r.counts.negative ? 'text-negative' : undefined}>{tip.r.counts.negative} negative</span> pages</div>
+      <div ref={box} className="relative mt-6">
+        <div ref={scroller} className="overflow-x-auto overflow-y-visible [scrollbar-width:thin]" onMouseLeave={() => setTip(null)}>
+          <div className="relative" style={{ width: L + plotW, height: H + TF.note }}>
+            {/* the latest run's column, tinted */}
+            <div className="absolute rounded-lg bg-tint" style={{ left: L + colW * (n - 1) + 4, width: colW - 8, top: 0, height: H }} aria-hidden />
+            <svg className="absolute inset-0 overflow-visible" width={L + plotW} height={H + TF.note}>
+              <line x1={L} x2={L + plotW} y1={base} y2={base} stroke="var(--color-line)" aria-hidden />
+              <text x={0} y={base - TF.gap - 4} fontSize={12} fill="var(--color-stone-500)" aria-hidden>Positive</text>
+              <text x={0} y={base + TF.gap + 12} fontSize={12} fill="var(--color-stone-500)" aria-hidden>Negative</text>
+              {/* ribbons: draw after the columns grow; a wide invisible stroke takes the hover */}
+              {ribbons.map((rb, j) => (
+                <g key={`${rb.i}-${rb.page.id}`}>
+                  <path d={rb.d} fill="none" stroke={TONE_FILL[rb.to]} strokeOpacity={tip?.kind === 'ribbon' && tip.rb === rb ? 0.85 : rb.to === 'neutral' ? 0.3 : 0.4} strokeWidth={2} strokeLinecap="round"
+                    pathLength={1} strokeDasharray={1} strokeDashoffset={seen ? 0 : 1}
+                    style={{ transition: reduced() ? 'none' : `stroke-dashoffset 600ms ease-out ${420 + n * 60 + j * 20}ms, stroke-opacity 150ms` }} aria-hidden />
+                  <path d={rb.d} fill="none" stroke="transparent" strokeWidth={12} className="cursor-default"
+                    onMouseEnter={() => setTip({ kind: 'ribbon', rb, x: rb.mid.x, y: rb.mid.y })} onMouseLeave={() => setTip(null)} />
+                </g>
+              ))}
+              {/* columns: squares up and down, the neutral band with its count; the score above */}
+              {data.map(({ r, pages }, i) => {
+                const isLast = r === latest, on = r.id === run.id
+                const neutral = pages.filter((p) => p.tone === 'neutral').length
+                const topY = base - TF.gap - stacks[i].up * TF.pitch - 10
+                return (
+                  <g key={r.id} aria-hidden>
+                    <g style={grow(i)}>
+                      {pages.filter((p) => stacks[i].slots[p.id]).map((p) => {
+                        const s = stacks[i].slots[p.id]
+                        return <rect key={p.id} x={cx(i) + s.x - TF.sq / 2} y={base + s.y - TF.sq / 2} width={TF.sq} height={TF.sq} rx={3} fill={TONE_FILL[p.tone]} />
+                      })}
+                    </g>
+                    <rect x={cx(i) - bandW / 2} y={base - TF.band / 2} width={bandW} height={TF.band} rx={TF.band / 2} fill="var(--color-surface)" stroke="var(--color-stone-400)" strokeWidth={1} />
+                    <text x={cx(i)} y={base} dy={3.5} textAnchor="middle" fontSize={10} fill="var(--color-stone-500)" className="num">{neutral}</text>
+                    <text x={cx(i)} y={Math.min(topY, base - TF.gap - 10)} textAnchor="middle" fontSize={isLast ? 18 : 14} fontWeight={600} fill={on ? 'var(--ink)' : 'var(--color-stone-700)'} className="num">
+                      {r.score}{isLast && r.delta != null && <tspan fontSize={12} fontWeight={500} dx={4} fill={r.delta < 0 ? 'var(--negative)' : 'var(--ink)'}>{r.delta < 0 ? '▼' : '▲'}{Math.abs(r.delta)}</tspan>}
+                    </text>
+                    <text x={cx(i)} y={H - 8} textAnchor="middle" fontSize={12} fontWeight={on ? 600 : 400} fill={on ? 'var(--ink)' : 'var(--color-stone-500)'} className="num">{fmtDay(r.date)}</text>
+                  </g>
+                )
+              })}
+              {/* the one annotation: on the biggest move's ribbons */}
+              {note && anchor && (
+                <g aria-hidden style={{ opacity: seen ? 1 : 0, transition: reduced() ? 'none' : `opacity 300ms ease-out ${900 + n * 60}ms` }}>
+                  <line x1={anchor.x} x2={anchor.x} y1={anchor.y - 4} y2={H - TF.dates + 4} stroke="var(--color-stone-400)" strokeDasharray="2 3" />
+                  <text x={anchor.x} y={H + 12} textAnchor="middle" fontSize={12} fill="var(--color-stone-600)" stroke="var(--color-surface)" strokeWidth={4} paintOrder="stroke" className="num">{note}</text>
+                </g>
+              )}
+            </svg>
+            {/* the columns as buttons: hover / focus for the run, click or Enter to see its pages */}
+            {data.map(({ r }, i) => (
+              <button key={r.id} ref={(el) => { cols.current[i] = el }} type="button" aria-pressed={r.id === run.id}
+                aria-label={`${fmtDay(r.date)}: score ${r.score}. Show this run’s pages`}
+                onClick={() => onPick(r.id)} onKeyDown={(e) => key(e, i)}
+                onMouseEnter={() => setTip({ kind: 'col', i })} onFocus={() => setTip({ kind: 'col', i })} onBlur={() => setTip(null)}
+                className="absolute top-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                style={{ left: L + colW * i + colW / 2 - stackW / 2 - 14, width: stackW + 28, height: H }} />
+            ))}
+            {tip?.kind === 'col' && (() => {
+              const { r, pages } = data[tip.i]
+              const ch = tip.i ? topChange(toneChanges(data[tip.i - 1].pages, pages)) : null
+              return (
+                <div role="tooltip" className="pointer-events-none absolute z-20 -translate-x-1/2 whitespace-nowrap rounded-lg border border-line bg-raised px-3 py-2 text-small shadow-md tabular-nums"
+                  style={{ left: clampX(cx(tip.i)), top: base + TF.gap }}>
+                  <div className="font-semibold text-stone-900">{fmtDay(r.date)} · {r.score}{r.delta != null && <span className={`ml-1.5 font-medium ${r.delta < 0 ? 'text-negative' : 'text-stone-600'}`}>{r.delta > 0 ? '▲' : r.delta < 0 ? '▼' : ''}{r.delta ? Math.abs(r.delta) : 'no change'}</span>}</div>
+                  <div className="mt-0.5 text-stone-600">{r.counts.positive} positive · {r.counts.neutral} neutral · <span className={r.counts.negative ? 'text-negative' : undefined}>{r.counts.negative} negative</span> pages</div>
+                  {ch && <div className="mt-0.5 text-stone-600">Top change: {ch.page.domain}, {ch.from} → <span className={ch.to === 'negative' ? 'text-negative' : undefined}>{ch.to}</span></div>}
+                </div>
+              )
+            })()}
+            {tip?.kind === 'ribbon' && (
+              <div role="tooltip" className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-line bg-raised px-3 py-2 text-small shadow-md"
+                style={{ left: clampX(tip.x), top: tip.y - 10 }}>
+                <span className="font-medium text-stone-900">{tip.rb.page.domain}</span>: {tip.rb.from} → <span className={tip.rb.to === 'negative' ? 'text-negative' : 'text-stone-900'}>{tip.rb.to}</span>
+                <span className={t3}> ({fmtDay(runs[tip.rb.i - 1].date)} → {fmtDay(runs[tip.rb.i].date)})</span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </section>
   )

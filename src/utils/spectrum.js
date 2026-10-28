@@ -193,3 +193,67 @@ export function moveNote(runs, big) {
   const parts = ['positive', 'negative'].map(part).filter(Boolean)
   return `${big.delta > 0 ? '+' : '−'}${Math.abs(big.delta)}${parts.length ? ` · ${parts.join(', ')}` : ''}`
 }
+
+// ---- tone flow (Over time) ----------------------------------------------------------------------------------------
+
+// production matches a page across runs by its URL (reputation_scans.sources[].url, fragment already stripped); the
+// same page can come back with or without www, a trailing slash or tracking parameters, so compare a normalised key
+export function urlKey(url) {
+  try {
+    const u = new URL(/^https?:/i.test(url) ? url : `https://${url}`)
+    return `${u.hostname.replace(/^www\./i, '').toLowerCase()}${u.pathname.replace(/\/+$/, '') || ''}`
+  } catch { return String(url).toLowerCase() }
+}
+const keyOf = (p) => urlKey(`${p.domain}${p.path ?? ''}`)
+
+// pages that changed tone between two runs (present in both, matched by URL): [{ page, from, to }]; unchanged pages and
+// pages only in one of the runs give nothing
+export function toneChanges(prev, next) {
+  const before = new Map(prev.map((p) => [keyOf(p), p]))
+  return next.flatMap((p) => {
+    const was = before.get(keyOf(p))
+    return was && was.tone !== p.tone ? [{ page: p, from: was.tone, to: p.tone }] : []
+  })
+}
+
+// a column's diverging stack: positive pages as squares stacking UP from the baseline, negative DOWN, `perRow` wide and
+// centred; neutral pages sit in a band on the baseline (not drawn one by one). Pages keep a stable order (by URL) so a
+// page's square is in the same place run after run. → { slots: { [pageId]: { x, y } }, up, down } (rows each way)
+export function divergingStack(pages, { perRow = 2, pitch = 18, gap = 12 }) {
+  const slots = {}
+  const side = (tone, dir) => {
+    const list = pages.filter((p) => p.tone === tone).sort((a, b) => keyOf(a).localeCompare(keyOf(b)))
+    list.forEach((p, i) => {
+      const row = Math.floor(i / perRow), inRow = Math.min(perRow, list.length - row * perRow)
+      slots[p.id] = { x: ((i % perRow) - (inRow - 1) / 2) * pitch, y: dir * (gap + row * pitch + pitch / 2) }
+    })
+    return Math.ceil(list.length / perRow)
+  }
+  const up = side('positive', -1)
+  const down = side('negative', 1)
+  return { slots, up, down }
+}
+
+// the change worth naming for a run: the first page that turned negative, else positive, else any
+export const topChange = (changes) => changes.find((c) => c.to === 'negative') ?? changes.find((c) => c.to === 'positive') ?? changes[0] ?? null
+
+// ---- What AI reads about you: reach, and a lead quote per side -----------------------------------------------------
+
+// reach: the share of all pages analysed that say the theme (0–1)
+export const reachOf = (theme, total) => (total ? theme.pages.length / total : 0)
+// most widespread first (ties keep their order)
+export const byReach = (themes) => themes.map((t, i) => [t, i]).sort((a, b) => b[0].pages.length - a[0].pages.length || a[1] - b[1]).map(([t]) => t)
+
+// the strongest quote on a side: among the side's pages (negative / positive), the one cited by the most themes on that
+// side, then by the most engines, with a sentence in that tone (a marked phrase first) → { page, quote } (quote null
+// for a page analysed before quotes were kept)
+export function leadQuote(themes, pages, tone) {
+  const cites = (p) => themes.filter((t) => t.sources.includes(p.id)).length
+  const list = pages.filter((p) => p.tone === tone)
+    .map((p, i) => [p, i]).sort((a, b) => cites(b[0]) - cites(a[0]) || b[0].engines.length - a[0].engines.length || a[1] - b[1]).map(([p]) => p)
+  const withQuote = list.find((p) => p.sentences.some((s) => s.tone === tone))
+  const page = withQuote ?? list[0]
+  if (!page) return null
+  const quote = page.sentences.find((s) => s.tone === tone && s.mark) ?? page.sentences.find((s) => s.tone === tone) ?? null
+  return { page, quote }
+}
