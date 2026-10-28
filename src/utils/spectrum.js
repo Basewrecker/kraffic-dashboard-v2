@@ -81,8 +81,9 @@ export function matchIds(pages, { engine = 'all', tone = null, theme = null } = 
     .map((p) => p.id))
 }
 
-// the sentence a hover card shows: the first in the page's own tone with a marked phrase, then any in its tone, else the first
-export const tellingSentence = (page) => page.sentences.find((s) => s.tone === page.tone && s.mark) ?? page.sentences.find((s) => s.tone === page.tone) ?? page.sentences[0]
+// the sentence a hover card shows: the first in the page's own tone with a marked phrase, then any in its tone, else the
+// first; null for a page analysed before quotes were kept (it shows its title + "Quote appears after the next analysis")
+export const tellingSentence = (page) => page.sentences.find((s) => s.tone === page.tone && s.mark) ?? page.sentences.find((s) => s.tone === page.tone) ?? page.sentences[0] ?? null
 
 // "No number twice": the numbers in some visible text (dates and times are left out: "Oct 20", "0:42")
 export function numbersIn(text) {
@@ -113,44 +114,55 @@ export function groupThemes(swot, pages) {
   return { hurting: side(['weaknesses', 'threats'], 'negative'), working: side(['strengths', 'opportunities'], 'positive') }
 }
 
-// the sentence on a page that's about the theme (its match), else the page's most telling one
+// the sentence on a page that's about the theme (its match), else the page's most telling one; null without quotes
 export const themeQuote = (page, theme) => page.sentences.find((s) => theme.match?.test(s.text)) ?? tellingSentence(page)
+
+// a theme's ONE quote: the first page with a sentence about it, else the first page with any quote, else the first page
+// (quote-less); `others` = the rest of its pages
+export function themeQuoteOf(theme) {
+  const page = theme.pages.find((p) => p.sentences.some((s) => theme.match?.test(s.text))) ?? theme.pages.find((p) => p.sentences.length) ?? theme.pages[0]
+  if (!page) return null
+  return { page, quote: themeQuote(page, theme), others: theme.pages.filter((p) => p !== page) }
+}
+
+// the lead quote above the columns: the most important Hurting theme (groupThemes ranks it first) and its quote
+export const leadTheme = (groups) => {
+  const theme = groups.hurting[0]
+  return theme ? { theme, ...themeQuoteOf(theme) } : null
+}
+
+// a column shows at most `cap` rows; the rest sit behind "+N more" until it's expanded (in place)
+export function capRows(list, expanded, cap = 5) {
+  return expanded || list.length <= cap ? { rows: list, more: 0 } : { rows: list.slice(0, cap), more: list.length - cap }
+}
+
+// one open row across both columns: opening one closes the other; opening the open one closes it
+export const toggleOpen = (open, key) => (open === key ? null : key)
 
 // engines behind a theme's pages, in a fixed order
 export const themeEngines = (theme, order = ['google', 'chatgpt', 'claude']) => order.filter((e) => theme.pages.some((p) => p.engines.includes(e)))
 
-// trend word: when the theme's pages started carrying its side's tone, run after run up to now.
-//   runs: [{ date, pages }] oldest first (the latest last) · side: 'negative' | 'positive'
-//   → { kind: 'new' } (only this run) · { kind: 'since', date } · null (from the first run on, or not in this run)
-export function themeTrend(theme, runs, side) {
-  const says = (r) => r.pages.some((p) => theme.sources.includes(p.id) && p.tone === side)
-  if (!runs.length || !says(runs.at(-1))) return null
-  let k = runs.length - 1
-  while (k > 0 && says(runs[k - 1])) k--
-  if (k === 0) return null
-  return k === runs.length - 1 ? { kind: 'new' } : { kind: 'since', date: runs[k].date }
-}
-
 // ---- Over time ----------------------------------------------------------------------------------------------------
 
-// a run's pages as small dots in three fixed bands (negative bottom, neutral middle, positive top); in each band the
-// dots fill rows of `perRow` from the band's bottom, centred. → [{ tone, x, y }] relative to the column's centre and the
-// plot top. bandH: one band's height; pitch: dot spacing.
-export function columnDots(counts, { bandH, pitch = 8, perRow = 4 }) {
+// the score strip above the dots: a y for each score, fitted to the runs (and to 50, so the even line is always in it)
+export function scoreStrip(scores, { height, pad = 6 }) {
+  const lo = Math.min(50, ...scores) - 3, hi = Math.max(50, ...scores) + 3
+  const y = (v) => pad + (1 - (v - lo) / (hi - lo)) * (height - 2 * pad)
+  return { y, evenY: y(50), lo, hi }
+}
+
+// a run's dots of one tone, wrapping into rows of at most `perRow`, each row centred; x from the column's centre, y from
+// the top of the tone's row band. → [{ x, y }]
+export function dotGrid(n, { perRow = 6, pitch = 12 }) {
   const out = []
-  ;['positive', 'neutral', 'negative'].forEach((tone, b) => {
-    const n = counts[tone] ?? 0
-    const rows = Math.ceil(n / perRow)
-    const top = b * bandH + (bandH - rows * pitch) / 2 // the block sits in the middle of its band
-    for (let i = 0; i < n; i++) {
-      const row = Math.floor(i / perRow)
-      const inRow = Math.min(perRow, n - row * perRow)
-      const col = i % perRow
-      out.push({ tone, x: (col - (inRow - 1) / 2) * pitch, y: top + (rows - 1 - row) * pitch + pitch / 2 })
-    }
-  })
+  for (let i = 0; i < n; i++) {
+    const row = Math.floor(i / perRow)
+    const inRow = Math.min(perRow, n - row * perRow)
+    out.push({ x: ((i % perRow) - (inRow - 1) / 2) * pitch, y: row * pitch + pitch / 2 })
+  }
   return out
 }
+export const dotRows = (n, perRow = 6) => Math.ceil(n / perRow)
 
 // the biggest move between two runs (the latest wins a tie): its index (the run after the change), the change and
 // what moved, in words without digits: "one more positive page and one fewer negative"
@@ -171,4 +183,13 @@ export function biggestChange(runs) {
   const parts = ['positive', 'negative'].map(part).filter(Boolean)
   const what = parts.length ? `${parts[0]} page${/^one /.test(parts[0]) ? '' : 's'}${parts[1] ? ` and ${parts[1]}` : ''}` : 'the same split of pages'
   return { ...best, what }
+}
+
+// the note under the biggest move's two columns, from the data: "+13 · 2 more positive, 3 fewer negative"
+export function moveNote(runs, big) {
+  if (!big) return null
+  const a = runs[big.index - 1].counts, b = runs[big.index].counts
+  const part = (tone) => { const d = b[tone] - a[tone]; return d ? `${Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} ${tone}` : null }
+  const parts = ['positive', 'negative'].map(part).filter(Boolean)
+  return `${big.delta > 0 ? '+' : '−'}${Math.abs(big.delta)}${parts.length ? ` · ${parts.join(', ')}` : ''}`
 }

@@ -2,8 +2,8 @@
 // keyboard neighbours, engine lanes, filters, theme → page links and the "no number twice" check.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { PAGES, RUNS, SWOT, runPages, withScores } from '../data/sentiment.js'
-import { BAND, biggestChange, columnDots, groupThemes, hash01, layoutSwarm, lanesFor, matchIds, neighbour, numbersIn, repeatedNumbers, scoreX, tellingSentence, themeEngines, themeQuote, themeTrend } from './spectrum.js'
+import { PAGES, RUNS, SWOT, withScores } from '../data/sentiment.js'
+import { BAND, biggestChange, capRows, dotGrid, dotRows, groupThemes, hash01, layoutSwarm, lanesFor, leadTheme, matchIds, moveNote, neighbour, numbersIn, repeatedNumbers, scoreStrip, scoreX, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen } from './spectrum.js'
 
 const ENGINES = [{ id: 'google', name: 'Google search' }, { id: 'chatgpt', name: 'ChatGPT' }, { id: 'claude', name: 'Claude' }]
 
@@ -69,10 +69,9 @@ test('every theme links to pages that exist', () => {
   }
 })
 
-test('the hover card quotes a sentence in the page’s own tone', () => {
-  for (const p of PAGES) assert.ok(tellingSentence(p).text)
-  const tp = PAGES.find((p) => p.domain === 'trustpilot.com')
-  assert.equal(tellingSentence(tp).tone, 'negative')
+test('the hover card quotes a sentence in the page’s own tone; none for pages without quotes', () => {
+  for (const p of PAGES) assert.equal(Boolean(tellingSentence(p)), !p.noQuote, p.domain)
+  assert.equal(tellingSentence(PAGES.find((p) => p.domain === 'trustpilot.com')).tone, 'negative')
 })
 
 test('number check: dates and times are not numbers; repeats are found', () => {
@@ -101,32 +100,65 @@ test('a theme quotes the sentence about it, and lists its engines in order', () 
   assert.deepEqual(themeEngines(pumps), ['google', 'chatgpt'])
 })
 
-test('trend word: new this run, since a run, or none', () => {
-  const runs = RUNS.map((r, i) => ({ date: r.date, pages: i === RUNS.length - 1 ? PAGES : runPages(PAGES, r.counts, r.id) }))
+test('lead quote: the top Hurting theme, its quote about it, and its other pages', () => {
   const g = groupThemes(SWOT, PAGES)
-  const find = (name) => [...g.hurting, ...g.working].find((x) => x.theme.startsWith(name))
-  assert.deepEqual(themeTrend(find('Cleanser'), runs, 'negative'), { kind: 'new' })
-  assert.deepEqual(themeTrend(find('Pumps'), runs, 'negative'), { kind: 'since', date: '2026-09-22' })
-  assert.equal(themeTrend(find('Gentle'), runs, 'positive'), null) // there from the first run
-  assert.equal(themeTrend(find('Feels heavy'), runs, 'negative'), null) // not negative this run
-  assert.equal(themeTrend(find('Pumps'), [], 'negative'), null)
+  const lead = leadTheme(g)
+  assert.equal(lead.theme, g.hurting[0])
+  assert.equal(lead.theme.theme, 'Cleanser runs out fast')
+  assert.match(lead.quote.text, /runs out|ran out/)
+  assert.equal(lead.others.length, lead.theme.pages.length - 1)
+  assert.equal(leadTheme({ hurting: [], working: [] }), null)
 })
 
-test('column dots: three fixed bands, negative at the bottom, none overlapping', () => {
-  const bandH = 60, pitch = 8
-  const dots = columnDots({ positive: 5, neutral: 14, negative: 2 }, { bandH, pitch, perRow: 4 })
-  assert.equal(dots.length, 21)
-  const band = { positive: 0, neutral: 1, negative: 2 }
-  for (const d of dots) assert.ok(d.y >= band[d.tone] * bandH && d.y <= (band[d.tone] + 1) * bandH, `${d.tone} out of its band`)
-  for (let i = 0; i < dots.length; i++) for (let j = i + 1; j < dots.length; j++) assert.ok(Math.hypot(dots[i].x - dots[j].x, dots[i].y - dots[j].y) >= pitch - 1e-6)
-  assert.deepEqual(columnDots({ positive: 0, neutral: 0, negative: 0 }, { bandH }), [])
+test('a theme with only quote-less pages: no quote, its page still named', () => {
+  const few = groupThemes(SWOT, PAGES).working.find((x) => x.theme.startsWith('Few marketplace'))
+  const q = themeQuoteOf(few)
+  assert.equal(q.quote, null)
+  assert.ok(q.page.noQuote)
 })
 
-test('biggest change: the largest move (latest wins a tie), said without digits', () => {
-  const big = biggestChange(withScores(RUNS))
-  assert.equal(big.index, RUNS.length - 1)
-  assert.equal(big.delta, 4)
-  assert.equal(big.what, 'one more positive page and one fewer negative')
-  assert.ok(!/\d/.test(big.what))
-  assert.equal(biggestChange(withScores(RUNS.slice(0, 1))), null)
+test('columns: at most five rows, the rest behind "+N more" until expanded', () => {
+  const g = groupThemes(SWOT, PAGES)
+  assert.equal(g.hurting.length, 7)
+  assert.equal(g.working.length, 5)
+  assert.deepEqual(capRows(g.hurting, false).more, 2)
+  assert.equal(capRows(g.hurting, false).rows.length, 5)
+  assert.deepEqual(capRows(g.hurting, true), { rows: g.hurting, more: 0 })
+  assert.deepEqual(capRows(g.working, false), { rows: g.working, more: 0 })
+})
+
+test('one open row across both columns', () => {
+  assert.equal(toggleOpen(null, 'a'), 'a')
+  assert.equal(toggleOpen('a', 'b'), 'b')
+  assert.equal(toggleOpen('b', 'b'), null)
+})
+
+test('score strip: fitted to the scores and to 50, higher scores higher up, inside the strip', () => {
+  const scores = withScores(RUNS).map((r) => r.score)
+  const s = scoreStrip(scores, { height: 56 })
+  for (const v of scores) assert.ok(s.y(v) >= 0 && s.y(v) <= 56)
+  assert.ok(s.y(57) < s.y(44))
+  assert.ok(s.evenY > 0 && s.evenY < 56)
+  const high = scoreStrip([80, 90], { height: 40 })
+  assert.ok(high.evenY <= 40 && high.evenY > high.y(80)) // 50 stays in the strip
+})
+
+test('dots wrap into centred rows of at most six, 8px dots 4px apart', () => {
+  const d = dotGrid(14, { perRow: 6, pitch: 12 })
+  assert.equal(d.length, 14)
+  assert.equal(dotRows(14), 3)
+  assert.deepEqual(d.slice(0, 6).map((p) => p.x), [-30, -18, -6, 6, 18, 30])
+  assert.deepEqual(d.slice(12).map((p) => p.x), [-6, 6]) // the last row centred
+  for (let i = 0; i < d.length; i++) for (let j = i + 1; j < d.length; j++) assert.ok(Math.hypot(d[i].x - d[j].x, d[i].y - d[j].y) >= 12)
+  assert.deepEqual(dotGrid(0, {}), [])
+})
+
+test('biggest move: the largest change and its note from the data', () => {
+  const runs = withScores(RUNS)
+  const big = biggestChange(runs)
+  assert.equal(runs[big.index].date, '2026-09-08')
+  assert.equal(moveNote(runs, big), '+13 · 2 more positive, 3 fewer negative')
+  assert.equal(moveNote(runs, null), null)
+  const tie = [{ score: 50, counts: { positive: 1, neutral: 1, negative: 1 } }, { score: 53, counts: { positive: 2, neutral: 1, negative: 1 } }, { score: 56, counts: { positive: 3, neutral: 1, negative: 1 } }]
+  assert.equal(biggestChange(tie).index, 2)
 })

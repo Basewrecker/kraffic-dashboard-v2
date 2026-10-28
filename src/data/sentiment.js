@@ -88,17 +88,17 @@ export function sentimentInsight(c, brand) {
 // one snapshot per Re-analyze, oldest first (counts = pages per tone)
 export const RUNS = [
   { id: 'r1', date: '2026-08-11', counts: { positive: 2, neutral: 11, negative: 4 } },
-  { id: 'r2', date: '2026-08-25', counts: { positive: 3, neutral: 12, negative: 4 } },
-  { id: 'r3', date: '2026-09-08', counts: { positive: 3, neutral: 13, negative: 3 } },
-  { id: 'r4', date: '2026-09-22', counts: { positive: 4, neutral: 12, negative: 4 } },
+  { id: 'r2', date: '2026-08-25', counts: { positive: 2, neutral: 12, negative: 5 } },
+  { id: 'r3', date: '2026-09-08', counts: { positive: 4, neutral: 13, negative: 2 } },
+  { id: 'r4', date: '2026-09-22', counts: { positive: 5, neutral: 12, negative: 4 } },
   { id: 'r5', date: '2026-10-06', counts: { positive: 4, neutral: 13, negative: 3 } },
   { id: 'r6', date: '2026-10-20', counts: { positive: 5, neutral: 14, negative: 2 } },
 ]
 
 // the latest run's pages. tone: production scores each page positive / neutral / negative only (no number; "mixed" is
 // stored as neutral), so the spectrum places dots in three bands. engines: Google search, ChatGPT and Claude only.
-// sentences: the quotes that mention the brand; mark = the words that carry the tone. action (negative pages): a
-// suggested reply. DESIGN ASSUMPTION: production has recommended_actions for the brand, not one per page.
+// sentences: the quotes that mention the brand; mark = the words that carry the tone. Pages analysed before quotes
+// were kept have none (noQuote): they show their title and "Quote appears after the next analysis".
 const S = (text, tone, mark) => ({ text, tone, mark })
 export const PAGES = [
   { id: 'p1', domain: 'byrdie.com', path: '/best-niacinamide-serums', title: 'The 14 Best Niacinamide Serums, Tested by Editors', engines: ['google', 'chatgpt'], tone: 'positive', sentences: [
@@ -135,21 +135,20 @@ export const PAGES = [
   { id: 'p13', domain: 'glamour.com', path: '/story/best-moisturizers-for-dry-skin', title: 'The Best Moisturizers for Dry Skin', engines: ['google', 'chatgpt', 'claude'], tone: 'neutral', sentences: [
     S('Dermasuri’s cream is thicker than most gel moisturizers on this list.', 'neutral', null),
     S('Under makeup, the Dermasuri cream felt heavy by midday.', 'negative', 'felt heavy by midday') ] },
-  { id: 'p14', domain: 'vogue.com', path: '/article/clean-beauty-brands', title: 'Clean Beauty Brands Worth Knowing', engines: ['google'], tone: 'neutral', sentences: [
-    S('Dermasuri was founded in 2021 and makes everything in Portugal.', 'neutral', null) ] },
+  { id: 'p14', domain: 'vogue.com', path: '/article/clean-beauty-brands', title: 'Clean Beauty Brands Worth Knowing', engines: ['google'], tone: 'neutral', noQuote: true, sentences: [] },
   { id: 'p15', domain: 'womenshealthmag.com', path: '/beauty/a19/best-face-serums', title: 'The Best Face Serums for Every Skin Concern', engines: ['google', 'chatgpt'], tone: 'neutral', sentences: [
-    S('Dermasuri sells a 10% niacinamide serum and a vitamin C serum.', 'neutral', null) ] },
+    S('Dermasuri sells a 10% niacinamide serum and a vitamin C serum.', 'neutral', null),
+    S('Our tester’s Dermasuri vitamin C serum turned orange within weeks.', 'negative', 'turned orange within weeks') ] },
   { id: 'p16', domain: 'nytimes.com', path: '/wirecutter/reviews/best-moisturizers', title: 'The Best Moisturizers | Reviews by Wirecutter', engines: ['google', 'chatgpt', 'claude'], tone: 'positive', sentences: [
-    S('Our runner-up, Dermasuri, absorbed faster than any other cream we tried.', 'positive', 'absorbed faster than any other') ] },
+    S('Our runner-up, Dermasuri, absorbed faster than any other cream we tried.', 'positive', 'absorbed faster than any other'),
+    S('It does cost more than our top pick.', 'negative', 'cost more than our top pick') ] },
   { id: 'p17', domain: 'beautypedia.com', path: '/products/dermasuri-vitamin-c-serum', title: 'Dermasuri Vitamin C Serum review', engines: ['chatgpt'], tone: 'neutral', sentences: [
     S('The Dermasuri formula uses 15% ascorbic acid in an airless pump.', 'neutral', null) ] },
-  { id: 'p18', domain: 'influenster.com', path: '/reviews/dermasuri', title: 'Dermasuri reviews on Influenster', engines: ['google'], tone: 'neutral', sentences: [
-    S('Reviewers mention Dermasuri mostly for its cleanser and barrier cream.', 'neutral', null) ] },
+  { id: 'p18', domain: 'influenster.com', path: '/reviews/dermasuri', title: 'Dermasuri reviews on Influenster', engines: ['google'], tone: 'neutral', noQuote: true, sentences: [] },
   { id: 'p19', domain: 'theskincareedit.com', path: '/dermasuri-vs-cerave', title: 'Dermasuri vs CeraVe: which barrier cream wins?', engines: ['google', 'chatgpt'], tone: 'neutral', sentences: [
     S('Dermasuri costs about twice as much as CeraVe for a similar formula.', 'neutral', null),
     S('Both are fragrance-free.', 'neutral', null) ] },
-  { id: 'p20', domain: 'youtube.com', path: '/watch?v=dermasuri-routine', title: 'My $60 sensitive-skin routine (Dermasuri, Vanicream)', engines: ['google'], tone: 'neutral', sentences: [
-    S('In this routine I use the Dermasuri barrier cream at night.', 'neutral', null) ] },
+  { id: 'p20', domain: 'youtube.com', path: '/watch?v=dermasuri-routine', title: 'My $60 sensitive-skin routine (Dermasuri, Vanicream)', engines: ['google'], tone: 'neutral', noQuote: true, sentences: [] },
   { id: 'p21', domain: 'reviewed.com', path: '/beauty/best-right-now/best-cleansers', title: 'The Best Face Cleansers of 2026', engines: ['google'], tone: 'neutral', sentences: [
     S('Dermasuri ships free on orders over $35.', 'neutral', null),
     S('The Dermasuri cleanser ran out in under a month.', 'negative', 'ran out in under a month') ] },
@@ -158,18 +157,8 @@ export const PAGES = [
 // What people say: the latest run's SWOT (production: content_insights from lib/entity-brand-intelligence-llm.js, latest
 // run only). Each item is { theme, evidence, sources: [1–3 page URLs] }; here sources are page ids, so a theme links to
 // its pages.
-// match: which of a page's sentences is about the theme (production: the item's evidence + the page's snippet).
-// action (some hurting themes): a suggested reply with a draft. DESIGN ASSUMPTION: production has recommended_actions
-// for the brand as a list, not tied to a theme or a page.
-const T = (theme, sources, match, action) => ({ theme, sources, match, action })
-const TRUSTPILOT = {
-  label: 'Draft a reply to Trustpilot', page: 'p3',
-  draft: 'Hi, and thank you for telling us. A pump that fails within a week isn’t the standard we hold ourselves to, and we’re sorry it happened twice. We’ve changed pump suppliers since your order. Please reply with your order number and we’ll send replacements with the new pump, and refund your shipping. — The Dermasuri team',
-}
-const MAKEUPALLEY = {
-  label: 'Draft a reply to MakeupAlley', page: 'p12',
-  draft: 'Thanks for the honest review. The Gentle Cleanser is concentrated: a pea-sized amount is enough for the whole face, which makes a bottle last about three months. We’ve added a dosing guide to the label, and a larger refill is coming this winter. — The Dermasuri team',
-}
+// match: which of a page's sentences is about the theme (production: the item's evidence + the page's snippet)
+const T = (theme, sources, match) => ({ theme, sources, match })
 export const SWOT = {
   strengths: [
     T('Gentle on sensitive skin', ['p1', 'p4', 'p10'], /gentl|sensitive|irritat|react/i),
@@ -177,16 +166,17 @@ export const SWOT = {
     T('Absorbs quickly', ['p16'], /absorb/i),
   ],
   weaknesses: [
-    T('Pumps break on some bottles', ['p3'], /pump/i, TRUSTPILOT),
-    T('Slow customer service replies', ['p3'], /customer service/i, TRUSTPILOT),
+    T('Pumps break on some bottles', ['p3'], /pump/i),
+    T('Slow customer service replies', ['p3'], /customer service/i),
     T('The last of the cream is hard to get out', ['p5'], /squeeze/i),
+    T('Vitamin C serum turns orange quickly', ['p15'], /orange/i),
   ],
   opportunities: [
     T('Dermatologists already recommend it', ['p10', 'p4'], /recommend|dermatolog|patients/i),
-    T('Few marketplace reviews yet', ['p18', 'p8'], /review|sold online/i),
+    T('Few marketplace reviews yet', ['p18', 'p20'], /review/i),
   ],
   threats: [
-    T('Cleanser runs out fast', ['p12', 'p21'], /runs out|ran out/i, MAKEUPALLEY),
+    T('Cleanser runs out fast', ['p12', 'p21'], /runs out|ran out/i),
     T('Seen as pricier than CeraVe', ['p19', 'p1'], /CeraVe|price|\$/i),
     T('Feels heavy under makeup', ['p13'], /heavy/i),
   ],
