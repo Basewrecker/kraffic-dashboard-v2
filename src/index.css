@@ -64,6 +64,11 @@
   --color-raised: #ffffff;            /* selects, popovers, tooltips */
   --color-overlay: #ffffff;           /* detail sheet, modals */
   --color-sidebar: var(--color-stone-50);
+  /* sidebar chrome: its right-edge hairline, a nav row's hover, the theme switcher's track + outline */
+  --color-sidebar-line: var(--color-stone-200);
+  --color-nav-hover: var(--color-stone-100);
+  --color-switch: var(--tint);
+  --color-switch-line: transparent;
   --color-selected: var(--tint);   /* active sidebar item */
   --color-focus: color-mix(in oklab, var(--ink) 35%, transparent);
   --color-scrim-sheet: color-mix(in oklab, var(--color-stone-900) 20%, transparent);
@@ -156,7 +161,11 @@ html[data-theme="dark"] {
   --line-check: #0A0A0A;
   --color-page: #0A0A0A;
   --color-surface: #171717;
-  --color-sidebar: #171717;
+  --color-sidebar: #0D0D0D;
+  --color-sidebar-line: #2A2A2A;
+  --color-nav-hover: #1A1A1A;
+  --color-switch: #171717;
+  --color-switch-line: #2A2A2A;
   --color-raised: #1F1F1F;
   --color-overlay: #1F1F1F;
   --color-white: #171717;
@@ -213,7 +222,11 @@ html[data-theme="dark"] {
     --line-check: #0A0A0A;
     --color-page: #0A0A0A;
     --color-surface: #171717;
-    --color-sidebar: #171717;
+    --color-sidebar: #0D0D0D;
+    --color-sidebar-line: #2A2A2A;
+    --color-nav-hover: #1A1A1A;
+    --color-switch: #171717;
+    --color-switch-line: #2A2A2A;
     --color-raised: #1F1F1F;
     --color-overlay: #1F1F1F;
     --color-white: #171717;
