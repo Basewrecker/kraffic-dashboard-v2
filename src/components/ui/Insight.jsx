@@ -59,7 +59,8 @@ export function hl(explain, key, { row = false, flush = false } = {}) {
 // fill/stroke opacity for chart marks (pie slices, columns) in explain mode; null = not explaining
 export const hlOpacity = (explain, key) => (explain?.on ? (explain.keys.includes(key) ? 1 : 0.35) : null)
 
-export default function Insight({ explain, text, evidence }) {
+// wrap: the line wraps instead of truncating (the week-by-week drawer)
+export default function Insight({ explain, text, evidence, wrap = false }) {
   const on = explain.on
   const full = [evidence.calc, evidence.source].filter(Boolean).join(' ')
   const fade = 'transition-opacity duration-150 ease-out motion-reduce:transition-none'
@@ -78,7 +79,7 @@ export default function Insight({ explain, text, evidence }) {
           className={`group/ins [grid-area:1/1] -mx-1 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-focus ${fade} ${on ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
         >
           <Lightbulb size={16} className="shrink-0 text-stone-500" aria-hidden />
-          <span key={text} className="min-w-0 flex-1 truncate text-stone-900 motion-safe:animate-[fade-in_200ms_ease-out]" title={text}>{text}</span>
+          <span key={text} className={`min-w-0 flex-1 ${wrap ? '[text-wrap:pretty]' : 'truncate'} text-stone-900 motion-safe:animate-[fade-in_200ms_ease-out]`} title={text}>{text}</span>
           <span className="shrink-0 font-medium text-stone-600 transition-colors duration-150 group-hover/ins:text-ink">Why?</span>
         </button>
 

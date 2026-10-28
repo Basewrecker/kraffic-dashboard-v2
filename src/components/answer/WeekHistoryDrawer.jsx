@@ -8,6 +8,7 @@ import { ChangeRows, ChangeTabs, EngineChips } from './ChangeParts'
 import { openAnswer } from './AnswerDrawer'
 import { download } from './EngineDrawer'
 import { ENGINES, ENGINE_ORDER, OWN, brandByDomain, engineName } from '../../data/brandViews'
+import { trackedPrompts } from '../../data/mock'
 import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
 import { useIsMobile } from '../../hooks/useMedia'
@@ -269,6 +270,7 @@ export default function WeekHistoryDrawer({ source }) {
   const [state, setState] = useState(() => readUrl(source)) // { metric, brand, vs, week, tab, engine }
   const [shown, setShown] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
   const [swapped, setSwapped] = useState(false)
   const pushed = useRef(false)
   const panel = useRef(null)
@@ -335,7 +337,9 @@ export default function WeekHistoryDrawer({ source }) {
   useEffect(() => {
     if (!open || !loading || mock === 'loading') return
     let alive = true
-    source.load(domain).finally(() => { if (alive) setLoading(false) })
+    setFailed(false)
+    // after 15s (or an error) the error state with Retry, never an endless skeleton (app: lib/citation-history loadWeeks)
+    source.load(domain).then(() => { if (alive) setLoading(false) }, () => { if (alive) { setFailed(true); setLoading(false) } })
     return () => { alive = false }
   }, [open, loading, mock, domain, source])
 
@@ -452,9 +456,9 @@ export default function WeekHistoryDrawer({ source }) {
     const body = (
       <>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14px] leading-5 font-medium text-stone-900 tabular-nums">{r.week.label}</span>
-          <span className="flex min-w-0 text-[12.5px] leading-[18px]">
-            <span className={`truncate ${r.totals.failed.length ? 'text-stone-500' : 'text-stone-600'}`}>{summary}</span>
+          <span className="block text-[14px] leading-5 font-medium text-stone-900 tabular-nums">{r.week.label}</span>
+          <span className="flex min-w-0 flex-wrap text-[12.5px] leading-[18px]">
+            <span className={`[text-wrap:pretty] ${r.totals.failed.length || r.scanDue !== undefined ? 'text-stone-500' : 'text-stone-600'}`}>{summary}</span>
             {note && <span className="shrink-0 whitespace-pre text-stone-500"> · {note}</span>}
           </span>
         </span>
@@ -475,12 +479,12 @@ export default function WeekHistoryDrawer({ source }) {
         {c ? (
           <button type="button" data-nav data-week={i} onClick={() => drill(i)}
             aria-label={`${r.week.label}: ${sel.label.toLowerCase()} ${fmtVal(v, sel)}${r.delta[metric] ? ` (${fmtDelta(r.delta[metric], sel)})` : ''}. ${summary}${note ? `. ${note}` : ''}`}
-            className="group flex h-[60px] w-full items-center gap-3 px-6 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
+            className="group flex min-h-[60px] w-full py-2.5 items-center gap-3 px-6 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
             {body}
           </button>
         ) : (
           // nothing to drill into: a failed scan, or no week before it to compare with
-          <div className="flex h-[60px] items-center gap-3 px-6">{body}</div>
+          <div className="flex min-h-[60px] items-center py-2.5 gap-3 px-6">{body}</div>
         )}
       </li>
     )
@@ -515,7 +519,7 @@ export default function WeekHistoryDrawer({ source }) {
               <div ref={explain.cardRef} className="min-h-0 flex-1 overflow-y-auto">
                 <header className="border-b border-line px-6">
                   <h2 className="mt-3 text-[20px] leading-7 font-semibold text-stone-900">{source.title}</h2>
-                  <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums">{brand.name} · 152 prompts{off ? '' : ` · ${source.span?.(rows) ?? `last ${plural(rows.length, 'week')}`}`}</p>
+                  <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums">{brand.name} · {plural(trackedPrompts.length, 'prompt')}{off ? '' : ` · ${source.span?.(rows) ?? `last ${plural(rows.length, 'week')}`}`}</p>
                   {off ? <div className="pb-4" /> : loading ? <SkeletonHead /> : empty ? <div className="pb-4" /> : (
                     <>
                       {/* the metric: text tabs, the big number + change under each label; the selected one ink with
@@ -523,7 +527,7 @@ export default function WeekHistoryDrawer({ source }) {
                       <div role="tablist" aria-label="Metric" onKeyDown={onMetricKey} className={`mt-5 flex border-b border-[var(--div)] ${METRICS.length > 3 ? 'gap-4 sm:gap-8' : 'gap-8'}`}>
                         {METRICS.map((m) => {
                           const on = m.id === metric
-                          const r0 = rows[0]
+                          const r0 = rows.find((r) => r.totals.ran?.length) ?? rows[0]
                           return (
                             <button key={m.id} data-metric={m.id} type="button" role="tab" aria-selected={on} tabIndex={on ? 0 : -1} onClick={() => set({ metric: m.id })}
                               aria-label={`${m.label} ${r0.totals[m.id] == null ? 'not known' : fmtVal(r0.totals[m.id], m)}${r0.delta[m.id] ? `, ${fmtDelta(r0.delta[m.id], m)} vs last week` : ''}`}
@@ -545,7 +549,7 @@ export default function WeekHistoryDrawer({ source }) {
 
                       {insight && (
                         <div className="mt-3">
-                          <Insight explain={explain} text={`${insight.text}.`}
+                          <Insight wrap explain={explain} text={`${insight.text}.`}
                             evidence={{
                               keys: insight.keys.map((i) => `week:${i}`),
                               calc: insight.calc,
@@ -556,7 +560,7 @@ export default function WeekHistoryDrawer({ source }) {
                       )}
 
                       {/* compare: one competitor at a time (Visibility history's brand chips, with the real logos) */}
-                      <div className="mt-4 flex min-w-0 items-center gap-1.5 overflow-x-auto pb-4 [scrollbar-width:none]">
+                      <div className="mt-4 flex min-w-0 flex-wrap items-center gap-1.5 pb-4">
                         <span className="mr-1 shrink-0 text-[13px] leading-[18px] text-stone-500">Compare with</span>
                         {rivals.map((b) => {
                           const on = rival?.key === b.key
@@ -576,6 +580,14 @@ export default function WeekHistoryDrawer({ source }) {
                     <span className="grid h-10 w-10 place-items-center rounded-lg bg-tint text-stone-700" aria-hidden><Lock size={18} /></span>
                     <p className="mt-4 text-[15px] leading-5 font-semibold text-stone-900">{source.offText.title}</p>
                     <p className="mt-1 max-w-[420px] text-[14px] leading-5 text-stone-600">{source.offText.text}</p>
+                  </div>
+                ) : failed ? (
+                  <div className="px-6 py-12 text-center" role="alert">
+                    <p className="text-[14px] leading-5 text-stone-600">Couldn’t load the weeks.</p>
+                    <button type="button" onClick={() => setLoading(true)}
+                      className="mt-3 inline-flex h-8 items-center rounded-md border border-line px-3 text-[13px] leading-[18px] font-medium text-stone-900 outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
+                      Retry
+                    </button>
                   </div>
                 ) : loading ? <SkeletonRows /> : empty ? (
                   typeof emptyText === 'string'

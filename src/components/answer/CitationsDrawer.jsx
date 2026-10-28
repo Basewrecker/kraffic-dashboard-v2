@@ -1,6 +1,6 @@
 import WeekHistoryDrawer, { WEEKS } from './WeekHistoryDrawer'
 import { TRACKED_BRANDS } from '../../data/brandViews'
-import { METRICS, brandEngines, citationWeeks, historyMock, loadWeeks, weekChanges, weekInsight, weekRows, weekSummary } from '../../data/citationHistory'
+import { METRICS, brandEngines, historyMock, loadWeeks, weekChanges, weekInsight, weekRows, weekSummary } from '../../data/citationHistory'
 
 // Citations and Mentions → "Mentions and citations": the card's numbers week by week (mentions, citations, cited
 // pages), in the shared week-by-week drawer (WeekHistoryDrawer). A week's drill-in rows open the Answer drawer.
@@ -25,12 +25,12 @@ const source = {
   load: loadWeeks,
   rows: ({ domain, engine, enabled, mock }) => weekRows(domain, engine, enabled, mock === 'empty' ? 1 : WEEKS),
   vsRows: ({ rival, engine, enabled }) => weekRows(rival.domain, engine, enabled, WEEKS),
-  changes: ({ domain, metric, row, engine }) => weekChanges({ domain, metric, row, engine, sync: citationWeeks(domain).syncs[row.index] }),
+  changes: ({ domain, metric, row, engine }) => weekChanges({ domain, metric, row, engine, sync: row.week.sync }),
   summary: weekSummary,
   insight: weekInsight,
   noun: (metric) => (metric === 'pages' ? 'page' : 'prompt'),
   emptyText: (rows) => (rows.length < 2 ? 'History appears after your second weekly scan.' : null),
-  answerDate: (domain, row) => citationWeeks(domain).syncs[row.index]?.date,
+  answerDate: (domain, row) => row.week.date,
 }
 
 export default function CitationsDrawer() {
