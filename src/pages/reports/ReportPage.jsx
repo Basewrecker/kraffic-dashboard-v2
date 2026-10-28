@@ -7,7 +7,7 @@ import ActionMenu from '../../components/audit/ActionMenu'
 import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate } from '../../router'
 import { buildReport, refine, reportById, resolveOpts, stepsFor } from '../../data/reports'
-import Composer from './Composer'
+import PillComposer from './PillComposer'
 import { Block, WIDE, blockName, explainFor } from './blocks'
 import { DotAssemble } from './DotField'
 import { brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
@@ -74,6 +74,7 @@ function Report({ id, init, mock }) {
   const timer = useRef(null)
   const run = useRef(0)
   const heroRef = useRef(null)
+  const pillRef = useRef(null)
   // the dots that become the hero while it's written (they fade out under the finished report)
   const [dots, setDots] = useState(writing)
   useEffect(() => {
@@ -115,7 +116,7 @@ function Report({ id, init, mock }) {
   const cancel = () => { run.current++; clearTimeout(timer.current); setPhase('cancelled') }
 
   const v = versions[cur]
-  const send = () => navigate(`/reports/new?${toQuery(opts, prompt.trim())}`)
+  const send = (final) => navigate(`/reports/new?${toQuery(final ?? opts, prompt.trim())}`)
   const setBlocks = (blocks) => setVersions((vs) => vs.map((x, i) => (i === cur ? { ...x, blocks, edited: true } : x)))
   const move = (bid, dir) => {
     const bs = v.blocks
@@ -164,10 +165,10 @@ function Report({ id, init, mock }) {
 
   return (
     <div className="mx-auto flex w-full max-w-[860px] flex-col gap-4">
-      <Composer compact prompt={prompt} setPrompt={setPrompt} opts={opts} setOpts={setOpts} onSend={send} busy={phase === 'generating'} />
+      <PillComposer ref={pillRef} suggest={false} prompt={prompt} setPrompt={setPrompt} opts={opts} setOpts={setOpts} onSend={send} busy={phase === 'generating'} />
 
       {phase === 'generating' && <Generating steps={steps} step={step} kind={built.kind} heroRef={heroRef} onCancel={cancel} />}
-      {dots && built.ok && <DotAssemble brandId={built.opts.brand} kind={built.kind} targetRef={heroRef} done={phase !== 'generating'} />}
+      {dots && built.ok && <DotAssemble brandId={built.opts.brand} kind={built.kind} targetRef={heroRef} fromRef={pillRef} done={phase !== 'generating'} />}
       {phase === 'failed' && (
         <StateCard icon={<AlertCircle size={18} className="text-negative" aria-hidden />} title="The report couldn’t be written"
           actions={<><button type="button" onClick={start} className={inkBtn}>Try again</button><a href="/reports" onClick={linkClick('/reports')} className={lineBtn}>Back to New report</a></>}>

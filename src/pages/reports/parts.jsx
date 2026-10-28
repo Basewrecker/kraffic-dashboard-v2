@@ -43,7 +43,8 @@ export function ReportsHead({ title, subtitle, actions }) {
 }
 
 // ---- a chip with a small menu (the composer's options). It opens toward the side with room and stays on screen.
-export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256, children }) {
+// ghost: no border, icon + value + chevron (the New report box's Period / Audience / Length); the icon is hidden on phones; align right: the menu opens leftward
+export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256, ghost = false, align = null, children }) {
   const [open, setOpen] = useState(false)
   const [place, setPlace] = useState({ left: true, shift: 0 })
   const wrap = useRef(null)
@@ -53,9 +54,12 @@ export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256
     if (!open || !menu.current || !btn.current) return
     const b = btn.current.getBoundingClientRect()
     const w = menu.current.offsetWidth
-    if (b.left + w <= window.innerWidth - 16) setPlace({ left: true, shift: 0 })
+    // a phone widens its layout to fit anything that overflows, so the screen's width is the real limit
+    const vw = Math.min(window.innerWidth, window.screen?.width || window.innerWidth)
+    if (align === 'right' && b.right - w >= 16) setPlace({ left: false, shift: 0 })
+    else if (b.left + w <= vw - 16) setPlace({ left: true, shift: 0 })
     else if (b.right - w >= 16) setPlace({ left: false, shift: 0 })
-    else setPlace({ left: true, shift: Math.min(0, window.innerWidth - 16 - (b.left + w)) })
+    else setPlace({ left: true, shift: Math.min(0, vw - 16 - (b.left + w)) })
   }, [open])
   useEffect(() => {
     if (!open) return
@@ -74,18 +78,20 @@ export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256
   const set = value != null && !inferred
   return (
     <div ref={wrap} className="relative min-w-0" onKeyDown={open ? onKey : undefined}>
-      <button ref={btn} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+      <button ref={btn} type="button" aria-haspopup="menu" aria-expanded={open} aria-label={ghost ? `${label}: ${value}` : undefined} onClick={() => setOpen((o) => !o)}
         title={inferred ? `${label}: ${value}, from your question` : label}
-        className={`inline-flex h-8 max-w-[15rem] items-center max-md:max-w-full gap-1.5 whitespace-nowrap rounded-full border px-3 text-[13px] leading-[18px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
+        className={ghost
+          ? `inline-flex h-9 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[13px] leading-[18px] font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus max-md:px-2 ${open ? 'bg-tint text-stone-900' : ''}`
+          : `inline-flex h-8 max-w-[15rem] items-center max-md:max-w-full gap-1.5 whitespace-nowrap rounded-full border px-3 text-[13px] leading-[18px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
           set ? 'border-transparent bg-tint font-medium text-stone-900'
             : inferred ? 'border-dashed border-stone-400 text-stone-800 hover:bg-tint'
               : 'border-line text-stone-600 hover:bg-tint hover:text-stone-900'}`}>
-        {logo ?? (Icon && <Icon size={14} className={set || inferred ? 'text-stone-700' : 'text-stone-500'} aria-hidden />)}
+        {logo ?? (Icon && <Icon size={ghost ? 15 : 14} className={`${ghost ? 'text-stone-600 max-md:hidden' : set || inferred ? 'text-stone-700' : 'text-stone-500'}`} aria-hidden />)}
         <span className="truncate">{value ?? label}</span>
-        <ChevronDown size={13} className={`shrink-0 text-stone-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} aria-hidden />
+        <ChevronDown size={ghost ? 12 : 13} className={`shrink-0 text-stone-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} aria-hidden />
       </button>
       {open && (
-        <div ref={menu} role="menu" aria-label={label} style={{ width: `min(${width}px, calc(100vw - 32px))`, ...(place.shift ? { transform: `translateX(${place.shift}px)` } : {}) }}
+        <div ref={menu} role="menu" aria-label={label} style={{ width: `min(${width}px, calc(100vw - 32px))`, ...(place.shift ? { left: `${place.shift}px` } : {}) }}
           className={`absolute ${place.left ? 'left-0' : 'right-0'} top-full z-40 mt-1.5 rounded-lg border border-line bg-raised p-1 shadow-md motion-safe:animate-[fade-in_120ms_ease-out]`}>
           {children(close)}
         </div>

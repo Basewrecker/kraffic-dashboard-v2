@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DATES, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
+import { DATES, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
 
 const types = (r) => r.blocks.map((b) => b.type)
 const block = (r, type) => r.blocks.find((b) => b.type === type)?.data
@@ -127,4 +127,11 @@ test('the library: saved reports and earlier runs, newest first; groups by week 
   assert.deepEqual(['Oct 26', 'Oct 22', 'Oct 20', 'Oct 9', 'Sep 28'].map((d) => weekGroup(d)), ['This week', 'Last week', 'Last week', 'Earlier in October', 'September'])
   // every weekly report that says it's scheduled has a schedule
   for (const r of savedReports.filter((x) => x.scheduled)) assert.ok(schedules.some((s) => s.reportId === r.id), r.id)
+})
+
+test('suggestions: four, the competitor one names the closest tracked rival; each one’s settings give that kind', () => {
+  const s = suggestionsFor('dermasuri')
+  assert.deepEqual(s.map((x) => x.text), ['Weekly summary: what moved this week', 'CEO summary: are we winning in AI search?', 'Where is CeraVe beating us?', 'What should we write next?'])
+  for (const x of s) assert.equal(buildReport({ brand: 'dermasuri', ...x.sets }, x.text).kind, x.kind, x.id)
+  assert.equal(suggestionsFor('foa')[2].text, 'Where is Longbridge beating us?')
 })

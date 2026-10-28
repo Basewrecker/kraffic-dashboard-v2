@@ -444,6 +444,19 @@ export function templatesFor(brandId) {
   ]
 }
 
+// ---- New report suggestions (shown under the empty box on focus): the text, and the dropdowns it sets ----------
+export function suggestionsFor(brandId) {
+  const d = dataFor(brandId)
+  const rival = d?.rivals.find((r) => d.h2h[r.key])
+  const rn = rival ? first(brandName(rival.domain)) : null
+  return [
+    { id: 'weekly', kind: 'weekly', text: 'Weekly summary: what moved this week', sets: { kind: 'weekly', period: 'week', audience: 'team', length: 'one' } },
+    { id: 'ceo', kind: 'ceo', text: 'CEO summary: are we winning in AI search?', sets: { kind: 'ceo', period: '30d', audience: 'ceo', length: 'one' } },
+    rival && { id: 'rival', kind: 'rival', text: `Where is ${rn} beating us?`, sets: { kind: 'rival', compare: [rival.key], period: '30d', audience: 'team', length: 'detailed' } },
+    { id: 'content', kind: 'content', text: 'What should we write next?', sets: { kind: 'content', period: '30d', audience: 'team', length: 'detailed' } },
+  ].filter(Boolean)
+}
+
 // ---- saved and scheduled reports ---------------------------------------------------------------------------------
 export const savedReports = [
   { id: 'r-foa-week', brand: 'foa', prompt: '', title: 'Weekly summary', opts: { brand: 'foa', kind: 'weekly', period: 'week', audience: 'team', length: 'detailed' }, created: 'Oct 26', scheduled: true, saved: true },

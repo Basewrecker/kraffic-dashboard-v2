@@ -5,11 +5,11 @@ import Segmented from '../../components/dashboard/Segmented'
 import ActionMenu from '../../components/audit/ActionMenu'
 import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate, usePath } from '../../router'
-import { AUDIENCES, DATES, KINDS, REPORT_BRANDS, VERDICT_TONE, buildReport, dataFor, glance, libraryItems, monthGroup, parseDay, periodRange, rivalsOf, runSummary, savedReports, schedules, templatesFor, weekGroup, weeklyRuns } from '../../data/reports'
-import Composer from './Composer'
+import { AUDIENCES, DATES, KINDS, REPORT_BRANDS, VERDICT_TONE, buildReport, dataFor, libraryItems, monthGroup, parseDay, periodRange, runSummary, savedReports, schedules, weeklyRuns } from '../../data/reports'
+import PillComposer from './PillComposer'
 import ReportPage from './ReportPage'
-import { Block, Sparkline, Thumb, VerdictDot } from './blocks'
-import { DotField, DotIllustration } from './DotField'
+import { Block, Thumb, VerdictDot } from './blocks'
+import { DotIllustration } from './DotField'
 import { BrandLogo, ChipMenu, Empty, ReportsHead, brandOf, defaultBrand, fromQuery, inkBtn, lineBtn, menuItem, t2, t3, toQuery } from './parts'
 
 // /reports → New report (the composer) · /reports/all → All reports · /reports/scheduled → Scheduled
@@ -42,96 +42,40 @@ function Delta({ d }) {
   )
 }
 
-// ---- New report: a greeting and the composer at the centre of the screen, over the dot field (one dot per tracked
-// prompt); this week in one line; the templates as thumbnails; recent reports below the fold, grouped by week
+// ---- New report, ChatGPT-style: nothing but the greeting and the box, centred. Sending fades the greeting and
+// glides the box to the top of the page, where the report is written under it.
 function ReportsHome() {
   const init = useRef(fromQuery()).current
+  const home = useRef(init.opts.brand).current
   const [prompt, setPrompt] = useState(init.prompt)
   const [opts, setOpts] = useState(init.opts)
-  const [hov, setHov] = useState(null)
-  const [foc, setFoc] = useState(null)
-  const box = useRef(null)
-  const field = useRef(null)
-  const hello = useRef(null)
+  const [leaving, setLeaving] = useState(null) // the box's glide to the top: { dy }
+  const pill = useRef(null)
   const brand = brandOf(opts.brand)
-  const g = glance(opts.brand)
-  const recent = mockEmpty() ? [] : libraryItems().filter((r) => r.brand === opts.brand && !r.run)
-  const examples = useMemo(() => {
-    const d = dataFor(opts.brand)
-    const rival = d ? rivalsOf(opts.brand).find((r) => d.h2h[r.key]) : null
-    return [rival ? `Where is ${rival.name.split(' ')[0]} beating us?` : 'Who does AI name instead of us?', 'What changed since last month?', 'Which prompts should we write content for next?', 'Are we winning in AI search?', 'How did we do on ChatGPT this week?']
-  }, [opts.brand])
-  const send = () => { field.current?.snapshot(); navigate(`/reports/new?${toQuery(opts, prompt.trim())}`) }
-  const use = (t) => {
-    setPrompt(t.prompt)
-    setOpts((o) => ({ ...o, period: null, audience: null, length: null, compare: [], kind: null, ...t.sets }))
-    requestAnimationFrame(() => { const el = box.current?.querySelector('textarea'); el?.focus(); el?.setSelectionRange(el.value.length, el.value.length) })
+  const send = (final) => {
+    if (leaving) return
+    const url = `/reports/new?${toQuery(final, prompt.trim())}`
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const main = document.querySelector('main')
+    const box = pill.current?.getBoundingClientRect()
+    if (!main || !box) { navigate(url); return }
+    const top = main.getBoundingClientRect().top + parseFloat(getComputedStyle(main).paddingTop)
+    document.activeElement?.blur()
+    setLeaving({ dy: reduced ? 0 : top - box.top })
+    setTimeout(() => navigate(url), reduced ? 160 : 460)
   }
   return (
-    <div className="flex w-full flex-col">
-      <section className="relative -mx-4 -mt-4 flex min-h-[calc(100dvh-56px)] flex-col px-4 md:-mx-6 md:px-6 lg:-mt-8 lg:min-h-dvh">
-        <DotField brandId={opts.brand} target={hov ?? foc} anchorRef={box} quietRef={hello} apiRef={field}
-          className="pointer-events-none absolute inset-0 h-full w-full [mask-image:linear-gradient(to_bottom,#000_72%,transparent)]" />
-        <div className="relative mx-auto flex w-full max-w-[880px] flex-col pb-14 pt-[max(28px,calc(34dvh-150px))] lg:pt-[max(48px,calc(45dvh-178px))]">
-          <h1 ref={hello} className="text-center text-[26px] leading-[34px] font-normal tracking-[-0.025em] text-stone-900 [text-wrap:balance] md:text-[34px] md:leading-[44px]">
-            What do you want to know about{' '}
-            <span className="whitespace-nowrap font-semibold">
-              <BrandLogo id={opts.brand} className="relative -top-[3px] mr-2 inline-block h-6 w-6 align-middle md:h-8 md:w-8" />{brand?.name ?? 'your brand'}?
-            </span>
-          </h1>
-          <div ref={box} className="mt-7 md:mt-9">
-            <Composer glass examples={examples} prompt={prompt} setPrompt={setPrompt} opts={opts} setOpts={setOpts} onSend={send} />
-          </div>
-          <p className={`mt-2.5 text-center text-[12px] leading-4 ${t3}`}>Every number comes from your tracked prompts</p>
-          {g && <GlanceLine g={g} />}
-          <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-6 md:mt-12 lg:grid-cols-4 lg:gap-x-5">
-            {templatesFor(opts.brand).map((t) => (
-              <button key={t.id} type="button" onClick={() => use(t)}
-                onMouseEnter={() => setHov(t.kind)} onMouseLeave={() => setHov(null)} onFocus={() => setFoc(t.kind)} onBlur={() => setFoc(null)}
-                className="thumb-live group flex flex-col gap-3 rounded-2xl text-left outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-4 focus-visible:ring-offset-[var(--color-page)]">
-                <span className="grid aspect-[16/10] w-full place-items-center rounded-2xl bg-tint transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:-translate-y-1 group-hover:shadow-[0_14px_30px_-18px_rgba(0,0,0,0.35)] group-focus-visible:-translate-y-1 motion-reduce:transition-none motion-reduce:group-hover:translate-y-0">
-                  <Thumb kind={t.kind} className="h-[58%] w-[70%]" />
-                </span>
-                <span className="px-0.5">
-                  <span className="block text-[14px] leading-5 font-semibold text-stone-900">{t.name}</span>
-                  <span className={`mt-0.5 block text-[13px] leading-[18px] ${t2}`}>{t.what}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section aria-labelledby="recent-h" className="mx-auto w-full max-w-[880px] pt-2">
-        <div className="flex items-end justify-between gap-3">
-          <h2 id="recent-h" className="text-[17px] leading-6 font-semibold text-stone-900">Recent reports</h2>
-          <a href="/reports/all" onClick={linkClick('/reports/all')} className="rounded text-[13px] leading-[18px] font-medium text-stone-600 underline-offset-4 outline-none hover:text-stone-900 hover:underline focus-visible:ring-2 focus-visible:ring-focus">All reports</a>
-        </div>
-        {recent.length ? groupBy(recent, (r) => weekGroup(r.created)).map(([label, rows]) => (
-          <div key={label} className="mt-6">
-            <h3 className={`text-[12px] leading-4 font-medium ${t3}`}>{label}</h3>
-            <ul className="-mx-3 mt-1.5 flex flex-col">{rows.map((r) => <li key={r.id}><ReportRow r={r} showBrand={false} /></li>)}</ul>
-          </div>
-        )) : (
-          <p className={`mt-3 text-[13px] leading-[18px] ${t2}`}>No reports for {brand?.name ?? 'this brand'} yet. Ask a question above, or start from a template.</p>
-        )}
-      </section>
-    </div>
-  )
-}
-
-// "This week · score 64 ▲2 · 71 prompts ▲4 · share of voice 31% ▲3", each with a tiny line of the last 8 syncs
-const GLANCE = { score: (m) => <>score <b className="font-semibold text-stone-900">{m.value}</b></>, named: (m) => <><b className="font-semibold text-stone-900">{m.value}</b> prompts</>, sov: (m) => <>share of voice <b className="font-semibold text-stone-900">{m.value}%</b></> }
-function GlanceLine({ g }) {
-  return (
-    <p className={`mt-6 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 text-[13px] leading-5 tabular-nums ${t2}`}>
-      <span className="font-medium text-stone-900">This week</span>
-      {g.items.map((m) => (
-        <span key={m.id} className="inline-flex items-center gap-1.5">
-          <span aria-hidden className={`mr-1 ${t3}`}>·</span>{GLANCE[m.id](m)}<Delta d={m.delta} /><Sparkline series={m.series} w={34} h={12} fill={false} />
+    <section className="flex min-h-[calc(100dvh-120px)] flex-col items-center justify-center pb-[14vh] lg:min-h-[calc(100dvh-72px)]">
+      <h1 className={`mb-7 text-center text-[26px] leading-[34px] font-normal tracking-[-0.025em] text-stone-900 [text-wrap:balance] transition-opacity duration-200 md:mb-9 md:text-[34px] md:leading-[44px] ${leaving ? 'opacity-0' : ''}`}>
+        What do you want to know about{' '}
+        <span className="whitespace-nowrap font-semibold">
+          <BrandLogo id={opts.brand} className="relative -top-[3px] mr-2 inline-block h-6 w-6 align-middle md:h-8 md:w-8" />{brand?.name ?? 'your brand'}?
         </span>
-      ))}
-    </p>
+      </h1>
+      <div className="w-full" style={leaving ? { transform: `translateY(${leaving.dy}px)`, transition: 'transform 440ms cubic-bezier(.3,.7,.2,1), opacity 160ms', opacity: leaving.dy ? 1 : 0 } : undefined}>
+        <PillComposer ref={pill} homeBrand={home} prompt={prompt} setPrompt={setPrompt} opts={opts} setOpts={setOpts} onSend={send} busy={!!leaving} />
+      </div>
+    </section>
   )
 }
 
