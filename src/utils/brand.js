@@ -5,6 +5,11 @@ const KNOWN = {
   'cerave.com': 'CeraVe', 'theordinary.com': 'The Ordinary', 'paulaschoice.com': 'Paula’s Choice',
   'laroche-posay.us': 'La Roche-Posay', 'supergoop.com': 'Supergoop!', 'eltamd.com': 'EltaMD',
   'firstaidbeauty.com': 'First Aid Beauty', 'drunkelephant.com': 'Drunk Elephant',
+  // the many-competitor history preview (?history=many)
+  'financeofamerica.com': 'Finance of America', 'rocketmortgage.com': 'Rocket Mortgage',
+  'mutualofomahamortgage.com': 'Mutual of Omaha Mortgage', 'aag.com': 'American Advisors Group',
+  'longbridge-financial.com': 'Longbridge Financial', 'libertyreverse.com': 'Liberty Reverse Mortgage',
+  'guildmortgage.com': 'Guild Mortgage Company',
 }
 // two-part TLDs: "shop.renpho.co.uk" → "renpho"
 const SECOND_LEVEL = new Set(['co', 'com', 'org', 'net', 'ac', 'gov', 'edu'])

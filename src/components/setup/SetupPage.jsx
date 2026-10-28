@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, ArrowUpRight, Droplet, Eye, Globe, Hand, MoreHorizontal, Pencil, Plus, ShieldCheck, Sparkles, Sun, Tag, Type, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Droplet, Eye, Globe, Hand, MoreHorizontal, Pencil, Plus, ShieldCheck, Sparkles, Sun, Tag, Trash2, Type, X } from 'lucide-react'
 import PromptTable from '../dashboard/PromptTable'
 import { PrimaryButton, useToast } from '../dashboard/overlays'
 import ConfirmPopover from '../prompts/ConfirmPopover'
@@ -231,13 +231,13 @@ function useCardSave() {
   const run = (what, { apply, revert, call, done }) => {
     setFailed(null)
     apply()
-    return call().then((saved) => done?.(saved), () => { revert(); setFailed({ what, retry: () => run(what, { apply, revert, call, done }) }) })
+    return call().then((saved) => done?.(saved), (err) => { revert(); setFailed({ what, reason: err?.message || null, retry: () => run(what, { apply, revert, call, done }) }) })
   }
   return [failed, run]
 }
 const SaveFailed = ({ failed }) => (failed ? (
   <p role="alert" className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--div)] px-5 py-2.5 text-[12.5px] leading-[18px]">
-    <span className="text-negative">Couldn’t save · {failed.what}</span>
+    <span className="text-negative">Couldn’t save · {failed.what}{failed.reason ? ` · ${failed.reason}` : ''}</span>
     <button type="button" onClick={failed.retry} className="rounded font-medium text-stone-900 underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Retry</button>
   </p>
 ) : null)
@@ -398,7 +398,8 @@ function NamesCard({ brand, update, toast }) {
 }
 
 // "Topics": what the brand's prompts are about (the Prompt Hub's categories). Chip = category icon + name +
-// tracked-prompt count; click → /prompts filtered to it. Adding one offers "Run research". Topics can't be removed here.
+// tracked-prompt count; click → /prompts filtered to it. Adding one offers "Run research". Rename / delete (where the
+// backend saves them): hover or focus a chip; deleting asks first, and its prompts move to Uncategorized (they stay).
 const TOPIC_ICONS = [[/under.?eye|eye/i, Eye], [/body|hand|lotion/i, Hand], [/sun|spf/i, Sun], [/retinol|retinoid/i, Sparkles], [/serum|vitamin|niacinamide|hyaluronic/i, Droplet], [/moistur|cream|ceramide/i, ShieldCheck]]
 function TopicVisual({ t }) {
   const Icon = TOPIC_ICONS.find(([re]) => re.test(t.name))?.[1] ?? Tag
@@ -409,7 +410,11 @@ function TopicsCard({ brand, update, toast }) {
   const topics = brand.topics ?? []
   const chips = useAnimatedList(topics, (t) => t.name, 150)
   const [failed, save] = useCardSave()
-  const problem = (v) => (topics.some((t) => t.name.toLowerCase() === v.toLowerCase()) ? 'Already added' : null)
+  const [renaming, setRenaming] = useState(null) // { name, draft, error }
+  const [confirm, setConfirm] = useState(null) // { anchor, topic }
+  const manage = Boolean(setupActions.onRenameTopic && setupActions.onDeleteTopic)
+  const problem = (v, except = null) => (v.length > 40 ? 'Use up to 40 characters'
+    : topics.some((t) => t.name !== except && t.name.toLowerCase() === v.toLowerCase()) ? 'Already added' : null)
   const add = (name) => {
     save(`“${name}”`, {
       apply: () => update((b) => ({ ...b, topics: [...(b.topics ?? []), { name, promptCount: 0, type: guessTopicType(name) }] })),
@@ -418,7 +423,28 @@ function TopicsCard({ brand, update, toast }) {
       done: () => toast('Added · Research will suggest prompts for it', { duration: 6000, action: { label: 'Run research', onClick: () => navigate(`/tracker?research=${encodeURIComponent(name)}`) } }),
     })
   }
+  const rename = (from, to) => save(`“${to}”`, {
+    apply: () => update((b) => ({ ...b, topics: b.topics.map((x) => (x.name === from ? { ...x, name: to, type: guessTopicType(to) } : x)) })),
+    revert: () => update((b) => ({ ...b, topics: b.topics.map((x) => (x.name === to ? { ...x, name: from, type: guessTopicType(from) } : x)) })),
+    call: () => setupActions.onRenameTopic(brand.id, from, to),
+    done: () => toast(`Renamed to “${to}”`),
+  })
+  const saveRename = () => {
+    const to = renaming.draft.trim().replace(/\s+/g, ' ')
+    if (!to || to === renaming.name) { setRenaming(null); return }
+    const err = problem(to, renaming.name)
+    if (err) { setRenaming((r) => ({ ...r, error: err })); return }
+    rename(renaming.name, to)
+    setRenaming(null)
+  }
+  const remove = (t) => save(`“${t.name}”`, {
+    apply: () => update((b) => ({ ...b, topics: b.topics.filter((x) => x.name !== t.name) })),
+    revert: () => update((b) => ({ ...b, topics: b.topics.some((x) => x.name === t.name) ? b.topics : [...b.topics, t] })),
+    call: () => setupActions.onDeleteTopic(brand.id, t.name),
+    done: () => toast(t.promptCount ? `“${t.name}” deleted · ${t.promptCount} prompt${t.promptCount === 1 ? '' : 's'} moved to Uncategorized` : `“${t.name}” deleted`),
+  })
   const shape = 'h-9 rounded-lg text-[14px]'
+  const chipBtn = 'grid h-6 w-6 shrink-0 place-items-center rounded text-stone-500 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus'
 
   return (
     <SettingsCard id={`topics-${brand.id}`} title="Topics" count={topics.length} description={`What ${brand.name}’s prompts are about — used to suggest prompts and research`} compact
@@ -427,20 +453,54 @@ function TopicsCard({ brand, update, toast }) {
           <div className="flex flex-wrap items-center gap-2.5 px-5 pb-4">
             {chips.map(({ item: t, key, state }) => {
               const n = t.promptCount
+              if (renaming?.name === t.name) {
+                return (
+                  <span key={key} className="relative inline-flex">
+                    <input autoFocus aria-label={`Rename ${t.name}`} aria-invalid={Boolean(renaming.error)} value={renaming.draft} maxLength={60}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setRenaming((r) => ({ ...r, draft: e.target.value, error: null }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); saveRename() }
+                        if (e.key === 'Escape') { e.preventDefault(); setRenaming(null) }
+                      }}
+                      onBlur={() => setRenaming(null)}
+                      className={`${shape} w-44 border bg-raised px-2.5 text-stone-900 outline-none focus:ring-[3px] focus:ring-[color-mix(in_srgb,var(--ink)_8%,transparent)] ${renaming.error ? 'border-negative' : 'border-line focus:border-[color-mix(in_srgb,var(--ink)_35%,transparent)]'}`} />
+                    {renaming.error && <span role="alert" className="absolute left-0 top-full mt-1 whitespace-nowrap text-[12px] leading-4 text-negative">{renaming.error}</span>}
+                  </span>
+                )
+              }
               return (
-                <span key={key} className={`${shape} inline-flex items-center border border-line bg-surface pr-2.5 transition-colors duration-150 hover:border-[var(--color-line-strong)] ${animClass(state)}`}>
+                <span key={key} className={`group ${shape} inline-flex items-center border border-line bg-surface ${manage ? 'pr-1.5' : 'pr-2.5'} transition-colors duration-150 hover:border-[var(--color-line-strong)] ${animClass(state)}`}>
                   <button type="button" onClick={() => navigate(`/tracker?topic=${encodeURIComponent(t.name)}`)} aria-label={`${t.name}: ${n} tracked prompts — view them`}
                     className="inline-flex h-full items-center gap-2 rounded-lg pl-1.5 pr-1 font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
                     <TopicVisual t={t} />
                     {t.name}
                     <span title={`${n} tracked prompt${n === 1 ? '' : 's'}`} className="text-[12px] font-normal text-stone-500 tabular-nums">{n}</span>
                   </button>
+                  {manage && (
+                    <span className="ml-0.5 hidden items-center group-focus-within:flex group-hover:flex">
+                      <button type="button" aria-label={`Rename ${t.name}`} onClick={() => setRenaming({ name: t.name, draft: t.name, error: null })} className={chipBtn}><Pencil size={13} aria-hidden /></button>
+                      <button type="button" aria-label={`Delete ${t.name}`} onClick={(e) => setConfirm({ anchor: e.currentTarget, topic: t })} className={`${chipBtn} hover:!text-negative`}><Trash2 size={13} aria-hidden /></button>
+                    </span>
+                  )}
                 </span>
               )
             })}
             <ChipAdder label="Add" placeholder="e.g. Face mist" shape={shape} add={(v) => problem(v) ?? add(v) ?? null} />
           </div>
           <SaveFailed failed={failed} />
+          {confirm && (
+            <ConfirmPopover
+              anchor={confirm.anchor}
+              title={`Delete “${confirm.topic.name}”?`}
+              body={confirm.topic.promptCount
+                ? `Its ${confirm.topic.promptCount} prompt${confirm.topic.promptCount === 1 ? '' : 's'} move to Uncategorized. The prompts stay.`
+                : 'No prompts use it.'}
+              confirmLabel="Delete"
+              onCancel={() => setConfirm(null)}
+              onConfirm={() => { remove(confirm.topic); setConfirm(null) }}
+            />
+          )}
         </>
       )}
     />
@@ -724,8 +784,8 @@ export default function SetupPage() {
               <NamesCard brand={brand} update={update} toast={toast} />
               <TopicsCard brand={brand} update={update} toast={toast} />
               <CompetitorsCard brand={brand} update={update} toast={toast} />
-              {/* marketplaces: accounts with ecommerce, when the backend keeps the brand's stores */}
-              {account.features?.ecommerce !== false && Array.isArray(brand.marketplaces) && <MarketplacesCard brand={brand} update={update} toast={toast} />}
+              {/* marketplaces: the data layer gives a brand its stores when the account has ecommerce (null otherwise) */}
+              {Array.isArray(brand.marketplaces) && <MarketplacesCard brand={brand} update={update} toast={toast} />}
             </div>
           )
         })

@@ -1,8 +1,8 @@
 // Shared switch: h-5 w-9 track, 16px knob, 150ms ease-out.
 // On: ink track, on-ink knob. Off: track colour with a surface knob (strong border, so it reads on dark cards too).
 // `children` = an optional visible label (the whole thing is the button); otherwise pass aria-label.
-// size 'md' = 36px wide (default), 'sm' = 34px (settings lists)
-export default function Switch({ checked, onChange, children, className = '', size = 'md', ...rest }) {
+// size 'md' = 36px wide (default), 'sm' = 34px (settings lists) · spring: a 200ms springy knob (the Sentiment split)
+export default function Switch({ checked, onChange, children, className = '', size = 'md', spring = false, ...rest }) {
   return (
     <button
       type="button"
@@ -13,10 +13,10 @@ export default function Switch({ checked, onChange, children, className = '', si
       {...rest}
     >
       <span
-        className={`relative inline-flex h-5 ${size === 'sm' ? 'w-[34px]' : 'w-9'} shrink-0 items-center rounded-full transition-[background-color,box-shadow] duration-150 ease-out group-focus-visible/switch:ring-[3px] group-focus-visible/switch:ring-[color-mix(in_srgb,var(--ink)_15%,transparent)] ${checked ? 'bg-ink' : 'bg-[var(--data-track)]'}`}
+        className={`relative inline-flex h-5 ${size === 'sm' ? 'w-[34px]' : 'w-9'} shrink-0 items-center rounded-full transition-[background-color,box-shadow] ${spring ? 'duration-200' : 'duration-150'} ease-out group-focus-visible/switch:ring-[3px] group-focus-visible/switch:ring-[color-mix(in_srgb,var(--ink)_15%,transparent)] ${checked ? 'bg-ink' : 'bg-[var(--data-track)]'}`}
       >
         <span
-          className={`absolute left-0.5 h-4 w-4 rounded-full shadow-sm transition-[transform,background-color] duration-150 ease-out ${checked ? `${size === 'sm' ? 'translate-x-[14px]' : 'translate-x-4'} bg-on-ink` : 'translate-x-0 border border-[var(--color-line-strong)] bg-surface'}`}
+          className={`absolute left-0.5 h-4 w-4 rounded-full shadow-sm transition-[transform,background-color] ${spring ? 'duration-200 ease-[cubic-bezier(.34,1.56,.64,1)]' : 'duration-150 ease-out'} motion-reduce:transition-none ${checked ? `${size === 'sm' ? 'translate-x-[14px]' : 'translate-x-4'} bg-on-ink` : 'translate-x-0 border border-[var(--color-line-strong)] bg-surface'}`}
         />
       </span>
       {children}

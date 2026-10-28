@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Cell, Pie as RPie, PieChart } from 'recharts'
-import { Globe, LayoutGrid, MessageSquareText, MessagesSquare, RefreshCw, Star, Store } from 'lucide-react'
+import { Globe, History, LayoutGrid, MessageSquareText, MessagesSquare, RefreshCw, Star, Store } from 'lucide-react'
 import { HeaderIconButton } from './PageHeader'
 import Card from './Card'
 import Insight, { hl, hlOpacity, useExplain } from '../ui/Insight'
 import { marketplaceEvidence } from './insights'
 import { useTracking } from '../../store/trackingSettings'
 import { marketplace } from '../../data/mock'
+import { VsLastWeek } from './CitationsMentions'
+import { openMarketplaceDrawer } from '../answer/MarketplaceDrawer'
+import { marketMock, marketRows } from '../../data/marketplaceHistory'
+import { ArrowRight } from 'lucide-react'
+import { ENGINE_ORDER } from '../../data/brandViews'
 import SiteLogo from '../ui/SiteLogo'
 import { brandName, isDomain } from '../../utils/brand'
 import { OWN } from '../../data/brandViews'
@@ -100,6 +105,11 @@ function MarketplaceCard() {
     }, 1200)
   }
 
+  // this week against the last (every engine the account tracks): "+3 vs last week" opens week by week
+  const enabled = ENGINE_ORDER.filter((e) => tracking.platforms.some((p) => p.id === e && p.enabled))
+  const [thisWeek] = marketRows('all', enabled, 2, marketMock())
+  const week = (e) => openMarketplaceDrawer({ metric: 'linking', opener: e.currentTarget })
+
   return (
     <Card ref={explain.cardRef} className="flex h-full min-w-0 flex-col px-5 pt-5">
       {/* header actions: icon buttons styled like the dropdowns (HeaderIconButton), centred on the 26px title line */}
@@ -109,6 +119,7 @@ function MarketplaceCard() {
           <p className="mt-0.5 text-[13px] leading-[18px] font-normal text-stone-600 proportional-nums">How {m.total} tracked prompts link to {storeList(m.stores)}</p>
         </div>
         <div className="-mt-[3px] flex shrink-0 items-center gap-2">
+          <HeaderIconButton label="Week by week" icon={History} onClick={week} />
           <HeaderIconButton label={active.action.label} icon={MessageSquareText} onClick={() => showMarketplacePrompts(active.action.filter)} />
           <HeaderIconButton label={`Re-check · last checked ${lastChecked}`} onClick={recheck} tipAlign="right">
             <RefreshCw size={16} className={checking ? 'animate-[spin_600ms_linear_infinite] motion-reduce:animate-none' : undefined} aria-hidden />
@@ -194,6 +205,16 @@ function MarketplaceCard() {
                   <span className="text-[28px] leading-none font-semibold text-ink tabular-nums">{s.panelCount ?? s.count}</span>
                   <span className="truncate text-[13px] leading-[18px] text-stone-600">{s.headline}</span>
                 </div>
+                {/* your listings: the change since last week, the way into week by week */}
+                {s.key === 'yours' && thisWeek?.delta.linking != null && (thisWeek.totals.linking > 0 || thisWeek.prev.linking > 0) && <VsLastWeek d={thisWeek.delta.linking} label="Prompts linking to your listings" onOpen={week} className="mt-1" />}
+                {s.key === 'yours' && thisWeek && !thisWeek.prev && thisWeek.totals.linking > 0 && (
+                  // the first scan: nothing to compare yet
+                  <button type="button" onClick={week} aria-label="Collecting history: the first weekly scan. Open week by week"
+                    className="group/vs relative -mx-1 mt-1 inline-flex cursor-pointer items-center whitespace-nowrap rounded px-1 text-left text-[12px] leading-4 text-stone-500 outline-none transition-colors duration-150 hover:text-ink focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-focus">
+                    <span className="decoration-1 underline-offset-2 group-hover/vs:underline group-focus-visible/vs:underline">Collecting history · first scan {thisWeek.week.date.replace(/, \d{4}$/, '')}</span>
+                    <ArrowRight size={12} aria-hidden className="pointer-events-none absolute left-full top-1/2 -translate-x-1 -translate-y-1/2 text-ink opacity-0 transition duration-150 ease-out group-hover/vs:translate-x-0 group-hover/vs:opacity-100 group-focus-visible/vs:translate-x-0 group-focus-visible/vs:opacity-100 motion-reduce:transition-none" />
+                  </button>
+                )}
                 {/* plain rows: logo · name ……… count. Dermasuri is marked only by its weight */}
                 <ul className="mt-3 w-full">
                   {sortRows(s.rows).map((r) => {

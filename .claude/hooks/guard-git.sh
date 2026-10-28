@@ -7,8 +7,10 @@
 #  - no SSH, scp, sftp or rsync to a server (a port-forward tunnel, ssh -N -L, is allowed)
 #  - git commit / git push / gh pr create / gh pr merge are blocked from a branch behind origin/main; push and
 #    pr create with uncommitted changes; committing a merge with conflicts the owner hasn't seen (conflict-stop.sh)
+#  - one open PR at a time: gh pr create only for develop → main while no other PR is open; no gh pr reopen
+#  - every push builds first (npm run build into a temp folder); a failed build blocks the push
 #  - no AI attribution in commit messages or PR text
-#  - gh pr merge only with the owner's approval for that PR at its current head commit (merge-check.sh)
+#  - gh pr merge only for the develop → main PR, with the owner's approval at its current head commit (merge-check.sh)
 # Every other call passes.
 here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/lib.sh"
@@ -70,7 +72,9 @@ kind=""
 has "${GIT}commit([[:space:]]|$)" && kind="commit"
 has "${GIT}merge[[:space:]]+--continue" && kind="commit"
 has "${GIT}push([[:space:]]|$)" && kind="push"
-has "${GH}(create|edit)([[:space:]]|$)" && kind="pr-create"
+has "${GH}create([[:space:]]|$)" && kind="pr-create"
+has "${GH}edit([[:space:]]|$)" && kind="pr-edit"
+has "${GH}reopen([[:space:]]|$)" && kind="pr-reopen"
 has "${GH}merge([[:space:]]|$)" && kind="pr-merge"
 [ -z "$kind" ] && exit 0
 
@@ -81,14 +85,21 @@ printf '%s' "$cmd" | attributed && block "No AI attribution in commits, PR title
 body_file=$(printf '%s' "$cmd" | sed -nE 's/.*(--body-file|-F)[[:space:]]+("([^"]+)"|([^[:space:]]+)).*/\3\4/p' | head -1)
 [ -n "$body_file" ] && [ -f "$body_file" ] && attributed < "$body_file" && block "No AI attribution in PR text (CLAUDE.md)."
 
+ONE_PR="One open PR at a time (CLAUDE.md): only the Release PR, develop → main. Work lands on develop as commits; unfinished design work stays on its own branch with no PR."
+# editing the Release PR's title or text is fine; reopening a closed PR would make a second open PR
+[ "$kind" = "pr-edit" ] && exit 0
+[ "$kind" = "pr-reopen" ] && block "$ONE_PR Closed PRs stay closed: an approved branch joins develop as one squashed commit."
+repo=$(printf '%s' "$cmd" | sed -nE 's/.*[[:space:]](-R|--repo)[[:space:]]+([^[:space:]]+).*/\2/p' | head -1)
+
 if [ "$kind" = "pr-merge" ]; then
   pr=$(printf '%s' "$cmd" | sed -nE 's/.*pr[[:space:]]+merge[[:space:]]+([0-9]+).*/\1/p' | head -1)
-  repo=$(printf '%s' "$cmd" | sed -nE 's/.*[[:space:]](-R|--repo)[[:space:]]+([^[:space:]]+).*/\2/p' | head -1)
   cd "$(hook_repo_dir "$cmd" "$cwd")" 2>/dev/null || block "gh pr merge: run it from inside the repo, so the hook can check the PR."
   git rev-parse --git-dir >/dev/null 2>&1 || block "gh pr merge: run it from inside the repo, so the hook can check the PR."
-  info=$(gh pr view ${pr:+"$pr"} ${repo:+-R "$repo"} --json number,headRefOid,baseRefName -q '"\(.number) \(.baseRefName) \(.headRefOid)"' 2>/dev/null)
+  info=$(gh pr view ${pr:+"$pr"} ${repo:+-R "$repo"} --json number,headRefOid,baseRefName,headRefName 2>/dev/null \
+    | jq -r '"\(.number) \(.baseRefName) \(.headRefOid) \(.headRefName)"' 2>/dev/null)
   [ -z "$info" ] && block "gh pr merge: couldn't read the PR from GitHub, so it can't be checked."
-  set -- $info; pr="$1"; base="$2"; head="$3"
+  set -- $info; pr="$1"; base="$2"; head="$3"; head_branch="$4"
+  [ "$head_branch" = "develop" ] && [ "$base" = "main" ] || block "PR ${pr} is ${head_branch} → ${base}. $ONE_PR Only the Release PR is merged."
   [ -z "$repo" ] && repo=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)
   # how many commits of the base its branch doesn't have (GitHub's compare)
   behind=$(gh api "repos/${repo}/compare/${base}...${head}" -q .behind_by 2>/dev/null || echo 0)
@@ -102,6 +113,17 @@ cd "$(hook_repo_dir "$cmd" "$cwd")" 2>/dev/null || exit 0
 git rev-parse --git-dir >/dev/null 2>&1 || exit 0
 git fetch origin main --quiet 2>/dev/null
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+
+if [ "$kind" = "pr-create" ]; then
+  head_b=$(printf '%s' "$cmd" | sed -nE 's/.*[[:space:]](--head|-H)[=[:space:]]+([^[:space:]]+).*/\2/p' | head -1)
+  base_b=$(printf '%s' "$cmd" | sed -nE 's/.*[[:space:]](--base|-B)[=[:space:]]+([^[:space:]]+).*/\2/p' | head -1)
+  head_b="${head_b:-$branch}"; base_b="${base_b:-main}"
+  [ "$head_b" = "develop" ] && [ "$base_b" = "main" ] || block "No PR for ${head_b} → ${base_b}. $ONE_PR"
+  open=$(gh pr list ${repo:+-R "$repo"} --state open --json number,headRefName,baseRefName 2>/dev/null)
+  n=$(printf '%s' "$open" | jq 'length' 2>/dev/null)
+  [ -z "$n" ] && block "gh pr create: couldn't list the open PRs on GitHub, so the one-PR rule can't be checked."
+  [ "$n" -gt 0 ] && block "$ONE_PR Already open: $(printf '%s' "$open" | jq -r '[.[] | "#\(.number) \(.headRefName) → \(.baseRefName)"] | join(", ")')."
+fi
 
 # a merge in progress: the commit that finishes it brings origin/main in, so count against both parents
 if merge_head=$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null); then
@@ -129,5 +151,13 @@ if [ "$kind" = "push" ]; then
 fi
 if [ "$kind" != "commit" ] && [ -n "$(git status --porcelain 2>/dev/null)" ]; then
   block "${branch} has uncommitted changes: commit them on this task's branch, or move them to their own branch first."
+fi
+# this repo has no CI: every push builds first (into a temp folder, so dist/ is untouched)
+if [ "$kind" = "push" ] && [ -f package.json ] && jq -e '.scripts.build' package.json >/dev/null 2>&1; then
+  out_dir=$(mktemp -d)
+  log=$(npm run -s build -- --outDir "$out_dir" --emptyOutDir 2>&1); s=$?
+  rm -rf "$out_dir"
+  [ "$s" -ne 0 ] && block "npm run build fails, so nothing is pushed (CLAUDE.md: build before every push). Last lines:
+$(printf '%s\n' "$log" | tail -15)"
 fi
 exit 0

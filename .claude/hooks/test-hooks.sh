@@ -1,9 +1,23 @@
 #!/bin/bash
-# Tests for the hooks in this folder (npm run test:hooks, part of npm run test:ci). Builds throwaway repos in a temp
-# dir: an origin, "Harsh" pushing to main, and our branch. Nothing outside the temp dir is touched.
+# Tests for the hooks in this folder (bash .claude/hooks/test-hooks.sh). Builds throwaway repos in a temp dir: an
+# origin, "Harsh" pushing to main, and our branch. Nothing outside the temp dir is touched; GitHub is a fake gh.
 H="$(cd "$(dirname "$0")" && pwd)"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$T/gitconfig" GH_TOKEN=none
+# a fake gh (never GitHub): pr list prints $T/gh-open (default: no open PRs; fails if $T/gh-fail exists),
+# pr view prints $T/gh-view, repo view / api answer what the merge check needs
+mkdir -p "$T/bin"
+cat > "$T/bin/gh" <<EOF
+#!/bin/bash
+case "\$1 \$2" in
+  "pr list") [ -f "$T/gh-fail" ] && exit 1; cat "$T/gh-open" 2>/dev/null || echo '[]' ;;
+  "pr view") [ -f "$T/gh-view" ] && cat "$T/gh-view" || exit 1 ;;
+  "repo view") echo "owner/mock" ;;
+  "api "*) echo 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$T/bin/gh"; export PATH="$T/bin:$PATH"
 git config --file "$T/gitconfig" init.defaultBranch main
 git config --file "$T/gitconfig" advice.detachedHead false
 pass=0; fail=0
@@ -151,6 +165,44 @@ out=$(jq -cn --arg d "$W" '{cwd:$d,prompt:"hi"}' | "$H/prompt-sync.sh")
 echo $(( $(date +%s) - 1801 )) > "$stamp"
 out=$(jq -cn --arg d "$W" '{cwd:$d,prompt:"hi"}' | "$H/prompt-sync.sh")
 case "$out" in *Idle*Branch:*) ok "fetches again after 30 minutes idle" ;; *) bad "fetches again after 30 minutes idle"; echo "$out" ;; esac
+
+echo "single-branch workflow (develop, one Release PR)"
+git clone -q "$T/origin.git" "$T/w3"; W="$T/w3"
+as_us checkout -q -b develop origin/main
+expect "commit on develop allowed" 0 "$(guard 'git commit -m "Brand Setup: one change"')"
+expect "push of develop allowed (up to date, clean, no build script)" 0 "$(guard 'git push -u origin develop')"
+expect "push of develop to main still blocked" 2 "$(guard 'git push origin develop:main')"
+expect "Release PR develop → main allowed when no PR is open" 0 "$(guard 'gh pr create --base main --title "Release: 2026-10-27" --body x')"
+echo '[{"number":19,"headRefName":"fix/x","baseRefName":"main"}]' > "$T/gh-open"
+expect "a second open PR blocked (another PR is open)" 2 "$(guard 'gh pr create --base main --title "Release" --body x')"
+msg=$(bash_input 'gh pr create --base main --title R --body x' | CLAUDE_PROJECT_DIR="$W" "$H/guard-git.sh" 2>&1)
+case "$msg" in *"#19 fix/x"*) ok "the block names the open PR" ;; *) bad "the block names the open PR"; echo "$msg" ;; esac
+rm -f "$T/gh-open"
+expect "PR from develop to another base blocked" 2 "$(guard 'gh pr create --base staging --title x --body y')"
+expect "PR with an explicit other head blocked" 2 "$(guard 'gh pr create --head design/team --base main --title x --body y')"
+touch "$T/gh-fail"
+expect "gh pr create blocked when the open PRs can't be listed" 2 "$(guard 'gh pr create --base main --title x --body y')"
+rm -f "$T/gh-fail"
+expect "editing the Release PR's text allowed" 0 "$(guard 'gh pr edit 21 --title "Release: 2026-10-28"')"
+expect "gh pr reopen blocked" 2 "$(guard 'gh pr reopen 19')"
+as_us checkout -q -b design/team origin/main
+expect "PR from a design branch blocked" 2 "$(guard 'gh pr create --title x --body y')"
+expect "push of a design branch allowed (no PR)" 0 "$(guard 'git push -u origin design/team')"
+as_us checkout -q develop
+dev_head=$(as_us rev-parse HEAD)
+echo "{\"number\":19,\"headRefName\":\"fix/x\",\"baseRefName\":\"main\",\"headRefOid\":\"$dev_head\"}" > "$T/gh-view"
+expect "gh pr merge of a PR that isn't develop → main blocked" 2 "$(guard 'gh pr merge 19 --squash')"
+echo "{\"number\":21,\"headRefName\":\"develop\",\"baseRefName\":\"main\",\"headRefOid\":\"$dev_head\"}" > "$T/gh-view"
+expect "Release PR merge blocked without the owner's approval" 2 "$(guard 'gh pr merge 21 --merge')"
+echo "21 $dev_head $(date +%s)" >> "$W/.git/kraffic-approved-merges"
+expect "Release PR merge allowed with the owner's approval at this head" 0 "$(guard 'gh pr merge 21 --merge')"
+rm -f "$T/gh-view"
+printf '{"scripts":{"build":"false"}}\n' > "$W/package.json"; as_us add package.json; as_us commit -qm "build fails"
+expect "push blocked when npm run build fails" 2 "$(guard 'git push origin develop')"
+printf '{"scripts":{"build":"true"}}\n' > "$W/package.json"; as_us commit -qam "build passes"
+expect "push allowed when npm run build passes" 0 "$(guard 'git push origin develop')"
+out=$("$H/sync-main.sh" "$W")
+case "$out" in *"OLD BRANCH"*) bad "no old-branch warning on develop (it's long-lived)"; echo "$out" ;; *) ok "no old-branch warning on develop (it's long-lived)" ;; esac
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

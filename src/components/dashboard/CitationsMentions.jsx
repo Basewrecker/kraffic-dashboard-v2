@@ -9,7 +9,7 @@ import { PlatformIcon } from './icons'
 import { openEngineDrawer } from '../answer/EngineDrawer'
 import { openCitationsDrawer } from '../answer/CitationsDrawer'
 import { ENGINES, OWN, brandByDomain, getBrandView } from '../../data/brandViews'
-import { weekRows } from '../../data/citationHistory'
+import { enginesNotRun, weekRows } from '../../data/citationHistory'
 import { citationsMentions, trackedPrompts } from '../../data/mock'
 import { useBrandView, useCountUp } from '../../hooks/useBrandView'
 import { platformRates } from '../../utils/platformInsight'
@@ -41,11 +41,11 @@ const Stat = ({ label, children, gap = 'mt-1', foot = null }) => (
 // t3; on hover or focus it underlines, turns ink and a small → slides in (outside the text box, so it takes no width
 // and the two lines never collide on a phone). A drop’s number
 // keeps the negative token.
-function VsLastWeek({ d, label, onOpen }) {
+export function VsLastWeek({ d, label, onOpen, className = 'mt-0.5' }) {
   if (d == null) return null
   return (
     <button type="button" onClick={onOpen} aria-label={`${label}: ${d === 0 ? 'no change' : d > 0 ? `up ${d}` : `down ${Math.abs(d)}`} vs last week. Open week by week`}
-      className="group/vs relative -mx-1 mt-0.5 inline-flex cursor-pointer items-center whitespace-nowrap rounded px-1 text-left text-[12px] leading-4 text-stone-500 tabular-nums outline-none transition-colors duration-150 hover:text-ink focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-focus">
+      className={`group/vs relative -mx-1 ${className} inline-flex cursor-pointer items-center whitespace-nowrap rounded px-1 text-left text-[12px] leading-4 text-stone-500 tabular-nums outline-none transition-colors duration-150 hover:text-ink focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-focus`}>
       <span className="decoration-1 underline-offset-2 group-hover/vs:underline group-focus-visible/vs:underline">
         {d === 0 ? 'No change' : <span className={d < 0 ? 'text-negative' : ''}>{d > 0 ? `+${d}` : `−${Math.abs(d)}`}</span>} vs last week
       </span>
@@ -70,7 +70,10 @@ export default function CitationsMentions() {
   const data = citationsMentions[domain] ?? {}
 
   const enabled = tracking.platforms.filter((p) => p.enabled).map((p) => p.id)
-  const all = ENGINES.filter((e) => enabled.includes(e.id)).map((e) => {
+  // engines without a current scan aren't counted (app: lib/mock-adapter enginesNotRun); the subtitle names them
+  const notRun = enginesNotRun(enabled)
+  const notRunLine = notRun.length ? `${listOf(ENGINES.filter((e) => notRun.includes(e.id)).map((e) => e.name))} didn’t run this week` : null
+  const all = ENGINES.filter((e) => enabled.includes(e.id) && !notRun.includes(e.id)).map((e) => {
     // mentions null: not known (no stored answer text to read a name from); never filled in from citations
     const [m, c] = data[e.id] ?? []
     return { ...e, mentions: m === null ? null : m ?? 0, citations: c ?? 0 }
@@ -89,7 +92,8 @@ export default function CitationsMentions() {
   const open = (engine, tab, e) => openEngineDrawer({ engine, tab, brand: domain, opener: e.currentTarget })
   const shownScore = useCountUp(score)
   // this week vs last (all of the brand's engines, as the numbers above): the drawer has the weeks before
-  const [thisWeek] = weekRows(domain, 'all', enabled, 2)
+  // the latest week with numbers (the current week before its scan has none, and is never a 0)
+  const thisWeek = weekRows(domain, 'all', enabled, 3).find((r) => r.totals.ran?.length)
   const week = (metric, e) => openCitationsDrawer({ metric, brand: domain, opener: e.currentTarget })
 
   // insight: about the engine that cites the brand most (else mentions it most), compared with the others
@@ -113,7 +117,7 @@ export default function CitationsMentions() {
         <div className="min-w-0 flex-1">
           <h2 className="text-[17px] leading-6 font-semibold text-stone-900">Citations and Mentions</h2>
           <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums [text-wrap:pretty]">
-            {TOTAL} prompts{silentLine && ` · ${silentLine}`}
+            {TOTAL} prompts{notRunLine && ` · ${notRunLine}`}{silentLine && ` · ${silentLine}`}
           </p>
         </div>
         <div className="-mt-1 flex shrink-0 items-center gap-2">

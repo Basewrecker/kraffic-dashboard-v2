@@ -366,6 +366,17 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
 .srow-out { animation: srow-out 150ms ease-out forwards; overflow: hidden; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .srow-in, .srow-out { animation: none; } }
 
+/* Team: a new invite slides in at the top with a tint that fades (1.2s); a revoked / removed row collapses (200ms) */
+@keyframes team-row-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes team-row-tint { from { background-color: color-mix(in srgb, var(--ink) 7%, transparent); } to { background-color: transparent; } }
+@keyframes team-row-out {
+  from { max-height: var(--row-h, 72px); opacity: 1; }
+  to { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; border-color: transparent; }
+}
+.team-row-in { animation: team-row-in 220ms ease-out, team-row-tint 1200ms ease-out; }
+.team-row-out { animation: team-row-out 200ms ease-out forwards; overflow: hidden; pointer-events: none; min-height: 0 !important; } /* the row's min-h would hold the collapse open */
+@media (prefers-reduced-motion: reduce) { .team-row-in, .team-row-out { animation: none; } }
+
 /* Answer drawer: "Ranked 1st of 5" pulses the focal brand once (tint → ink/10 → tint) */
 @keyframes focal-pulse { 0%, 100% { background-color: var(--tint); } 50% { background-color: color-mix(in srgb, var(--ink) 10%, transparent); } }
 .focal-pulse { animation: focal-pulse 600ms ease-out; }
@@ -403,3 +414,10 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
   .kpi-grid .text-\[32px\] { font-size: 24px; line-height: 32px; }
   .kpi-grid .text-\[13px\] { font-size: 12px; line-height: 16px; }
 }
+
+/* Sentiment spectrum: a page's dot settles in (staggered by the page); none with reduced motion */
+@keyframes dot-in { from { opacity: 0; scale: 0.4; } to { opacity: 1; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .dot-in { animation: none !important; } .dot-move { transition: none !important; } }
+
+/* Sentiment Over time: a ribbon draws in (stroke-dashoffset on a pathLength=1 path) */
+@keyframes ribbon-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
