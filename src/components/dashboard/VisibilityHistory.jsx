@@ -216,10 +216,9 @@ function TopValueLabel({ x, y, width = 0, value }) {
 
 // The legend chips on one line, never wrapped. Wider screens: short names stay whole and only the longest end in an
 // ellipsis, all cut to one width (chipCap; the full name is in the tooltip), measured again on resize and once the web
-// fonts load. Phones: the chips scroll sideways, with a soft fade on the side(s) that have more. The "All N brands"
-// menu stays at the end either way.
+// fonts load. Phones: the chips scroll sideways, with a soft fade on the side(s) that have more.
 const CHIP_GAP = 4
-function ChipRow({ mobile, children, menu, measureKey }) {
+function ChipRow({ mobile, children, measureKey }) {
   const box = useRef(null)
   const [edges, setEdges] = useState({ left: false, right: false })
   const [cap, setCap] = useState(Infinity)
@@ -258,25 +257,33 @@ function ChipRow({ mobile, children, menu, measureKey }) {
     ? `linear-gradient(to right, ${edges.left ? 'transparent' : '#000'}, #000 24px, #000 calc(100% - 24px), ${edges.right ? 'transparent' : '#000'})`
     : undefined
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
+    <div className="flex min-w-0 flex-1 items-center">
       <div ref={box} style={fade ? { maskImage: fade, WebkitMaskImage: fade } : { '--chip-max': Number.isFinite(cap) ? `${cap}px` : 'none' }}
         className={`flex min-w-0 flex-1 items-center gap-1 ${mobile ? 'overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'overflow-hidden'}`}>
         {children}
       </div>
-      {menu}
     </div>
   )
 }
 
-// "All 7 brands ▾": every brand (logo, name, latest share) as a checklist of what's on the chart. At most 4: the brand
-// (always on, locked) + 3 competitors. Checking a 4th competitor swaps out the last one, with a short note saying so.
-function BrandsMenu({ brands, focalKey, drawn, onPick, mobile }) {
+// "Brands ▾" (a header control, after the range): every brand (logo, name, latest share) as a checklist of what's on
+// the chart. At most 4: the brand (always on, locked) + 3 competitors. Checking a 4th competitor swaps out the last one,
+// with a short note saying so.
+function BrandsMenu({ brands, focalKey, drawn, onPick }) {
   const [open, setOpen] = useState(false)
+  // a phone's header wraps, so the button can sit anywhere: the list opens toward the side with room, kept 16px inside
+  const [place, setPlace] = useState({ left: false, shift: 0 })
   const [note, setNote] = useState('')
   const wrap = useRef(null)
   const btn = useRef(null)
   const menu = useRef(null)
   const ITEM = '[role=menuitemcheckbox]'
+  useLayoutEffect(() => {
+    if (!open || !menu.current || !btn.current) return
+    const b = btn.current.getBoundingClientRect(), w = menu.current.offsetWidth
+    if (b.right - w >= 16) setPlace({ left: false, shift: 0 })
+    else setPlace({ left: true, shift: Math.min(0, window.innerWidth - 16 - (b.left + w)) })
+  }, [open])
   useEffect(() => {
     if (!open) { setNote(''); return }
     menu.current?.querySelector(`${ITEM}:not([aria-disabled=true])`)?.focus()
@@ -301,14 +308,14 @@ function BrandsMenu({ brands, focalKey, drawn, onPick, mobile }) {
   return (
     <div ref={wrap} className="relative shrink-0" onKeyDown={open ? onKey : undefined}>
       <button ref={btn} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
-        aria-label={`All ${brands.length} brands: pick up to 4 for the chart`}
-        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-raised pl-3 pr-2.5 text-small font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
-        {mobile ? `All ${brands.length}` : `All ${brands.length} brands`}
+        aria-label={`Brands: ${brands.length} brands, pick up to 4 for the chart`}
+        className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-raised pl-3.5 pr-3 text-small font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
+        Brands
         <ChevronDown size={13} className={`text-stone-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} aria-hidden />
       </button>
       {open && (
-        <div ref={menu} role="menu" aria-label="Brands on the chart"
-          className="absolute right-0 top-full z-30 mt-1 w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-line bg-raised p-1 shadow-md motion-safe:animate-[fade-in_120ms_ease-out]">
+        <div ref={menu} role="menu" aria-label="Brands on the chart" style={place.shift ? { transform: `translateX(${place.shift}px)` } : undefined}
+          className={`absolute ${place.left ? 'left-0' : 'right-0'} top-full z-30 mt-1 w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-line bg-raised p-1 shadow-md motion-safe:animate-[fade-in_120ms_ease-out]`}>
           <div className="px-2 pb-1 pt-1.5 text-[12px] leading-4 text-stone-500">Up to 4 on the chart</div>
           {brands.map((b) => {
             const you = b.key === focalKey
@@ -603,10 +610,10 @@ export default function VisibilityHistory() {
                 onBlur={() => setHovered(null)}
                 aria-label={`${brandName(s.label)}: ${shown ? 'shown' : 'hidden'}`}
                 className={isLine
-                  ? `inline-flex h-8 $shrink-0 ${mobile ? 'max-w-[15rem]' : 'max-w-[var(--chip-max)]'} items-center gap-2 whitespace-nowrap rounded-md px-2 text-[14px] leading-5 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
+                  ? `inline-flex h-8 $shrink-0 ${mobile ? 'max-w-[15rem]' : 'max-w-[var(--chip-max)]'} items-center gap-2 whitespace-nowrap rounded-md px-2 text-[13px] leading-[18px] outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'font-medium text-stone-900' : 'font-normal text-stone-600'
                   }`
-                  : `inline-flex h-8 $shrink-0 ${mobile ? 'max-w-[15rem]' : 'max-w-[var(--chip-max)]'} items-center gap-2 whitespace-nowrap rounded-full px-3 text-[14px] leading-5 outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
+                  : `inline-flex h-8 $shrink-0 ${mobile ? 'max-w-[15rem]' : 'max-w-[var(--chip-max)]'} items-center gap-2 whitespace-nowrap rounded-full px-3 text-[13px] leading-[18px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'bg-tint text-stone-900' : 'bg-transparent text-stone-600/60 hover:text-stone-600'
                   }`}
                 title={lastOne ? `${brandName(s.label)} · at least one brand stays on the chart` : brandName(s.label)}
@@ -640,17 +647,17 @@ export default function VisibilityHistory() {
             ]}
           />
           <RangeSelect granularity={view.granularity} value={view.range} onChange={(range) => update({ range })} />
+          {compare && notDrawn.length > 0 && <BrandsMenu brands={[byKey(YOU), ...ranked]} focalKey={YOU} drawn={drawn} onPick={setPicks} />}
         </div>
       </div>
 
-      {/* legend = filter: one line, never wrapped. At most 4 brands: the brand + 3 competitors; "All N brands" at the
-          end picks which (checking a 4th competitor swaps out the last one) */}
+      {/* legend = filter: one line, never wrapped. At most 4 brands: the brand + 3 competitors; "Brands" in the header
+          picks which (checking a 4th competitor swaps out the last one) */}
       <div className="mt-3 flex min-h-9 min-w-0 items-center">
         <span className="flex h-8 shrink-0 items-center"><Switch checked={compare} onChange={setCompare} className="shrink-0">Compare</Switch></span>
         <span className="mx-3 h-5 w-px shrink-0 bg-stone-200" aria-hidden />
         {compare ? (
-          <ChipRow mobile={mobile} measureKey={`${chartType}|${drawn.join(',')}|${view.hidden.join(',')}`}
-            menu={notDrawn.length > 0 && <BrandsMenu brands={[byKey(YOU), ...ranked]} focalKey={YOU} drawn={drawn} onPick={setPicks} mobile={mobile} />}>
+          <ChipRow mobile={mobile} measureKey={`${chartType}|${drawn.join(',')}|${view.hidden.join(',')}`}>
             {[byKey(YOU), ...COMPETITORS].map((s) => chip(s))}
           </ChipRow>
         ) : isLine ? (
