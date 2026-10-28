@@ -81,7 +81,7 @@ export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256
       <button ref={btn} type="button" aria-haspopup="menu" aria-expanded={open} aria-label={ghost ? `${label}: ${value}` : undefined} onClick={() => setOpen((o) => !o)}
         title={inferred ? `${label}: ${value}, from your question` : label}
         className={ghost
-          ? `inline-flex h-9 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[13px] leading-[18px] font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus max-md:px-2 ${open ? 'bg-tint text-stone-900' : ''}`
+          ? `inline-flex h-9 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[13px] leading-[18px] font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus max-md:px-1.5 ${open ? 'bg-tint text-stone-900' : ''}`
           : `inline-flex h-8 max-w-[15rem] items-center max-md:max-w-full gap-1.5 whitespace-nowrap rounded-full border px-3 text-[13px] leading-[18px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
           set ? 'border-transparent bg-tint font-medium text-stone-900'
             : inferred ? 'border-dashed border-stone-400 text-stone-800 hover:bg-tint'

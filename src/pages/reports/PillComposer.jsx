@@ -5,9 +5,9 @@ import { EngineMark } from '../insights/parts'
 import { AUDIENCES, ENGINE_IDS, ENGINE_NAMES, LENGTHS, MAX_COMPARE, PERIODS, REPORT_BRANDS, dataFor, inferOpts, rivalsOf, suggestionsFor } from '../../data/reports'
 import { BrandLogo, ChipMenu, brandOf, menuItem, menuLabel, t3 } from './parts'
 
-// New report's box, ChatGPT-style: one slim pill — "+" (brand, engines, competitors), the question, then Period /
-// Audience / Length as ghost dropdowns that always show their value, and send. It grows only as the text wraps (the
-// dropdowns stay on the last row). Anything set from "+" that isn't the default shows as a removable chip in the pill.
+// New report's box: the question on top, full width; under it, in the same box, "+" (brand, engines, competitors), any
+// chips "+" set (removable), Period / Audience / Length as ghost dropdowns that always show their value, and send.
+// It grows upward only as the question wraps; the bottom row stays put.
 // Empty and focused: up to 4 suggestions under it (arrow keys + Enter pick one). Enter sends; Shift+Enter is a new line.
 // The dropdowns show what the report will use: what you picked, else what the question implies, else the default.
 export const PILL_DEFAULTS = { period: 'week', audience: 'team', length: 'one' }
@@ -88,28 +88,35 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
   const label = (list, k) => list.find((x) => x.id === shown[k])?.label
 
   return (
-    <div ref={ref} className="relative mx-auto w-full max-w-[700px]">
-      <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 rounded-[28px] border border-line bg-surface px-2 py-[7px] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_6px_20px_-12px_rgba(0,0,0,0.18)] transition-[border-color,box-shadow] duration-150 focus-within:border-line-strong">
-        <PlusMenu opts={opts} set={set} rivals={rivals} />
-        {chips.map((c) => (
-          <span key={c.key} className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-tint pl-2.5 pr-1 text-[12px] leading-4 font-medium text-stone-800 motion-safe:animate-[chip-in_160ms_ease-out]">
-            {c.logo}{c.label}
-            <button type="button" onClick={c.clear} aria-label={`Remove ${c.label}`} className="grid h-5 w-5 place-items-center rounded-full text-stone-500 outline-none hover:bg-[color-mix(in_srgb,var(--ink)_10%,transparent)] hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><X size={12} aria-hidden /></button>
-          </span>
-        ))}
+    <div ref={ref} className="relative mx-auto w-full max-w-[720px]">
+      {/* row 1: the question, full width (grows upward as it wraps); row 2, pinned to the bottom: "+", chips, the
+          dropdowns, send */}
+      <div className="flex flex-col rounded-[20px] border border-line bg-surface px-4 pb-3 pt-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_6px_20px_-12px_rgba(0,0,0,0.18)] transition-[border-color,box-shadow] duration-150 focus-within:border-line-strong max-md:px-3">
         <label className="sr-only" htmlFor="report-q">Ask about {brand?.name ?? 'your brand'}’s AI visibility</label>
         <textarea id="report-q" ref={area} value={prompt} rows={1} autoFocus={autoFocus}
           role="combobox" aria-expanded={sugg.length > 0} aria-controls="report-suggestions" aria-autocomplete="list" aria-activedescendant={active >= 0 && sugg[active] ? `sugg-${sugg[active].id}` : undefined}
           onChange={(e) => { setPrompt(e.target.value); setClosed(false) }} onKeyDown={onKey}
           onFocus={() => { setFocused(true); setClosed(false) }} onBlur={() => { setFocused(false); setActive(-1) }}
           placeholder={`Ask about ${brand?.name ?? 'your brand'}’s AI visibility…`}
-          className="min-h-9 min-w-[160px] flex-1 resize-none self-center bg-transparent px-1.5 py-[7px] text-[15px] leading-[22px] text-stone-900 outline-none placeholder:text-stone-500 max-md:order-first max-md:basis-full max-md:px-3" />
-        <div className="ml-auto flex shrink-0 items-center self-end">
-          <ChipMenu ghost align="right" label="Period" icon={Calendar} value={label(PERIODS, 'period')} width={220}>{(close) => radio(PERIODS.filter((p) => p.id !== 'custom'), 'period', close)}</ChipMenu>
-          <ChipMenu ghost align="right" label="Audience" icon={UserRound} value={label(AUDIENCES, 'audience')} width={280}>{(close) => radio(AUDIENCES, 'audience', close)}</ChipMenu>
-          <ChipMenu ghost align="right" label="Length" icon={AlignLeft} value={label(LENGTHS, 'length')} width={240}>{(close) => radio(LENGTHS, 'length', close)}</ChipMenu>
+          className="block min-h-[26px] w-full resize-none bg-transparent px-1 py-0.5 text-[15px] leading-[22px] text-stone-900 outline-none placeholder:text-stone-500" />
+        <div className="mt-3 flex items-end gap-2 md:gap-3">
+          {/* one wrapping row: "+" (12px to what follows), chips, the dropdowns 8px apart (tighter on phones) */}
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-1.5 md:gap-x-2">
+            <PlusMenu opts={opts} set={set} rivals={rivals} />
+            <div className="contents">
+              {chips.map((c) => (
+                <span key={c.key} className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-tint pl-2.5 pr-1 text-[12px] leading-4 font-medium text-stone-800 motion-safe:animate-[chip-in_160ms_ease-out]">
+                  {c.logo}{c.label}
+                  <button type="button" onClick={c.clear} aria-label={`Remove ${c.label}`} className="grid h-5 w-5 place-items-center rounded-full text-stone-500 outline-none hover:bg-[color-mix(in_srgb,var(--ink)_10%,transparent)] hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><X size={12} aria-hidden /></button>
+                </span>
+              ))}
+              <ChipMenu ghost label="Period" icon={Calendar} value={label(PERIODS, 'period')} width={220}>{(close) => radio(PERIODS.filter((p) => p.id !== 'custom'), 'period', close)}</ChipMenu>
+              <ChipMenu ghost label="Audience" icon={UserRound} value={label(AUDIENCES, 'audience')} width={280}>{(close) => radio(AUDIENCES, 'audience', close)}</ChipMenu>
+              <ChipMenu ghost label="Length" icon={AlignLeft} value={label(LENGTHS, 'length')} width={240}>{(close) => radio(LENGTHS, 'length', close)}</ChipMenu>
+            </div>
+          </div>
           <button type="button" onClick={send} disabled={!canSend} aria-label="Write the report"
-            className="ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-on-ink outline-none transition-[background-color,opacity] duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-25">
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-on-ink outline-none transition-[background-color,opacity] duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-25">
             <ArrowUp size={18} strokeWidth={2.25} aria-hidden />
           </button>
         </div>
@@ -167,7 +174,7 @@ function PlusMenu({ opts, set, rivals }) {
     { id: 'compare', label: 'Compare with', value: opts.compare.length ? `${opts.compare.length} picked` : 'Every competitor' },
   ]
   return (
-    <div ref={wrap} className="relative shrink-0 self-end" onKeyDown={open ? onKey : undefined}>
+    <div ref={wrap} className="relative -ml-1.5 shrink-0 md:mr-1" onKeyDown={open ? onKey : undefined}>
       <button ref={btn} type="button" aria-haspopup="menu" aria-expanded={open} aria-label="Brand, engines and competitors" title="Brand, engines and competitors"
         onClick={() => { setOpen((o) => !o); setView(null) }}
         className={`grid h-9 w-9 place-items-center rounded-full text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus ${open ? 'bg-tint text-stone-900' : ''}`}>
