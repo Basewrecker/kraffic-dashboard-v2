@@ -48,10 +48,10 @@ test('themes: the four SWOT groups, each with themes', () => {
 })
 
 test('a past run: its own number of pages and tone counts', () => {
-  for (const r of RUNS) assert.deepEqual(countTones(runPages(PAGES, r.counts)), r.counts)
+  for (const r of RUNS) assert.deepEqual(countTones(runPages(PAGES, r.counts, r.id)), r.counts, r.date)
   assert.equal(runPages(PAGES, RUNS[0].counts).length, 17)
   // a page a past run calls negative has a negative quote to show
-  for (const r of RUNS) for (const p of runPages(PAGES, r.counts)) if (p.tone === 'negative') assert.ok(p.sentences.some((x) => x.tone === 'negative'), `${r.date} ${p.domain}`)
+  for (const r of RUNS) for (const p of runPages(PAGES, r.counts, r.id)) if (p.tone === 'negative') assert.ok(p.sentences.some((x) => x.tone === 'negative'), `${r.date} ${p.domain}`)
 })
 
 test('hero line', () => {

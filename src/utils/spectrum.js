@@ -97,3 +97,78 @@ export function repeatedNumbers(texts) {
   texts.forEach((t) => { for (const n of numbersIn(t)) seen.set(n, [...(seen.get(n) ?? []), t]) })
   return [...seen].filter(([, ts]) => ts.length > 1).map(([n, ts]) => ({ n, texts: ts }))
 }
+
+// ---- "What AI reads about you" ------------------------------------------------------------------------------------
+
+// SWOT → two columns: Hurting you (weaknesses + threats) and Working for you (strengths + opportunities). Within each,
+// the themes most of whose pages carry that side's tone come first (negative for hurting, positive for working).
+const KIND = { strengths: 'strength', opportunities: 'opportunity', weaknesses: 'weakness', threats: 'threat' }
+export function groupThemes(swot, pages) {
+  const byId = new Map(pages.map((p) => [p.id, p]))
+  const side = (keys, tone) => keys
+    .flatMap((k) => (swot?.[k] ?? []).map((t, i) => ({ ...t, kind: KIND[k], order: i, pages: t.sources.map((id) => byId.get(id)).filter(Boolean) })))
+    .filter((t) => t.pages.length)
+    .map((t) => ({ ...t, hits: t.pages.filter((p) => p.tone === tone).length }))
+    .sort((a, b) => b.hits - a.hits || b.pages.length - a.pages.length || keys.indexOf(`${a.kind}s`.replace('opportunitys', 'opportunities')) - keys.indexOf(`${b.kind}s`.replace('opportunitys', 'opportunities')) || a.order - b.order)
+  return { hurting: side(['weaknesses', 'threats'], 'negative'), working: side(['strengths', 'opportunities'], 'positive') }
+}
+
+// the sentence on a page that's about the theme (its match), else the page's most telling one
+export const themeQuote = (page, theme) => page.sentences.find((s) => theme.match?.test(s.text)) ?? tellingSentence(page)
+
+// engines behind a theme's pages, in a fixed order
+export const themeEngines = (theme, order = ['google', 'chatgpt', 'claude']) => order.filter((e) => theme.pages.some((p) => p.engines.includes(e)))
+
+// trend word: when the theme's pages started carrying its side's tone, run after run up to now.
+//   runs: [{ date, pages }] oldest first (the latest last) · side: 'negative' | 'positive'
+//   → { kind: 'new' } (only this run) · { kind: 'since', date } · null (from the first run on, or not in this run)
+export function themeTrend(theme, runs, side) {
+  const says = (r) => r.pages.some((p) => theme.sources.includes(p.id) && p.tone === side)
+  if (!runs.length || !says(runs.at(-1))) return null
+  let k = runs.length - 1
+  while (k > 0 && says(runs[k - 1])) k--
+  if (k === 0) return null
+  return k === runs.length - 1 ? { kind: 'new' } : { kind: 'since', date: runs[k].date }
+}
+
+// ---- Over time ----------------------------------------------------------------------------------------------------
+
+// a run's pages as small dots in three fixed bands (negative bottom, neutral middle, positive top); in each band the
+// dots fill rows of `perRow` from the band's bottom, centred. → [{ tone, x, y }] relative to the column's centre and the
+// plot top. bandH: one band's height; pitch: dot spacing.
+export function columnDots(counts, { bandH, pitch = 8, perRow = 4 }) {
+  const out = []
+  ;['positive', 'neutral', 'negative'].forEach((tone, b) => {
+    const n = counts[tone] ?? 0
+    const rows = Math.ceil(n / perRow)
+    const top = b * bandH + (bandH - rows * pitch) / 2 // the block sits in the middle of its band
+    for (let i = 0; i < n; i++) {
+      const row = Math.floor(i / perRow)
+      const inRow = Math.min(perRow, n - row * perRow)
+      const col = i % perRow
+      out.push({ tone, x: (col - (inRow - 1) / 2) * pitch, y: top + (rows - 1 - row) * pitch + pitch / 2 })
+    }
+  })
+  return out
+}
+
+// the biggest move between two runs (the latest wins a tie): its index (the run after the change), the change and
+// what moved, in words without digits: "one more positive page and one fewer negative"
+const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+export function biggestChange(runs) {
+  let best = null
+  for (let i = 1; i < runs.length; i++) {
+    const d = runs[i].score - runs[i - 1].score
+    if (d !== 0 && (!best || Math.abs(d) >= Math.abs(best.delta))) best = { index: i, delta: d }
+  }
+  if (!best) return null
+  const a = runs[best.index - 1].counts, b = runs[best.index].counts
+  const part = (tone) => {
+    const d = b[tone] - a[tone]
+    if (!d) return null
+    return `${WORDS[Math.abs(d)] ?? Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} ${tone}`
+  }
+  const parts = ['positive', 'negative'].map(part).filter(Boolean)
+  const what = parts.length ? `${parts[0]} page${/^one /.test(parts[0]) ? '' : 's'}${parts[1] ? ` and ${parts[1]}` : ''}` : 'the same split of pages'
+  return { ...best, what }
+}

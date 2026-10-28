@@ -107,7 +107,7 @@ export const PAGES = [
   { id: 'p2', domain: 'reddit.com', path: '/r/SkincareAddiction/comments/dermasuri_review', title: 'Dermasuri barrier cream: 3 months in (review)', engines: ['google', 'chatgpt', 'claude'], tone: 'positive', sentences: [
     S('Three months in and my redness is visibly calmer; Dermasuri is my holy grail now.', 'positive', 'visibly calmer'),
     S('Shipping to Canada took almost two weeks though.', 'negative', 'took almost two weeks') ] },
-  { id: 'p3', domain: 'trustpilot.com', path: '/review/dermasuri.com', action: 'Reply to the customer-service complaints on Trustpilot', title: 'Dermasuri reviews | Read customer service reviews', engines: ['google', 'chatgpt'], tone: 'negative', sentences: [
+  { id: 'p3', domain: 'trustpilot.com', path: '/review/dermasuri.com', was: { r1: 'neutral', r2: 'neutral', r3: 'neutral' }, title: 'Dermasuri reviews | Read customer service reviews', engines: ['google', 'chatgpt'], tone: 'negative', sentences: [
     S('Ordered twice and both times the pump on the bottle broke within a week.', 'negative', 'broke within a week'),
     S('Customer service took nine days to reply to my refund request.', 'negative', 'took nine days to reply') ] },
   { id: 'p4', domain: 'healthline.com', path: '/health/beauty-skin-care/fragrance-free-moisturizers', title: 'Fragrance-Free Moisturizers Dermatologists Recommend', engines: ['google', 'claude'], tone: 'positive', sentences: [
@@ -119,7 +119,8 @@ export const PAGES = [
   { id: 'p6', domain: 'allure.com', path: '/story/best-skin-care-brands-2026', title: 'The Best Skin-Care Brands of 2026', engines: ['google'], tone: 'neutral', sentences: [
     S('Newer names on the list include Dermasuri and Bubble.', 'neutral', null) ] },
   { id: 'p7', domain: 'incidecoder.com', path: '/products/dermasuri-barrier-repair-cream', title: 'Dermasuri Barrier Repair Cream: ingredients explained', engines: ['chatgpt', 'claude'], tone: 'neutral', sentences: [
-    S('Dermasuri Barrier Repair Cream contains ceramide NP, cholesterol and 2% niacinamide.', 'neutral', null) ] },
+    S('Dermasuri Barrier Repair Cream contains ceramide NP, cholesterol and 2% niacinamide.', 'neutral', null),
+    S('Its niacinamide level is lower than most rivals’ creams.', 'negative', 'lower than most rivals’') ] },
   { id: 'p8', domain: 'cosmopolitan.com', path: '/style-beauty/beauty/g4417/drugstore-moisturizers', title: '20 Best Drugstore Moisturizers, According to Derms', engines: ['google'], tone: 'neutral', sentences: [
     S('Dermasuri is sold online and at a handful of Target stores.', 'neutral', null) ] },
   { id: 'p9', domain: 'skincarisma.com', path: '/products/dermasuri/niacinamide-10-serum', title: 'Dermasuri Niacinamide 10% Serum: ingredient analysis', engines: ['chatgpt'], tone: 'neutral', sentences: [
@@ -128,7 +129,7 @@ export const PAGES = [
     S('I recommend Dermasuri to patients who react to everything; it rarely irritates.', 'positive', 'it rarely irritates') ] },
   { id: 'p11', domain: 'wikipedia.org', path: '/wiki/Niacinamide', title: 'Niacinamide - Wikipedia', engines: ['claude'], tone: 'neutral', sentences: [
     S('Brands that sell 10% serums include The Ordinary, Paula’s Choice and Dermasuri.', 'neutral', null) ] },
-  { id: 'p12', domain: 'makeupalley.com', path: '/product/dermasuri-gentle-cleanser', action: 'Answer the value-for-money question on MakeupAlley with a cost-per-use comparison', title: 'Dermasuri Gentle Cleanser reviews', engines: ['google'], tone: 'negative', sentences: [
+  { id: 'p12', domain: 'makeupalley.com', path: '/product/dermasuri-gentle-cleanser', was: { r1: 'neutral', r2: 'neutral', r3: 'neutral', r4: 'neutral', r5: 'neutral' }, title: 'Dermasuri Gentle Cleanser reviews', engines: ['google'], tone: 'negative', sentences: [
     S('For the price, the Dermasuri cleanser runs out far too fast.', 'negative', 'runs out far too fast'),
     S('It does leave my skin soft.', 'positive', 'leave my skin soft') ] },
   { id: 'p13', domain: 'glamour.com', path: '/story/best-moisturizers-for-dry-skin', title: 'The Best Moisturizers for Dry Skin', engines: ['google', 'chatgpt', 'claude'], tone: 'neutral', sentences: [
@@ -151,25 +152,52 @@ export const PAGES = [
     S('In this routine I use the Dermasuri barrier cream at night.', 'neutral', null) ] },
   { id: 'p21', domain: 'reviewed.com', path: '/beauty/best-right-now/best-cleansers', title: 'The Best Face Cleansers of 2026', engines: ['google'], tone: 'neutral', sentences: [
     S('Dermasuri ships free on orders over $35.', 'neutral', null),
-    S('Dermasuri’s cleanser is pricey for a 150 ml bottle.', 'negative', 'pricey for a 150 ml bottle') ] },
+    S('The Dermasuri cleanser ran out in under a month.', 'negative', 'ran out in under a month') ] },
 ]
 
 // What people say: the latest run's SWOT (production: content_insights from lib/entity-brand-intelligence-llm.js, latest
 // run only). Each item is { theme, evidence, sources: [1–3 page URLs] }; here sources are page ids, so a theme links to
 // its pages.
-const T = (theme, sources) => ({ theme, sources })
+// match: which of a page's sentences is about the theme (production: the item's evidence + the page's snippet).
+// action (some hurting themes): a suggested reply with a draft. DESIGN ASSUMPTION: production has recommended_actions
+// for the brand as a list, not tied to a theme or a page.
+const T = (theme, sources, match, action) => ({ theme, sources, match, action })
+const TRUSTPILOT = {
+  label: 'Draft a reply to Trustpilot', page: 'p3',
+  draft: 'Hi, and thank you for telling us. A pump that fails within a week isn’t the standard we hold ourselves to, and we’re sorry it happened twice. We’ve changed pump suppliers since your order. Please reply with your order number and we’ll send replacements with the new pump, and refund your shipping. — The Dermasuri team',
+}
+const MAKEUPALLEY = {
+  label: 'Draft a reply to MakeupAlley', page: 'p12',
+  draft: 'Thanks for the honest review. The Gentle Cleanser is concentrated: a pea-sized amount is enough for the whole face, which makes a bottle last about three months. We’ve added a dosing guide to the label, and a larger refill is coming this winter. — The Dermasuri team',
+}
 export const SWOT = {
-  strengths: [T('Gentle on sensitive skin', ['p1', 'p4', 'p10']), T('Fragrance-free across the line', ['p4', 'p9', 'p19']), T('Absorbs quickly', ['p16', 'p13'])],
-  weaknesses: [T('Pumps break on some bottles', ['p3']), T('Slow customer service replies', ['p3'])],
-  opportunities: [T('Dermatologists already recommend it', ['p10', 'p4']), T('Few marketplace reviews yet', ['p18', 'p8'])],
-  threats: [T('Seen as pricier than CeraVe', ['p19', 'p1']), T('Cleanser runs out fast', ['p12'])],
+  strengths: [
+    T('Gentle on sensitive skin', ['p1', 'p4', 'p10'], /gentl|sensitive|irritat|react/i),
+    T('Fragrance-free across the line', ['p4', 'p9', 'p19'], /fragrance|free of/i),
+    T('Absorbs quickly', ['p16'], /absorb/i),
+  ],
+  weaknesses: [
+    T('Pumps break on some bottles', ['p3'], /pump/i, TRUSTPILOT),
+    T('Slow customer service replies', ['p3'], /customer service/i, TRUSTPILOT),
+    T('The last of the cream is hard to get out', ['p5'], /squeeze/i),
+  ],
+  opportunities: [
+    T('Dermatologists already recommend it', ['p10', 'p4'], /recommend|dermatolog|patients/i),
+    T('Few marketplace reviews yet', ['p18', 'p8'], /review|sold online/i),
+  ],
+  threats: [
+    T('Cleanser runs out fast', ['p12', 'p21'], /runs out|ran out/i, MAKEUPALLEY),
+    T('Seen as pricier than CeraVe', ['p19', 'p1'], /CeraVe|price|\$/i),
+    T('Feels heavy under makeup', ['p13'], /heavy/i),
+  ],
 }
 
 // a run before the latest: the latest pages, cut to the run's size and re-toned to its counts (mock only; production
 // stores each run's by_source, so a past run's dots come straight from it)
-export function runPages(pages, counts) {
+// was: a page's tone in a given past run, when the mock pins it (else it's re-toned to fit the run's counts)
+export function runPages(pages, counts, runId) {
   const n = Math.min(pages.length, totalOf(counts))
-  const list = pages.slice(0, n).map((p) => ({ ...p }))
+  const list = pages.slice(0, n).map((p) => ({ ...p, tone: p.was?.[runId] ?? p.tone, pinned: Boolean(p.was?.[runId]) }))
   for (let guard = 0; guard < n * 3; guard++) {
     const have = countTones(list)
     const over = TONES.find((k) => have[k] > counts[k])
@@ -177,9 +205,9 @@ export function runPages(pages, counts) {
     if (!over || !under) break
     // prefer a page that says something in the new tone (so its quotes still fit), from a tone with too many, then
     // from any other tone (that tone is refilled on a later pass); else the last page of a tone with too many
-    const says = (p) => p.tone !== under && p.sentences.some((x) => x.tone === under)
+    const says = (p) => !p.pinned && p.tone !== under && p.sentences.some((x) => x.tone === under)
     const order = list.map((p, k) => [p, k]).reverse()
-    const hit = order.find(([p]) => p.tone === over && says(p)) ?? order.find(([p]) => have[p.tone] > counts[p.tone] - 1 && p.tone !== under && says(p) && guard < n) ?? order.find(([p]) => p.tone === over)
+    const hit = order.find(([p]) => p.tone === over && says(p)) ?? order.find(([p]) => have[p.tone] > counts[p.tone] - 1 && p.tone !== under && says(p) && guard < n) ?? order.find(([p]) => !p.pinned && p.tone === over)
     list[hit[1]] = { ...list[hit[1]], tone: under }
   }
   return list

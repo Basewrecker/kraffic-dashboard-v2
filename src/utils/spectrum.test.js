@@ -2,8 +2,8 @@
 // keyboard neighbours, engine lanes, filters, theme → page links and the "no number twice" check.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { PAGES, SWOT } from '../data/sentiment.js'
-import { BAND, hash01, layoutSwarm, lanesFor, matchIds, neighbour, numbersIn, repeatedNumbers, scoreX, tellingSentence } from './spectrum.js'
+import { PAGES, RUNS, SWOT, runPages, withScores } from '../data/sentiment.js'
+import { BAND, biggestChange, columnDots, groupThemes, hash01, layoutSwarm, lanesFor, matchIds, neighbour, numbersIn, repeatedNumbers, scoreX, tellingSentence, themeEngines, themeQuote, themeTrend } from './spectrum.js'
 
 const ENGINES = [{ id: 'google', name: 'Google search' }, { id: 'chatgpt', name: 'ChatGPT' }, { id: 'claude', name: 'Claude' }]
 
@@ -81,4 +81,52 @@ test('number check: dates and times are not numbers; repeats are found', () => {
   assert.deepEqual(numbersIn('5 positive · 14 neutral · 2 negative'), ['5', '14', '2'])
   assert.deepEqual(repeatedNumbers(['57', 'Google search 55', 'Claude 57']).map((x) => x.n), ['57'])
   assert.deepEqual(repeatedNumbers(['All 21 pages', '5 positive']), [])
+})
+
+test('themes: weaknesses + threats hurt, strengths + opportunities work; the side’s tone ranks them', () => {
+  const g = groupThemes(SWOT, PAGES)
+  assert.ok(g.hurting.every((x) => x.kind === 'weakness' || x.kind === 'threat'))
+  assert.ok(g.working.every((x) => x.kind === 'strength' || x.kind === 'opportunity'))
+  assert.equal(g.hurting.length, SWOT.weaknesses.length + SWOT.threats.length)
+  for (const side of [g.hurting, g.working]) for (let i = 1; i < side.length; i++) assert.ok(side[i - 1].hits >= side[i].hits)
+  assert.equal(g.hurting[0].theme, 'Cleanser runs out fast') // two pages say it, one of them negative
+  assert.deepEqual(groupThemes(null, PAGES), { hurting: [], working: [] })
+})
+
+test('a theme quotes the sentence about it, and lists its engines in order', () => {
+  const [pumps] = groupThemes(SWOT, PAGES).hurting.filter((x) => x.theme.startsWith('Pumps'))
+  assert.match(themeQuote(pumps.pages[0], pumps).text, /pump/)
+  const cs = groupThemes(SWOT, PAGES).hurting.find((x) => x.theme.startsWith('Slow customer'))
+  assert.match(themeQuote(cs.pages[0], cs).text, /Customer service/)
+  assert.deepEqual(themeEngines(pumps), ['google', 'chatgpt'])
+})
+
+test('trend word: new this run, since a run, or none', () => {
+  const runs = RUNS.map((r, i) => ({ date: r.date, pages: i === RUNS.length - 1 ? PAGES : runPages(PAGES, r.counts, r.id) }))
+  const g = groupThemes(SWOT, PAGES)
+  const find = (name) => [...g.hurting, ...g.working].find((x) => x.theme.startsWith(name))
+  assert.deepEqual(themeTrend(find('Cleanser'), runs, 'negative'), { kind: 'new' })
+  assert.deepEqual(themeTrend(find('Pumps'), runs, 'negative'), { kind: 'since', date: '2026-09-22' })
+  assert.equal(themeTrend(find('Gentle'), runs, 'positive'), null) // there from the first run
+  assert.equal(themeTrend(find('Feels heavy'), runs, 'negative'), null) // not negative this run
+  assert.equal(themeTrend(find('Pumps'), [], 'negative'), null)
+})
+
+test('column dots: three fixed bands, negative at the bottom, none overlapping', () => {
+  const bandH = 60, pitch = 8
+  const dots = columnDots({ positive: 5, neutral: 14, negative: 2 }, { bandH, pitch, perRow: 4 })
+  assert.equal(dots.length, 21)
+  const band = { positive: 0, neutral: 1, negative: 2 }
+  for (const d of dots) assert.ok(d.y >= band[d.tone] * bandH && d.y <= (band[d.tone] + 1) * bandH, `${d.tone} out of its band`)
+  for (let i = 0; i < dots.length; i++) for (let j = i + 1; j < dots.length; j++) assert.ok(Math.hypot(dots[i].x - dots[j].x, dots[i].y - dots[j].y) >= pitch - 1e-6)
+  assert.deepEqual(columnDots({ positive: 0, neutral: 0, negative: 0 }, { bandH }), [])
+})
+
+test('biggest change: the largest move (latest wins a tie), said without digits', () => {
+  const big = biggestChange(withScores(RUNS))
+  assert.equal(big.index, RUNS.length - 1)
+  assert.equal(big.delta, 4)
+  assert.equal(big.what, 'one more positive page and one fewer negative')
+  assert.ok(!/\d/.test(big.what))
+  assert.equal(biggestChange(withScores(RUNS.slice(0, 1))), null)
 })
