@@ -189,7 +189,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
           onClick={href ? (e) => { onNavigate?.(); linkClick(href)(e) } : (e) => e.preventDefault()}
           aria-current={active ? 'page' : undefined}
           className={`relative flex h-11 items-center gap-3 rounded-lg px-3 text-body font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus lg:h-10 ${
-            active ? 'bg-tint text-ink' : 'text-stone-600 hover:bg-nav-hover hover:text-stone-900'
+            active ? 'bg-selected text-ink' : 'text-stone-600 hover:bg-nav-hover hover:text-stone-900'
           }`}
         >
           {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-ink" aria-hidden />}
