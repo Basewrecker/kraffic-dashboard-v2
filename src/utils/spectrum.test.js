@@ -259,3 +259,49 @@ test('spring settle: starts at 0, ends at 1, overshoots a little', () => {
   assert.ok(springAt(0.3) > 0.6) // ease-out: most of the way early
   assert.match(springEasing(), /^linear\(0, .*, 1\)$/)
 })
+
+import { alsoSaidOn, capStack, changeSummary, normalizeUrl, pageHref, ribbonsInto } from './spectrum.js'
+
+test('links: normalised cited URLs, tracking stripped, path kept, nothing unsafe', () => {
+  assert.equal(normalizeUrl('https://www.byrdie.com/best-niacinamide-serums-5089123?utm_source=chatgpt.com'), 'https://www.byrdie.com/best-niacinamide-serums-5089123')
+  assert.equal(normalizeUrl('https://www.youtube.com/watch?v=Qd8sR3ofxLk&utm_source=chatgpt.com'), 'https://www.youtube.com/watch?v=Qd8sR3ofxLk')
+  assert.equal(normalizeUrl('https://x.com/a?gclid=1&fbclid=2&ref=search&page=2#top'), 'https://x.com/a?page=2')
+  for (const bad of [null, '', '#', 'javascript:alert(1)', 'mailto:a@b.c', 'not a url', '/relative']) assert.equal(normalizeUrl(bad), null, String(bad))
+})
+
+test('every mock page: an exact http(s) link to its article, or no link at all', () => {
+  let none = 0
+  for (const p of PAGES) {
+    const href = pageHref(p)
+    if (!href) { none++; assert.equal(p.url, null, p.domain); continue }
+    assert.match(href, /^https?:\/\//, p.domain)
+    assert.ok(new URL(href).pathname.length > 1, `${p.domain} links to its home page`)
+    assert.ok(!/[?&](utm_|gclid|fbclid|ref=)/.test(href), `${p.domain} keeps tracking`)
+    assert.ok(new URL(href).hostname.endsWith(p.domain), `${p.domain} → ${href}`)
+  }
+  assert.equal(none, 1) // one page has no stored URL
+})
+
+test('favicon stacks: four, then "+N"', () => {
+  assert.deepEqual(capStack([1, 2, 3]), { shown: [1, 2, 3], more: 0 })
+  assert.deepEqual(capStack([1, 2, 3, 4, 5, 6]), { shown: [1, 2, 3, 4], more: 2 })
+})
+
+test('"Also said on": the lead theme’s other pages, else the other pages in that tone', () => {
+  const g = groupThemes(SWOT, PAGES)
+  const work = leadQuote(g.working, PAGES, 'positive')
+  const also = alsoSaidOn(work, g.working, PAGES, 'positive')
+  assert.ok(also.length > 0 && !also.includes(work.page))
+  const hurt = leadQuote(g.hurting, PAGES, 'negative') // trustpilot: its themes have no other page
+  assert.deepEqual(alsoSaidOn(hurt, g.hurting, PAGES, 'negative').map((p) => p.tone), ['negative'])
+  assert.deepEqual(alsoSaidOn(null, [], PAGES, 'negative'), [])
+})
+
+test('the change line under each run, and the ribbons into a column', () => {
+  assert.equal(changeSummary(null, { positive: 1, neutral: 1, negative: 1 }), null)
+  assert.deepEqual(changeSummary({ positive: 2, neutral: 12, negative: 5 }, { positive: 4, neutral: 13, negative: 2 }), [{ tone: 'positive', d: 2 }, { tone: 'negative', d: -3 }])
+  assert.deepEqual(changeSummary({ positive: 2, neutral: 1, negative: 1 }, { positive: 2, neutral: 3, negative: 1 }), [])
+  const runs = RUNS.map((r, i) => (i === RUNS.length - 1 ? PAGES : runPages(PAGES, r.counts, r.id)))
+  assert.deepEqual(ribbonsInto(runs, 0), [])
+  assert.deepEqual(ribbonsInto(runs, 2), toneChanges(runs[1], runs[2]))
+})

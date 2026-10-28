@@ -99,57 +99,59 @@ export const RUNS = [
 // stored as neutral), so the spectrum places dots in three bands. engines: Google search, ChatGPT and Claude only.
 // sentences: the quotes that mention the brand; mark = the words that carry the tone. Pages analysed before quotes
 // were kept have none (noQuote): they show their title and "Quote appears after the next analysis".
+// url: the exact cited URL as stored (production: reputation_scans.sources[].url); links use it normalised (tracking
+// parameters stripped, see utils/spectrum.js pageHref). null: no URL stored, so the page gets no link at all.
 const S = (text, tone, mark) => ({ text, tone, mark })
 export const PAGES = [
-  { id: 'p1', domain: 'byrdie.com', path: '/best-niacinamide-serums', title: 'The 14 Best Niacinamide Serums, Tested by Editors', engines: ['google', 'chatgpt'], tone: 'positive', sentences: [
+  { id: 'p1', url: 'https://www.byrdie.com/best-niacinamide-serums-5089123?utm_source=chatgpt.com', domain: 'byrdie.com', path: '/best-niacinamide-serums', title: 'The 14 Best Niacinamide Serums, Tested by Editors', engines: ['google', 'chatgpt'], tone: 'positive', sentences: [
     S('Dermasuri’s 10% serum was the gentlest formula we tested, with no stinging even on reactive skin.', 'positive', 'the gentlest formula we tested'),
     S('At $24 it sits in the middle of the pack on price.', 'neutral', null) ] },
-  { id: 'p2', domain: 'reddit.com', path: '/r/SkincareAddiction/comments/dermasuri_review', title: 'Dermasuri barrier cream: 3 months in (review)', engines: ['google', 'chatgpt', 'claude'], tone: 'positive', sentences: [
+  { id: 'p2', url: 'https://www.reddit.com/r/SkincareAddiction/comments/1f3k9xq/dermasuri_barrier_cream_3_months_in_review/', domain: 'reddit.com', path: '/r/SkincareAddiction/comments/dermasuri_review', title: 'Dermasuri barrier cream: 3 months in (review)', engines: ['google', 'chatgpt', 'claude'], tone: 'positive', sentences: [
     S('Three months in and my redness is visibly calmer; Dermasuri is my holy grail now.', 'positive', 'visibly calmer'),
     S('Shipping to Canada took almost two weeks though.', 'negative', 'took almost two weeks') ] },
-  { id: 'p3', domain: 'trustpilot.com', path: '/review/dermasuri.com', was: { r1: 'neutral', r2: 'neutral', r3: 'neutral' }, title: 'Dermasuri reviews | Read customer service reviews', engines: ['google', 'chatgpt'], tone: 'negative', sentences: [
+  { id: 'p3', url: 'https://www.trustpilot.com/review/dermasuri.com?page=2', domain: 'trustpilot.com', path: '/review/dermasuri.com', was: { r1: 'neutral', r2: 'neutral', r3: 'neutral' }, title: 'Dermasuri reviews | Read customer service reviews', engines: ['google', 'chatgpt'], tone: 'negative', sentences: [
     S('Ordered twice and both times the pump on the bottle broke within a week.', 'negative', 'broke within a week'),
     S('Customer service took nine days to reply to my refund request.', 'negative', 'took nine days to reply') ] },
-  { id: 'p4', domain: 'healthline.com', path: '/health/beauty-skin-care/fragrance-free-moisturizers', title: 'Fragrance-Free Moisturizers Dermatologists Recommend', engines: ['google', 'claude'], tone: 'positive', sentences: [
+  { id: 'p4', url: 'https://www.healthline.com/health/beauty-skin-care/fragrance-free-moisturizers#dermasuri', domain: 'healthline.com', path: '/health/beauty-skin-care/fragrance-free-moisturizers', title: 'Fragrance-Free Moisturizers Dermatologists Recommend', engines: ['google', 'claude'], tone: 'positive', sentences: [
     S('Dermasuri is one of the few brands whose whole line is fragrance-free and tested on sensitive skin.', 'positive', 'whole line is fragrance-free') ] },
-  { id: 'p5', domain: 'dermstore.com', path: '/blog/ceramide-creams-compared', title: 'Ceramide Creams Compared: Which One Is Right for You?', engines: ['google', 'chatgpt'], tone: 'neutral', sentences: [
+  { id: 'p5', url: 'https://www.dermstore.com/blog/ceramide-creams-compared/', domain: 'dermstore.com', path: '/blog/ceramide-creams-compared', title: 'Ceramide Creams Compared: Which One Is Right for You?', engines: ['google', 'chatgpt'], tone: 'neutral', sentences: [
     S('Dermasuri, CeraVe and La Roche-Posay all use a 3:1:1 lipid ratio.', 'neutral', null),
     S('Dermasuri comes in a 50 ml tube rather than a tub.', 'neutral', null),
     S('The last of the Dermasuri cream is hard to squeeze out of the tube.', 'negative', 'hard to squeeze out') ] },
-  { id: 'p6', domain: 'allure.com', path: '/story/best-skin-care-brands-2026', title: 'The Best Skin-Care Brands of 2026', engines: ['google'], tone: 'neutral', sentences: [
+  { id: 'p6', url: 'https://www.allure.com/story/best-skin-care-brands-2026?utm_source=chatgpt.com&utm_medium=referral', domain: 'allure.com', path: '/story/best-skin-care-brands-2026', title: 'The Best Skin-Care Brands of 2026', engines: ['google'], tone: 'neutral', sentences: [
     S('Newer names on the list include Dermasuri and Bubble.', 'neutral', null) ] },
-  { id: 'p7', domain: 'incidecoder.com', path: '/products/dermasuri-barrier-repair-cream', title: 'Dermasuri Barrier Repair Cream: ingredients explained', engines: ['chatgpt', 'claude'], tone: 'neutral', sentences: [
+  { id: 'p7', url: 'https://incidecoder.com/products/dermasuri-barrier-repair-cream', domain: 'incidecoder.com', path: '/products/dermasuri-barrier-repair-cream', title: 'Dermasuri Barrier Repair Cream: ingredients explained', engines: ['chatgpt', 'claude'], tone: 'neutral', sentences: [
     S('Dermasuri Barrier Repair Cream contains ceramide NP, cholesterol and 2% niacinamide.', 'neutral', null),
     S('Its niacinamide level is lower than most rivals’ creams.', 'negative', 'lower than most rivals’') ] },
-  { id: 'p8', domain: 'cosmopolitan.com', path: '/style-beauty/beauty/g4417/drugstore-moisturizers', title: '20 Best Drugstore Moisturizers, According to Derms', engines: ['google'], tone: 'neutral', sentences: [
+  { id: 'p8', url: 'https://www.cosmopolitan.com/style-beauty/beauty/g4417/best-drugstore-moisturizers/', domain: 'cosmopolitan.com', path: '/style-beauty/beauty/g4417/drugstore-moisturizers', title: '20 Best Drugstore Moisturizers, According to Derms', engines: ['google'], tone: 'neutral', sentences: [
     S('Dermasuri is sold online and at a handful of Target stores.', 'neutral', null) ] },
-  { id: 'p9', domain: 'skincarisma.com', path: '/products/dermasuri/niacinamide-10-serum', title: 'Dermasuri Niacinamide 10% Serum: ingredient analysis', engines: ['chatgpt'], tone: 'neutral', sentences: [
+  { id: 'p9', url: 'https://www.skincarisma.com/products/dermasuri/niacinamide-10-serum/ingredient_list', domain: 'skincarisma.com', path: '/products/dermasuri/niacinamide-10-serum', title: 'Dermasuri Niacinamide 10% Serum: ingredient analysis', engines: ['chatgpt'], tone: 'neutral', sentences: [
     S('The Dermasuri serum is free of alcohol, essential oils and silicones.', 'neutral', null) ] },
-  { id: 'p10', domain: 'refinery29.com', path: '/en-us/sensitive-skin-routine', title: 'A Dermatologist’s Routine for Sensitive Skin', engines: ['google', 'chatgpt'], tone: 'positive', sentences: [
+  { id: 'p10', url: 'https://www.refinery29.com/en-us/2026/03/11384021/sensitive-skin-routine-dermatologist?gclid=Cj0KCQ', domain: 'refinery29.com', path: '/en-us/sensitive-skin-routine', title: 'A Dermatologist’s Routine for Sensitive Skin', engines: ['google', 'chatgpt'], tone: 'positive', sentences: [
     S('I recommend Dermasuri to patients who react to everything; it rarely irritates.', 'positive', 'it rarely irritates') ] },
-  { id: 'p11', domain: 'wikipedia.org', path: '/wiki/Niacinamide', title: 'Niacinamide - Wikipedia', engines: ['claude'], tone: 'neutral', sentences: [
+  { id: 'p11', url: 'https://en.wikipedia.org/wiki/Niacinamide', domain: 'wikipedia.org', path: '/wiki/Niacinamide', title: 'Niacinamide - Wikipedia', engines: ['claude'], tone: 'neutral', sentences: [
     S('Brands that sell 10% serums include The Ordinary, Paula’s Choice and Dermasuri.', 'neutral', null) ] },
-  { id: 'p12', domain: 'makeupalley.com', path: '/product/dermasuri-gentle-cleanser', was: { r1: 'neutral', r2: 'neutral', r3: 'neutral', r4: 'neutral', r5: 'neutral' }, title: 'Dermasuri Gentle Cleanser reviews', engines: ['google'], tone: 'negative', sentences: [
+  { id: 'p12', url: 'https://www.makeupalley.com/product/showreview.asp/ItemId=231447/Gentle-Cleanser/Dermasuri/Cleansers', domain: 'makeupalley.com', path: '/product/dermasuri-gentle-cleanser', was: { r1: 'neutral', r2: 'neutral', r3: 'neutral', r4: 'neutral', r5: 'neutral' }, title: 'Dermasuri Gentle Cleanser reviews', engines: ['google'], tone: 'negative', sentences: [
     S('For the price, the Dermasuri cleanser runs out far too fast.', 'negative', 'runs out far too fast'),
     S('It does leave my skin soft.', 'positive', 'leave my skin soft') ] },
-  { id: 'p13', domain: 'glamour.com', path: '/story/best-moisturizers-for-dry-skin', title: 'The Best Moisturizers for Dry Skin', engines: ['google', 'chatgpt', 'claude'], tone: 'neutral', sentences: [
+  { id: 'p13', url: 'https://www.glamour.com/story/best-moisturizers-for-dry-skin?fbclid=IwAR0x', domain: 'glamour.com', path: '/story/best-moisturizers-for-dry-skin', title: 'The Best Moisturizers for Dry Skin', engines: ['google', 'chatgpt', 'claude'], tone: 'neutral', sentences: [
     S('Dermasuri’s cream is thicker than most gel moisturizers on this list.', 'neutral', null),
     S('Under makeup, the Dermasuri cream felt heavy by midday.', 'negative', 'felt heavy by midday') ] },
-  { id: 'p14', domain: 'vogue.com', path: '/article/clean-beauty-brands', title: 'Clean Beauty Brands Worth Knowing', engines: ['google'], tone: 'neutral', noQuote: true, sentences: [] },
-  { id: 'p15', domain: 'womenshealthmag.com', path: '/beauty/a19/best-face-serums', title: 'The Best Face Serums for Every Skin Concern', engines: ['google', 'chatgpt'], tone: 'neutral', sentences: [
+  { id: 'p14', url: 'https://www.vogue.com/article/clean-beauty-brands', domain: 'vogue.com', path: '/article/clean-beauty-brands', title: 'Clean Beauty Brands Worth Knowing', engines: ['google'], tone: 'neutral', noQuote: true, sentences: [] },
+  { id: 'p15', url: 'https://www.womenshealthmag.com/beauty/a19883421/best-face-serums/', domain: 'womenshealthmag.com', path: '/beauty/a19/best-face-serums', title: 'The Best Face Serums for Every Skin Concern', engines: ['google', 'chatgpt'], tone: 'neutral', sentences: [
     S('Dermasuri sells a 10% niacinamide serum and a vitamin C serum.', 'neutral', null),
     S('Our tester’s Dermasuri vitamin C serum turned orange within weeks.', 'negative', 'turned orange within weeks') ] },
-  { id: 'p16', domain: 'nytimes.com', path: '/wirecutter/reviews/best-moisturizers', title: 'The Best Moisturizers | Reviews by Wirecutter', engines: ['google', 'chatgpt', 'claude'], tone: 'positive', sentences: [
+  { id: 'p16', url: 'https://www.nytimes.com/wirecutter/reviews/best-moisturizers/', domain: 'nytimes.com', path: '/wirecutter/reviews/best-moisturizers', title: 'The Best Moisturizers | Reviews by Wirecutter', engines: ['google', 'chatgpt', 'claude'], tone: 'positive', sentences: [
     S('Our runner-up, Dermasuri, absorbed faster than any other cream we tried.', 'positive', 'absorbed faster than any other'),
     S('It does cost more than our top pick.', 'negative', 'cost more than our top pick') ] },
-  { id: 'p17', domain: 'beautypedia.com', path: '/products/dermasuri-vitamin-c-serum', title: 'Dermasuri Vitamin C Serum review', engines: ['chatgpt'], tone: 'neutral', sentences: [
+  { id: 'p17', url: null, domain: 'beautypedia.com', path: '/products/dermasuri-vitamin-c-serum', title: 'Dermasuri Vitamin C Serum review', engines: ['chatgpt'], tone: 'neutral', sentences: [
     S('The Dermasuri formula uses 15% ascorbic acid in an airless pump.', 'neutral', null) ] },
-  { id: 'p18', domain: 'influenster.com', path: '/reviews/dermasuri', title: 'Dermasuri reviews on Influenster', engines: ['google'], tone: 'neutral', noQuote: true, sentences: [] },
-  { id: 'p19', domain: 'theskincareedit.com', path: '/dermasuri-vs-cerave', title: 'Dermasuri vs CeraVe: which barrier cream wins?', engines: ['google', 'chatgpt'], tone: 'neutral', sentences: [
+  { id: 'p18', url: 'https://www.influenster.com/reviews/dermasuri?ref=search', domain: 'influenster.com', path: '/reviews/dermasuri', title: 'Dermasuri reviews on Influenster', engines: ['google'], tone: 'neutral', noQuote: true, sentences: [] },
+  { id: 'p19', url: 'https://theskincareedit.com/dermasuri-vs-cerave-barrier-cream', domain: 'theskincareedit.com', path: '/dermasuri-vs-cerave', title: 'Dermasuri vs CeraVe: which barrier cream wins?', engines: ['google', 'chatgpt'], tone: 'neutral', sentences: [
     S('Dermasuri costs about twice as much as CeraVe for a similar formula.', 'neutral', null),
     S('Both are fragrance-free.', 'neutral', null) ] },
-  { id: 'p20', domain: 'youtube.com', path: '/watch?v=dermasuri-routine', title: 'My $60 sensitive-skin routine (Dermasuri, Vanicream)', engines: ['google'], tone: 'neutral', noQuote: true, sentences: [] },
-  { id: 'p21', domain: 'reviewed.com', path: '/beauty/best-right-now/best-cleansers', title: 'The Best Face Cleansers of 2026', engines: ['google'], tone: 'neutral', sentences: [
+  { id: 'p20', url: 'https://www.youtube.com/watch?v=Qd8sR3ofxLk&utm_source=chatgpt.com', domain: 'youtube.com', path: '/watch?v=dermasuri-routine', title: 'My $60 sensitive-skin routine (Dermasuri, Vanicream)', engines: ['google'], tone: 'neutral', noQuote: true, sentences: [] },
+  { id: 'p21', url: 'https://www.reviewed.com/beauty/best-right-now/the-best-face-cleansers', domain: 'reviewed.com', path: '/beauty/best-right-now/best-cleansers', title: 'The Best Face Cleansers of 2026', engines: ['google'], tone: 'neutral', sentences: [
     S('Dermasuri ships free on orders over $35.', 'neutral', null),
     S('The Dermasuri cleanser ran out in under a month.', 'negative', 'ran out in under a month') ] },
 ]

@@ -16,7 +16,7 @@ import { useIsMobile } from '../../hooks/useMedia'
 import {
   TONES, TONE_LABEL, countTones, heroLine, runPages, scoreOf, sentimentFor, sentimentInsight, sortPages, tonePercents, withScores,
 } from '../../data/sentiment'
-import { biggestChange, byReach, divergingStack, dotPlan, groupThemes, layoutSwarm, lanesFor, leadQuote, matchIds, moveNote, neighbour, reachOf, scoreX, springEasing, staggerDelays, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen, toneChanges, topChange } from '../../utils/spectrum'
+import { alsoSaidOn, biggestChange, byReach, capStack, changeSummary, divergingStack, dotPlan, pageHref, ribbonsInto, groupThemes, layoutSwarm, lanesFor, leadQuote, matchIds, moveNote, neighbour, reachOf, scoreX, springEasing, staggerDelays, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen, toneChanges, topChange } from '../../utils/spectrum'
 import { fmtDay, lineBtn, t2, t3 } from './parts'
 
 // /sentiment: one visual page about how third-party pages talk about the brand.
@@ -301,6 +301,7 @@ function Spectrum({ pages, lit, engine, split, score, onDot = (p) => openDrawer(
   const firstPaint = useRef(true)
   useLayoutEffect(() => {
     if (!box.current) return
+    setW(box.current.clientWidth) // the real width before anything is placed (a guessed one would overflow on phones)
     const ro = new ResizeObserver(([e]) => setW(e.contentRect.width))
     ro.observe(box.current)
     return () => ro.disconnect()
@@ -398,7 +399,7 @@ function Spectrum({ pages, lit, engine, split, score, onDot = (p) => openDrawer(
 
   const reg = (key) => (el) => { if (el) els.current[key] = el; else delete els.current[key] }
   return (
-    <div ref={box} className="relative" onMouseLeave={() => setHover(null)}>
+    <div ref={box} className="relative [overflow-x:clip] [overflow-clip-margin:24px]" onMouseLeave={() => setHover(null)}>
       <div ref={stage} className="relative">
         {/* the bands and the even line run the full height in both layouts, so nothing here moves */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
@@ -518,7 +519,8 @@ function AiReads({ groups, unlinked, pages, openKey, onToggle, onClose, lit, onH
     const hurting = key === 'hurting'
     const tone = hurting ? 'negative' : 'positive'
     const themes = byReach(groups[key])
-    return { hurting, tone, themes, lead: leadQuote(unlinked ? [] : themes, pages, tone) }
+    const lead = leadQuote(unlinked ? [] : themes, pages, tone)
+    return { hurting, tone, themes, lead, also: alsoSaidOn(lead, unlinked ? [] : themes, pages, tone) }
   }
   const H = side('hurting'), W = side('working')
   const head = (s) => (
@@ -533,7 +535,10 @@ function AiReads({ groups, unlinked, pages, openKey, onToggle, onClose, lit, onH
         {s.lead.quote
           ? <blockquote className="text-[20px] leading-[30px] font-medium tracking-[-0.01em] text-stone-900 max-md:text-[18px] max-md:leading-7 [text-wrap:pretty]"><Phrase s={s.lead.quote} tone={s.tone} /></blockquote>
           : <><p className="text-[20px] leading-[30px] font-medium text-stone-900">{s.lead.page.title}</p><p className={`mt-1 text-[13px] leading-[18px] ${t3}`}>Quote appears after the next analysis</p></>}
-        <figcaption className="mt-3"><Source page={s.lead.page} /></figcaption>
+        <figcaption className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <Source page={s.lead.page} />
+          {s.also.length > 0 && <span className={`flex items-center gap-2 text-[13px] leading-[18px] ${t3}`}>Also said on <FaviconLinks pages={s.also} /></span>}
+        </figcaption>
       </figure>
     ) : <p className={`flex items-center gap-2 pt-5 pb-6 text-[15px] leading-[22px] text-stone-900`}><Check size={16} className="text-ink" aria-hidden />{s.hurting ? 'Nothing negative this run' : 'No positive pages this run'}</p>
   )
@@ -572,35 +577,85 @@ function AiReads({ groups, unlinked, pages, openKey, onToggle, onClose, lit, onH
   )
 }
 
-const OpenPage = ({ page }) => (
-  <a href={`https://${page.domain}${page.path}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded text-[13px] font-medium text-stone-900 underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">
-    Open page <ArrowUpRight size={14} aria-hidden /><span className="sr-only">(opens in a new tab)</span>
-  </a>
-)
-// a quote's source: favicon + domain (opens the page's drawer, every quote) and Open page
-const Source = ({ page }) => (
-  <span className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-[18px] ${t3}`}>
-    <button type="button" onClick={() => openDrawer('page', page.id)} className="inline-flex items-center gap-1.5 rounded outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">
-      <SiteLogo domain={page.domain} name={page.domain} className="h-3.5 w-3.5 rounded-full !border-0" imgPad="p-0" initialClass="text-[7px]" />{page.domain}
-    </button>
-    <OpenPage page={page} />
-  </span>
-)
-const Favicons = ({ pages }) => (
-  <span className="flex shrink-0 -space-x-1" aria-hidden>
-    {pages.slice(0, 3).map((p) => (
-      <span key={p.id} className="grid h-4 w-4 place-items-center overflow-hidden rounded-full ring-2 ring-surface" style={{ background: '#fff' }}>
-        <SiteLogo domain={p.domain} name={p.domain} className="h-3 w-3 rounded-full !border-0 !bg-transparent" imgPad="p-0" initialClass="text-[7px] !text-[#44403c]" bordered={false} />
+// every link out: the page's exact cited URL (normalised, utils/spectrum pageHref), in a new tab; no URL → no link
+const LINK = { target: '_blank', rel: 'noopener noreferrer' }
+const OpenPage = ({ page }) => {
+  const href = pageHref(page)
+  if (!href) return null
+  return (
+    <a href={href} {...LINK} className="inline-flex items-center gap-1 rounded text-[13px] font-medium text-stone-900 underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">
+      Open page <ArrowUpRight size={14} aria-hidden /><span className="sr-only">(opens in a new tab)</span>
+    </a>
+  )
+}
+// a quote's source: favicon + domain (a link to the page) and Open page
+function Source({ page }) {
+  const href = pageHref(page)
+  const inner = <><SiteLogo domain={page.domain} name={page.domain} className="h-3.5 w-3.5 rounded-full !border-0" imgPad="p-0" initialClass="text-[7px]" />{page.domain}</>
+  return (
+    <span className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-[18px] ${t3}`}>
+      {href
+        ? <a href={href} {...LINK} className="inline-flex items-center gap-1.5 rounded outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">{inner}<span className="sr-only">(opens in a new tab)</span></a>
+        : <span className="inline-flex items-center gap-1.5">{inner}</span>}
+      <OpenPage page={page} />
+    </span>
+  )
+}
+// a clickable favicon stack: at most four, then "+N"; each favicon opens its page (the domain in a tooltip). Clicks
+// don't reach the row underneath.
+function FaviconLinks({ pages, size = 'md' }) {
+  const { shown, more } = capStack(pages, 4)
+  const box = size === 'sm' ? 'h-5 w-5' : 'h-6 w-6'
+  const img = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'
+  return (
+    <span className="flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
+      <span className="flex -space-x-1">
+        {shown.map((p) => {
+          const href = pageHref(p)
+          const face = (
+            <span className={`grid ${box} place-items-center overflow-hidden rounded-full ring-2 ring-surface`} style={{ background: '#fff' }}>
+              <SiteLogo domain={p.domain} name={p.domain} className={`${img} rounded-full !border-0 !bg-transparent`} imgPad="p-0" initialClass="text-[8px] !text-[#44403c]" bordered={false} />
+            </span>
+          )
+          return href ? (
+            <a key={p.id} href={href} {...LINK} title={p.domain} aria-label={`${p.domain} (opens in a new tab)`}
+              className="group/fav relative rounded-full outline-none transition-transform duration-150 hover:z-10 hover:-translate-y-0.5 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none">
+              {face}
+              <span className="pointer-events-none absolute max-sm:hidden bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md border border-line bg-raised px-2 py-1 text-[12px] leading-4 font-medium text-stone-700 opacity-0 shadow-sm transition-opacity duration-150 group-hover/fav:opacity-100 group-focus-visible/fav:opacity-100" aria-hidden>{p.domain}</span>
+            </a>
+          ) : <span key={p.id} title={`${p.domain} (no link stored)`}>{face}</span>
+        })}
       </span>
-    ))}
-  </span>
-)
+      {more > 0 && <span className={`ml-1.5 text-[12px] leading-4 tabular-nums ${t3}`}>+{more}</span>}
+    </span>
+  )
+}
 const QuoteOrTitle = ({ page, s, tone, size = 'text-[15px] leading-6' }) => (s
   ? <p className={`${size} text-stone-900 [text-wrap:pretty]`}><Phrase s={s} tone={tone} /></p>
   : <><p className={`${size} text-stone-900`}>{page.title}</p><p className={`text-[12px] leading-4 ${t3}`}>Quote appears after the next analysis</p></>)
 
-// a theme row: 52px collapsed (theme · suffix | favicons, reach bar, engines); hover / focus: a floating preview;
-// open: up to three quotes with their sources
+// one source page as a compact link row: favicon · title · domain ↗ · engines (no URL stored: plain text)
+function SourceRow({ p }) {
+  const href = pageHref(p)
+  const body = (
+    <>
+      <SiteLogo domain={p.domain} name={p.domain} className="h-4 w-4 shrink-0 rounded !border-0" imgPad="p-0" initialClass="text-[8px]" />
+      <span className="min-w-0 flex-1 truncate text-[13px] leading-5 text-stone-900">{p.title}</span>
+      <span className={`shrink-0 text-[12px] leading-4 ${t3}`}>{p.domain}{href && <ArrowUpRight size={12} className="ml-0.5 inline" aria-hidden />}</span>
+    </>
+  )
+  return (
+    <li className="flex items-center gap-3">
+      {href
+        ? <a href={href} {...LINK} className="group flex min-w-0 flex-1 items-center gap-2.5 rounded py-1 outline-none hover:[&>span:nth-child(2)]:underline focus-visible:ring-2 focus-visible:ring-focus">{body}<span className="sr-only">(opens in a new tab)</span></a>
+        : <span className="flex min-w-0 flex-1 items-center gap-2.5 py-1" title="No link stored for this page">{body}</span>}
+      <EngineMarks ids={p.engines} size={12} />
+    </li>
+  )
+}
+
+// a theme row: 52px collapsed (theme · suffix | favicon links, reach bar, engines); hover / focus: a floating preview;
+// open: up to three quotes, then every source page as a link row
 function ThemeRow({ t, hurting, reach, scale, total, open, lit, onToggle, onClose, onHover }) {
   const id = `theme-${slug(t.theme)}`
   const [preview, setPreview] = useState(false)
@@ -609,26 +664,29 @@ function ThemeRow({ t, hurting, reach, scale, total, open, lit, onToggle, onClos
   const tone = hurting ? 'negative' : 'positive'
   const enter = () => { setPreview(true); onHover(t) }
   const leave = () => { setPreview(false); onHover(null) }
+  const toggle = () => { onToggle(); setPreview(false) }
   return (
     <li id={id} className={`relative scroll-mt-24 border-b border-[var(--div)] transition-colors duration-150 ${lit && !open ? 'bg-tint' : ''}`} onMouseEnter={enter} onMouseLeave={leave}>
-      <button type="button" aria-expanded={open} aria-controls={`${id}-body`} aria-describedby={preview && !open ? `${id}-preview` : undefined}
-        onClick={() => { onToggle(); setPreview(false) }} onFocus={enter} onBlur={leave}
-        onKeyDown={(e) => { if (e.key === 'Escape') { setPreview(false); onClose() } }}
-        className="flex h-[52px] w-full items-center gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
-        <span className="flex min-w-0 flex-1 items-baseline gap-2">
+      <div className="flex h-[52px] items-center gap-3">
+        <button type="button" aria-expanded={open} aria-controls={`${id}-body`} aria-describedby={preview && !open ? `${id}-preview` : undefined}
+          onClick={toggle} onFocus={enter} onBlur={leave}
+          onKeyDown={(e) => { if (e.key === 'Escape') { setPreview(false); onClose() } }}
+          className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
           <span className="truncate text-[15px] leading-[22px] font-medium text-stone-900">{t.theme}</span>
           {(t.kind === 'opportunity' || t.kind === 'threat') && <span className={`shrink-0 text-[13px] ${t3}`}>{t.kind}</span>}
-        </span>
-        {/* fixed widths so the favicons, bars and engines line up row to row */}
+        </button>
+        {/* the right side: favicon links (their own targets), then the reach bar and engines (clicking those opens the row) */}
         <span className="flex shrink-0 items-center gap-3">
-          <span className="flex w-11 justify-end"><Favicons pages={t.pages} /></span>
-          {/* reach: pages saying it ÷ all pages analysed (the number is in the tooltip) */}
-          <span className="relative flex h-1.5 w-16 overflow-hidden rounded-full bg-[var(--data-track)] max-sm:w-10" title={`${t.pages.length} of ${total} pages say this (${Math.round(reach * 100)}%)`} aria-label={`${t.pages.length} of ${total} pages say this`}>
-            <span className="h-full rounded-full" style={{ width: `${Math.max(8, scale * 100)}%`, background: hurting ? 'var(--negative)' : 'var(--ink)' }} />
+          <span className="flex w-[64px] justify-end"><FaviconLinks pages={t.pages} size="sm" /></span>
+          <span className="flex items-center gap-3" onClick={toggle} aria-hidden>
+            {/* reach: pages saying it ÷ all pages analysed (the number is in the tooltip) */}
+            <span className="relative flex h-1.5 w-16 overflow-hidden rounded-full bg-[var(--data-track)] max-sm:w-10" title={`${t.pages.length} of ${total} pages say this (${Math.round(reach * 100)}%)`}>
+              <span className="h-full rounded-full" style={{ width: `${Math.max(8, scale * 100)}%`, background: hurting ? 'var(--negative)' : 'var(--ink)' }} />
+            </span>
+            <span className="flex w-[54px] justify-start max-sm:hidden"><EngineMarks ids={themeEngines(t)} size={14} /></span>
           </span>
-          <span className="flex w-[54px] justify-start max-sm:hidden"><EngineMarks ids={themeEngines(t)} size={14} /></span>
         </span>
-      </button>
+      </div>
       {/* hover / focus preview: the best quote, floating (nothing moves) */}
       {preview && !open && best && (
         <div id={`${id}-preview`} role="tooltip" className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-[min(420px,100%)] rounded-xl border border-line bg-raised p-3.5 shadow-lg motion-safe:animate-[fade-in_120ms_ease-out]">
@@ -638,44 +696,66 @@ function ThemeRow({ t, hurting, reach, scale, total, open, lit, onToggle, onClos
       )}
       <div id={`${id}-body`} inert={open ? undefined : ''} className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
         <div className="relative min-h-0 overflow-hidden">
-          <ul className="flex flex-col gap-4 pb-5">
+          <ul className="flex flex-col gap-4 pb-4">
             {quotes.map(({ p, s }) => (
               <li key={p.id}><QuoteOrTitle page={p} s={s} tone={tone} /><div className="mt-1.5"><Source page={p} /></div></li>
             ))}
           </ul>
+          {/* every page behind the theme */}
+          <div className="border-t border-[var(--div)] pt-3 pb-5">
+            <p className={`text-[12px] leading-4 ${t3}`}>Sources</p>
+            <ul className="mt-1.5 flex flex-col">{t.pages.map((p) => <SourceRow key={p.id} p={p} />)}</ul>
+          </div>
         </div>
       </div>
     </li>
   )
 }
 
-// ---- over time: a diverging tone flow. One column per run around a baseline: positive pages stack up as squares
-// (ink), negative pages down (the negative token), neutral pages a thin hollow band on the baseline with its count.
-// Ribbons join the runs only for pages that changed tone (matched by URL). The score above each column. One note on
-// the biggest move, on its ribbons. Columns grow and ribbons draw when it scrolls in (not with reduced motion).
-const TF = { score: 54, pitch: 16, sq: 12, gap: 14, band: 12, dates: 28, note: 22, perRow: 2, minCol: 76 }
+// ---- over time: one clean column per run: the score above (the latest larger with its change; the biggest move's
+// column gets a small bold "+13"), positive pages stacking up as squares (ink), negative down (negative token), the
+// neutral count on the baseline, the date, and a change line (more / fewer positive and negative pages than the run
+// before). Hover or focus a column: only the ribbons from the previous run into it draw in (pages that changed tone,
+// matched by URL), the rest dims. Click for that run in the spectrum. Grows in on scroll (none with reduced motion).
+const TF = { score: 50, pitch: 16, sq: 12, gap: 14, dates: 22, change: 20, perRow: 2, minCol: 76 }
 const TONE_FILL = { positive: 'var(--ink)', neutral: 'var(--color-stone-500)', negative: 'var(--negative)' }
+function ChangeLine({ parts }) {
+  if (parts == null) return <span className={t3}>First run</span>
+  if (!parts.length) return <span className={t3}>no change</span>
+  return (
+    <span className="inline-flex items-center gap-2">
+      {parts.map((x) => (
+        <span key={x.tone} className="inline-flex items-center gap-1 tabular-nums">
+          <span className={x.d < 0 && x.tone === 'positive' ? 'text-negative' : t2}>{x.d > 0 ? '+' : '−'}{Math.abs(x.d)}</span>
+          <span className="h-2 w-2 rounded-[2px]" style={{ background: TONE_FILL[x.tone] }} aria-label={`${x.tone} pages`} />
+        </span>
+      ))}
+    </span>
+  )
+}
 function OverTime({ runs, run, onPick, pagesOf }) {
   const box = useRef(null)
   const scroller = useRef(null)
   const [w, setW] = useState(900)
   const [tip, setTip] = useState(null) // { kind: 'col' | 'ribbon', ... }
+  const [ribCol, setRibCol] = useState(null) // the column whose incoming ribbons are drawn
+  const [ribOn, setRibOn] = useState(false)
+  const leaveT = useRef(null)
   const [seen, setSeen] = useState(() => reduced())
   const cols = useRef([])
   useLayoutEffect(() => {
     if (!box.current) return
+    setW(box.current.clientWidth)
     const ro = new ResizeObserver(([e]) => setW(e.contentRect.width))
     ro.observe(box.current)
     return () => ro.disconnect()
   }, [])
-  // grow in when it scrolls into view (once)
   useEffect(() => {
     if (seen || !box.current) return
     const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect() } }, { threshold: 0.35 })
     io.observe(box.current)
     return () => io.disconnect()
   }, [seen])
-  // phones: the chart scrolls sideways inside itself, starting at the latest run
   useLayoutEffect(() => { if (scroller.current) scroller.current.scrollLeft = scroller.current.scrollWidth }, [w])
   const n = runs.length
   const data = useMemo(() => runs.map((r) => ({ r, pages: pagesOf(r) })), [runs]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -687,119 +767,117 @@ function OverTime({ runs, run, onPick, pagesOf }) {
       </section>
     )
   }
-  const L = 64 // the Positive / Negative labels
+  const L = 64
   const plotW = Math.max(w - L, n * TF.minCol)
   const colW = plotW / n
   const cx = (i) => L + colW * i + colW / 2
   const stacks = data.map(({ pages }) => divergingStack(pages, { perRow: TF.perRow, pitch: TF.pitch, gap: TF.gap }))
   const up = Math.max(...stacks.map((s) => s.up)), down = Math.max(...stacks.map((s) => s.down))
-  const base = TF.score + TF.gap + up * TF.pitch + 6 // the baseline's y
-  const H = base + TF.gap + down * TF.pitch + 6 + TF.dates
+  const base = TF.score + TF.gap + up * TF.pitch + 4
+  const dotsBottom = base + TF.gap + down * TF.pitch + 4
+  const H = dotsBottom + TF.dates + TF.change
   const stackW = TF.perRow * TF.pitch
-  const bandW = Math.min(colW - 24, stackW + 16)
-  // ribbons: pages that changed tone between neighbours (matched by URL)
-  const point = (i, p, side) => {
-    const s = stacks[i].slots[p.id]
-    const x = cx(i) + side * (s ? TF.sq / 2 + 1 : bandW / 2) + (s ? s.x : 0)
-    return { x, y: s ? base + s.y : base }
-  }
-  const ribbons = data.slice(1).flatMap(({ pages }, k) => toneChanges(data[k].pages, pages).map((c) => {
-    const a = point(k, data[k].pages.find((p) => p.id === c.page.id) ?? c.page, 1), b = point(k + 1, c.page, -1)
-    const mx = (a.x + b.x) / 2
-    return { ...c, i: k + 1, d: `M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`, mid: { x: mx, y: (a.y + b.y) / 2 } }
-  }))
   const big = biggestChange(runs)
-  const bigRibbons = big ? ribbons.filter((x) => x.i === big.index) : []
-  const note = moveNote(runs, big)
-  const anchor = bigRibbons.length ? { x: bigRibbons.reduce((s, x) => s + x.mid.x, 0) / bigRibbons.length, y: Math.min(...bigRibbons.map((x) => x.mid.y)) } : null
   const latest = runs.at(-1)
-  const key = (e, i) => {
-    const step = { ArrowRight: 1, ArrowLeft: -1, Home: -n, End: n }[e.key]
-    if (!step) return
-    e.preventDefault()
-    cols.current[Math.max(0, Math.min(n - 1, i + step))]?.focus()
-  }
-  // tooltips stay inside the part of the chart that's in view (phones scroll it sideways)
   const clampX = (x) => { const sl = scroller.current?.scrollLeft ?? 0, vw = scroller.current?.clientWidth ?? w; return Math.max(sl + 150, Math.min(sl + vw - 150, x)) }
   const grow = (i) => ({ transform: seen ? 'scaleY(1)' : 'scaleY(0)', transformOrigin: `0 ${base}px`, transition: reduced() ? 'none' : `transform 420ms cubic-bezier(.2,.8,.2,1) ${i * 60}ms` })
+  // ribbons into the hovered column (from the previous run): a square's edge (or the baseline, for neutral)
+  const point = (i, p, side) => {
+    const s = stacks[i].slots[p.id]
+    return { x: cx(i) + side * (s ? TF.sq / 2 + 1 : 10) + (s ? s.x : 0), y: s ? base + s.y : base }
+  }
+  const ribbons = ribCol == null ? [] : ribbonsInto(data.map((d) => d.pages), ribCol).map((c) => {
+    const a = point(ribCol - 1, data[ribCol - 1].pages.find((p) => p.id === c.page.id) ?? c.page, 1), b = point(ribCol, c.page, -1)
+    const mx = (a.x + b.x) / 2
+    return { ...c, d: `M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`, mid: { x: mx, y: (a.y + b.y) / 2 } }
+  })
+  const enterCol = (i) => { clearTimeout(leaveT.current); setRibCol(i); setRibOn(true); setTip({ kind: 'col', i }) }
+  const leaveCol = () => { clearTimeout(leaveT.current); leaveT.current = setTimeout(() => { setRibOn(false); setTip(null) }, 140) }
+  const key = (e, i) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1, Home: -n, End: n }[e.key]
+    if (step) { e.preventDefault(); cols.current[Math.max(0, Math.min(n - 1, i + step))]?.focus() }
+    if (e.key === 'Escape') { setRibOn(false); setTip(null) }
+  }
+  const dim = (i) => (ribOn && ribCol != null && i !== ribCol && i !== ribCol - 1 ? 0.4 : 1)
   return (
     <section aria-labelledby="time-h">
       <h2 id="time-h" className={h2}>Over time</h2>
       <div ref={box} className="relative mt-6">
-        <div ref={scroller} className="overflow-x-auto overflow-y-visible [scrollbar-width:thin]" onMouseLeave={() => setTip(null)}>
-          <div className="relative" style={{ width: L + plotW, height: H + TF.note }}>
-            {/* the latest run's column, tinted */}
+        <div ref={scroller} className="overflow-x-auto [scrollbar-width:thin]" onMouseLeave={leaveCol}>
+          <div className="relative" style={{ width: L + plotW, height: H }}>
             <div className="absolute rounded-lg bg-tint" style={{ left: L + colW * (n - 1) + 4, width: colW - 8, top: 0, height: H }} aria-hidden />
-            <svg className="absolute inset-0 overflow-visible" width={L + plotW} height={H + TF.note}>
+            <svg className="absolute inset-0 overflow-visible" width={L + plotW} height={H}>
               <line x1={L} x2={L + plotW} y1={base} y2={base} stroke="var(--color-line)" aria-hidden />
-              <text x={0} y={base - TF.gap - 4} fontSize={12} fill="var(--color-stone-500)" aria-hidden>Positive</text>
-              <text x={0} y={base + TF.gap + 12} fontSize={12} fill="var(--color-stone-500)" aria-hidden>Negative</text>
-              {/* ribbons: draw after the columns grow; a wide invisible stroke takes the hover */}
-              {ribbons.map((rb, j) => (
-                <g key={`${rb.i}-${rb.page.id}`}>
-                  <path d={rb.d} fill="none" stroke={TONE_FILL[rb.to]} strokeOpacity={tip?.kind === 'ribbon' && tip.rb === rb ? 0.85 : rb.to === 'neutral' ? 0.3 : 0.4} strokeWidth={2} strokeLinecap="round"
-                    pathLength={1} strokeDasharray={1} strokeDashoffset={seen ? 0 : 1}
-                    style={{ transition: reduced() ? 'none' : `stroke-dashoffset 600ms ease-out ${420 + n * 60 + j * 20}ms, stroke-opacity 150ms` }} aria-hidden />
-                  <path d={rb.d} fill="none" stroke="transparent" strokeWidth={12} className="cursor-default"
-                    onMouseEnter={() => setTip({ kind: 'ribbon', rb, x: rb.mid.x, y: rb.mid.y })} onMouseLeave={() => setTip(null)} />
-                </g>
-              ))}
-              {/* columns: squares up and down, the neutral band with its count; the score above */}
+              <text x={0} y={base - TF.gap - 2} fontSize={12} fill="var(--color-stone-500)" aria-hidden>Positive</text>
+              <text x={0} y={base + TF.gap + 10} fontSize={12} fill="var(--color-stone-500)" aria-hidden>Negative</text>
               {data.map(({ r, pages }, i) => {
                 const isLast = r === latest, on = r.id === run.id
                 const neutral = pages.filter((p) => p.tone === 'neutral').length
-                const topY = base - TF.gap - stacks[i].up * TF.pitch - 10
+                const topY = base - TF.gap - stacks[i].up * TF.pitch - 8
                 return (
-                  <g key={r.id} aria-hidden>
+                  <g key={r.id} style={{ opacity: dim(i), transition: 'opacity 200ms ease-out' }} aria-hidden>
                     <g style={grow(i)}>
                       {pages.filter((p) => stacks[i].slots[p.id]).map((p) => {
                         const s = stacks[i].slots[p.id]
                         return <rect key={p.id} x={cx(i) + s.x - TF.sq / 2} y={base + s.y - TF.sq / 2} width={TF.sq} height={TF.sq} rx={3} fill={TONE_FILL[p.tone]} />
                       })}
                     </g>
-                    <rect x={cx(i) - bandW / 2} y={base - TF.band / 2} width={bandW} height={TF.band} rx={TF.band / 2} fill="var(--color-surface)" stroke="var(--color-stone-400)" strokeWidth={1} />
-                    <text x={cx(i)} y={base} dy={3.5} textAnchor="middle" fontSize={10} fill="var(--color-stone-500)" className="num">{neutral}</text>
-                    <text x={cx(i)} y={Math.min(topY, base - TF.gap - 10)} textAnchor="middle" fontSize={isLast ? 18 : 14} fontWeight={600} fill={on ? 'var(--ink)' : 'var(--color-stone-700)'} className="num">
-                      {r.score}{isLast && r.delta != null && <tspan fontSize={12} fontWeight={500} dx={4} fill={r.delta < 0 ? 'var(--negative)' : 'var(--ink)'}>{r.delta < 0 ? '▼' : '▲'}{Math.abs(r.delta)}</tspan>}
+                    {/* neutral: just its count on the baseline */}
+                    <text x={cx(i)} y={base} dy={4} textAnchor="middle" fontSize={11} fill="var(--color-stone-500)" stroke="var(--color-surface)" strokeWidth={4} paintOrder="stroke" className="num">{neutral}</text>
+                    <text x={cx(i)} y={topY} textAnchor="middle" fontSize={isLast ? 18 : 14} fontWeight={600} fill={on ? 'var(--ink)' : 'var(--color-stone-700)'} className="num">
+                      {r.score}
+                      {isLast && r.delta != null && <tspan fontSize={12} fontWeight={500} dx={4} fill={r.delta < 0 ? 'var(--negative)' : 'var(--ink)'}>{r.delta < 0 ? '▼' : '▲'}{Math.abs(r.delta)}</tspan>}
+                      {big && big.index === i && !isLast && <tspan fontSize={11} fontWeight={700} dx={4} fill={big.delta < 0 ? 'var(--negative)' : 'var(--ink)'}>{big.delta > 0 ? '+' : '−'}{Math.abs(big.delta)}</tspan>}
                     </text>
-                    <text x={cx(i)} y={H - 8} textAnchor="middle" fontSize={12} fontWeight={on ? 600 : 400} fill={on ? 'var(--ink)' : 'var(--color-stone-500)'} className="num">{fmtDay(r.date)}</text>
+                    <text x={cx(i)} y={dotsBottom + 14} textAnchor="middle" fontSize={12} fontWeight={on ? 600 : 400} fill={on ? 'var(--ink)' : 'var(--color-stone-500)'} className="num">{fmtDay(r.date)}</text>
                   </g>
                 )
               })}
-              {/* the one annotation: on the biggest move's ribbons */}
-              {note && anchor && (
-                <g aria-hidden style={{ opacity: seen ? 1 : 0, transition: reduced() ? 'none' : `opacity 300ms ease-out ${900 + n * 60}ms` }}>
-                  <line x1={anchor.x} x2={anchor.x} y1={anchor.y - 4} y2={H - TF.dates + 4} stroke="var(--color-stone-400)" strokeDasharray="2 3" />
-                  <text x={anchor.x} y={H + 12} textAnchor="middle" fontSize={12} fill="var(--color-stone-600)" stroke="var(--color-surface)" strokeWidth={4} paintOrder="stroke" className="num">{note}</text>
-                </g>
-              )}
+              {/* the ribbons into the hovered column: draw in, fade out */}
+              <g style={{ opacity: ribOn ? 1 : 0, transition: 'opacity 150ms ease-out' }}>
+                {ribbons.map((rb) => (
+                  <g key={`${ribCol}-${rb.page.id}`}>
+                    <path d={rb.d} fill="none" stroke={TONE_FILL[rb.to]} strokeOpacity={tip?.kind === 'ribbon' && tip.rb.page.id === rb.page.id ? 0.95 : 0.55} strokeWidth={2} strokeLinecap="round"
+                      pathLength={1} strokeDasharray={1} className="motion-safe:animate-[ribbon-draw_250ms_ease-out_both]" aria-hidden />
+                    <path d={rb.d} fill="none" stroke="transparent" strokeWidth={12}
+                      onMouseEnter={() => { clearTimeout(leaveT.current); setRibOn(true); setTip({ kind: 'ribbon', rb, x: rb.mid.x, y: rb.mid.y }) }}
+                      onMouseLeave={() => setTip({ kind: 'col', i: ribCol })} />
+                  </g>
+                ))}
+              </g>
             </svg>
-            {/* the columns as buttons: hover / focus for the run, click or Enter to see its pages */}
+            {/* the change line under each date (HTML, so it can carry the colour squares) */}
+            {data.map(({ r }, i) => (
+              <div key={r.id} className="pointer-events-none absolute flex -translate-x-1/2 justify-center whitespace-nowrap text-[12px] leading-4" style={{ left: cx(i), top: dotsBottom + 22, opacity: dim(i), transition: 'opacity 200ms ease-out' }}>
+                <ChangeLine parts={i ? changeSummary(runs[i - 1].counts, r.counts) : null} />
+              </div>
+            ))}
+            {/* the columns: hover / focus for the run and its incoming ribbons; click or Enter to see its pages */}
             {data.map(({ r }, i) => (
               <button key={r.id} ref={(el) => { cols.current[i] = el }} type="button" aria-pressed={r.id === run.id}
                 aria-label={`${fmtDay(r.date)}: score ${r.score}. Show this run’s pages`}
                 onClick={() => onPick(r.id)} onKeyDown={(e) => key(e, i)}
-                onMouseEnter={() => setTip({ kind: 'col', i })} onFocus={() => setTip({ kind: 'col', i })} onBlur={() => setTip(null)}
+                onMouseEnter={() => enterCol(i)} onMouseLeave={leaveCol} onFocus={() => enterCol(i)} onBlur={leaveCol}
                 className="absolute top-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-focus"
                 style={{ left: L + colW * i + colW / 2 - stackW / 2 - 14, width: stackW + 28, height: H }} />
             ))}
             {tip?.kind === 'col' && (() => {
               const { r, pages } = data[tip.i]
-              const ch = tip.i ? topChange(toneChanges(data[tip.i - 1].pages, pages)) : null
+              const ch = topChange(ribbonsInto(data.map((d) => d.pages), tip.i))
               return (
                 <div role="tooltip" className="pointer-events-none absolute z-20 -translate-x-1/2 whitespace-nowrap rounded-lg border border-line bg-raised px-3 py-2 text-small shadow-md tabular-nums"
-                  style={{ left: clampX(cx(tip.i)), top: base + TF.gap }}>
+                  style={{ left: clampX(cx(tip.i)), top: dotsBottom + TF.dates + TF.change + 4 }}>
                   <div className="font-semibold text-stone-900">{fmtDay(r.date)} · {r.score}{r.delta != null && <span className={`ml-1.5 font-medium ${r.delta < 0 ? 'text-negative' : 'text-stone-600'}`}>{r.delta > 0 ? '▲' : r.delta < 0 ? '▼' : ''}{r.delta ? Math.abs(r.delta) : 'no change'}</span>}</div>
                   <div className="mt-0.5 text-stone-600">{r.counts.positive} positive · {r.counts.neutral} neutral · <span className={r.counts.negative ? 'text-negative' : undefined}>{r.counts.negative} negative</span> pages</div>
                   {ch && <div className="mt-0.5 text-stone-600">Top change: {ch.page.domain}, {ch.from} → <span className={ch.to === 'negative' ? 'text-negative' : undefined}>{ch.to}</span></div>}
+                  {pages && tip.i === 0 && <div className={`mt-0.5 ${t3}`}>The first run: nothing to compare with</div>}
                 </div>
               )
             })()}
             {tip?.kind === 'ribbon' && (
               <div role="tooltip" className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-line bg-raised px-3 py-2 text-small shadow-md"
                 style={{ left: clampX(tip.x), top: tip.y - 10 }}>
-                <span className="font-medium text-stone-900">{tip.rb.page.domain}</span>: {tip.rb.from} → <span className={tip.rb.to === 'negative' ? 'text-negative' : 'text-stone-900'}>{tip.rb.to}</span>
-                <span className={t3}> ({fmtDay(runs[tip.rb.i - 1].date)} → {fmtDay(runs[tip.rb.i].date)})</span>
+                <span className="font-medium text-stone-900">{tip.rb.page.domain}</span> · {tip.rb.from} → <span className={tip.rb.to === 'negative' ? 'text-negative' : 'text-stone-900'}>{tip.rb.to}</span>
               </div>
             )}
           </div>
@@ -809,41 +887,46 @@ function OverTime({ runs, run, onPick, pagesOf }) {
   )
 }
 
-// ---- every page: collapsed; a compact list, synced with every filter above, sortable, no header band
+// ---- every page: the first five, then "Show all"; synced with every filter above, sortable. A row's title opens the
+// page's drawer (every quote); its domain ↗ opens the cited page in a new tab.
 const SORTS = [{ value: 'tone', label: 'Tone' }, { value: 'title', label: 'Title' }, { value: 'engines', label: 'Engines' }]
+const FIRST = 5
 function AllPages({ pages, lit, filtered }) {
-  const [open, setOpen] = useState(false)
+  const [all, setAll] = useState(false)
   const [sort, setSort] = useState('tone')
   const rows = sortPages(pages.filter((p) => lit.has(p.id)), sort, sort === 'engines' ? 'desc' : 'asc')
+  const shown = all ? rows : rows.slice(0, FIRST)
   return (
-    <section aria-label="All pages" className="border-t border-line pt-4">
+    <section aria-labelledby="pages-h">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button type="button" aria-expanded={open} aria-controls="all-pages" onClick={() => setOpen((o) => !o)}
-          className="inline-flex items-center gap-1.5 rounded text-[15px] leading-[22px] font-semibold text-stone-900 outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">
-          {filtered ? 'Pages that match' : `All ${pages.length} pages`}
-          <ChevronDown size={16} className={`transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} aria-hidden />
-        </button>
-        {open && <Segmented label="Sort pages" size="sm" value={sort} onChange={setSort} options={SORTS} />}
+        <h2 id="pages-h" className={h2}>{filtered ? 'Pages that match' : 'All pages'}</h2>
+        <Segmented label="Sort pages" size="sm" value={sort} onChange={setSort} options={SORTS} />
       </div>
-      <div id="all-pages" className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`} inert={open ? undefined : ''}>
-        <ul className="relative overflow-hidden">
-          {rows.map((p) => (
-            <li key={p.id} className="border-b border-[var(--div)] last:border-0">
-              <button type="button" onClick={() => openDrawer('page', p.id)}
-                className="group -mx-2 grid w-[calc(100%+16px)] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-2.5 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus md:grid-cols-[20px_minmax(0,1fr)_96px_80px]">
-                <SiteLogo domain={p.domain} name={p.domain} className="h-5 w-5 rounded !border-0" imgPad="p-0" initialClass="text-[10px]" />
-                <span className="min-w-0">
-                  <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{p.title}</span>
-                  <span className={`flex items-center gap-2 text-[12px] leading-4 ${t3}`}><span className="truncate">{p.domain}</span><span className="md:hidden"><EngineMarks ids={p.engines} size={12} /></span></span>
-                </span>
-                <span className="hidden md:block"><EngineMarks ids={p.engines} /></span>
-                <span className={`text-right text-[13px] leading-[18px] ${TONE_TEXT[p.tone]} ${p.tone === 'negative' ? 'font-medium' : ''}`}>{TONE_LABEL[p.tone]}</span>
-              </button>
+      <ul className="mt-6 border-t border-[var(--div)]">
+        {shown.map((p) => {
+          const href = pageHref(p)
+          return (
+            <li key={p.id} className="grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-b border-[var(--div)] py-2.5 md:grid-cols-[20px_minmax(0,1fr)_minmax(0,220px)_72px_72px]">
+              <SiteLogo domain={p.domain} name={p.domain} className="h-5 w-5 rounded !border-0" imgPad="p-0" initialClass="text-[10px]" />
+              <button type="button" onClick={() => openDrawer('page', p.id)} className="min-w-0 truncate rounded text-left text-[14px] leading-5 font-medium text-stone-900 outline-none hover:underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-focus">{p.title}</button>
+              <span className={`text-right text-[13px] leading-[18px] md:order-last ${TONE_TEXT[p.tone]} ${p.tone === 'negative' ? 'font-medium' : ''}`}>{TONE_LABEL[p.tone]}</span>
+              <span className={`col-start-2 min-w-0 truncate text-[12px] leading-4 ${t3} md:col-start-auto md:text-[13px]`}>
+                {href
+                  ? <a href={href} {...LINK} className="rounded outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">{p.domain} <ArrowUpRight size={12} className="inline" aria-hidden /><span className="sr-only">(opens in a new tab)</span></a>
+                  : <span title="No link stored for this page">{p.domain}</span>}
+              </span>
+              <span className="hidden md:block"><EngineMarks ids={p.engines} /></span>
             </li>
-          ))}
-          {!rows.length && <li className={`py-6 text-[14px] leading-5 ${t2}`}>No pages match these filters.</li>}
-        </ul>
-      </div>
+          )
+        })}
+        {!rows.length && <li className={`py-6 text-[14px] leading-5 ${t2}`}>No pages match these filters.</li>}
+      </ul>
+      {rows.length > FIRST && (
+        <button type="button" onClick={() => setAll((v) => !v)} aria-expanded={all}
+          className={`mt-3 inline-flex items-center gap-1 rounded text-[13px] font-medium ${t2} outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus`}>
+          {all ? 'Show fewer' : `Show all ${rows.length}`}<ChevronDown size={14} className={all ? 'rotate-180' : ''} aria-hidden />
+        </button>
+      )}
     </section>
   )
 }
@@ -857,7 +940,7 @@ function PageDrawer({ pages, brand }) {
   return (
     <DrawerShell drawer={drawer} title={p.title}
       meta={<span className="flex flex-wrap items-center gap-2"><span>{p.domain}</span><Dot /><span className={TONE_TEXT[p.tone]}>{TONE_LABEL[p.tone]}</span><Dot /><EngineMarks ids={p.engines} /></span>}
-      footer={<><a href={`https://${p.domain}${p.path}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded font-medium text-stone-900 underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">Open page <ArrowUpRight size={14} aria-hidden /><span className="sr-only">(opens in a new tab)</span></a><span /></>}>
+      footer={<><OpenPage page={p} /><span /></>}>
       <section className="mt-5">
         <h3 className="text-[14px] leading-5 font-semibold text-stone-900">What it says about {brand.name}</h3>
         {!p.sentences.length && <p className={`mt-2 border-y border-[var(--div)] py-4 text-[14px] leading-5 ${t2}`}>This page was analysed before quotes were kept. Quotes appear after the next analysis.</p>}

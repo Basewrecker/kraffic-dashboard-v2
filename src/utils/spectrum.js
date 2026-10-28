@@ -204,7 +204,7 @@ export function urlKey(url) {
     return `${u.hostname.replace(/^www\./i, '').toLowerCase()}${u.pathname.replace(/\/+$/, '') || ''}`
   } catch { return String(url).toLowerCase() }
 }
-const keyOf = (p) => urlKey(`${p.domain}${p.path ?? ''}`)
+const keyOf = (p) => urlKey(p.url ?? `${p.domain}${p.path ?? ''}`)
 
 // pages that changed tone between two runs (present in both, matched by URL): [{ page, from, to }]; unchanged pages and
 // pages only in one of the runs give nothing
@@ -297,3 +297,43 @@ export const springAt = (t) => 1 - (1 - t) ** 2.4 * Math.cos(1.15 * Math.PI * t)
 export function springEasing(points = 28) {
   return `linear(${Array.from({ length: points + 1 }, (_, i) => +springAt(i / points).toFixed(4)).join(', ')})`
 }
+
+// ---- links ---------------------------------------------------------------------------------------------------------
+
+// tracking parameters dropped from cited URLs (the page stays the same page without them)
+const TRACKING = /^(utm_.*|gclid|dclid|gbraid|wbraid|fbclid|msclkid|mc_cid|mc_eid|igshid|si|ref|ref_src|ref_url|spm|_ga|_gl|yclid)$/i
+// a cited URL, normalised: http(s) only, the path and any meaningful query kept, tracking parameters and the #fragment
+// dropped. null when there's nothing safe to link to.
+export function normalizeUrl(url) {
+  if (!url || typeof url !== 'string') return null
+  let u
+  try { u = new URL(url.trim()) } catch { return null }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+  for (const k of [...u.searchParams.keys()]) if (TRACKING.test(k)) u.searchParams.delete(k)
+  u.hash = ''
+  return u.toString()
+}
+// the href for a page's links (Open page, its favicon, its domain): its exact cited URL, or null (no link at all)
+export const pageHref = (page) => normalizeUrl(page?.url)
+
+// a clickable favicon stack shows at most `cap`, then "+N"
+export const capStack = (list, cap = 4) => ({ shown: list.slice(0, cap), more: Math.max(0, list.length - cap) })
+
+// "Also said on": the other pages behind the lead quote's theme; if it stands alone, the other pages in its tone
+export function alsoSaidOn(lead, themes, pages, tone) {
+  if (!lead) return []
+  const theme = themes.find((t) => t.sources.includes(lead.page.id))
+  const same = theme ? theme.pages.filter((p) => p.id !== lead.page.id) : []
+  return same.length ? same : pages.filter((p) => p.tone === tone && p.id !== lead.page.id)
+}
+
+// ---- Over time, per column ------------------------------------------------------------------------------------------
+
+// the change line under a run's date: how many more / fewer positive and negative pages than the run before
+// → [{ tone, d }] (non-zero only; [] = no change); null for the first run
+export function changeSummary(prev, now) {
+  if (!prev) return null
+  return ['positive', 'negative'].map((tone) => ({ tone, d: now[tone] - prev[tone] })).filter((x) => x.d !== 0)
+}
+// the ribbons for one column: only the pages that changed tone from the previous run into this one (none for the first)
+export const ribbonsInto = (runsPages, i) => (i > 0 ? toneChanges(runsPages[i - 1], runsPages[i]) : [])
