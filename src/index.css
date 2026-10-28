@@ -129,7 +129,7 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
-   Dark theme: neutral black (ChatGPT's values): page and sidebar #000, cards / menus / drawers #1B1B1B, tint #222222, borders #262626. Light theme values live in @theme above.
+   Dark theme: neutral black (ChatGPT's values): page and sidebar #000, cards #111111, menus / drawers #1B1B1B, tint #1A1A1A, row hover #161616, borders #222222. Light theme values live in @theme above.
    html[data-theme="dark"] = explicit choice; the media query covers "System" / no JS.
    Generated from one table, so both copies stay identical.
    --------------------------------------------------------------------------- */
@@ -151,8 +151,8 @@ html[data-theme="dark"] {
   --brand-tile: #FFFFFF;
   --brand-k: #000000;
   --brand-accent: #4AA8F5;
-  --data-track: #222222;
-  --tint: #222222;
+  --data-track: #1A1A1A;
+  --tint: #1A1A1A;
   --negative: #F87171;
   --line-1: #8B8DF5;
   --line-2: #F27370;
@@ -160,26 +160,26 @@ html[data-theme="dark"] {
   --line-4: #E879F9;
   --line-check: #000000;
   --color-page: #000000;
-  --color-surface: #1B1B1B;
+  --color-surface: #111111;
   --color-sidebar: #000000;
   --color-sidebar-line: #1F1F1F;
   --color-nav-hover: #141414;
   --color-selected: #1A1A1A;
   --color-switch: #1B1B1B;
-  --color-switch-line: #262626;
+  --color-switch-line: #222222;
   --color-raised: #1B1B1B;
   --color-overlay: #1B1B1B;
-  --color-white: #1B1B1B;
-  --color-line: #262626;
-  --color-line-soft: #222222;
+  --color-white: #111111;
+  --color-line: #222222;
+  --color-line-soft: #1A1A1A;
   --color-line-strong: #333333;
-  --subtle-border: #232323;
+  --subtle-border: #1C1C1C;
   --subtle-bg: rgba(255,255,255,0.02);
   --dashed-border: var(--color-line);
-  --div: #232323;
-  --color-stone-50: #141414;
-  --color-stone-100: #222222;
-  --color-stone-200: #262626;
+  --div: #1C1C1C;
+  --color-stone-50: #161616;
+  --color-stone-100: #1A1A1A;
+  --color-stone-200: #222222;
   --color-stone-300: #333333;
   --color-stone-400: #5E5E5E;
   --color-stone-500: #8E8E8E;
@@ -213,8 +213,8 @@ html[data-theme="dark"] {
     --brand-tile: #FFFFFF;
     --brand-k: #000000;
     --brand-accent: #4AA8F5;
-    --data-track: #222222;
-    --tint: #222222;
+    --data-track: #1A1A1A;
+    --tint: #1A1A1A;
     --negative: #F87171;
     --line-1: #8B8DF5;
     --line-2: #F27370;
@@ -222,26 +222,26 @@ html[data-theme="dark"] {
     --line-4: #E879F9;
     --line-check: #000000;
     --color-page: #000000;
-    --color-surface: #1B1B1B;
+    --color-surface: #111111;
     --color-sidebar: #000000;
     --color-sidebar-line: #1F1F1F;
     --color-nav-hover: #141414;
   --color-selected: #1A1A1A;
     --color-switch: #1B1B1B;
-    --color-switch-line: #262626;
+    --color-switch-line: #222222;
     --color-raised: #1B1B1B;
     --color-overlay: #1B1B1B;
-    --color-white: #1B1B1B;
-    --color-line: #262626;
-    --color-line-soft: #222222;
+    --color-white: #111111;
+    --color-line: #222222;
+    --color-line-soft: #1A1A1A;
     --color-line-strong: #333333;
-    --subtle-border: #232323;
+    --subtle-border: #1C1C1C;
     --subtle-bg: rgba(255,255,255,0.02);
     --dashed-border: var(--color-line);
-    --div: #232323;
-    --color-stone-50: #141414;
-    --color-stone-100: #222222;
-    --color-stone-200: #262626;
+    --div: #1C1C1C;
+    --color-stone-50: #161616;
+    --color-stone-100: #1A1A1A;
+    --color-stone-200: #222222;
     --color-stone-300: #333333;
     --color-stone-400: #5E5E5E;
     --color-stone-500: #8E8E8E;
