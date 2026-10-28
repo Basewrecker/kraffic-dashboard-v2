@@ -37,6 +37,16 @@ export function VerdictChip({ verdict, small = false }) {
   )
 }
 
+export function VerdictDot({ verdict, className = '' }) {
+  const tone = TONE[verdict] ?? 'mid'
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] leading-4 font-medium ${tone === 'down' ? 'text-negative' : tone === 'up' ? 'text-stone-900' : 'text-stone-600'} ${className}`}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone === 'down' ? RED : tone === 'up' ? INK : 'var(--color-stone-400)' }} aria-hidden />
+      {verdict}
+    </span>
+  )
+}
+
 export function Sparkline({ series, w = 96, h = 28, color = INK, fill = true }) {
   const id = useId()
   if (!series?.length) return null
@@ -540,36 +550,39 @@ export function explainFor(block) {
   }
 }
 
-// ---- thumbnails (home: templates and report cards) -----------------------------------------------------------------
-export function Thumb({ kind, className = 'h-16 w-28' }) {
+// ---- thumbnails (templates, report rows and tiles). Inside a .thumb-live parent, hovering it replays the mini visual:
+// bands sweep in, lines draw, squares settle, bubbles pop (index.css; nothing moves with reduced motion)
+export function Thumb({ kind, net = null, className = 'h-16 w-28' }) {
   const ink = INK
   const grey = 'var(--color-stone-300)'
+  const at = (i) => ({ '--i': i })
   return (
     <svg viewBox="0 0 112 64" className={className} aria-hidden>
-      {kind === 'weekly' && (
+      {kind === 'weekly' && net != null && <WeeklyThumb net={net} at={at} />}
+      {kind === 'weekly' && net == null && (
         <g>
           <rect x="14" y="6" width="5" height="30" rx="1.5" fill={ink} /><rect x="14" y="40" width="5" height="18" rx="1.5" fill={grey} />
-          <rect x="93" y="6" width="5" height="34" rx="1.5" fill={ink} /><rect x="93" y="44" width="5" height="14" rx="1.5" fill={grey} />
-          <path d="M19 6 C56 6 56 6 93 6 L93 34 C56 34 56 32 19 32 Z" fill={soft(ink, 16)} />
-          <path d="M19 40 C56 40 56 34 93 34 L93 40 C56 40 56 46 19 46 Z" fill={soft(ink, 75)} />
-          <path d="M19 32 C56 32 56 44 93 44 L93 46 C56 46 56 36 19 36 Z" fill={soft(RED, 80)} />
-          <path d="M19 46 C56 46 56 46 93 46 L93 58 C56 58 56 58 19 58 Z" fill={soft(ink, 6)} />
+          <rect x="93" y="6" width="5" height="34" rx="1.5" fill={ink} data-a="pop" style={at(4)} /><rect x="93" y="44" width="5" height="14" rx="1.5" fill={grey} data-a="pop" style={at(5)} />
+          <path d="M19 6 C56 6 56 6 93 6 L93 34 C56 34 56 32 19 32 Z" fill={soft(ink, 16)} data-a="sweep" style={at(0)} />
+          <path d="M19 40 C56 40 56 34 93 34 L93 40 C56 40 56 46 19 46 Z" fill={soft(ink, 75)} data-a="sweep" style={at(1)} />
+          <path d="M19 32 C56 32 56 44 93 44 L93 46 C56 46 56 36 19 36 Z" fill={soft(RED, 80)} data-a="sweep" style={at(2)} />
+          <path d="M19 46 C56 46 56 46 93 46 L93 58 C56 58 56 58 19 58 Z" fill={soft(ink, 6)} data-a="sweep" style={at(3)} />
         </g>
       )}
       {kind === 'ceo' && (
         <g strokeLinecap="round">
           <line x1="16" x2="16" y1="4" y2="60" stroke="var(--div)" /><line x1="96" x2="96" y1="4" y2="60" stroke="var(--div)" />
-          <line x1="16" y1="24" x2="96" y2="10" stroke={ink} strokeWidth="3" />
-          <line x1="16" y1="20" x2="96" y2="22" stroke={RED} strokeWidth="1.5" />
-          <line x1="16" y1="38" x2="96" y2="40" stroke={grey} strokeWidth="1.5" />
-          <line x1="16" y1="48" x2="96" y2="52" stroke={grey} strokeWidth="1.5" />
-          <circle cx="96" cy="10" r="3.5" fill={ink} />
+          <line x1="16" y1="48" x2="96" y2="52" stroke={grey} strokeWidth="1.5" pathLength="1" data-a="draw" style={at(3)} />
+          <line x1="16" y1="38" x2="96" y2="40" stroke={grey} strokeWidth="1.5" pathLength="1" data-a="draw" style={at(2)} />
+          <line x1="16" y1="20" x2="96" y2="22" stroke={RED} strokeWidth="1.5" pathLength="1" data-a="draw" style={at(1)} />
+          <line x1="16" y1="24" x2="96" y2="10" stroke={ink} strokeWidth="3" pathLength="1" data-a="draw" style={at(0)} />
+          <circle cx="96" cy="10" r="3.5" fill={ink} data-a="pop" style={at(6)} />
         </g>
       )}
       {kind === 'rival' && (
         <g>
           {[[10, 6, ink, 18], [58, 6, RED, 7], [10, 36, ink, 14], [58, 36, soft(ink, 12), 12]].map(([x, y, c, n], qi) => (
-            <g key={qi}>{Array.from({ length: n }, (_, i) => <rect key={i} x={x + (i % 6) * 7} y={y + Math.floor(i / 6) * 7} width="5" height="5" rx="1" fill={c} />)}</g>
+            <g key={qi}>{Array.from({ length: n }, (_, i) => <rect key={i} x={x + (i % 6) * 7} y={y + Math.floor(i / 6) * 7} width="5" height="5" rx="1" fill={c} data-a="settle" style={at(qi * 3 + (i % 6) * 0.6 + Math.floor(i / 6))} />)}</g>
           ))}
           <line x1="54" x2="54" y1="2" y2="62" stroke="var(--div)" /><line x1="4" x2="108" y1="32" y2="32" stroke="var(--div)" />
         </g>
@@ -577,12 +590,35 @@ export function Thumb({ kind, className = 'h-16 w-28' }) {
       {kind === 'content' && (
         <g>
           <rect x="58" y="4" width="50" height="26" fill={soft(RED, 6)} />
-          <circle cx="86" cy="14" r="9" fill={soft(RED, 25)} stroke={RED} /><circle cx="70" cy="22" r="7" fill={soft(RED, 25)} stroke={RED} />
-          <circle cx="42" cy="40" r="6" fill={soft(ink, 10)} stroke="var(--color-stone-400)" /><circle cx="24" cy="50" r="4.5" fill={soft(ink, 10)} stroke="var(--color-stone-400)" />
-          <circle cx="58" cy="46" r="5" fill={soft(ink, 10)} stroke="var(--color-stone-400)" />
+          <circle cx="86" cy="14" r="9" fill={soft(RED, 25)} stroke={RED} data-a="pop" style={at(3)} /><circle cx="70" cy="22" r="7" fill={soft(RED, 25)} stroke={RED} data-a="pop" style={at(4)} />
+          <circle cx="42" cy="40" r="6" fill={soft(ink, 10)} stroke="var(--color-stone-400)" data-a="pop" style={at(1)} /><circle cx="24" cy="50" r="4.5" fill={soft(ink, 10)} stroke="var(--color-stone-400)" data-a="pop" style={at(0)} />
+          <circle cx="58" cy="46" r="5" fill={soft(ink, 10)} stroke="var(--color-stone-400)" data-a="pop" style={at(2)} />
           <line x1="6" x2="108" y1="60" y2="60" stroke={grey} />
         </g>
       )}
     </svg>
+  )
+}
+
+// a weekly thumbnail for one week: the prompts named last week (left) and this week (right); the dark band is what was
+// won, the red one what was lost, each as wide as that week's change
+function WeeklyThumb({ net, at }) {
+  const won = 2 + Math.min(8, Math.max(0, net)) * 2.2 // capped so a big month still fits
+  const lost = 2 + Math.min(6, Math.max(0, -net)) * 2.6
+  const held = 26
+  const top = 6
+  const gap = 4
+  const L1 = top + held + lost // left: held, lost | won, missing
+  const R1 = top + held + won // right: held, won | lost, missing
+  const b = (yl0, yl1, yr0, yr1) => `M19 ${yl0} C56 ${yl0} 56 ${yr0} 93 ${yr0} L93 ${yr1} C56 ${yr1} 56 ${yl1} 19 ${yl1} Z`
+  return (
+    <g>
+      <rect x="14" y={top} width="5" height={held + lost} rx="1.5" fill={INK} /><rect x="14" y={L1 + gap} width="5" height={58 - L1 - gap} rx="1.5" fill="var(--color-stone-300)" />
+      <rect x="93" y={top} width="5" height={held + won} rx="1.5" fill={INK} data-a="pop" style={at(4)} /><rect x="93" y={R1 + gap} width="5" height={58 - R1 - gap} rx="1.5" fill="var(--color-stone-300)" data-a="pop" style={at(5)} />
+      <path d={b(top, top + held, top, top + held)} fill={soft(INK, 16)} data-a="sweep" style={at(0)} />
+      <path d={b(L1 + gap, L1 + gap + won, top + held, top + held + won)} fill={soft(INK, 75)} data-a="sweep" style={at(1)} />
+      <path d={b(top + held, top + held + lost, R1 + gap, R1 + gap + lost)} fill={soft(RED, 80)} data-a="sweep" style={at(2)} />
+      <path d={b(L1 + gap + won, 58, R1 + gap + lost, 58)} fill={soft(INK, 6)} data-a="sweep" style={at(3)} />
+    </g>
   )
 }

@@ -429,3 +429,19 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
   .print-sheet, .print-sheet * { visibility: visible; }
   .print-sheet { position: absolute; left: 0; top: 0; box-shadow: none !important; }
 }
+
+/* Reports: a template or report thumbnail replays its mini visual while its tile is hovered or focused */
+@keyframes thumb-sweep { from { transform: scaleX(0); opacity: 0.2; } to { transform: none; opacity: 1; } }
+@keyframes thumb-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes thumb-settle { from { transform: translateY(-5px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes thumb-pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+  .thumb-live [data-a] { transform-box: fill-box; }
+  .thumb-live [data-a="sweep"] { transform-origin: left center; }
+  .thumb-live [data-a="pop"] { transform-origin: center; }
+  .thumb-live [data-a="draw"] { stroke-dasharray: 1; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="sweep"] { animation: thumb-sweep 620ms cubic-bezier(.2,.8,.2,1) calc(var(--i) * 70ms) both; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="draw"] { animation: thumb-draw 700ms cubic-bezier(.3,.7,.2,1) calc(var(--i) * 90ms) both; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="settle"] { animation: thumb-settle 420ms cubic-bezier(.34,1.56,.64,1) calc(var(--i) * 28ms) both; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="pop"] { animation: thumb-pop 520ms cubic-bezier(.34,1.56,.64,1) calc(var(--i) * 80ms + 120ms) both; }
+}

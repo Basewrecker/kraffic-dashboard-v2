@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildReport, dataFor, glance, inferOpts, refine, resolveOpts, savedReports, stepsFor, templatesFor } from './reports.js'
+import { DATES, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
 
 const types = (r) => r.blocks.map((b) => b.type)
 const block = (r, type) => r.blocks.find((b) => b.type === type)?.data
@@ -100,4 +100,31 @@ test('glance, steps, and every saved report builds', () => {
   assert.deepEqual(glance('foa').items.map((g) => g.value), [64, 71, 31])
   assert.equal(stepsFor({ brand: 'foa', period: 'week' })[1], 'Comparing 7 brands')
   for (const s of savedReports) assert.equal(buildReport(s.opts, s.prompt).ok, true, s.id)
+})
+
+test('weekly runs: one per sync after the first, each verdict from that week; the newest is the saved weekly report', () => {
+  const runs = weeklyRuns('foa')
+  assert.equal(runs.length, DATES.length - 1)
+  assert.deepEqual(runs.map((r) => r.verdict), ['Good week', 'Tough week', 'Good week', 'Good week', 'Mixed', 'Good week', 'Good week'])
+  const last = runs.at(-1)
+  const saved = buildReport(savedReports.find((r) => r.id === 'r-foa-week').opts)
+  assert.equal(last.id, 'r-foa-week')
+  assert.equal(last.verdict, saved.verdict)
+  assert.equal(last.headline, saved.headline)
+  // the newest run's change in prompts named is the flow's won − lost
+  const f = dataFor('foa').flow.week
+  assert.equal(last.net, f.won - f.lost)
+  assert.match(runs[1].headline, /1 fewer AI answer than/)
+  assert.equal(runSummary(runs[1]).scoreline.items[1].delta, -1)
+  assert.deepEqual(weeklyRuns('brightside'), [])
+})
+
+test('the library: saved reports and earlier runs, newest first; groups by week from today (Oct 28)', () => {
+  const items = libraryItems()
+  assert.equal(items.length, savedReports.length + 12)
+  assert.equal(new Set(items.map((i) => i.id)).size, items.length)
+  assert.ok(items.every((i) => i.headline && i.verdict && i.stats.length === 3))
+  assert.deepEqual(['Oct 26', 'Oct 22', 'Oct 20', 'Oct 9', 'Sep 28'].map((d) => weekGroup(d)), ['This week', 'Last week', 'Last week', 'Earlier in October', 'September'])
+  // every weekly report that says it's scheduled has a schedule
+  for (const r of savedReports.filter((x) => x.scheduled)) assert.ok(schedules.some((s) => s.reportId === r.id), r.id)
 })

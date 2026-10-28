@@ -41,8 +41,8 @@ const FOA = {
   missing: { claude: 'Claude didn’t run in the Oct 26 sync, so it isn’t counted.' },
   notConnected: ['Marketplace and community data isn’t connected for Finance of America.'],
   series: {
-    score: [57, 58, 58, 59, 60, 61, 62, 64],
-    named: [58, 60, 61, 62, 63, 65, 67, 71],
+    score: [57, 58, 57, 59, 60, 59, 62, 64],
+    named: [58, 60, 59, 62, 63, 64, 67, 71],
     cited: [15, 16, 17, 18, 18, 19, 19, 24],
   },
   share: Object.fromEntries(['foa', 'rocket', 'omaha', 'aag', 'longbridge', 'liberty', 'guild'].map((k) => [k, last8(k)])),
@@ -123,8 +123,8 @@ const DS = {
   missing: { gemini: 'Gemini only runs with a full sync; none ran in this period.', claude: 'Claude only runs with a full sync; none ran in this period.' },
   notConnected: [],
   series: {
-    score: [61, 62, 63, 64, 65, 64, 66, 73],
-    named: [92, 94, 95, 97, 99, 101, 104, 111],
+    score: [61, 62, 61, 64, 65, 64, 66, 73],
+    named: [92, 94, 93, 97, 99, 101, 104, 111],
     cited: [19, 20, 21, 22, 24, 26, 27, 30],
   },
   share: { dermasuri: [63, 64, 65, 66, 68, 67, 70, 73], cerave: [23, 22, 22, 21, 20, 20, 19, 18], theordinary: [7, 7, 6, 6, 5, 6, 4, 4], paulaschoice: [6, 6, 5, 5, 4, 4, 4, 3] },
@@ -446,20 +446,21 @@ export function templatesFor(brandId) {
 
 // ---- saved and scheduled reports ---------------------------------------------------------------------------------
 export const savedReports = [
-  { id: 'r-foa-week', brand: 'foa', prompt: '', title: 'Weekly summary', opts: { brand: 'foa', kind: 'weekly', period: 'week', audience: 'team', length: 'detailed' }, created: 'Oct 27', scheduled: true, saved: true },
+  { id: 'r-foa-week', brand: 'foa', prompt: '', title: 'Weekly summary', opts: { brand: 'foa', kind: 'weekly', period: 'week', audience: 'team', length: 'detailed' }, created: 'Oct 26', scheduled: true, saved: true },
   { id: 'r-foa-ceo', brand: 'foa', prompt: 'CEO summary: are we winning in AI search?', opts: { brand: 'foa', kind: 'ceo', period: '30d', audience: 'ceo', length: 'detailed' }, created: 'Oct 22', scheduled: true, saved: true },
   { id: 'r-foa-longbridge', brand: 'foa', prompt: 'Where is Longbridge beating us?', opts: { brand: 'foa', kind: 'rival', period: '30d', audience: 'team', length: 'detailed', compare: ['longbridge'] }, created: 'Oct 20', saved: false },
   { id: 'r-foa-content', brand: 'foa', prompt: 'Which prompts should we write content for next?', opts: { brand: 'foa', kind: 'content', period: '30d', audience: 'team', length: 'detailed' }, created: 'Oct 9', saved: false },
-  { id: 'r-ds-week', brand: 'dermasuri', prompt: '', title: 'Weekly summary', opts: { brand: 'dermasuri', kind: 'weekly', period: 'week', audience: 'team', length: 'detailed' }, created: 'Oct 27', scheduled: true, saved: true },
+  { id: 'r-ds-week', brand: 'dermasuri', prompt: '', title: 'Weekly summary', opts: { brand: 'dermasuri', kind: 'weekly', period: 'week', audience: 'team', length: 'detailed' }, created: 'Oct 26', scheduled: true, saved: true },
   { id: 'r-ds-client', brand: 'dermasuri', prompt: 'Client update: October', opts: { brand: 'dermasuri', kind: 'weekly', period: '30d', audience: 'client', length: 'detailed' }, created: 'Oct 15', scheduled: true, saved: false },
   { id: 'r-ds-cerave', brand: 'dermasuri', prompt: 'Where is CeraVe beating us?', opts: { brand: 'dermasuri', kind: 'rival', period: '30d', audience: 'team', length: 'detailed', compare: ['cerave'] }, created: 'Oct 12', saved: false },
 ].map((r) => ({ ...r, opts: { ...DEFAULT_OPTS, compare: [], engines: [], ...r.opts }, title: r.title || titleFor(r.prompt, r.opts) }))
 export const reportById = (id) => savedReports.find((r) => r.id === id) ?? null
 
 export const schedules = [
-  { id: 's-foa-week', reportId: 'r-foa-week', title: 'Weekly summary', brand: 'foa', cadence: 'Mondays 9am', recipients: ['Dana Wells', 'Priya Shah'], next: 'Nov 2' },
-  { id: 's-foa-ceo', reportId: 'r-foa-ceo', title: 'CEO summary', brand: 'foa', cadence: '1st of the month 8am', recipients: ['Graham Fox'], next: 'Nov 1' },
-  { id: 's-ds-client', reportId: 'r-ds-client', title: 'Client update', brand: 'dermasuri', cadence: 'Every other Friday 10am', recipients: ['Mia Chen', 'Leo Park', 'Ana Ruiz'], next: 'Nov 6' },
+  { id: 's-foa-week', reportId: 'r-foa-week', title: 'Weekly summary', brand: 'foa', cadence: 'Mondays 9am', recipients: ['Dana Wells', 'Priya Shah'], next: 'Nov 2', when: 'next Monday 9am' },
+  { id: 's-foa-ceo', reportId: 'r-foa-ceo', title: 'CEO summary', brand: 'foa', cadence: '1st of the month 8am', recipients: ['Graham Fox'], next: 'Nov 1', when: 'Sunday, Nov 1, 8am' },
+  { id: 's-ds-week', reportId: 'r-ds-week', title: 'Weekly summary', brand: 'dermasuri', cadence: 'Mondays 9am', recipients: ['Mia Chen'], next: 'Nov 2', when: 'next Monday 9am' },
+  { id: 's-ds-client', reportId: 'r-ds-client', title: 'Client update', brand: 'dermasuri', cadence: 'Every other Friday 10am', recipients: ['Mia Chen', 'Leo Park', 'Ana Ruiz'], next: 'Nov 6', when: 'Friday, Nov 6, 10am' },
 ]
 
 // generating: the steps the page ticks off (counts from the data)
@@ -468,4 +469,79 @@ export function stepsFor(o) {
   const n = d ? 1 + (o.compare?.length ? o.compare.length : d.rivals.length) : 0
   const when = { week: 'this week’s', '30d': 'this month’s', quarter: 'this quarter’s', custom: 'the period’s' }[o.period] ?? 'this month’s'
   return [`Reading ${d?.prompts ?? 0} prompts`, `Comparing ${n} brands`, `Checking ${when} wins and gaps`, 'Writing the summary']
+}
+
+// ---- the library (All reports) ----------------------------------------------------------------------------------
+export const TODAY = new Date(2026, 9, 28) // the mock's "today": Wednesday, two days after the Oct 26 sync
+export const VERDICT_TONE = { 'Good week': 'up', 'Good month': 'up', Winning: 'up', Mixed: 'mid', Opportunity: 'mid', 'Tough week': 'down', 'Tough month': 'down', Losing: 'down' }
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+export const parseDay = (s) => { const [m, d] = s.split(' '); return new Date(2026, MONTHS.indexOf(m), Number(d)) }
+const monday = (dt) => { const x = new Date(dt); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0); return x }
+// home: "This week", "Last week", then "Earlier in October", "September"…
+export function weekGroup(created, today = TODAY) {
+  const d = parseDay(created)
+  const weeks = Math.round((monday(today) - monday(d)) / (7 * 864e5))
+  if (weeks <= 0) return 'This week'
+  if (weeks === 1) return 'Last week'
+  return d.getMonth() === today.getMonth() ? `Earlier in ${MONTH_NAMES[d.getMonth()]}` : MONTH_NAMES[d.getMonth()]
+}
+export const monthGroup = (created) => MONTH_NAMES[parseDay(created).getMonth()]
+
+// the weekly summary's past runs: one per sync after the first, each comparing that sync with the one before.
+// Verdict: more prompts named and a higher score = good; fewer and lower = tough; anything else = mixed.
+// The newest run is the saved weekly report itself (its headline names the topic that led).
+export function weeklyRuns(brandId) {
+  const d = dataFor(brandId)
+  const saved = savedReports.find((r) => r.brand === brandId && r.opts.kind === 'weekly' && r.opts.period === 'week')
+  if (!d || !saved) return []
+  const sov = d.share[youKey(d)]
+  const out = []
+  for (let i = 1; i < DATES.length; i++) {
+    const net = d.series.named[i] - d.series.named[i - 1]
+    const ds = d.series.score[i] - d.series.score[i - 1]
+    const verdict = net > 0 && ds > 0 ? 'Good week' : net < 0 && ds < 0 ? 'Tough week' : 'Mixed'
+    const n = Math.abs(net)
+    const latest = i === DATES.length - 1
+    const headline = latest ? buildReport(saved.opts, saved.prompt).headline
+      : net > 0 ? `${d.name} is in ${n} more AI ${n === 1 ? 'answer' : 'answers'} than the week before.`
+        : net < 0 ? `${d.name} is in ${n} fewer AI ${n === 1 ? 'answer' : 'answers'} than the week before.`
+          : `${d.name} is in as many AI answers as the week before.`
+    out.push({
+      id: latest ? saved.id : `run-${brandId}-${i}`, brand: brandId, kind: 'weekly', idx: i, date: DATES[i], created: DATES[i], verdict, headline, net,
+      audience: 'team', period: 'week', title: 'Weekly summary', kindNet: net, scheduled: true, run: !latest, saved: latest ? saved.saved : false,
+      stats: statsAt(d, i, i - 1, sov),
+    })
+  }
+  return out
+}
+const flowNet = (d, period) => { const f = d.flow[period] ?? d.flow['30d']; return f.won - f.lost }
+// the hover scoreline on a tile: score, prompts named, share of voice at sync i, change since sync i0
+function statsAt(d, i, i0, sov = d.share[youKey(d)]) {
+  return [
+    { id: 'score', label: 'Score', value: d.series.score[i], delta: d.series.score[i] - d.series.score[i0] },
+    { id: 'named', label: 'Prompts', value: d.series.named[i], delta: d.series.named[i] - d.series.named[i0] },
+    { id: 'sov', label: 'Share of voice', value: sov[i], unit: '%', delta: sov[i] - sov[i0] },
+  ]
+}
+// a scheduled run's email: its header and scoreline as of that sync (the full report is only kept for the newest run)
+export function runSummary(run) {
+  const d = dataFor(run.brand)
+  const sov = d.share[youKey(d)]
+  const i = run.idx
+  const m = (id, label, series, extra = {}) => ({ id, label, value: series[i], delta: series[i] - series[i - 1], series: series.slice(0, i + 1), ...extra })
+  return {
+    header: { brand: d.name, domain: d.domain, period: `${DATES[i - 1]} – ${DATES[i]}, 2026`, audience: 'team', engines: 'All engines', verdict: run.verdict, headline: run.headline, kind: 'weekly' },
+    scoreline: { since: DATES[i - 1], items: [m('score', 'Visibility score', d.series.score), m('named', 'Prompts named', d.series.named, { of: d.prompts }), m('sov', 'Share of voice', sov, { unit: '%' }), m('cited', 'Pages cited', d.series.cited)] },
+  }
+}
+// every report in the library, newest first: the saved reports and the weekly summaries' earlier runs
+export function libraryItems() {
+  const saved = savedReports.map((r) => {
+    const b = buildReport(r.opts, r.prompt)
+    const d = dataFor(r.brand)
+    return { id: r.id, brand: r.brand, kind: b.kind, verdict: b.verdict, headline: b.headline, title: r.title, created: r.created, audience: b.opts.audience, period: b.opts.period, scheduled: !!r.scheduled, saved: !!r.saved, run: false, kindNet: b.kind === 'weekly' ? flowNet(d, b.opts.period) : null, stats: statsAt(d, DATES.length - 1, startIdx(b.opts.period)) }
+  })
+  const runs = REPORT_BRANDS.flatMap((b) => weeklyRuns(b.id)).filter((x) => x.run)
+  return [...saved, ...runs].sort((a, b) => parseDay(b.created) - parseDay(a.created))
 }

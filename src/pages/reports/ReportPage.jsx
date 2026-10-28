@@ -9,9 +9,10 @@ import { linkClick, navigate } from '../../router'
 import { buildReport, refine, reportById, resolveOpts, stepsFor } from '../../data/reports'
 import Composer from './Composer'
 import { Block, WIDE, blockName, explainFor } from './blocks'
+import { DotAssemble } from './DotField'
 import { brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
 
-const STEP_MS = 800
+const STEP_MS = 900
 const HINTS = ['Make it shorter', 'Add Gemini', 'Focus on Longbridge', 'Rewrite for a client']
 const FIXED = new Set(['header', 'scoreline', 'hero', 'sources']) // the fixed rhythm: explain only
 const FIRST_MOVABLE = 3 // after header, scoreline, hero
@@ -72,6 +73,14 @@ function Report({ id, init, mock }) {
   const [toastNode, toast] = useToast({ position: 'center' })
   const timer = useRef(null)
   const run = useRef(0)
+  const heroRef = useRef(null)
+  // the dots that become the hero while it's written (they fade out under the finished report)
+  const [dots, setDots] = useState(writing)
+  useEffect(() => {
+    if (phase === 'generating') return undefined
+    const t = setTimeout(() => setDots(false), 700)
+    return () => clearTimeout(t)
+  }, [phase])
   const steps = stepsFor(resolveOpts(init.opts, init.prompt))
   const built = buildReport(init.opts, init.prompt)
 
@@ -82,6 +91,7 @@ function Report({ id, init, mock }) {
     setStep(0)
     if (!built.ok) { setPhase('thin'); return }
     setPhase('generating')
+    setDots(true)
     if (mock === 'generating') { setStep(2); return }
     const tick = (n) => {
       timer.current = setTimeout(() => {
@@ -156,7 +166,8 @@ function Report({ id, init, mock }) {
     <div className="mx-auto flex w-full max-w-[860px] flex-col gap-4">
       <Composer compact prompt={prompt} setPrompt={setPrompt} opts={opts} setOpts={setOpts} onSend={send} busy={phase === 'generating'} />
 
-      {phase === 'generating' && <Progress steps={steps} step={step} onCancel={cancel} />}
+      {phase === 'generating' && <Generating steps={steps} step={step} kind={built.kind} heroRef={heroRef} onCancel={cancel} />}
+      {dots && built.ok && <DotAssemble brandId={built.opts.brand} kind={built.kind} targetRef={heroRef} done={phase !== 'generating'} />}
       {phase === 'failed' && (
         <StateCard icon={<AlertCircle size={18} className="text-negative" aria-hidden />} title="The report couldn’t be written"
           actions={<><button type="button" onClick={start} className={inkBtn}>Try again</button><a href="/reports" onClick={linkClick('/reports')} className={lineBtn}>Back to New report</a></>}>
@@ -188,8 +199,7 @@ function Report({ id, init, mock }) {
               <Loader2 size={14} className="animate-spin motion-reduce:animate-none" aria-hidden />Updating the report: {refining.charAt(0).toLowerCase() + refining.slice(1)}…
             </div>
           )}
-          <article aria-label={v.title} aria-busy={!!refining}
-            className={`grid grid-cols-1 gap-x-12 gap-y-10 rounded-xl border border-line bg-surface px-12 py-10 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)] transition-opacity duration-300 lg:grid-cols-2 max-md:gap-y-9 max-md:px-5 max-md:py-7 ${refining ? 'opacity-40' : ''}`}>
+          <article aria-label={v.title} aria-busy={!!refining} className={`${ARTICLE} transition-opacity duration-300 ${refining ? 'opacity-40' : ''}`}>
             {v.blocks.map((b, i) => (
               <BlockFrame key={`${v.n}-${b.id}`} b={b} i={i} n={v.blocks.length} span={spans(v.blocks)[i]} num={numbers(v.blocks)[i]} reveal={reveal} explainOpen={explain === b.id}
                 onExplain={() => setExplain((e) => (e === b.id ? null : b.id))} onUp={() => move(b.id, -1)} onDown={() => move(b.id, 1)} onRemove={() => remove(b.id)}
@@ -208,19 +218,48 @@ function Report({ id, init, mock }) {
   )
 }
 
-// ---- generating: the steps tick off; Cancel stops it
-function Progress({ steps, step, onCancel }) {
+const ARTICLE = 'grid grid-cols-1 gap-x-12 gap-y-10 rounded-xl border border-line bg-surface px-12 py-10 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)] lg:grid-cols-2 max-md:gap-y-9 max-md:px-5 max-md:py-7'
+
+// ---- generating: the steps tick off in a line; under them the report's frame, where the dots (DotAssemble) settle
+// into the hero's place; then the report replaces it, section by section. Cancel stops it.
+const HERO_H = { weekly: 248, ceo: 280, rival: 330, content: 270 }
+function Generating({ steps, step, kind, heroRef, onCancel }) {
+  const bar = 'block rounded-md bg-tint'
   return (
-    <div className="rounded-2xl border border-line bg-surface p-5 max-md:p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[15px] leading-5 font-semibold text-stone-900">Writing your report</p>
-          <p className={`mt-0.5 text-[13px] leading-[18px] ${t2}`}>Usually under a minute. You can leave this page; it’ll be in All reports.</p>
-        </div>
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ol aria-live="polite" aria-label="Writing your report" className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          {steps.map((s, i) => {
+            const done = i < step
+            const now = i === step
+            return (
+              <li key={s} className={`flex items-center gap-2 text-[13px] leading-5 transition-colors duration-200 ${done ? 'text-stone-700' : now ? 'font-medium text-stone-900' : 'text-stone-500'}`}>
+                <span className="grid h-4 w-4 shrink-0 place-items-center" aria-hidden>
+                  {done ? <span className="grid h-4 w-4 place-items-center rounded-full bg-ink motion-safe:animate-[icon-pop_200ms_ease-out]"><Check size={10} strokeWidth={3} style={{ color: 'var(--line-check)' }} /></span>
+                    : now ? <Loader2 size={14} className="animate-spin text-stone-700 motion-reduce:animate-none" />
+                      : <span className="h-3 w-3 rounded-full border border-stone-300" />}
+                </span>
+                {s}{now ? '…' : ''}<span className="sr-only">{done ? ', done' : now ? ', in progress' : ', waiting'}</span>
+              </li>
+            )
+          })}
+        </ol>
         <button type="button" onClick={onCancel} className={lineBtn}>Cancel</button>
       </div>
-      <Steps steps={steps} step={step} />
-    </div>
+      <article aria-hidden className={ARTICLE}>
+        <div className="flex flex-col gap-3 lg:col-span-2">
+          <span className={`${bar} h-3 w-60 max-w-full`} />
+          <span className={`${bar} h-6 w-24 rounded-full`} />
+          <span className={`${bar} h-7 w-[86%]`} />
+          <span className={`${bar} h-7 w-[58%]`} />
+        </div>
+        <div className="grid grid-cols-2 gap-6 md:grid-cols-4 lg:col-span-2">
+          {[0, 1, 2, 3].map((i) => <span key={i} className="flex flex-col gap-2"><span className={`${bar} h-3 w-20`} /><span className={`${bar} h-7 w-14`} /><span className={`${bar} h-4 w-full opacity-60`} /></span>)}
+        </div>
+        <div ref={heroRef} className="lg:col-span-2" style={{ height: HERO_H[kind] ?? 260 }} />
+        {[0, 1].map((i) => <span key={i} className="flex flex-col gap-2.5"><span className={`${bar} h-4 w-40`} /><span className={`${bar} h-3 w-[90%] opacity-60`} /><span className={`${bar} h-24 w-full opacity-40`} /></span>)}
+      </article>
+    </>
   )
 }
 function Steps({ steps, step, failed = false }) {
@@ -272,7 +311,7 @@ function BlockFrame({ b, i, n, span = 2, reveal, explainOpen, explainText, onExp
   const iconBtn = 'grid h-7 w-7 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-30'
   return (
     <div role="group" aria-label={name} className={`group/block relative -mx-3 min-w-0 rounded-xl px-3 py-2 ${span === 2 ? 'lg:col-span-2' : ''} transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] focus-within:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] max-md:-mx-2 max-md:px-2 max-md:pr-9`}
-      style={reveal ? { animation: `card-in 380ms cubic-bezier(.2,.8,.2,1) ${i * 90}ms both` } : undefined}>
+      style={reveal ? { animation: `card-in 460ms cubic-bezier(.2,.8,.2,1) ${i * 130}ms both` } : undefined}>
       <div className="absolute -top-3.5 right-2 z-10 hidden items-center gap-0.5 rounded-lg border border-line bg-raised p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover/block:opacity-100 group-focus-within/block:opacity-100 md:flex">
         {!fixed && <button type="button" onClick={onUp} disabled={i <= FIRST_MOVABLE} aria-label={`Move “${name}” up`} title="Move up" className={iconBtn}><ArrowUp size={14} aria-hidden /></button>}
         {!fixed && <button type="button" onClick={onDown} disabled={i >= n - 2} aria-label={`Move “${name}” down`} title="Move down" className={iconBtn}><ArrowDown size={14} aria-hidden /></button>}

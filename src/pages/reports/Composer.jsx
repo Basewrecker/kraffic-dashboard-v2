@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowUp, AlignLeft, Calendar, Check, Cpu, SlidersHorizontal, UserRound, Users } from 'lucide-react'
 import SiteLogo from '../../components/ui/SiteLogo'
 import { EngineMark } from '../insights/parts'
@@ -17,9 +17,13 @@ const Box = ({ on }) => (
 // The composer: a tall multi-line box (⌘↵ sends, the send button sits inside it) and the option chips on one line
 // under it; the chips that don't fit go under "More". A chip you set shows its value; one the question implies (but
 // you haven't set) shows it dashed, "from your question". compact: the report page's top.
-export default function Composer({ prompt, setPrompt, opts, setOpts, onSend, compact = false, autoFocus = false, busy = false }) {
+// The placeholder can type out example questions (examples) until the box is first focused.
+// glass: a see-through surface (New report: the dot field shows faintly through it).
+export default function Composer({ prompt, setPrompt, opts, setOpts, onSend, compact = false, autoFocus = false, busy = false, examples = null, glass = false }) {
   const area = useRef(null)
   const mobile = useIsMobile()
+  const [touched, setTouched] = useState(false)
+  const typed = useTypewriter(examples, !touched && !prompt)
   const [swapNote, setSwapNote] = useState('')
   useLayoutEffect(() => {
     const el = area.current
@@ -119,18 +123,19 @@ export default function Composer({ prompt, setPrompt, opts, setOpts, onSend, com
     ) },
   ]
   // one line: the first chips inline, the rest under More (fewer inline on a phone or in the compact composer)
-  const inline = mobile ? (compact ? 1 : 2) : 4
+  const inline = mobile ? 1 : 4
   const visible = CHIPS.slice(0, inline)
   const more = CHIPS.slice(inline)
   const moreSet = more.filter((c) => c.set || c.inferred).length
 
   return (
-    <div className={`relative rounded-2xl border border-line bg-surface transition-shadow duration-150 focus-within:border-line-strong focus-within:shadow-[0_0_0_4px_var(--tint)] ${compact ? 'p-3' : 'p-5 max-md:p-3.5'}`}>
+    <div style={glass ? { background: 'color-mix(in srgb, var(--color-surface) 64%, transparent)' } : undefined}
+      className={`relative rounded-2xl border border-line ${glass ? 'backdrop-blur-[3px]' : 'bg-surface'} transition-shadow duration-150 focus-within:border-line-strong focus-within:shadow-[0_0_0_4px_var(--tint)] ${compact ? 'p-3' : 'p-5 max-md:p-3.5'}`}>
       <label className="sr-only" htmlFor="report-q">What do you want to know?</label>
       <textarea id="report-q" ref={area} value={prompt} autoFocus={autoFocus} rows={compact ? 1 : 4}
-        onChange={(e) => setPrompt(e.target.value)}
+        onChange={(e) => setPrompt(e.target.value)} onFocus={() => setTouched(true)}
         onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send() } }}
-        placeholder="What do you want to know?"
+        placeholder={examples ? typed : 'What do you want to know?'}
         className={`block w-full resize-none bg-transparent px-1 text-stone-900 outline-none placeholder:text-stone-500 ${compact ? 'text-[15px] leading-6' : 'text-[18px] leading-7 max-md:text-[16px]'}`} />
       <div className={`flex items-center gap-2 ${compact ? 'mt-2' : 'mt-4'}`}>
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -156,4 +161,32 @@ export default function Composer({ prompt, setPrompt, opts, setOpts, onSend, com
       </div>
     </div>
   )
+}
+
+// the placeholder types an example question, holds it, clears it, and moves to the next; it stops (showing the whole
+// question) once on is false. Reduced motion: whole questions, changing every few seconds.
+function useTypewriter(list, on) {
+  const [text, setText] = useState(list?.[0] ?? '')
+  useEffect(() => {
+    if (!list?.length) return undefined
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    let i = 0
+    let n = 0
+    let dir = 1
+    let timer
+    const whole = () => setText(list[i])
+    if (!on) { whole(); return undefined }
+    const tick = () => {
+      if (reduced) { i = (i + 1) % list.length; whole(); timer = setTimeout(tick, 3200); return }
+      const q = list[i]
+      n += dir
+      setText(q.slice(0, n) || ' ')
+      if (dir > 0 && n >= q.length) { dir = -1; timer = setTimeout(tick, 1900); return }
+      if (dir < 0 && n <= 0) { dir = 1; i = (i + 1) % list.length; timer = setTimeout(tick, 380); return }
+      timer = setTimeout(tick, dir > 0 ? 42 + Math.random() * 38 : 16)
+    }
+    if (reduced) { whole(); timer = setTimeout(tick, 3200) } else { setText(' '); timer = setTimeout(tick, 600) }
+    return () => { clearTimeout(timer); setText(list[i]) }
+  }, [list, on])
+  return text
 }
