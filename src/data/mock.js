@@ -2,6 +2,7 @@
 // NOTE: rows marked PLACEHOLDER must be replaced with the exact rows from the live-site screenshots.
 import { brandName } from '../utils/brand.js' // .js: the unit tests load this file in plain Node
 import { GLOBAL, MARKET_SUGGESTIONS } from './marketSuggestions.js'
+import { scoringPosition, shareAxis, symmetricTicks } from '../utils/historyChart.js'
 
 // ---- Workspace: the agency, its clients and their brands. Two brands have demo data (Dermasuri; Lumen Skin reuses the
 // same dataset under its own name); the rest have none yet and show empty states. The current brand is kept in this
@@ -123,9 +124,20 @@ function fitDomain(values) {
 // scale: { seriesKey: factor } — an engine filter's share relative to all engines (see brandViews.engineScale)
 const historyPreview = (() => { try { return new URLSearchParams(window.location.search).get('history') } catch { return null } })()
 const singleSync = historyPreview === 'single'
-export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null } = {}) {
+// ?history=many: a brand with 6 competitors with long names (data/historyMany.js), for the many-competitor chart
+export const historyManyPreview = historyPreview === 'many'
+const dermasuriHistory = () => ({
+  weekly: [...historyEarlier, ...history],
+  monthly: historyMonthly,
+  series: historySeries.map((s) => ({ ...s, share: competitors.find((c) => c.domain === s.label)?.share ?? 0 })),
+  scoring: null,
+})
+// dataset: { weekly, monthly, series: [{ key, label, share }], scoring: { label, weekly: {after, frac}, monthly } | null }
+export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null, dataset = null } = {}) {
+  const ds = dataset ?? dermasuriHistory()
+  const historySeries = ds.series
   const gran = granularity === 'monthly' ? 'monthly' : 'weekly'
-  const raw = gran === 'monthly' ? historyMonthly : [...historyEarlier, ...history]
+  const raw = gran === 'monthly' ? ds.monthly : ds.weekly
   const scaled = !scale ? raw : raw.map((p) => ({ ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, Math.round(p[s.key] * (scale[s.key] ?? 1))])) }))
   // ?history=single: a brand with one sync so far (the chart's first-sync state)
   // ?history=empty: nothing on record yet (no sync, or every day at 0%)
@@ -133,11 +145,14 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
   const opts = historyRanges[gran]
   const opt = opts.find((r) => r.id === range) ?? opts.find((r) => r.id === defaultRange[gran])
   const start = Math.max(0, all.length - opt.count)
+  // a scoring change: points up to its `after` date were scored the old way (drawn lighter)
+  const mark = ds.scoring?.[gran] ?? null
+  const scoringIdx = mark ? all.findIndex((p) => p.date === mark.after) : -1
   const points = all.slice(start).map((p, i) => {
     const prev = all[start + i - 1] // the period before the window, when it exists
     const deltas = Object.fromEntries(historySeries.map((s) => [s.key, prev ? p[s.key] - prev[s.key] : null]))
     const prevs = Object.fromEntries(historySeries.map((s) => [s.key, prev ? prev[s.key] : null]))
-    return { ...p, delta: deltas[focal], deltas, prevs }
+    return { ...p, delta: deltas[focal], deltas, prevs, beforeScoring: scoringIdx !== -1 && start + i <= scoringIdx }
   })
   const youHidden = compare && hidden.includes(focal)
   const series = (compare ? historySeries.filter((s) => !hidden.includes(s.key)) : historySeries.filter((s) => s.key === focal))
@@ -147,13 +162,10 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
   const growthPoints = points
     .filter((p) => p.delta != null)
     .map((p) => ({ date: p.date, ...Object.fromEntries(series.map((s) => [s.key, p.deltas[s.key]])), prevs: p.prevs, values: p }))
-  const maxAbs = Math.max(1, ...growthPoints.flatMap((p) => series.map((s) => Math.abs(p[s.key]))))
-  const gStep = maxAbs + 1 <= 3 ? 1 : 2
-  const gLim = Math.ceil((maxAbs + 1) / gStep) * gStep // symmetric, whole numbers, on the tick grid
+  const maxAbs = Math.max(0, ...growthPoints.flatMap((p) => series.map((s) => Math.abs(p[s.key] ?? 0))))
   const growth = {
     points: growthPoints,
-    domain: [-gLim, gLim],
-    ticks: Array.from({ length: (gLim * 2) / gStep + 1 }, (_, i) => -gLim + i * gStep),
+    ...symmetricTicks(maxAbs), // round, symmetric: −20, −10, 0, +10, +20
     // the focal brand's average growth (read from the raw deltas, so it exists even when it is hidden)
     average: growthPoints.length ? Math.round((growthPoints.reduce((a, p) => a + p.values.delta, 0) / growthPoints.length) * 10) / 10 : 0,
   }
@@ -165,11 +177,12 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
   // competitors alone sit at 3–21%: on 0–100 they'd be flat lines along the floor, so fit them
   const axis = !compare ? fitDomain(you.length ? you : [0])
     : youHidden ? fitDomain(points.flatMap((p) => series.map((s) => p[s.key])).filter((v) => v != null).concat(points.length ? [] : [0]))
-    : { domain: [0, 100], ticks: [0, 25, 50, 75, 100] }
+    : shareAxis(Math.max(0, ...points.flatMap((p) => series.map((s) => p[s.key] ?? 0))))
   return {
     granularity: gran,
     range: opt.id,
     points,
+    scoring: mark ? { label: ds.scoring.label, at: scoringPosition(points.map((p) => p.date), mark) } : null,
     series,
     youHidden,
     ...axis,
