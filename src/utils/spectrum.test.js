@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { PAGES, RUNS, SWOT, runPages, withScores } from '../data/sentiment.js'
 import { BAND, biggestChange, capRows, dotGrid, dotRows, groupThemes, hash01, layoutSwarm, lanesFor, leadTheme, matchIds, moveNote, neighbour, numbersIn, repeatedNumbers, scoreStrip, scoreX, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen } from './spectrum.js'
-import { byReach, divergingStack, leadQuote, reachOf, toneChanges, topChange, urlKey } from './spectrum.js'
+import { byReach, divergingStack, dotPlan, fromCurrent, leadQuote, parseMatrix, reachOf, springAt, springEasing, staggerDelays, toneChanges, topChange, urlKey } from './spectrum.js'
 
 const ENGINES = [{ id: 'google', name: 'Google search' }, { id: 'chatgpt', name: 'ChatGPT' }, { id: 'claude', name: 'Claude' }]
 
@@ -216,4 +216,46 @@ test('lead quote per side: the page most themes cite, a quote in that tone', () 
   assert.equal(leadQuote(g.hurting, PAGES.map((p) => ({ ...p, tone: 'neutral' })), 'negative'), null)
   const bare = leadQuote(g.working, PAGES.map((p) => ({ ...p, sentences: [] })), 'positive')
   assert.equal(bare.quote, null) // analysed before quotes: the page, no quote
+})
+
+test('split plan: one dot per citing engine, the original to the first lane, copies hidden when merged', () => {
+  const engines = [{ id: 'google' }, { id: 'chatgpt' }, { id: 'claude' }]
+  const pages = [{ id: 'a', engines: ['claude', 'google'] }, { id: 'b', engines: ['chatgpt'] }, { id: 'c', engines: [] }]
+  const split = dotPlan(pages, engines, true)
+  assert.deepEqual(split.map((d) => [d.key, d.lane, d.shown]), [['a#0', 'google', true], ['a#1', 'claude', true], ['b#0', 'chatgpt', true], ['c#0', 'all', true]])
+  const merged = dotPlan(pages, engines, false)
+  assert.deepEqual(merged.map((d) => d.key), split.map((d) => d.key)) // the same elements both ways: nothing mounts or unmounts
+  assert.deepEqual(merged.map((d) => d.shown), [true, false, true, true])
+  assert.ok(merged.every((d) => d.lane === 'all'))
+  // the mock: every page's copies = its engines
+  const plan = dotPlan(PAGES, engines, true)
+  assert.equal(plan.length, PAGES.reduce((n, p) => n + p.engines.length, 0))
+})
+
+test('stagger: 8ms a dot, the whole spread never past 250ms', () => {
+  assert.deepEqual(staggerDelays(4), [0, 8, 16, 24])
+  const many = staggerDelays(60)
+  assert.equal(many[0], 0)
+  assert.ok(many.at(-1) <= 250 && many.at(-1) > 240)
+  for (let i = 1; i < many.length; i++) assert.ok(many[i] > many[i - 1])
+  assert.deepEqual(staggerDelays(1), [0])
+  assert.deepEqual(staggerDelays(0), [])
+})
+
+test('reverse from the current point: read the live matrix, interpolate from there', () => {
+  assert.deepEqual(parseMatrix('matrix(1, 0, 0, 1, 120.5, -32)'), { a: 1, b: 0, c: 0, d: 1, x: 120.5, y: -32 })
+  assert.deepEqual(parseMatrix('none'), { a: 1, b: 0, c: 0, d: 1, x: 0, y: 0 })
+  // interrupted at x = 80 on the way from 0 to 200: going back to 0 starts at 80, not at 200 (no snap)
+  assert.equal(fromCurrent(80, 0, 0), 80)
+  assert.equal(fromCurrent(80, 0, 1), 0)
+  assert.equal(fromCurrent(80, 0, 0.5), 40)
+})
+
+test('spring settle: starts at 0, ends at 1, overshoots a little', () => {
+  assert.equal(springAt(0), 0)
+  assert.ok(Math.abs(springAt(1) - 1) < 1e-9)
+  const peak = Math.max(...Array.from({ length: 101 }, (_, i) => springAt(i / 100)))
+  assert.ok(peak > 1.01 && peak < 1.08, `peak ${peak}`)
+  assert.ok(springAt(0.3) > 0.6) // ease-out: most of the way early
+  assert.match(springEasing(), /^linear\(0, .*, 1\)$/)
 })

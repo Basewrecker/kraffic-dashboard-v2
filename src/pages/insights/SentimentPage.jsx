@@ -16,7 +16,7 @@ import { useIsMobile } from '../../hooks/useMedia'
 import {
   TONES, TONE_LABEL, countTones, heroLine, runPages, scoreOf, sentimentFor, sentimentInsight, sortPages, tonePercents, withScores,
 } from '../../data/sentiment'
-import { biggestChange, byReach, divergingStack, groupThemes, layoutSwarm, lanesFor, leadQuote, matchIds, moveNote, neighbour, reachOf, scoreX, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen, toneChanges, topChange } from '../../utils/spectrum'
+import { biggestChange, byReach, divergingStack, dotPlan, groupThemes, layoutSwarm, lanesFor, leadQuote, matchIds, moveNote, neighbour, reachOf, scoreX, springEasing, staggerDelays, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen, toneChanges, topChange } from '../../utils/spectrum'
 import { fmtDay, lineBtn, t2, t3 } from './parts'
 
 // /sentiment: one visual page about how third-party pages talk about the brand.
@@ -231,7 +231,7 @@ function Hero({ heroRef, prevDate, brand, run, isLatest, onLatest, pages, lit, e
             <span className={`min-w-0 truncate text-[13px] leading-[18px] ${t2} ${theme ? '' : 'max-sm:invisible'}`}>
               {theme ? <>Pages behind “{theme.theme}” · <button type="button" onClick={clearTheme} className="rounded font-medium text-ink outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">clear</button></> : 'Every page is a dot, placed by its tone'}
             </span>
-            <Switch checked={split} onChange={setSplit}>Split by engine</Switch>
+            <Switch checked={split} onChange={setSplit} spring>Split by engine</Switch>
           </div>
           <Spectrum pages={pages} lit={lit} engine={engine} split={split} score={score} onDot={onDot} themeFor={themeFor} />
           <Legend c={c} tone={tone} setTone={setTone} explain={explain} />
@@ -259,14 +259,46 @@ function Legend({ c, tone, setTone, explain }) {
   )
 }
 
-// ---- the spectrum itself: one lane (or three, split by engine), dots laid out by utils/spectrum
+// ---- the spectrum itself: one swarm, or three engine lanes ("Split by engine"). The same elements serve both layouts:
+// every page has one dot per citing engine (copies hide under the original when merged), plus three score markers and
+// three lane labels. Moving between layouts is FLIP on transform / opacity only, with the Web Animations API: each
+// element animates from wherever it is NOW (its computed transform, also mid-animation) to its new target, so a
+// toggle mid-way reverses smoothly. No React state changes per frame.
+const LABEL_H = 26 // a lane's label row (split)
+const MOVE = { dur: 550, step: 8, cap: 250, height: 450 }
+let EASE = null // the spring easing, if the browser takes linear(); else a cubic with a small overshoot
+const ease = () => {
+  if (EASE) return EASE
+  try { document.createElement('div').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 1, easing: springEasing() }).cancel(); EASE = springEasing() } catch { EASE = 'cubic-bezier(.2, 1.12, .36, 1)' }
+  return EASE
+}
+// move one element to a target transform / opacity, from where it is now
+function moveTo(el, t, o, { delay = 0, dur = MOVE.dur, easing = ease(), first = false } = {}) {
+  if (!el) return 0
+  const sameT = el.dataset.t === t, sameO = el.dataset.o === String(o)
+  if (sameT && sameO) return 0
+  if (first || !el.dataset.t) { el.style.transform = t; el.style.opacity = o; el.dataset.t = t; el.dataset.o = String(o); return 0 }
+  const cs = getComputedStyle(el)
+  const from = { transform: cs.transform === 'none' ? 'translate(0px, 0px)' : cs.transform, opacity: cs.opacity }
+  el.getAnimations().forEach((a) => a.cancel())
+  el.style.transform = t; el.style.opacity = o; el.dataset.t = t; el.dataset.o = String(o)
+  if (reduced()) { el.animate([{ opacity: 0 }, { opacity: o }], { duration: 150, easing: 'linear' }); return 150 }
+  // only the opacity changes (a filter dims it): quick, no stagger
+  const d = sameT ? 200 : dur
+  el.animate([from, { transform: t, opacity: o }], { duration: d, delay: sameT ? 0 : delay, easing: sameT ? 'ease-out' : easing, fill: 'backwards' })
+  return (sameT ? 0 : delay) + d
+}
+
 function Spectrum({ pages, lit, engine, split, score, onDot = (p) => openDrawer('page', p.id), themeFor = () => null }) {
   const box = useRef(null)
+  const stage = useRef(null)
   const mobile = useIsMobile()
   const [w, setW] = useState(800)
-  const [hover, setHover] = useState(null) // { page, x, y, r }
+  const [hover, setHover] = useState(null) // { page, x, y }
   const [focusId, setFocusId] = useState(null)
-  const dots = useRef({})
+  const els = useRef({}) // key → element (dots 'p1#0', markers 'mk:google', labels 'lab:google', …)
+  const movingUntil = useRef(0)
+  const firstPaint = useRef(true)
   useLayoutEffect(() => {
     if (!box.current) return
     const ro = new ResizeObserver(([e]) => setW(e.contentRect.width))
@@ -274,107 +306,141 @@ function Spectrum({ pages, lit, engine, split, score, onDot = (p) => openDrawer(
     return () => ro.disconnect()
   }, [])
   const r = mobile ? 12 : 18
-  const gutter = split && !mobile ? 132 : 0
-  const plotW = Math.max(120, w - gutter)
+  const plotW = Math.max(120, w)
 
-  // lanes: one with every page (the engine's re-settle, the rest stay put and fade), or one per engine
+  // both layouts, always: the swarm (with the engine filter's re-settle) and the lanes
+  const merged = useMemo(() => {
+    const all = layoutSwarm(pages, { width: plotW, r })
+    const on = engine === 'all' ? all : layoutSwarm(pages.filter((p) => p.engines.includes(engine)), { width: plotW, r })
+    const H = Math.max(mobile ? 200 : 236, 2 * Math.max(all.extent, on.extent) + 28)
+    return { all, on, H }
+  }, [pages, plotW, r, engine, mobile])
   const lanes = useMemo(() => {
-    if (!split) {
-      const all = layoutSwarm(pages, { width: plotW, r })
-      const on = engine === 'all' ? all : layoutSwarm(pages.filter((p) => p.engines.includes(engine)), { width: plotW, r })
-      const extent = Math.max(all.extent, on.extent)
-      const H = Math.max(mobile ? 200 : 236, 2 * extent + 28)
-      return [{ id: 'all', H, score, dots: pages.map((p) => ({ page: p, ...(on.pos[p.id] ?? all.pos[p.id]), active: engine === 'all' || p.engines.includes(engine) })) }]
-    }
+    let top = 0
     return lanesFor(pages, ENGINES).map((l) => {
       const lay = layoutSwarm(l.pages, { width: plotW, r })
-      return { id: l.id, name: l.name, score: l.score, H: Math.max(mobile ? 96 : 104, 2 * lay.extent + 20), dots: l.pages.map((p) => ({ page: p, ...lay.pos[p.id], active: engine === 'all' || engine === l.id })) }
+      const H = LABEL_H + Math.max(mobile ? 80 : 92, 2 * lay.extent + 16)
+      const lane = { ...l, lay, top, H }
+      top += H
+      return lane
     })
-  }, [pages, plotW, r, split, engine, score, mobile])
+  }, [pages, plotW, r, mobile])
+  const laneBy = Object.fromEntries(lanes.map((l) => [l.id, l]))
+  const splitH = lanes.reduce((n, l) => n + l.H, 0)
+  const totalH = split ? splitH : merged.H
 
-  // every dot with its place in the whole plot, for the keyboard
-  let top = 0
-  const placed = lanes.flatMap((l) => {
-    const laneTop = top + (split && mobile ? 24 : 0)
-    top = laneTop + l.H
-    return l.dots.map((d, i) => ({ ...d, lane: l.id, key: `${l.id}:${d.page.id}`, i, cx: gutter + d.x, cy: laneTop + l.H / 2 + d.y }))
+  // every dot element and its target
+  const byId = new Map(pages.map((p) => [p.id, p]))
+  const placed = dotPlan(pages, ENGINES, split).map((d) => {
+    const page = byId.get(d.pageId)
+    const active = engine === 'all' || (split ? d.lane === engine : page.engines.includes(engine))
+    let x, y
+    if (split && laneBy[d.lane]) {
+      const l = laneBy[d.lane], pos = l.lay.pos[page.id]
+      x = pos.x; y = l.top + LABEL_H + (l.H - LABEL_H) / 2 + pos.y
+    } else {
+      const pos = (active ? merged.on.pos[page.id] : null) ?? merged.all.pos[page.id]
+      x = pos.x; y = merged.H / 2 + pos.y
+    }
+    const on = d.shown && active && lit.has(page.id)
+    const o = !d.shown ? 0 : !active && split ? 0.22 : on ? 1 : 0.12
+    return { ...d, page, x, y, o, on }
   })
-  const totalH = top
-  const usable = placed.filter((d) => d.active && lit.has(d.page.id))
-  const tabKey = usable.some((d) => d.key === focusId) ? focusId : [...usable].sort((a, b) => a.cx - b.cx)[0]?.key
+  const usable = placed.filter((d) => d.on)
+  const tabKey = usable.some((d) => d.key === focusId) ? focusId : [...usable].sort((a, b) => a.x - b.x)[0]?.key
   const onKey = (e, d) => {
     if (e.key === 'Escape') { setHover(null); return }
     if (!e.key.startsWith('Arrow')) return
     e.preventDefault()
-    const next = neighbour(usable.map((u) => ({ id: u.key, x: u.cx, y: u.cy })), d.key, e.key)
+    const next = neighbour(usable.map((u) => ({ id: u.key, x: u.x, y: u.y })), d.key, e.key)
     setFocusId(next)
-    dots.current[next]?.focus()
+    els.current[next]?.focus()
   }
-  const show = (d) => setHover({ page: d.page, x: d.cx, y: d.cy })
+  // no hover card while dots are travelling
+  const show = (d) => { if (performance.now() >= movingUntil.current) setHover({ page: d.page, x: d.x, y: d.y }) }
 
+  // targets for the markers (one per lane; merged they sit together on the overall score) and the lane labels
+  const markerT = (l) => (split
+    ? `translate(${scoreX(l.score ?? 50, plotW) - 1}px, ${l.top + LABEL_H}px) scaleY(${(l.H - LABEL_H) / 100})`
+    : `translate(${scoreX(score ?? 50, plotW) - 1}px, 0px) scaleY(${merged.H / 100})`)
+  const sig = `${split}|${engine}|${plotW}|${pages.map((p) => p.id + p.tone).join()}|${[...lit].join()}|${score}`
+  useLayoutEffect(() => {
+    const first = firstPaint.current
+    firstPaint.current = false
+    const order = [...placed].sort((a, b) => a.x - b.x)
+    const delays = staggerDelays(order.length, MOVE)
+    let end = 0
+    order.forEach((d, i) => { end = Math.max(end, moveTo(els.current[d.key], `translate(${d.x - r}px, ${d.y - r}px)`, d.o, { delay: delays[i], first })) })
+    lanes.forEach((l, i) => {
+      const faded = split && engine !== 'all' && engine !== l.id
+      end = Math.max(end, moveTo(els.current[`mk:${l.id}`], markerT(l), l.score == null ? 0 : faded ? 0.3 : 1, { first }))
+      // labels slide in from the left half way through the dots' move (60ms apart); out at once on merge
+      end = Math.max(end, moveTo(els.current[`lab:${l.id}`], `translate(${split ? 0 : -14}px, ${l.top}px)`, split ? (faded ? 0.4 : 1) : 0,
+        { first, delay: split ? MOVE.dur / 2 + i * 60 : 0, dur: split ? 320 : 200, easing: 'cubic-bezier(.2,.8,.2,1)' }))
+      end = Math.max(end, moveTo(els.current[`sep:${l.id}`], `translate(0px, ${l.top + l.H}px)`, split && i < lanes.length - 1 ? 1 : 0, { first, dur: 300 }))
+    })
+    end = Math.max(end, moveTo(els.current.overall, `translate(${scoreX(score ?? 50, plotW) + 8}px, -4px)`, split || score == null ? 0 : 1, { first, dur: 250 }))
+    end = Math.max(end, moveTo(els.current.even, `translate(${(score ?? 50) >= 50 ? plotW / 2 - 6 : plotW / 2 + 6}px, ${merged.H - 16}px)`, split ? 0 : 1, { first, dur: 250 }))
+    // the hero's height: grows / shrinks smoothly (content below moves with it, never jumps)
+    const el = stage.current
+    if (el) {
+      const to = `${totalH}px`
+      if (first || reduced()) { el.style.height = to } else if (el.style.height !== to) {
+        const from = `${el.getBoundingClientRect().height}px`
+        el.getAnimations().forEach((a) => a.cancel())
+        el.style.height = to
+        el.animate([{ height: from }, { height: to }], { duration: MOVE.height, easing: 'cubic-bezier(.2,.8,.2,1)' })
+        end = Math.max(end, MOVE.height)
+      }
+    }
+    if (end) { movingUntil.current = performance.now() + end; setHover(null) }
+  }, [sig, totalH]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const reg = (key) => (el) => { if (el) els.current[key] = el; else delete els.current[key] }
   return (
     <div ref={box} className="relative" onMouseLeave={() => setHover(null)}>
-      <div className="relative" style={{ height: totalH }}>
-        {/* lanes: band dividers, the even line, the score marker; split: the engine and its score on the left */}
-        {(() => {
-          let y = 0
-          return lanes.map((l) => {
-            const laneTop = y + (split && mobile ? 24 : 0)
-            y = laneTop + l.H
-            const faded = split && engine !== 'all' && engine !== l.id
-            return (
-              <div key={l.id} className={`absolute inset-x-0 transition-opacity duration-300 ${faded ? 'opacity-30' : ''}`} style={{ top: laneTop, height: l.H }} aria-hidden>
-                {split && (
-                  <span className={`absolute flex items-center gap-2 ${mobile ? 'left-0 -top-6 h-6' : 'left-0 top-1/2 -translate-y-1/2'}`}>
-                    <EngineIcon id={l.id} size={16} />
-                    <span className="text-[13px] leading-[18px] font-medium text-stone-900">{l.name}</span>
-                    <span className="text-[15px] leading-5 font-semibold text-stone-900 tabular-nums">{l.score ?? '—'}</span>
-                  </span>
-                )}
-                <div className="absolute inset-y-0" style={{ left: gutter, width: plotW }}>
-                  {split && <div className="absolute inset-x-0 bottom-0 border-b border-[var(--div)]" />}
-                  <div className="absolute inset-y-0 border-l border-[var(--div)]" style={{ left: plotW / 3 }} />
-                  <div className="absolute inset-y-0 border-l border-[var(--div)]" style={{ left: (2 * plotW) / 3 }} />
-                  <div className="absolute inset-y-0 border-l border-dashed" style={{ left: plotW / 2, borderColor: 'var(--color-stone-400)' }} />
-                  {l.score != null && (
-                    <div className="absolute inset-y-0 w-0.5 -translate-x-1/2 rounded-full bg-ink transition-[left] duration-[400ms] ease-out motion-reduce:transition-none" style={{ left: scoreX(l.score, plotW) }}>
-                      {!split && <span className={`absolute -top-1 left-2 whitespace-nowrap text-[12px] leading-4 font-medium text-ink`}>Overall</span>}
-                    </div>
-                  )}
-                  {/* "Even" on the side away from the score marker */}
-                  {!split && <span className={`absolute bottom-0 whitespace-nowrap text-[12px] leading-4 ${t3} ${(l.score ?? 50) >= 50 ? '-translate-x-full' : ''}`} style={{ left: (l.score ?? 50) >= 50 ? plotW / 2 - 6 : plotW / 2 + 6 }}>Even</span>}
-                </div>
-              </div>
-            )
-          })
-        })()}
+      <div ref={stage} className="relative">
+        {/* the bands and the even line run the full height in both layouts, so nothing here moves */}
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="absolute inset-y-0 border-l border-[var(--div)]" style={{ left: plotW / 3 }} />
+          <div className="absolute inset-y-0 border-l border-[var(--div)]" style={{ left: (2 * plotW) / 3 }} />
+          <div className="absolute inset-y-0 border-l border-dashed" style={{ left: plotW / 2, borderColor: 'var(--color-stone-400)' }} />
+          {lanes.map((l) => <div key={l.id} ref={reg(`sep:${l.id}`)} className="absolute inset-x-0 top-0 border-b border-[var(--div)]" />)}
+          {lanes.map((l) => <div key={l.id} ref={reg(`mk:${l.id}`)} className="absolute left-0 top-0 h-[100px] w-0.5 origin-top rounded-full bg-ink" />)}
+          <span ref={reg('overall')} className="absolute left-0 top-0 whitespace-nowrap text-[12px] leading-4 font-medium text-ink">Overall</span>
+          <span ref={reg('even')} className="absolute left-0 top-0"><span className={`block whitespace-nowrap text-[12px] leading-4 ${t3} ${(score ?? 50) >= 50 ? '-translate-x-full' : ''}`}>Even</span></span>
+          {lanes.map((l) => (
+            <span key={l.id} ref={reg(`lab:${l.id}`)} className="absolute left-0 top-0 flex h-[26px] items-center gap-2">
+              <EngineIcon id={l.id} size={16} />
+              <span className="text-[13px] leading-[18px] font-medium text-stone-900">{l.name}</span>
+              <span className="text-[15px] leading-5 font-semibold text-stone-900 tabular-nums">{l.score ?? '—'}</span>
+            </span>
+          ))}
+        </div>
 
-        {/* the dots */}
-        {placed.map((d, n) => {
-          const on = d.active && lit.has(d.page.id)
-          return (
-            <button key={d.key} ref={(el) => { dots.current[d.key] = el }} type="button"
-              tabIndex={on && d.key === tabKey ? 0 : -1} aria-hidden={!on}
-              aria-label={`${d.page.title}, ${d.page.domain}: ${TONE_LABEL[d.page.tone].toLowerCase()}. ${themeFor(d.page) ? `Open “${themeFor(d.page).theme}” below` : 'Open its quotes'}`}
-              onClick={(e) => { setHover(null); onDot(d.page); e.currentTarget.blur() }}
-              onMouseEnter={() => on && show(d)} onFocus={() => { setFocusId(d.key); show(d) }} onBlur={() => setHover(null)} onKeyDown={(e) => onKey(e, d)}
-              className={`dot-move absolute left-0 top-0 grid place-items-center rounded-full bg-surface outline-none transition-[transform,opacity] duration-[400ms] ease-out focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${on ? 'z-[2] hover:z-[3]' : 'pointer-events-none z-[1]'}`}
-              style={{ width: 2 * r, height: 2 * r, transform: `translate(${d.cx - r}px, ${d.cy - r}px)`, opacity: on ? 1 : 0.12 }}>
-              {/* tone ring · a sliver of surface · a white plate, so dark logos show in both themes */}
-              <span className="dot-in grid h-full w-full place-items-center rounded-full border-2 bg-surface"
-                style={{ borderColor: RING[d.page.tone], animation: `dot-in 420ms cubic-bezier(.2,.8,.2,1) ${Math.min(n, 30) * 22}ms both` }}>
-                <span className="grid h-[calc(100%-4px)] w-[calc(100%-4px)] place-items-center rounded-full"
-                  style={{ background: d.page.tone === 'negative' ? 'color-mix(in srgb, var(--negative) 14%, #fff)' : '#fff' }}>
-                  <SiteLogo domain={d.page.domain} name={d.page.domain} className={`${mobile ? 'h-3.5 w-3.5' : 'h-5 w-5'} rounded-full !border-0 !bg-transparent`} imgPad="p-0" initialClass="text-[9px] !text-[#44403c]" bordered={false} />
-                </span>
+        {/* the dots (copies too: hidden under their original until the split) */}
+        {placed.map((d, n) => (
+          <button key={d.key} ref={reg(d.key)} type="button"
+            tabIndex={d.on && d.key === tabKey ? 0 : -1} aria-hidden={!d.on}
+            aria-label={`${d.page.title}, ${d.page.domain}: ${TONE_LABEL[d.page.tone].toLowerCase()}. ${themeFor(d.page) ? `Open “${themeFor(d.page).theme}” below` : 'Open its quotes'}`}
+            onClick={(e) => { setHover(null); onDot(d.page); e.currentTarget.blur() }}
+            onMouseEnter={() => d.on && show(d)} onFocus={() => { setFocusId(d.key); show(d) }} onBlur={() => setHover(null)} onKeyDown={(e) => onKey(e, d)}
+            className={`absolute left-0 top-0 grid place-items-center rounded-full bg-surface outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${d.on ? 'z-[2] hover:z-[3]' : 'pointer-events-none'} ${d.copy ? 'z-[1]' : ''}`}
+            style={{ width: 2 * r, height: 2 * r, willChange: 'transform' }}>
+            {/* tone ring · a sliver of surface · a white plate, so dark logos show in both themes */}
+            <span className="dot-in grid h-full w-full place-items-center rounded-full border-2 bg-surface"
+              style={{ borderColor: RING[d.page.tone], animation: d.copy ? undefined : `dot-in 420ms cubic-bezier(.2,.8,.2,1) ${Math.min(n, 30) * 22}ms both` }}>
+              <span className="grid h-[calc(100%-4px)] w-[calc(100%-4px)] place-items-center rounded-full"
+                style={{ background: d.page.tone === 'negative' ? 'color-mix(in srgb, var(--negative) 14%, #fff)' : '#fff' }}>
+                <SiteLogo domain={d.page.domain} name={d.page.domain} className={`${mobile ? 'h-3.5 w-3.5' : 'h-5 w-5'} rounded-full !border-0 !bg-transparent`} imgPad="p-0" initialClass="text-[9px] !text-[#44403c]" bordered={false} />
               </span>
-            </button>
-          )
-        })}
+            </span>
+          </button>
+        ))}
         {hover && <HoverCard hover={hover} w={w} r={r} theme={themeFor(hover.page)} />}
       </div>
       {/* the axis: three bands */}
-      <div className="relative mt-2 h-5 border-t border-line text-[12px] leading-4" style={{ marginLeft: gutter }} aria-hidden>
+      <div className="relative mt-2 h-5 border-t border-line text-[12px] leading-4" aria-hidden>
         <span className="absolute top-1.5 -translate-x-1/2 font-medium text-negative" style={{ left: plotW / 6 }}>Negative</span>
         <span className={`absolute top-1.5 -translate-x-1/2 font-medium ${t3}`} style={{ left: plotW / 2 }}>Neutral</span>
         <span className="absolute top-1.5 -translate-x-1/2 font-medium text-ink" style={{ left: (5 * plotW) / 6 }}>Positive</span>

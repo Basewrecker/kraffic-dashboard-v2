@@ -257,3 +257,43 @@ export function leadQuote(themes, pages, tone) {
   const quote = page.sentences.find((s) => s.tone === tone && s.mark) ?? page.sentences.find((s) => s.tone === tone) ?? null
   return { page, quote }
 }
+
+// ---- split / merge motion -----------------------------------------------------------------------------------------
+
+// which dot elements exist and where each one goes. Every page has one dot per engine that cites it (at least one):
+// merged, copy 0 is the page's dot and the copies sit hidden under it; split, copy k goes to the lane of the page's
+// k-th engine (the original to its first lane). → [{ key, pageId, copy, lane, shown }]
+export function dotPlan(pages, engines, split) {
+  return pages.flatMap((p) => {
+    const lanes = engines.filter((e) => p.engines.includes(e.id)).map((e) => e.id)
+    const n = Math.max(1, lanes.length)
+    return Array.from({ length: n }, (_, k) => ({
+      key: `${p.id}#${k}`, pageId: p.id, copy: k,
+      lane: split ? lanes[k] ?? lanes[0] ?? 'all' : 'all',
+      shown: split ? Boolean(lanes[k]) || k === 0 : k === 0,
+    }))
+  })
+}
+
+// stagger: `step` ms per dot, the whole spread capped at `cap` ms (more dots → a smaller step)
+export function staggerDelays(n, { step = 8, cap = 250 } = {}) {
+  if (n <= 1) return n ? [0] : []
+  const s = Math.min(step, cap / (n - 1))
+  return Array.from({ length: n }, (_, i) => Math.round(i * s * 100) / 100)
+}
+
+// a computed transform (what getComputedStyle reports, also mid-animation) → { a, b, c, d, x, y }
+export function parseMatrix(str) {
+  const m = /matrix\(([^)]+)\)/.exec(str ?? '')
+  if (!m) return { a: 1, b: 0, c: 0, d: 1, x: 0, y: 0 }
+  const [a, b, c, d, x, y] = m[1].split(',').map(Number)
+  return { a, b, c, d, x, y }
+}
+// reverse from where a dot IS (not where it was going): the value at progress t from the current point to the target
+export const fromCurrent = (current, target, t) => current + (target - current) * t
+
+// the settle: ease-out with a small spring overshoot (~4%), as CSS linear() points; f(0) = 0, f(1) = 1
+export const springAt = (t) => 1 - (1 - t) ** 2.4 * Math.cos(1.15 * Math.PI * t)
+export function springEasing(points = 28) {
+  return `linear(${Array.from({ length: points + 1 }, (_, i) => +springAt(i / points).toFixed(4)).join(', ')})`
+}
