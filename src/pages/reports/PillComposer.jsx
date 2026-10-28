@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ArrowUp, AlignLeft, Calendar, Check, ChevronLeft, ChevronRight, Plus, UserRound, X } from 'lucide-react'
+import { ArrowUp, AlignLeft, Calendar, Check, ChevronLeft, ChevronRight, Plus, Square, UserRound, X } from 'lucide-react'
 import SiteLogo from '../../components/ui/SiteLogo'
 import { EngineMark } from '../insights/parts'
 import { AUDIENCES, ENGINE_IDS, ENGINE_NAMES, LENGTHS, MAX_COMPARE, PERIODS, REPORT_BRANDS, dataFor, inferOpts, rivalsOf, suggestionsFor } from '../../data/reports'
@@ -26,7 +26,7 @@ const Box = ({ on }) => (
 
 // docked: the box sits at the bottom of a thread, so its suggestions and menus open upward. placeholder / suggestions:
 // the thread's own ("Change this report…" and the refine options: { id, text, icon }).
-const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts, setOpts, onSend, busy = false, homeBrand, autoFocus = false, suggest = true, docked = false, placeholder = null, suggestions = null }, ref) {
+const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts, setOpts, onSend, busy = false, onStop = null, homeBrand, autoFocus = false, suggest = true, docked = false, placeholder = null, suggestions = null }, ref) {
   const area = useRef(null)
   const [focused, setFocused] = useState(false)
   const [active, setActive] = useState(-1)
@@ -141,10 +141,18 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
             <ChipMenu ghost label="Audience" icon={UserRound} value={label(AUDIENCES, 'audience')} width={280}>{(close) => radio(AUDIENCES, 'audience', close)}</ChipMenu>
             <ChipMenu ghost label="Length" icon={AlignLeft} value={label(LENGTHS, 'length')} width={240}>{(close) => radio(LENGTHS, 'length', close)}</ChipMenu>
           </div>
-          <button type="button" onClick={send} disabled={!canSend} aria-label="Write the report"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-on-ink outline-none transition-[background-color,opacity] duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-25">
-            <ArrowUp size={18} strokeWidth={2.25} aria-hidden />
-          </button>
+          {/* send: the --send blue (40% and inactive while the box is empty); while a report is written, stop */}
+          {busy && onStop ? (
+            <button type="button" onClick={onStop} aria-label="Stop writing the report" title="Stop"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--send)] text-[var(--send-fg)] outline-none transition-[background-color,transform] duration-100 hover:bg-[var(--send-hover)] active:scale-[0.96] active:bg-[var(--send-active)] focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2">
+              <Square size={12} fill="currentColor" strokeWidth={0} aria-hidden />
+            </button>
+          ) : (
+            <button type="button" onClick={send} disabled={!canSend} aria-label="Write the report"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--send)] text-[var(--send-fg)] outline-none transition-[background-color,opacity,transform] duration-150 hover:bg-[var(--send-hover)] active:scale-[0.96] active:bg-[var(--send-active)] active:duration-100 focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40">
+              <ArrowUp size={18} strokeWidth={2.25} aria-hidden />
+            </button>
+          )}
         </div>
       </div>
       {phase !== 'gone' && (

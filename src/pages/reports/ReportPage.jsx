@@ -195,6 +195,8 @@ function Thread({ rest, mock, greeting, inter }) {
     }, 250)
     return () => clearInterval(id)
   }, [mode])
+  // the box's stop button: stop whatever is being written
+  const stopAll = () => turns.filter((t) => t.status === 'steps').forEach((t) => { clearTimeout(timers.current[t.id]); patch(t.id, { status: 'cancelled' }) })
   const jumpDown = () => { follow.current = true; setShowDown(false); window.scrollTo({ top: document.documentElement.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' }) }
 
   const latest = [...turns].reverse().find((t) => t.built?.ok)
@@ -303,7 +305,7 @@ function Thread({ rest, mock, greeting, inter }) {
         )}
         <div ref={dock}>
           <PillComposer docked={thread} prompt={prompt} setPrompt={setPrompt} opts={opts} setOpts={setOpts} onSend={send}
-            busy={turns.some((t) => t.status === 'steps')} homeBrand={thread ? null : fromQuery('').opts.brand}
+            busy={turns.some((t) => t.status === 'steps')} onStop={stopAll} homeBrand={thread ? null : fromQuery('').opts.brand}
             placeholder={thread ? 'Change this report…' : null} suggestions={thread ? refineList : null} />
         </div>
       </div>
@@ -379,7 +381,6 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
               )
             })}
           </ol>
-          <button type="button" onClick={onCancel} className="h-8 shrink-0 rounded-full px-3 text-[13px] text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Stop</button>
         </div>
         <Skeleton kind={t.built.kind} heroRef={heroRef} />
       </div>

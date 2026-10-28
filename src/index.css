@@ -471,3 +471,6 @@ html[data-theme="dark"] { --bubble: var(--color-raised); }
 @keyframes step-in { from { opacity: 0; transform: translateY(4px); } }
 /* reduced motion: the thread's entrances are instant (no rise, no stagger) */
 @media (prefers-reduced-motion: reduce) { .thread-motion, .thread-motion * { animation-duration: 1ms !important; animation-delay: 0ms !important; } }
+/* The Reports composer's send button: ChatGPT's blue, the same in light and dark. The app's one accent colour, a
+   deliberate exception to the no-accent rule, used for this button only. */
+:root { --send: #3C65C0; --send-hover: #3558AA; --send-active: #2F4E97; --send-fg: #FFFFFF; } /* --send-fg: the icon (not text-white, which dark mode remaps) */
