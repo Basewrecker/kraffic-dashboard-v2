@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BarChart3, Check, ChevronsUpDown, CreditCard, House, Search, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2 } from 'lucide-react'
+import { BarChart3, Check, ChevronsUpDown, CreditCard, House, Search, Smile, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2 } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
@@ -7,13 +7,14 @@ import { Wordmark } from '../ui/Logo'
 import SiteLogo from '../ui/SiteLogo'
 import { agency, brand, recentBrands, role, switchBrand, visibleDirectory } from '../../store/workspace'
 
-// grouped nav, each group ordered longest → shortest label; items without an href have no page yet.
+// grouped nav (same items and order as production); items without an href have no page yet.
 // Old routes redirect (see router.js REDIRECTS).
 export const groups = [
   { label: 'Insights', items: [
     { label: 'Visibility Overview', icon: BarChart3, href: '/overview' },
     { label: 'Prompt Hub', icon: MessageSquareText, href: '/tracker' },
     { label: 'Trends', icon: TrendingUp, href: '/trends' },
+    { label: 'Sentiment', icon: Smile, href: '/sentiment' },
   ] },
   { label: 'Optimize', items: [
     { label: 'Structured Data', icon: Code2, href: '/structured-data' },
@@ -23,6 +24,7 @@ export const groups = [
   { label: 'Settings', items: [
     { label: 'Brand Setup', icon: Settings2, href: '/brands' },
     { label: 'Tracking', icon: Cpu, href: '/tracking' },
+    { label: 'Team', icon: Users, href: '/team' },
   ] },
 ]
 
@@ -62,7 +64,7 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
     )
   }
   const foot = [
-    ['Team', Users, null],
+    ['Team', Users, '/team'],
     ['Billing', CreditCard, '/billing'],
     ['Settings', Settings2, '/brands'],
     ['Profile', UserRound, null],
