@@ -403,3 +403,10 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
   .kpi-grid .text-\[32px\] { font-size: 24px; line-height: 32px; }
   .kpi-grid .text-\[13px\] { font-size: 12px; line-height: 16px; }
 }
+
+/* Sentiment spectrum: a page's dot settles in (staggered by the page); none with reduced motion */
+@keyframes dot-in { from { opacity: 0; scale: 0.4; } to { opacity: 1; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .dot-in { animation: none !important; } .dot-move { transition: none !important; } }
+
+/* Sentiment Over time: a ribbon draws in (stroke-dashoffset on a pathLength=1 path) */
+@keyframes ribbon-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
