@@ -421,3 +421,11 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
 
 /* Sentiment Over time: a ribbon draws in (stroke-dashoffset on a pathLength=1 path) */
 @keyframes ribbon-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+/* Reports: Print or save as PDF prints only the A4 sheet (no sidebar, top bar or page chrome) */
+@media print {
+  @page { size: A4; margin: 0; }
+  body * { visibility: hidden; }
+  .print-sheet, .print-sheet * { visibility: visible; }
+  .print-sheet { position: absolute; left: 0; top: 0; box-shadow: none !important; }
+}

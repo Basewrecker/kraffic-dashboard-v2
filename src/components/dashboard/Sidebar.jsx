@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BarChart3, Check, ChevronsUpDown, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2 } from 'lucide-react'
+import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2 } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
@@ -15,6 +15,11 @@ export const groups = [
     { label: 'Prompt Hub', icon: MessageSquareText, href: '/tracker' },
     { label: 'Sentiment', icon: Gauge, href: '/sentiment' },
     { label: 'Trends', icon: TrendingUp, href: '/trends' },
+  ] },
+  { label: 'Reports', items: [
+    { label: 'New report', icon: Sparkles, href: '/reports' },
+    { label: 'All reports', icon: FileText, href: '/reports/all' },
+    { label: 'Scheduled', icon: CalendarClock, href: '/reports/scheduled' },
   ] },
   { label: 'Optimize', items: [
     { label: 'Structured Data', icon: Code2, href: '/structured-data' },
