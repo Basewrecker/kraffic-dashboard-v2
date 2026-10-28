@@ -99,7 +99,7 @@ export function repeatedNumbers(texts) {
   return [...seen].filter(([, ts]) => ts.length > 1).map(([n, ts]) => ({ n, texts: ts }))
 }
 
-// ---- "What AI reads about you" ------------------------------------------------------------------------------------
+// ---- "What AI says about you" ------------------------------------------------------------------------------------
 
 // SWOT → two columns: Hurting you (weaknesses + threats) and Working for you (strengths + opportunities). Within each,
 // the themes most of whose pages carry that side's tone come first (negative for hurting, positive for working).
@@ -237,7 +237,7 @@ export function divergingStack(pages, { perRow = 2, pitch = 18, gap = 12 }) {
 // the change worth naming for a run: the first page that turned negative, else positive, else any
 export const topChange = (changes) => changes.find((c) => c.to === 'negative') ?? changes.find((c) => c.to === 'positive') ?? changes[0] ?? null
 
-// ---- What AI reads about you: reach, and a lead quote per side -----------------------------------------------------
+// ---- What AI says about you: reach, and a lead quote per side -----------------------------------------------------
 
 // reach: the share of all pages analysed that say the theme (0–1)
 export const reachOf = (theme, total) => (total ? theme.pages.length / total : 0)
