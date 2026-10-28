@@ -73,10 +73,10 @@ export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256
   }
   const set = value != null && !inferred
   return (
-    <div ref={wrap} className="relative" onKeyDown={open ? onKey : undefined}>
+    <div ref={wrap} className="relative min-w-0" onKeyDown={open ? onKey : undefined}>
       <button ref={btn} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         title={inferred ? `${label}: ${value}, from your question` : label}
-        className={`inline-flex h-8 max-w-[15rem] items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[13px] leading-[18px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
+        className={`inline-flex h-8 max-w-[15rem] items-center max-md:max-w-full gap-1.5 whitespace-nowrap rounded-full border px-3 text-[13px] leading-[18px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
           set ? 'border-transparent bg-tint font-medium text-stone-900'
             : inferred ? 'border-dashed border-stone-400 text-stone-800 hover:bg-tint'
               : 'border-line text-stone-600 hover:bg-tint hover:text-stone-900'}`}>

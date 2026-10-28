@@ -6,14 +6,23 @@ import Switch from '../../components/ui/Switch'
 import ActionMenu from '../../components/audit/ActionMenu'
 import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate } from '../../router'
-import { BLOCK_NAMES, buildReport, refine, reportById, resolveOpts, stepsFor } from '../../data/reports'
+import { buildReport, refine, reportById, resolveOpts, stepsFor } from '../../data/reports'
 import Composer from './Composer'
-import { Block, explainFor } from './blocks'
+import { Block, WIDE, blockName, explainFor } from './blocks'
 import { brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
 
 const STEP_MS = 800
 const HINTS = ['Make it shorter', 'Add Gemini', 'Focus on Longbridge', 'Rewrite for a client']
-const FIXED = new Set(['headline', 'sources']) // always first / last: explain only
+const FIXED = new Set(['header', 'scoreline', 'hero', 'sources']) // the fixed rhythm: explain only
+const FIRST_MOVABLE = 3 // after header, scoreline, hero
+// sections side by side on wide screens: two narrow sections next to each other share a row
+function spans(blocks) {
+  const half = (b) => b?.type === 'section' && !WIDE.has(b.data.visual.kind)
+  const out = blocks.map(() => 2)
+  for (let i = 0; i < blocks.length - 1; i++) if (out[i] === 2 && half(blocks[i]) && half(blocks[i + 1])) { out[i] = 1; out[i + 1] = 1; i++ }
+  return out
+}
+const numbers = (blocks) => { let n = 0; return blocks.map((b) => (b.type === 'section' ? ++n : null)) }
 
 // /reports/new?… writes a report (the steps tick off, then the blocks fade in) · /reports/view?… and /reports/<id> show one.
 // ?mock=generating (held on step 3) · failed · refining (held mid-update) · ?print=1 the A4 view
@@ -102,7 +111,7 @@ function Report({ id, init, mock }) {
     const bs = v.blocks
     const i = bs.findIndex((b) => b.id === bid)
     const j = i + dir
-    if (j < 1 || j > bs.length - 2) return // the header stays first, the sources last
+    if (j < FIRST_MOVABLE || j > bs.length - 2) return // header, scoreline and hero stay first; sources last
     const n = [...bs];
     [n[i], n[j]] = [n[j], n[i]]
     setBlocks(n)
@@ -111,7 +120,7 @@ function Report({ id, init, mock }) {
     const before = v.blocks
     setBlocks(before.filter((b) => b.id !== bid))
     if (explain === bid) setExplain(null)
-    toast(`Removed “${BLOCK_NAMES[bid]}”`, { action: { label: 'Undo', onClick: () => setBlocks(before) } })
+    toast(`Removed “${blockName(before.find((b) => b.id === bid))}”`, { action: { label: 'Undo', onClick: () => setBlocks(before) } })
   }
 
   // refining: one instruction → a new version, written in place (v2, v3…)
@@ -180,12 +189,12 @@ function Report({ id, init, mock }) {
             </div>
           )}
           <article aria-label={v.title} aria-busy={!!refining}
-            className={`flex flex-col gap-9 rounded-xl border border-line bg-surface px-14 py-12 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)] transition-opacity duration-300 max-md:gap-8 max-md:px-5 max-md:py-7 ${refining ? 'opacity-40' : ''}`}>
+            className={`grid grid-cols-1 gap-x-12 gap-y-10 rounded-xl border border-line bg-surface px-12 py-10 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)] transition-opacity duration-300 lg:grid-cols-2 max-md:gap-y-9 max-md:px-5 max-md:py-7 ${refining ? 'opacity-40' : ''}`}>
             {v.blocks.map((b, i) => (
-              <BlockFrame key={`${v.n}-${b.id}`} b={b} i={i} n={v.blocks.length} reveal={reveal} explainOpen={explain === b.id}
+              <BlockFrame key={`${v.n}-${b.id}`} b={b} i={i} n={v.blocks.length} span={spans(v.blocks)[i]} num={numbers(v.blocks)[i]} reveal={reveal} explainOpen={explain === b.id}
                 onExplain={() => setExplain((e) => (e === b.id ? null : b.id))} onUp={() => move(b.id, -1)} onDown={() => move(b.id, 1)} onRemove={() => remove(b.id)}
                 explainText={explainFor(b)}>
-                <Block block={b} title={v.title} />
+                <Block block={b} title={v.title} n={numbers(v.blocks)[i]} />
               </BlockFrame>
             ))}
           </article>
@@ -257,15 +266,15 @@ function NotEnough({ r }) {
 }
 
 // ---- a block on the page: on hover (or focus) small actions: move up / down, explain this, remove
-function BlockFrame({ b, i, n, reveal, explainOpen, explainText, onExplain, onUp, onDown, onRemove, children }) {
+function BlockFrame({ b, i, n, span = 2, reveal, explainOpen, explainText, onExplain, onUp, onDown, onRemove, children }) {
   const fixed = FIXED.has(b.type)
-  const name = BLOCK_NAMES[b.type]
+  const name = blockName(b)
   const iconBtn = 'grid h-7 w-7 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-30'
   return (
-    <section aria-label={name} className="group/block relative -mx-3 rounded-xl px-3 py-2 transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] focus-within:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] max-md:-mx-2 max-md:px-2 max-md:pr-9"
+    <div role="group" aria-label={name} className={`group/block relative -mx-3 min-w-0 rounded-xl px-3 py-2 ${span === 2 ? 'lg:col-span-2' : ''} transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] focus-within:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] max-md:-mx-2 max-md:px-2 max-md:pr-9`}
       style={reveal ? { animation: `card-in 380ms cubic-bezier(.2,.8,.2,1) ${i * 90}ms both` } : undefined}>
       <div className="absolute -top-3.5 right-2 z-10 hidden items-center gap-0.5 rounded-lg border border-line bg-raised p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover/block:opacity-100 group-focus-within/block:opacity-100 md:flex">
-        {!fixed && <button type="button" onClick={onUp} disabled={i <= 1} aria-label={`Move “${name}” up`} title="Move up" className={iconBtn}><ArrowUp size={14} aria-hidden /></button>}
+        {!fixed && <button type="button" onClick={onUp} disabled={i <= FIRST_MOVABLE} aria-label={`Move “${name}” up`} title="Move up" className={iconBtn}><ArrowUp size={14} aria-hidden /></button>}
         {!fixed && <button type="button" onClick={onDown} disabled={i >= n - 2} aria-label={`Move “${name}” down`} title="Move down" className={iconBtn}><ArrowDown size={14} aria-hidden /></button>}
         <button type="button" onClick={onExplain} aria-expanded={explainOpen} className="inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[12px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><HelpCircle size={14} aria-hidden />Explain this</button>
         {!fixed && <button type="button" onClick={onRemove} aria-label={`Remove “${name}”`} title="Remove" className={iconBtn}><X size={14} aria-hidden /></button>}
@@ -288,7 +297,7 @@ function BlockFrame({ b, i, n, reveal, explainOpen, explainText, onExplain, onUp
           <button type="button" onClick={onExplain} aria-label="Close the explanation" className="-m-1 grid h-6 w-6 shrink-0 place-items-center rounded text-stone-500 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><X size={13} aria-hidden /></button>
         </div>
       )}
-    </section>
+    </div>
   )
 }
 
@@ -412,7 +421,9 @@ function PrintView({ prompt, opts, title }) {
       </div>
       <div className="w-full overflow-x-auto">
         <div ref={sheet} className={`print-sheet mx-auto flex w-[210mm] flex-col gap-[6mm] bg-surface px-[14mm] py-[12mm] shadow-[0_1px_3px_rgba(0,0,0,0.08),0_12px_32px_-12px_rgba(0,0,0,0.18)] ${one ? 'h-[297mm] overflow-hidden' : 'min-h-[297mm]'}`}>
-          {r.blocks.map((b) => <Block key={b.id} block={b} title={title ?? r.title} print />)}
+          <div className="flex flex-col gap-8" style={{ zoom: 0.62 }}>
+            {r.blocks.map((b, i) => <Block key={b.id} block={b} title={title ?? r.title} n={numbers(r.blocks)[i]} />)}
+          </div>
           <p className={`mt-auto text-[9px] ${t3}`}>Kraffic · {brandOf(r.opts.brand)?.name} · page 1 of 1</p>
         </div>
       </div>
