@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, Check, ChevronDown, RefreshCw, SearchX, Smile } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Check, ChevronDown, RefreshCw, SearchX, Smile } from 'lucide-react'
 import SiteLogo from '../../components/ui/SiteLogo'
 import Modal from '../../components/ui/Modal'
 import Switch from '../../components/ui/Switch'
@@ -16,16 +16,16 @@ import { useIsMobile } from '../../hooks/useMedia'
 import {
   TONES, TONE_LABEL, countTones, heroLine, runPages, scoreOf, sentimentFor, sentimentInsight, sortPages, tonePercents, withScores,
 } from '../../data/sentiment'
-import { biggestChange, groupThemes, layoutSwarm, lanesFor, listPage, matchIds, neighbour, runAt, scoreX, stepKey, tellingSentence, themeDetail, themeEngines } from '../../utils/spectrum'
+import { biggestChange, columnDots, groupThemes, layoutSwarm, lanesFor, matchIds, neighbour, scoreX, tellingSentence, themeEngines, themeQuote, themeTrend } from '../../utils/spectrum'
 import { fmtDay, lineBtn, t2, t3 } from './parts'
 
 // /sentiment: one visual page about how third-party pages talk about the brand.
 //   Header · the spectrum (every page a dot, placed by tone; hover for a quote, click for all of them; split by engine)
-//   with a timeline scrubber (a run swaps the dots) · one insight · What AI reads about you (themes that hurt / work,
-//   list + detail; a theme lights its pages, a dot selects its theme) · All pages (collapsed, synced with the filters).
+//   · one insight · What AI reads about you (themes that hurt / work; a theme lights its pages, a dot opens its theme)
+//   · Over time (each run's pages as dots + the score; a run swaps the spectrum to it) · All pages (collapsed, synced).
 // Production gives each page a tone only (no number), so dots sit in three bands. Data and logic: data/sentiment.js,
 // utils/spectrum.js. States: ?mock=never | running | nopages | error | one | calm (no negative pages).
-// Fallbacks: ?themes=unlinked (themes not linked to pages) · ?quotes=none (pages analysed before quotes were kept).
+// Fallbacks: ?themes=unlinked (themes not linked to pages) · ?time=share (Over time from per-run percentages only).
 
 const ENGINES = [{ id: 'google', name: 'Google search', short: 'Google', icon: 'aio' }, { id: 'chatgpt', name: 'ChatGPT', short: 'ChatGPT', icon: 'chatgpt' }, { id: 'claude', name: 'Claude', short: 'Claude', icon: 'claude' }]
 const engineName = (id) => ENGINES.find((e) => e.id === id)?.name
@@ -52,61 +52,64 @@ export default function SentimentPage() {
   const [engine, setEngine] = useState('all')
   const [split, setSplit] = useState(false)
   const [tone, setTone] = useState(null)
-  const [side, setSide] = useState(null) // null = the default: Hurting you, or Working for you when nothing hurts
-  const [picked, setPicked] = useState({}) // the selected theme per side (default: each side's first)
-  const [lighting, setLighting] = useState(false) // the selected theme lights the spectrum once someone picks one
+  const [theme, setTheme] = useState(null) // the theme picked below (lights its dots)
   const [hoverTheme, setHoverTheme] = useState(null)
+  const [openThemes, setOpenThemes] = useState(null) // null = the default: the top two Hurting you themes
+  const [draft, setDraft] = useState(null)
   const [runId, setRunId] = useState(null) // null = the latest run
   const [confirm, setConfirm] = useState(false)
   const [running, setRunning] = useState(mock === 'running')
   const [toastNode, toast] = useToast({ position: 'center' })
   const hero = useRef(null)
-  const reads = useRef(null)
   const brand = brandByDomain(domain)
 
   const data = sentimentFor(domain, account.domain)
   const never = mock === 'never' || !data.runs.length
-  // ?mock=calm: the same run with its negative pages read as neutral · ?quotes=none: every page analysed before quotes
-  const noQuotes = q.get('quotes') === 'none'
-  const latestPages = data.pages
-    .map((p) => (mock === 'calm' && p.tone === 'negative' ? { ...p, tone: 'neutral' } : p))
-    .map((p) => (noQuotes ? { ...p, sentences: [], noQuote: true } : p))
+  // ?mock=calm: the same run with its negative pages read as neutral
+  const latestPages = mock === 'calm' ? data.pages.map((p) => (p.tone === 'negative' ? { ...p, tone: 'neutral', action: undefined } : p)) : data.pages
   const baseRuns = mock === 'one' ? data.runs.slice(-1) : data.runs
   const runs = withScores(mock === 'calm' ? [...baseRuns.slice(0, -1), { ...baseRuns.at(-1), counts: countTones(latestPages) }] : baseRuns)
   const latest = runs.at(-1)
   const run = runs.find((r) => r.id === runId) ?? latest
   const isLatest = run === latest
-  const pages = isLatest ? latestPages : runPages(latestPages, run.counts, run.id)
+  const pagesOf = (r) => (r === latest ? latestPages : runPages(latestPages, r.counts, r.id))
+  const pages = pagesOf(run)
+  const shown = isLatest ? hoverTheme ?? theme : null // themes are the latest run's
+  const lit = matchIds(pages, { engine, tone, theme: shown })
+  useEffect(() => { setRunId(null); setTheme(null); setTone(null); setOpenThemes(null) }, [domain])
 
-  // What AI reads about you: the latest run's themes (?mock=calm has nothing hurting)
+  // What AI reads about you: themes from the latest run (?mock=calm has nothing hurting)
   const unlinked = q.get('themes') === 'unlinked'
   const swot = mock === 'calm' && data.swot ? { ...data.swot, weaknesses: [], threats: [] } : data.swot
   const groups = groupThemes(swot, latestPages)
-  const calm = !groups.hurting.length
-  const tab = side ?? (calm ? 'working' : 'hurting')
-  const selected = groups[tab].find((t) => t.theme === picked[tab]) ?? groups[tab][0] ?? null
-  const linking = isLatest && !unlinked // themes are the latest run's
-  const shown = linking ? hoverTheme ?? (lighting ? selected : null) : null
-  const lit = matchIds(pages, { engine, tone, theme: shown })
-  useEffect(() => { setRunId(null); setTone(null); setSide(null); setPicked({}); setLighting(false) }, [domain])
+  const history = runs.map((r) => ({ date: r.date, pages: pagesOf(r) }))
+  const trends = new Map([...groups.hurting.map((t) => [t.theme, themeTrend(t, history, 'negative')]), ...groups.working.map((t) => [t.theme, themeTrend(t, history, 'positive')])])
+  const open = openThemes ?? new Set(groups.hurting.slice(0, 2).map((t) => t.theme))
+  const scrollHero = () => {
+    const top = hero.current?.getBoundingClientRect().top ?? 0
+    if (top < 0 || top > window.innerHeight * 0.6) hero.current?.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' })
+  }
 
-  const select = (t, s = tab) => { setPicked((cur) => ({ ...cur, [s]: t.theme })); setLighting(true) }
+  // open / close a theme: opening it lights its pages in the hero (scrolled into view if it's off screen)
+  const toggleTheme = (t) => {
+    const next = new Set(open)
+    if (next.has(t.theme)) { next.delete(t.theme); if (theme?.theme === t.theme) setTheme(null) } else { next.add(t.theme); setTheme(t); setRunId(null); scrollHero() }
+    setOpenThemes(next)
+  }
   // a dot's theme: on its own side first (a positive page → Working for you), else the other side
   const themeOf = (page) => {
-    const order = page.tone === 'positive' ? ['working', 'hurting'] : ['hurting', 'working']
-    for (const s of order) { const t = groups[s].find((x) => x.sources.includes(page.id)); if (t) return { t, s } }
-    return null
+    const sides = page.tone === 'positive' ? [groups.working, groups.hurting] : [groups.hurting, groups.working]
+    return sides.flat().find((x) => x.sources.includes(page.id)) ?? null
   }
-  // a dot in the hero: selects its theme below (switching the side if needed), else opens its drawer
+  // a dot in the hero: opens its theme below, or its drawer when no theme cites it
   const onDot = (page) => {
-    const hit = linking ? themeOf(page) : null
-    if (!hit) { openDrawer('page', page.id); return }
-    setSide(hit.s)
-    select(hit.t, hit.s)
-    const r = reads.current?.getBoundingClientRect()
-    if (r && (r.top > window.innerHeight * 0.75 || r.bottom < 0)) reads.current.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'center' })
+    const t = unlinked ? null : themeOf(page)
+    if (!t || !isLatest) { openDrawer('page', page.id); return }
+    setTheme(t)
+    setOpenThemes(new Set([...open, t.theme]))
+    requestAnimationFrame(() => document.getElementById(`theme-${t.theme.toLowerCase().replace(/[^a-z]+/g, '-')}`)?.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'center' }))
   }
-  const themeFor = (page) => (linking ? themeOf(page)?.t ?? null : null)
+  const themeFor = (page) => (unlinked || !isLatest ? null : themeOf(page))
   const start = () => { setConfirm(false); setRunning(true); toast(`Analyzing ${brand.name}: this takes a few minutes`) }
 
   const header = <Header brand={brand} domain={domain} setDomain={setDomain} engine={engine} setEngine={setEngine} running={running} onRun={() => setConfirm(true)} hideRun={never} />
@@ -143,14 +146,15 @@ export default function SentimentPage() {
         )}
       </div>
       <Hero heroRef={hero} prevDate={runs[runs.indexOf(run) - 1]?.date} brand={brand} run={run} isLatest={isLatest} onLatest={() => setRunId(null)} pages={pages} lit={lit} engine={engine}
-        split={split} setSplit={setSplit} tone={tone} setTone={setTone} theme={shown} clearTheme={() => { setLighting(false); setHoverTheme(null) }} onDot={onDot} themeFor={themeFor}
-        scrubber={<Scrubber runs={runs} run={run} onPick={(id) => setRunId(id === latest.id ? null : id)} />} />
+        split={split} setSplit={setSplit} tone={tone} setTone={setTone} theme={shown} clearTheme={() => { setTheme(null); setHoverTheme(null) }} onDot={onDot} themeFor={themeFor} />
       {swot && (
-        <AiReads refEl={reads} groups={groups} tab={tab} setTab={setSide} selected={selected} onSelect={select} onHover={(t) => setHoverTheme(linking ? t : null)}
-          unlinked={unlinked} pages={latestPages} latest={latest} calm={calm} linking={linking} isLatest={isLatest} onLatest={() => setRunId(null)} lit={shown?.theme} />
+        <AiReads groups={groups} trends={trends} unlinked={unlinked} pages={latestPages} open={open} toggle={toggleTheme} active={shown?.theme}
+          onHover={(t) => setHoverTheme(unlinked ? null : t)} onDraft={setDraft} onPage={(id) => openDrawer('page', id)} latest={latest} calm={!groups.hurting.length} />
       )}
+      <OverTime runs={runs} run={run} share={q.get('time') === 'share'} onPick={(id) => { setRunId(id === latest.id ? null : id); setTheme(null) }} />
       <AllPages pages={pages} lit={lit} filtered={engine !== 'all' || tone || shown} />
       <PageDrawer pages={pages} brand={brand} />
+      <DraftModal action={draft} page={draft && latestPages.find((p) => p.id === draft.page)} onClose={() => setDraft(null)} toast={toast} />
       {modal}{toastNode}
     </div>
   )
@@ -207,7 +211,7 @@ function RunModal({ open, onClose, brand, onStart, first }) {
 }
 
 // ---- the hero: the score on the left, the spectrum, the legend, the one insight
-function Hero({ heroRef, prevDate, brand, run, isLatest, onLatest, pages, lit, engine, split, setSplit, tone, setTone, theme, clearTheme, onDot, themeFor, scrubber }) {
+function Hero({ heroRef, prevDate, brand, run, isLatest, onLatest, pages, lit, engine, split, setSplit, tone, setTone, theme, clearTheme, onDot, themeFor }) {
   const explain = useExplain(`${run.id}|${engine}`)
   const c = countTones(engine === 'all' ? pages : pages.filter((p) => p.engines.includes(engine)))
   const score = engine === 'all' ? run.score : scoreOf(c)
@@ -240,7 +244,6 @@ function Hero({ heroRef, prevDate, brand, run, isLatest, onLatest, pages, lit, e
           </div>
           <Spectrum pages={pages} lit={lit} engine={engine} split={split} score={score} onDot={onDot} themeFor={themeFor} />
           <Legend c={c} tone={tone} setTone={setTone} explain={explain} />
-          {scrubber}
         </div>
       </div>
       {text && <div className="mt-6"><Insight explain={explain} text={text} evidence={{ keys: ['tones'], calc: `Pages per tone in the ${fmtDay(run.date)} run. Score = 50 + (positive − negative) ÷ pages × 50.` }} /></div>}
@@ -406,7 +409,7 @@ function HoverCard({ hover, w, r, theme }) {
           <div className={`mt-0.5 flex items-center gap-2 text-[12px] leading-4 ${t3}`}><span className="truncate">{p.domain}</span><EngineMarks ids={p.engines} size={12} /></div>
         </div>
       </div>
-      {s ? <p className="mt-2.5 text-[13px] leading-5 text-stone-900"><Phrase s={s} tone={p.tone} /></p> : <p className={`mt-2.5 text-[13px] leading-5 ${t3}`}>Quote appears after the next analysis</p>}
+      <p className="mt-2.5 text-[13px] leading-5 text-stone-900"><Phrase s={s} tone={p.tone} /></p>
       <p className={`mt-2 text-[12px] leading-4 ${t3}`}>{theme ? <>Click to open “{theme.theme}” below</> : 'Click for every quote'}</p>
     </div>
   )
@@ -445,244 +448,288 @@ function RunningHero({ brand, pages, stuck, onDone }) {
   )
 }
 
-// ---- what AI reads about you: Hurting you | Working for you (a segmented control), the side's themes on the left (at
-// most five; more page in with "More themes ↓"), ONE detail on the right: a quote, its page, the other pages, Open page.
-// Hover or select a theme: its pages light up in the spectrum (latest run only). ?themes=unlinked: no theme → page links.
-const ROW_H = 64
-const LIST = 5
-const KIND_LABEL = { strength: 'Strength', weakness: 'Weakness', opportunity: 'Opportunity', threat: 'Threat' }
-function AiReads({ refEl, groups, tab, setTab, selected, onSelect, onHover, unlinked, pages, latest, calm, linking, isLatest, onLatest, lit }) {
-  const [pageBy, setPageBy] = useState({})
-  const [focus, setFocus] = useState(0)
-  const rows = useRef([])
-  const hurting = tab === 'hurting'
-  const list = groups[tab]
-  const pg = listPage(list, pageBy[tab] ?? 0, LIST)
-  // keep the selected theme's page in view when it's picked from the spectrum
-  useEffect(() => {
-    const i = list.indexOf(selected)
-    if (i >= 0 && Math.floor(i / LIST) !== pg.page) setPageBy((cur) => ({ ...cur, [tab]: Math.floor(i / LIST) }))
-  }, [selected, tab]) // eslint-disable-line react-hooks/exhaustive-deps
-  const flip = (to) => { setPageBy((cur) => ({ ...cur, [tab]: to })); setFocus(0) }
-  const onKey = (e, i) => {
-    const j = stepKey(i, e.key, pg.items.length)
-    if (j == null || e.key === 'ArrowLeft' || e.key === 'ArrowRight') return
-    e.preventDefault()
-    setFocus(j)
-    rows.current[j]?.focus()
-  }
-  const listH = LIST * ROW_H + (pg.pages > 1 ? 44 : 0)
-  return (
-    <section ref={refEl} aria-labelledby="reads-h" className="scroll-mt-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h2 id="reads-h" className={h2}>What AI reads about you</h2>
-          <p className={`mt-0.5 text-[13px] leading-[18px] ${t3}`}>
-            {isLatest ? `Themes from the ${fmtDay(latest.date)} run` : <>Themes are from the latest run ({fmtDay(latest.date)}), so they don’t light the spectrum · <button type="button" onClick={onLatest} className="rounded font-medium text-ink outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">back to latest</button></>}
-          </p>
-        </div>
-        <Segmented label="Side" size="sm" value={tab} onChange={(v) => { setTab(v); setFocus(0) }} options={[{ value: 'hurting', label: 'Hurting you' }, { value: 'working', label: 'Working for you' }]} className="max-sm:w-full" full={false} />
+// ---- what AI reads about you: Hurting you (weaknesses + threats) | Working for you (strengths + opportunities).
+// Each theme a row: its pages (favicons), engines and trend; open for its quotes and, where there is one, a drafted reply.
+// Hover or open a theme: its pages light up in the spectrum. ?themes=unlinked: the fallback without theme → page links.
+const slug = (s) => s.toLowerCase().replace(/[^a-z]+/g, '-')
+function AiReads({ groups, trends, unlinked, pages, open, toggle, active, onHover, onDraft, onPage, latest, calm }) {
+  const col = (side) => {
+    const hurting = side === 'hurting'
+    const list = groups[side]
+    return (
+      <div className="min-w-0">
+        <h3 className={`border-b border-line pb-2 text-[13px] leading-[18px] font-medium ${hurting ? 'text-negative' : 'text-stone-600'}`}>{hurting ? 'Hurting you' : 'Working for you'}</h3>
+        {hurting && calm ? (
+          <p className="flex items-center gap-2 py-4 text-[15px] leading-[22px] text-stone-900"><Check size={16} className="text-ink" aria-hidden />Nothing negative this run</p>
+        ) : unlinked ? (
+          <Unlinked list={list} pages={pages.filter((p) => p.tone === (hurting ? 'negative' : 'positive'))} hurting={hurting} onPage={onPage} />
+        ) : (
+          <ul>
+            {list.map((t) => (
+              <ThemeRow key={t.theme} t={t} hurting={hurting} trend={trends.get(t.theme)} open={open.has(t.theme)} lit={active === t.theme}
+                onToggle={() => toggle(t)} onHover={onHover} onDraft={onDraft} onPage={onPage} />
+            ))}
+          </ul>
+        )}
       </div>
-      {hurting && calm ? (
-        <p className="mt-4 flex items-center gap-2 border-t border-line pt-5 text-[15px] leading-[22px] text-stone-900"><Check size={16} className="text-ink" aria-hidden />Nothing negative this run</p>
-      ) : (
-        <div className="mt-4 grid grid-cols-1 border-t border-line md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-          {/* the list: same height whatever the side (five rows, plus the pager when there are more) */}
-          <div className="md:border-r md:border-line md:pr-6" style={{ minHeight: listH }}>
-            <ul role="listbox" aria-label={hurting ? 'Themes hurting you' : 'Themes working for you'} className="divide-y divide-[var(--div)]">
-              {pg.items.map((t, i) => {
-                const on = !unlinked && t === selected
-                return (
-                  <li key={t.theme} role="presentation">
-                    <button ref={(el) => { rows.current[i] = el }} type="button" role="option" aria-selected={on} tabIndex={i === Math.min(focus, pg.items.length - 1) ? 0 : -1}
-                      onClick={() => onSelect(t)} onKeyDown={(e) => onKey(e, i)} onFocus={() => { setFocus(i); onHover(t) }} onBlur={() => onHover(null)}
-                      onMouseEnter={() => onHover(t)} onMouseLeave={() => onHover(null)} disabled={unlinked}
-                      className={`relative flex w-full flex-col justify-center gap-1 px-3 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus disabled:cursor-default ${on ? 'bg-tint' : unlinked ? '' : 'hover:bg-tint'} ${lit === t.theme && !on ? 'bg-tint' : ''}`}
-                      style={{ height: ROW_H }}>
-                      {on && <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-ink" aria-hidden />}
-                      <span className="flex min-w-0 items-baseline gap-2">
-                        <span className="truncate text-[15px] leading-[22px] font-semibold text-stone-900">{t.theme}</span>
-                        {(t.kind === 'opportunity' || t.kind === 'threat') && <span className={`shrink-0 text-[13px] ${t3}`}>{t.kind}</span>}
-                      </span>
-                      {!unlinked && (
-                        <span className={`flex min-w-0 items-center gap-2 text-[12px] leading-4 ${t3}`}>
-                          <Favicons pages={t.pages} />
-                          <span className="truncate tabular-nums">{plural(t.pages.length, 'page')} · {themeEngines(t).map((e) => (e === 'google' ? 'Google' : engineName(e))).join(', ')}</span>
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-            {pg.pages > 1 && (
-              <button type="button" onClick={() => flip(pg.page + 1 < pg.pages ? pg.page + 1 : 0)}
-                className={`flex h-11 w-full items-center gap-1.5 border-t border-[var(--div)] px-3 text-[13px] font-medium ${t2} outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus`}>
-                {/* no digits here: the counts already sit on the rows */}
-                {pg.rest > 0 ? <>More themes <ChevronDown size={14} aria-hidden /></> : <>Back to the top <ChevronDown size={14} className="rotate-180" aria-hidden /></>}
-              </button>
-            )}
-          </div>
-          {/* the detail: one theme, one quote */}
-          <div className="max-md:border-t max-md:border-line max-md:pt-5 md:pl-8">
-            {unlinked
-              ? <UnlinkedDetail pages={pages.filter((p) => p.tone === (hurting ? 'negative' : 'positive'))} hurting={hurting} />
-              : selected && <Detail key={selected.theme} t={selected} hurting={hurting} linking={linking} />}
-          </div>
-        </div>
-      )}
+    )
+  }
+  return (
+    <section aria-labelledby="reads-h">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 id="reads-h" className={h2}>What AI reads about you</h2>
+        <span className={`text-[13px] leading-[18px] ${t3}`}>From the {fmtDay(latest.date)} run</span>
+      </div>
+      {/* phones: Hurting you first */}
+      <div className="mt-4 grid grid-cols-1 gap-x-12 gap-y-8 md:grid-cols-2">{col('hurting')}{col('working')}</div>
     </section>
   )
 }
 
-const Favicons = ({ pages, size = 'h-4 w-4', inner = 'h-3 w-3' }) => (
-  <span className="flex shrink-0 -space-x-1" aria-hidden>
-    {pages.slice(0, 4).map((p) => (
-      <span key={p.id} className={`grid ${size} place-items-center overflow-hidden rounded-full ring-2 ring-surface`} style={{ background: '#fff' }}>
-        <SiteLogo domain={p.domain} name={p.domain} className={`${inner} rounded-full !border-0 !bg-transparent`} imgPad="p-0" initialClass="text-[7px] !text-[#44403c]" bordered={false} />
-      </span>
-    ))}
-  </span>
-)
-
-// one theme: the quote (or, for a page analysed before quotes were stored, its title and a note), whose page it is,
-// the other pages that say it, and Open page
-function Detail({ t, hurting }) {
-  const d = themeDetail(t)
-  if (!d) return null
+const TREND = (tr) => (!tr ? null : tr.kind === 'new' ? 'new this run' : `since ${fmtDay(tr.date)}`)
+function ThemeRow({ t, hurting, trend, open, lit, onToggle, onHover, onDraft, onPage }) {
+  const id = `theme-${slug(t.theme)}`
+  const quotes = t.pages.slice(0, 3).map((p) => ({ p, s: themeQuote(p, t) }))
+  const [first, ...rest] = quotes
+  const engines = themeEngines(t).map(engineName).map((n) => (n === 'Google search' ? 'Google' : n))
   return (
-    <div className="flex h-full flex-col justify-center py-6 motion-safe:animate-[card-in_220ms_ease-out]">
-      <span className={`text-[13px] leading-[18px] ${t3}`}>{KIND_LABEL[t.kind]} · {t.theme}</span>
-      {d.quote ? (
-        <blockquote className="mt-3 text-[22px] leading-[32px] font-medium tracking-[-0.01em] text-stone-900 max-md:text-[19px] max-md:leading-7 [text-wrap:pretty]">
-          <Phrase s={d.quote} tone={hurting ? 'negative' : 'positive'} />
-        </blockquote>
-      ) : (
-        <div className="mt-3">
-          <p className="text-[20px] leading-[28px] font-medium text-stone-900 [text-wrap:pretty]">{d.page.title}</p>
-          <p className={`mt-1 text-[13px] leading-[18px] ${t3}`}>Quote appears after the next analysis</p>
-        </div>
-      )}
-      <button type="button" onClick={() => openDrawer('page', d.page.id)} className={`mt-3 inline-flex items-center gap-2 self-start rounded text-[13px] leading-[18px] ${t2} outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus`}>
-        <SiteLogo domain={d.page.domain} name={d.page.domain} className="h-4 w-4 rounded-full !border-0" imgPad="p-0" initialClass="text-[8px]" />
-        <span className="font-medium text-stone-900">{d.page.domain}</span><EngineMarks ids={d.page.engines} size={12} />
+    <li id={id} className={`scroll-mt-24 border-b border-[var(--div)] transition-[background-color,box-shadow] duration-200 ${lit ? 'bg-tint shadow-[-12px_0_0_var(--tint),12px_0_0_var(--tint)]' : ''}`}
+      onMouseEnter={() => onHover(t)} onMouseLeave={() => onHover(null)}>
+      <button type="button" aria-expanded={open} aria-controls={`${id}-body`} onClick={onToggle} onFocus={() => onHover(t)} onBlur={() => onHover(null)}
+        className="group flex w-full items-start gap-3 py-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus rounded-md">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] leading-[22px] font-semibold text-stone-900">
+            {t.theme}{(t.kind === 'opportunity' || t.kind === 'threat') && <span className={`ml-2 text-[13px] font-normal ${t3}`}>{t.kind}</span>}
+          </span>
+          <span className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-4 ${t3}`}>
+            <span className="flex -space-x-1" aria-hidden>
+              {t.pages.slice(0, 4).map((p) => (
+                <span key={p.id} className="grid h-4 w-4 place-items-center overflow-hidden rounded-full ring-2 ring-surface" style={{ background: '#fff' }}>
+                  <SiteLogo domain={p.domain} name={p.domain} className="h-3 w-3 rounded-full !border-0 !bg-transparent" imgPad="p-0" initialClass="text-[7px] !text-[#44403c]" bordered={false} />
+                </span>
+              ))}
+            </span>
+            <span className="tabular-nums">{plural(t.pages.length, 'page')} · {engines.join(', ')}</span>
+            {TREND(trend) && <span>· {TREND(trend)}</span>}
+          </span>
+        </span>
+        <ChevronDown size={16} className={`mt-1 shrink-0 text-stone-500 transition-transform duration-200 group-hover:text-stone-900 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} aria-hidden />
       </button>
-      {d.also.length > 0 && (
-        <div className={`mt-4 flex flex-wrap items-center gap-2 text-[13px] leading-[18px] ${t3}`}>
-          Also said on
-          {d.also.map((p) => (
-            <button key={p.id} type="button" onClick={() => openDrawer('page', p.id)} title={p.domain} aria-label={`${p.domain}: every quote`}
-              className="grid h-6 w-6 place-items-center rounded-full outline-none ring-1 ring-line transition-shadow hover:ring-ink focus-visible:ring-2 focus-visible:ring-focus" style={{ background: '#fff' }}>
-              <SiteLogo domain={p.domain} name={p.domain} className="h-4 w-4 rounded-full !border-0 !bg-transparent" imgPad="p-0" initialClass="text-[8px] !text-[#44403c]" bordered={false} />
-            </button>
-          ))}
+      {/* accordion: grid rows 0fr → 1fr (no animation with reduced motion) */}
+      <div id={`${id}-body`} inert={open ? undefined : ''} className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+        <div className="relative min-h-0 overflow-hidden">
+          <div className="pb-4">
+            <blockquote className="text-[18px] leading-7 font-medium tracking-[-0.01em] text-stone-900 [text-wrap:pretty]"><Phrase s={first.s} tone={hurting ? 'negative' : 'positive'} /></blockquote>
+            <QuoteSource p={first.p} onPage={onPage} />
+            {rest.map(({ p, s }) => (
+              <div key={p.id} className="mt-3">
+                <p className="text-[14px] leading-[22px] text-stone-900"><Phrase s={s} tone={hurting ? 'negative' : 'positive'} /></p>
+                <QuoteSource p={p} onPage={onPage} />
+              </div>
+            ))}
+            {(t.action || t.pages.length > 3) && (
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                {t.action && (
+                  <button type="button" onClick={() => onDraft(t.action)}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-stone-900 outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
+                    {t.action.label} <ArrowRight size={14} aria-hidden />
+                  </button>
+                )}
+                {t.pages.length > 3 && <span className={`text-[13px] ${t2}`}>All {t.pages.length} pages are lit in the spectrum above</span>}
+              </div>
+            )}
+          </div>
         </div>
-      )}
-      <div className="pt-6">
-        <a href={`https://${d.page.domain}${d.page.path}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded text-[14px] font-medium text-stone-900 underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">
-          Open page <ArrowUpRight size={14} aria-hidden /><span className="sr-only">(opens in a new tab)</span>
-        </a>
       </div>
-    </div>
+    </li>
+  )
+}
+// under a quote: whose page it is; the domain opens that page's drawer (every quote)
+function QuoteSource({ p, onPage }) {
+  return (
+    <button type="button" onClick={() => onPage(p.id)} className={`mt-1.5 inline-flex items-center gap-1.5 rounded text-[12px] leading-4 ${t3} outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus`}>
+      <SiteLogo domain={p.domain} name={p.domain} className="h-3.5 w-3.5 rounded-full !border-0" imgPad="p-0" initialClass="text-[7px]" />
+      {p.domain} · every quote
+    </button>
+  )
+}
+// fallback: themes not linked to pages (no favicons, counts or trend); the side's pages quoted one by one under them
+function Unlinked({ list, pages, hurting, onPage }) {
+  return (
+    <>
+      <ul className="py-1">
+        {list.map((t) => (
+          <li key={t.theme} className="border-b border-[var(--div)] py-3 text-[15px] leading-[22px] font-semibold text-stone-900">
+            {t.theme}{(t.kind === 'opportunity' || t.kind === 'threat') && <span className={`ml-2 text-[13px] font-normal ${t3}`}>{t.kind}</span>}
+          </li>
+        ))}
+      </ul>
+      <h4 className={`mt-5 text-[13px] leading-[18px] ${t3}`}>{hurting ? 'Negative pages' : 'Positive pages'}, in their words</h4>
+      <ul className="mt-2">
+        {pages.map((p) => (
+          <li key={p.id} className="py-2.5">
+            <p className="text-[14px] leading-[22px] text-stone-900"><Phrase s={tellingSentence(p)} tone={hurting ? 'negative' : 'positive'} /></p>
+            <QuoteSource p={p} onPage={onPage} />
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }
 
-// fallback without theme → page links: the quote comes from the side's own pages instead
-function UnlinkedDetail({ pages, hurting }) {
-  const p = pages.find((x) => tellingSentence(x)) ?? pages[0]
-  if (!p) return <p className={`py-5 text-[14px] leading-5 ${t2}`}>No {hurting ? 'negative' : 'positive'} pages this run.</p>
-  const s = tellingSentence(p)
+// the drafted reply (mock): copy it, or open the page to post it
+function DraftModal({ action, page, onClose, toast }) {
+  const [text, setText] = useState(action?.draft ?? '')
+  useEffect(() => setText(action?.draft ?? ''), [action])
   return (
-    <div className="flex h-full flex-col justify-center py-6">
-      <span className={`text-[13px] leading-[18px] ${t3}`}>A {hurting ? 'negative' : 'positive'} page says</span>
-      {s ? <blockquote className="mt-3 text-[22px] leading-[32px] font-medium tracking-[-0.01em] text-stone-900 max-md:text-[19px] max-md:leading-7 [text-wrap:pretty]"><Phrase s={s} tone={hurting ? 'negative' : 'positive'} /></blockquote>
-        : <div className="mt-3"><p className="text-[20px] leading-[28px] font-medium text-stone-900">{p.title}</p><p className={`mt-1 text-[13px] ${t3}`}>Quote appears after the next analysis</p></div>}
-      <button type="button" onClick={() => openDrawer('page', p.id)} className={`mt-3 inline-flex items-center gap-2 self-start rounded text-[13px] ${t2} outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus`}>
-        <SiteLogo domain={p.domain} name={p.domain} className="h-4 w-4 rounded-full !border-0" imgPad="p-0" initialClass="text-[8px]" /><span className="font-medium text-stone-900">{p.domain}</span>
-      </button>
-      <p className={`mt-4 text-[13px] leading-[18px] ${t3}`}>These themes aren’t linked to pages, so this quote isn’t tied to the one selected.</p>
-      <div className="pt-6">
-        <a href={`https://${p.domain}${p.path}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded text-[14px] font-medium text-stone-900 underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">Open page <ArrowUpRight size={14} aria-hidden /></a>
-      </div>
-    </div>
+    <Modal open={Boolean(action)} onClose={onClose} size="md" title={action?.label ?? ''}
+      subtitle={page ? `A reply to “${page.title}” on ${page.domain}. Edit it, then post it there.` : ''}
+      footer={(
+        <>
+          {page && <a href={`https://${page.domain}${page.path}`} target="_blank" rel="noreferrer" className={`mr-auto inline-flex items-center gap-1 rounded text-[13px] font-medium ${t2} outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus`}>Open {page.domain} <ArrowUpRight size={14} aria-hidden /></a>}
+          <button type="button" onClick={onClose} className="inline-flex h-9 items-center rounded-lg px-3 text-small font-medium text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Close</button>
+          <PrimaryButton size="sm" onClick={() => { navigator.clipboard?.writeText(text).catch(() => {}); toast('Reply copied'); onClose() }}>Copy reply</PrimaryButton>
+        </>
+      )}>
+      <label className="block text-[13px] leading-[18px] font-medium text-stone-600" htmlFor="draft-reply">Draft</label>
+      <textarea id="draft-reply" value={text} onChange={(e) => setText(e.target.value)} rows={7}
+        className="mt-1.5 w-full resize-y rounded-lg border border-line bg-surface p-3 text-[14px] leading-[22px] text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus" />
+    </Modal>
   )
 }
 
-// ---- the timeline scrubber (in the hero, under the legend): one marker per run, the selected one a dot without its
-// number (the big score says it). Click or drag along the track to move; ←/→, Home/End when focused. The biggest move
-// is marked once.
-function Scrubber({ runs, run, onPick }) {
-  const track = useRef(null)
-  const [w, setW] = useState(600)
-  const [tip, setTip] = useState(null) // index under the pointer / while dragging
-  const drag = useRef(false)
+// ---- over time: one column per run, that run's pages as dots in three tone bands (like small spectrums), the score
+// as one line with its own axis on the right. Production keeps each run's pages with their tone (reputation_scans
+// .sources), so this is the default; ?time=share is the fallback for percentages only (100% stacked columns).
+const OT = { H: 180, band: 60, left: 64, right: 60, colMax: 104, pitch: 8, perRow: 4 }
+function OverTime({ runs, run, onPick, share }) {
+  const box = useRef(null)
+  const [w, setW] = useState(800)
+  const [tip, setTip] = useState(null)
+  const cols = useRef([])
   useLayoutEffect(() => {
-    if (!track.current) return
+    if (!box.current) return
     const ro = new ResizeObserver(([e]) => setW(e.contentRect.width))
-    ro.observe(track.current)
+    ro.observe(box.current)
     return () => ro.disconnect()
   }, [])
-  if (runs.length < 2) return <p className={`mt-5 text-[13px] leading-[18px] ${t3}`}>First run {fmtDay(runs[0].date)}</p>
-  const n = runs.length
-  const sel = runs.indexOf(run)
-  const x = (i) => (i / (n - 1)) * w
-  const at = (e) => runAt(e.clientX - track.current.getBoundingClientRect().left, w, n)
   const big = biggestChange(runs)
-  const narrow = w < 340
-  const onKey = (e) => {
-    const j = stepKey(sel, e.key, n)
-    if (j == null) return
+  if (runs.length < 2) {
+    return (
+      <section aria-labelledby="time-h">
+        <h2 id="time-h" className={h2}>Over time</h2>
+        <div className="mt-4 flex h-[180px] flex-col items-center justify-center border-y border-line text-center">
+          <p className="text-[15px] leading-[22px] font-medium text-stone-900">The trend starts with your second run</p>
+          <p className={`mt-1 text-[13px] leading-[18px] ${t2}`}>Re-analyze after the next sync to compare.</p>
+        </div>
+      </section>
+    )
+  }
+  const n = runs.length
+  const narrow = w < 520
+  const left = narrow ? 52 : OT.left, right = narrow ? 44 : OT.right
+  const colW = Math.min(OT.colMax, (w - left - right) / n)
+  const plotW = colW * n
+  const cx = (i) => left + colW * i + colW / 2
+  const sy = (score) => (1 - score / 100) * OT.H
+  const line = runs.map((r, i) => `${i ? 'L' : 'M'}${cx(i)},${sy(r.score)}`).join(' ')
+  const pitch = narrow ? 7 : OT.pitch
+  const perRow = Math.max(2, Math.min(OT.perRow, Math.floor((colW - 8) / pitch)))
+  const key = (e, i) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key]
+    if (!step) return
     e.preventDefault()
-    onPick(runs[j].id)
-    setTip(null)
+    const j = Math.max(0, Math.min(n - 1, i + step))
+    cols.current[j]?.focus()
   }
   return (
-    <div className="mt-6">
-      <div className={`mb-1 flex flex-wrap items-baseline justify-between gap-x-3 text-[12px] leading-4 ${t3}`}>
-        <span>Runs</span>
-        {big && <span>Biggest move after {fmtDay(runs[big.index - 1].date)}: {big.what}</span>}
+    <section aria-labelledby="time-h">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 id="time-h" className={h2}>Over time</h2>
+        {big && <span className={`text-[13px] leading-[18px] ${t2}`}>Biggest move: after {fmtDay(runs[big.index - 1].date)}, {big.what}</span>}
       </div>
-      <div className="px-6">
-        <div ref={track} role="slider" tabIndex={0} aria-label="Run" aria-valuemin={1} aria-valuemax={n} aria-valuenow={sel + 1}
-          aria-valuetext={`${fmtDay(run.date)}, score ${run.score}`}
-          onKeyDown={onKey}
-          onPointerDown={(e) => { drag.current = true; e.currentTarget.setPointerCapture(e.pointerId); const j = at(e); setTip(j); onPick(runs[j].id) }}
-          onPointerMove={(e) => { const j = at(e); setTip(j); if (drag.current && runs[j].id !== run.id) onPick(runs[j].id) }}
-          onPointerUp={() => { drag.current = false }} onPointerCancel={() => { drag.current = false }} onPointerLeave={() => { if (!drag.current) setTip(null) }}
-          onBlur={() => setTip(null)}
-          className="relative h-[68px] cursor-pointer touch-none select-none rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-4">
-          {/* the track, the biggest move's segment in ink */}
-          <div className="absolute inset-x-0 top-[30px] h-px bg-[var(--color-line-strong)]" aria-hidden />
-          {big && (
-            <>
-              <div className="absolute top-[29px] h-[3px] rounded-full bg-ink" style={{ left: x(big.index - 1), width: x(big.index) - x(big.index - 1) }} aria-hidden />
-              <span className="absolute top-[34px] -translate-x-1/2 text-[12px] leading-4 font-semibold text-ink tabular-nums" style={{ left: (x(big.index - 1) + x(big.index)) / 2 }} aria-hidden>
-                {big.delta > 0 ? '+' : '−'}{Math.abs(big.delta)}
+      <div ref={box} className="relative mt-5" style={{ maxWidth: left + right + OT.colMax * n }} onMouseLeave={() => setTip(null)}>
+        <div className="relative" style={{ height: OT.H + 28 }}>
+          <svg className="absolute inset-0 overflow-visible" width={left + plotW + right} height={OT.H + 28} aria-hidden>
+            {/* tone bands (dots mode): faint dividers + labels on the left */}
+            {!share && [1, 2].map((b) => <line key={b} x1={left} x2={left + plotW} y1={b * OT.band} y2={b * OT.band} stroke="var(--div)" />)}
+            <line x1={left} x2={left + plotW} y1={OT.H} y2={OT.H} stroke="var(--color-line)" />
+            {/* the score axis on the right: 0–100, a dashed even line */}
+            <line x1={left} x2={left + plotW} y1={sy(50)} y2={sy(50)} stroke="var(--color-stone-400)" strokeDasharray="4 4" />
+            <line x1={left + plotW + 8} x2={left + plotW + 8} y1={0} y2={OT.H} stroke="var(--color-line)" />
+            {[[100, '100'], [50, '50 even'], [0, '0']].map(([v, l]) => (
+              <text key={v} x={left + plotW + 14} y={sy(v)} dy={v === 100 ? 9 : v === 0 ? -2 : 4} fontSize={11} fill="var(--color-stone-500)" className="num">{l}</text>
+            ))}
+            <text x={left + plotW + 14} y={OT.H + 18} fontSize={11} fill="var(--color-stone-500)">Score</text>
+            {/* each run */}
+            {runs.map((r, i) => {
+              const on = r.id === run.id
+              if (share) {
+                const pc = tonePercents(r.counts)
+                const bw = Math.min(28, colW * 0.4)
+                let y = 0
+                return (
+                  <g key={r.id}>
+                    {['positive', 'neutral', 'negative'].map((k) => {
+                      const h = (pc[k] / 100) * OT.H
+                      const el = <rect key={k} x={cx(i) - bw / 2} y={y} width={bw} height={Math.max(0, h - 1)} rx={2} fill={RING[k]} opacity={k === 'neutral' ? 0.35 : k === 'positive' ? 0.75 : 0.8} />
+                      y += h
+                      return el
+                    })}
+                  </g>
+                )
+              }
+              return (
+                <g key={r.id} opacity={on || !tip || tip.i === i ? 1 : 0.55}>
+                  {columnDots(r.counts, { bandH: OT.band, pitch, perRow }).map((d, k) => (
+                    <circle key={k} cx={cx(i) + d.x} cy={d.y} r={pitch / 2 - 1} fill={d.tone === 'neutral' ? 'none' : RING[d.tone]} stroke={RING[d.tone]} strokeWidth={d.tone === 'neutral' ? 1.25 : 0} />
+                  ))}
+                </g>
+              )
+            })}
+            {/* the score line + a marker per run */}
+            <path d={line} fill="none" stroke="var(--color-surface)" strokeWidth={7} strokeLinejoin="round" strokeLinecap="round" />
+            <path d={line} fill="none" stroke="var(--ink)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+            {runs.map((r, i) => (
+              <circle key={r.id} cx={cx(i)} cy={sy(r.score)} r={r.id === run.id ? 5.5 : 4} fill="var(--ink)" stroke="var(--color-surface)" strokeWidth={2} />
+            ))}
+            {/* x: run dates; the biggest move marked */}
+            {runs.map((r, i) => (
+              <text key={r.id} x={cx(i)} y={OT.H + 18} textAnchor="middle" fontSize={narrow ? 11 : 12} fontWeight={r.id === run.id ? 600 : 400} fill={r.id === run.id ? 'var(--ink)' : 'var(--color-stone-500)'} className="num">
+                {narrow && i % 2 && r.id !== run.id ? '' : fmtDay(r.date)}
+              </text>
+            ))}
+            {big && <path d={`M${cx(big.index) - 4},${-6} L${cx(big.index) + 4},${-6} L${cx(big.index)},${-1} Z`} fill="var(--ink)" />}
+          </svg>
+          {/* band labels on the left (in share mode, beside the first column's parts) */}
+          {(() => {
+            const pc = share ? tonePercents(runs[0].counts) : null
+            const mid = share ? { positive: pc.positive / 2, neutral: pc.positive + pc.neutral / 2, negative: pc.positive + pc.neutral + pc.negative / 2 } : null
+            return ['positive', 'neutral', 'negative'].map((k, b) => (
+              <span key={k} className={`absolute left-0 -translate-y-1/2 text-[12px] leading-4 font-medium ${TONE_TEXT[k]}`} style={{ top: share ? (mid[k] / 100) * OT.H : b * OT.band + OT.band / 2 }} aria-hidden>
+                {TONE_LABEL[k]}
               </span>
-            </>
-          )}
-          {runs.map((r, i) => {
-            const on = i === sel
-            return (
-              <div key={r.id} className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: x(i) }} aria-hidden>
-                <span className={`h-4 text-[12px] leading-4 tabular-nums ${on ? 'invisible' : t2}`}>{r.score}</span>
-                <span className="mt-[6px] grid h-4 w-4 place-items-center">
-                  <span className={`rounded-full transition-all duration-200 ${on ? 'h-3.5 w-3.5 bg-ink ring-4 ring-[color-mix(in_srgb,var(--ink)_14%,transparent)]' : tip === i ? 'h-2.5 w-2.5 bg-ink' : 'h-2 w-2 bg-[var(--color-stone-400)]'}`} />
-                </span>
-                <span className={`mt-[18px] whitespace-nowrap text-[12px] leading-4 tabular-nums ${on ? 'font-semibold text-ink' : t3}`}>{narrow && i % 2 && !on && i !== n - 1 ? '' : fmtDay(r.date)}</span>
-              </div>
-            )
-          })}
-          {tip != null && (
-            <div role="tooltip" className="pointer-events-none absolute bottom-full z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-line bg-raised px-3 py-2 text-small shadow-md tabular-nums"
-              style={{ left: Math.max(110, Math.min(w - 110, x(tip))) }}>
-              <div className="font-semibold text-stone-900">{fmtDay(runs[tip].date)} · {runs[tip].score}{runs[tip].delta != null && <span className={`ml-1.5 font-medium ${runs[tip].delta < 0 ? 'text-negative' : 'text-stone-600'}`}>{runs[tip].delta > 0 ? '▲' : runs[tip].delta < 0 ? '▼' : ''}{runs[tip].delta ? Math.abs(runs[tip].delta) : 'no change'}</span>}</div>
-              <div className="mt-0.5 text-stone-600">{runs[tip].counts.positive} positive · {runs[tip].counts.neutral} neutral · <span className={runs[tip].counts.negative ? 'text-negative' : undefined}>{runs[tip].counts.negative} negative</span> pages</div>
+            ))
+          })()}
+          {/* the columns: hover / focus for the run, click or Enter to see its pages in the spectrum */}
+          {runs.map((r, i) => (
+            <button key={r.id} ref={(el) => { cols.current[i] = el }} type="button" aria-pressed={r.id === run.id}
+              aria-label={`${fmtDay(r.date)}: score ${r.score}. Show this run’s pages`}
+              onClick={() => onPick(r.id)} onKeyDown={(e) => key(e, i)}
+              onMouseEnter={() => setTip({ i, r })} onFocus={() => setTip({ i, r })} onBlur={() => setTip(null)}
+              className={`absolute top-0 rounded-md outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${r.id === run.id ? 'bg-[color-mix(in_srgb,var(--ink)_4%,transparent)]' : 'hover:bg-[color-mix(in_srgb,var(--ink)_3%,transparent)]'}`}
+              style={{ left: left + colW * i + 2, width: colW - 4, height: OT.H + 26 }} />
+          ))}
+          {tip && (
+            <div role="tooltip" className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-line bg-raised px-3 py-2 text-small shadow-md tabular-nums"
+              style={{ left: Math.max(90, Math.min(w - 90, cx(tip.i))), top: Math.min(sy(tip.r.score), OT.H - 40) - 12 }}>
+              <div className="font-semibold text-stone-900">{fmtDay(tip.r.date)} · {tip.r.score}{tip.r.delta != null && <span className={`ml-1.5 font-medium ${tip.r.delta < 0 ? 'text-negative' : 'text-stone-600'}`}>{tip.r.delta > 0 ? '▲' : tip.r.delta < 0 ? '▼' : ''}{tip.r.delta ? Math.abs(tip.r.delta) : 'no change'}</span>}</div>
+              <div className="mt-0.5 text-stone-600">{tip.r.counts.positive} / {tip.r.counts.neutral} / <span className={tip.r.counts.negative ? 'text-negative' : undefined}>{tip.r.counts.negative}</span> pages</div>
             </div>
           )}
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -737,8 +784,7 @@ function PageDrawer({ pages, brand }) {
       footer={<><a href={`https://${p.domain}${p.path}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded font-medium text-stone-900 underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">Open page <ArrowUpRight size={14} aria-hidden /><span className="sr-only">(opens in a new tab)</span></a><span /></>}>
       <section className="mt-5">
         <h3 className="text-[14px] leading-5 font-semibold text-stone-900">What it says about {brand.name}</h3>
-        {!p.sentences.length && <p className={`mt-2 border-y border-[var(--div)] py-4 text-[14px] leading-5 ${t2}`}>This page was analysed before quotes were kept. Quotes appear after the next analysis.</p>}
-        <ul className={`mt-2 divide-y divide-[var(--div)] border-y border-[var(--div)] ${p.sentences.length ? '' : 'hidden'}`}>
+        <ul className="mt-2 divide-y divide-[var(--div)] border-y border-[var(--div)]">
           {p.sentences.map((s) => (
             <li key={s.text} className="flex gap-3 py-3">
               <span className="w-[3px] shrink-0 self-stretch rounded-full" style={{ background: RING[s.tone] }} aria-hidden />

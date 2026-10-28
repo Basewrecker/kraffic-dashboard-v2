@@ -81,9 +81,8 @@ export function matchIds(pages, { engine = 'all', tone = null, theme = null } = 
     .map((p) => p.id))
 }
 
-// the sentence a hover card shows: the first in the page's own tone with a marked phrase, then any in its tone, else the
-// first; null for a page analysed before quotes were stored (it shows its title + "Quote appears after the next analysis")
-export const tellingSentence = (page) => page.sentences.find((s) => s.tone === page.tone && s.mark) ?? page.sentences.find((s) => s.tone === page.tone) ?? page.sentences[0] ?? null
+// the sentence a hover card shows: the first in the page's own tone with a marked phrase, then any in its tone, else the first
+export const tellingSentence = (page) => page.sentences.find((s) => s.tone === page.tone && s.mark) ?? page.sentences.find((s) => s.tone === page.tone) ?? page.sentences[0]
 
 // "No number twice": the numbers in some visible text (dates and times are left out: "Oct 20", "0:42")
 export function numbersIn(text) {
@@ -114,41 +113,44 @@ export function groupThemes(swot, pages) {
   return { hurting: side(['weaknesses', 'threats'], 'negative'), working: side(['strengths', 'opportunities'], 'positive') }
 }
 
-// the sentence on a page that's about the theme (its match), else the page's most telling one; null without quotes
+// the sentence on a page that's about the theme (its match), else the page's most telling one
 export const themeQuote = (page, theme) => page.sentences.find((s) => theme.match?.test(s.text)) ?? tellingSentence(page)
-
-// the detail panel for a theme: ONE quote (the first page with a sentence about it, else the first page, quote-less),
-// its page, and the other pages that also say it
-export function themeDetail(theme) {
-  const quoted = theme.pages.find((p) => p.sentences.some((s) => theme.match?.test(s.text))) ?? theme.pages.find((p) => p.sentences.length) ?? theme.pages[0]
-  if (!quoted) return null
-  return { page: quoted, quote: themeQuote(quoted, theme), also: theme.pages.filter((p) => p !== quoted) }
-}
-
-// the theme list shows at most `size` rows; more → pages of `size` ("2 more ↓" / "← First 5")
-export function listPage(list, page, size = 5) {
-  const pages = Math.max(1, Math.ceil(list.length / size))
-  const at = Math.min(Math.max(0, page), pages - 1)
-  return { items: list.slice(at * size, at * size + size), page: at, pages, rest: Math.max(0, list.length - (at + 1) * size) }
-}
-
-// arrow keys in a list or along the scrubber: ↑/← back, ↓/→ forward (stopping at the ends), Home / End; null = not ours
-export function stepKey(i, key, n) {
-  if (!n) return null
-  const to = { ArrowDown: i + 1, ArrowRight: i + 1, ArrowUp: i - 1, ArrowLeft: i - 1, Home: 0, End: n - 1 }[key]
-  return to == null ? null : Math.max(0, Math.min(n - 1, to))
-}
-
-// the scrubber: the run nearest a point along the track (markers evenly spaced, the first at 0, the last at width)
-export function runAt(x, width, n) {
-  if (n < 2 || width <= 0) return 0
-  return Math.max(0, Math.min(n - 1, Math.round((x / width) * (n - 1))))
-}
 
 // engines behind a theme's pages, in a fixed order
 export const themeEngines = (theme, order = ['google', 'chatgpt', 'claude']) => order.filter((e) => theme.pages.some((p) => p.engines.includes(e)))
 
-// ---- the timeline scrubber ---------------------------------------------------------------------------------------
+// trend word: when the theme's pages started carrying its side's tone, run after run up to now.
+//   runs: [{ date, pages }] oldest first (the latest last) · side: 'negative' | 'positive'
+//   → { kind: 'new' } (only this run) · { kind: 'since', date } · null (from the first run on, or not in this run)
+export function themeTrend(theme, runs, side) {
+  const says = (r) => r.pages.some((p) => theme.sources.includes(p.id) && p.tone === side)
+  if (!runs.length || !says(runs.at(-1))) return null
+  let k = runs.length - 1
+  while (k > 0 && says(runs[k - 1])) k--
+  if (k === 0) return null
+  return k === runs.length - 1 ? { kind: 'new' } : { kind: 'since', date: runs[k].date }
+}
+
+// ---- Over time ----------------------------------------------------------------------------------------------------
+
+// a run's pages as small dots in three fixed bands (negative bottom, neutral middle, positive top); in each band the
+// dots fill rows of `perRow` from the band's bottom, centred. → [{ tone, x, y }] relative to the column's centre and the
+// plot top. bandH: one band's height; pitch: dot spacing.
+export function columnDots(counts, { bandH, pitch = 8, perRow = 4 }) {
+  const out = []
+  ;['positive', 'neutral', 'negative'].forEach((tone, b) => {
+    const n = counts[tone] ?? 0
+    const rows = Math.ceil(n / perRow)
+    const top = b * bandH + (bandH - rows * pitch) / 2 // the block sits in the middle of its band
+    for (let i = 0; i < n; i++) {
+      const row = Math.floor(i / perRow)
+      const inRow = Math.min(perRow, n - row * perRow)
+      const col = i % perRow
+      out.push({ tone, x: (col - (inRow - 1) / 2) * pitch, y: top + (rows - 1 - row) * pitch + pitch / 2 })
+    }
+  })
+  return out
+}
 
 // the biggest move between two runs (the latest wins a tie): its index (the run after the change), the change and
 // what moved, in words without digits: "one more positive page and one fewer negative"
