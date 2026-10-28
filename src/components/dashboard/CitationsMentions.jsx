@@ -41,11 +41,11 @@ const Stat = ({ label, children, gap = 'mt-1', foot = null }) => (
 // t3; on hover or focus it underlines, turns ink and a small → slides in (outside the text box, so it takes no width
 // and the two lines never collide on a phone). A drop’s number
 // keeps the negative token.
-function VsLastWeek({ d, label, onOpen }) {
+export function VsLastWeek({ d, label, onOpen, className = 'mt-0.5' }) {
   if (d == null) return null
   return (
     <button type="button" onClick={onOpen} aria-label={`${label}: ${d === 0 ? 'no change' : d > 0 ? `up ${d}` : `down ${Math.abs(d)}`} vs last week. Open week by week`}
-      className="group/vs relative -mx-1 mt-0.5 inline-flex cursor-pointer items-center whitespace-nowrap rounded px-1 text-left text-[12px] leading-4 text-stone-500 tabular-nums outline-none transition-colors duration-150 hover:text-ink focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-focus">
+      className={`group/vs relative -mx-1 ${className} inline-flex cursor-pointer items-center whitespace-nowrap rounded px-1 text-left text-[12px] leading-4 text-stone-500 tabular-nums outline-none transition-colors duration-150 hover:text-ink focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-focus`}>
       <span className="decoration-1 underline-offset-2 group-hover/vs:underline group-focus-visible/vs:underline">
         {d === 0 ? 'No change' : <span className={d < 0 ? 'text-negative' : ''}>{d > 0 ? `+${d}` : `−${Math.abs(d)}`}</span>} vs last week
       </span>

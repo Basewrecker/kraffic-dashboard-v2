@@ -21,7 +21,7 @@ export const FAILED = { gemini: [4] } // engine → week indexes (0 = newest) wh
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DAY = 864e5
 // "Sep 28, 2026" → "Sep 28 – Oct 4" (Monday to Sunday)
-function weekLabel(date) {
+export function weekLabel(date) {
   const d = new Date(`${date} 12:00`)
   const start = new Date(d.getTime() - ((d.getDay() + 6) % 7) * DAY)
   const end = new Date(start.getTime() + 6 * DAY)
@@ -30,7 +30,7 @@ function weekLabel(date) {
 }
 // the month a week starts in ("October"): the drawer groups weeks by it
 const LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-function weekMonth(date) {
+export function weekMonth(date) {
   const d = new Date(`${date} 12:00`)
   return LONG[new Date(d.getTime() - ((d.getDay() + 6) % 7) * DAY).getMonth()]
 }
