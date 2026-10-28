@@ -14,7 +14,7 @@ import { EmptyState, ErrorCard, RunningLine } from '../../components/tool/ToolPa
 import { account, currentBrand, workspaceDirectory } from '../../data/mock'
 import { useIsMobile } from '../../hooks/useMedia'
 import {
-  TONES, TONE_LABEL, countTones, heroLine, runPages, scoreOf, sentimentFor, sentimentInsight, sortPages, tonePercents, withScores,
+  TONES, TONE_LABEL, countTones, heroLine, heroNote, runPages, scoreOf, sentimentFor, sentimentInsight, sortPages, tonePercents, withScores,
 } from '../../data/sentiment'
 import { alsoSaidOn, biggestChange, byReach, capStack, changeSummary, chartLayout, divergingStack, dotPlan, pageHref, ribbonsInto, groupThemes, layoutSwarm, lanesFor, leadQuote, matchIds, moveNote, neighbour, reachOf, scoreX, springEasing, staggerDelays, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen, toneChanges, topChange } from '../../utils/spectrum'
 import { fmtDay, lineBtn, t2, t3 } from './parts'
@@ -160,7 +160,7 @@ function Header({ brand, domain, setDomain, engine, setEngine, running, onRun, h
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
       <div className="min-w-0">
         <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Sentiment</h1>
-        <p className="mt-1 text-body text-stone-600">How third-party pages talk about {brand.name}.</p>
+        <p className="mt-1 text-body text-stone-600">How the pages AI cites describe {brand.name}.</p>
       </div>
       <div className="flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:gap-2.5">
         <Segmented label="Engine" value={engine} onChange={setEngine} options={options} className="max-lg:w-full" full={false} />
@@ -223,8 +223,8 @@ function Hero({ heroRef, prevDate, brand, run, isLatest, onLatest, pages, lit, e
               {run.delta == null ? 'First run' : run.delta === 0 ? `No change since ${fmtDay(prevDate)}` : `${run.delta < 0 ? '▼' : '▲'}${Math.abs(run.delta)} since ${fmtDay(prevDate)}`}
             </span>
           )}
-          <span className="mt-2 text-[15px] leading-[22px] text-stone-900 [text-wrap:pretty]">{heroLine(c)}</span>
-          <span className={`mt-3 text-[12px] leading-4 ${t3} [text-wrap:pretty]`}>Out of 100. 50 is even: as many pages speak well of you as badly.</span>
+          <span className="mt-2 text-[15px] leading-[22px] text-stone-900 [text-wrap:pretty]">{heroLine(score)}</span>
+          {c.positive + c.neutral + c.negative > 0 && <span className={`mt-3 text-[12px] leading-4 ${t3} [text-wrap:pretty]`}>{heroNote(c.positive + c.neutral + c.negative, brand.name)}</span>}
         </div>
         <div className="min-w-0">
           <div className="mb-2 flex items-center justify-between gap-3">

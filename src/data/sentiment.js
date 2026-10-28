@@ -77,10 +77,10 @@ export function sentimentInsight(c, brand) {
   const n = totalOf(c)
   if (!n) return null
   const pc = tonePercents(c)
-  if (c.neutral === n) return `All ${n} pages are neutral: review sites mention ${brand} without an opinion.`
-  if (c.negative > c.positive) return `More pages speak badly of ${brand} than well: ${pc.negative}% are negative.`
-  if (c.neutral / n >= 0.5) return `Most pages mention ${brand} without an opinion; the ones that take a side ${c.positive > c.negative ? 'lean positive' : c.positive < c.negative ? 'lean negative' : 'split evenly'}.`
-  return `Pages lean positive: ${pc.positive}% speak well of ${brand}.`
+  if (c.neutral === n) return `All ${n} pages describe ${brand} neutrally, with no praise or criticism.`
+  if (c.negative > c.positive) return `Coverage leans negative: ${pc.negative}% of pages are critical of ${brand}.`
+  if (c.neutral / n >= 0.5) return `Most pages describe ${brand} neutrally; those that take a position ${c.positive > c.negative ? 'lean positive' : c.positive < c.negative ? 'lean negative' : 'are evenly split'}.`
+  return `Coverage leans positive: ${pc.positive}% of pages are favourable to ${brand}.`
 }
 
 // ---- mock data ----------------------------------------------------------------------------------------------------
@@ -205,12 +205,17 @@ export function runPages(pages, counts, runId) {
   return list
 }
 
-// the hero's plain line, from a run's counts
-export function heroLine(c) {
-  if (!totalOf(c)) return 'No pages scored yet'
-  return c.positive > c.negative ? 'More pages speak well of you than badly'
-    : c.positive < c.negative ? 'More pages speak badly of you than well' : 'As many pages speak well of you as badly'
+// the hero's line under the score, by score band (null: nothing scored)
+export function heroLine(score) {
+  if (score == null) return 'No pages scored yet'
+  if (score >= 70) return 'Mostly positive coverage'
+  if (score >= 55) return 'Leaning positive'
+  if (score >= 45) return 'Balanced: as much praise as criticism'
+  if (score >= 31) return 'Leaning negative'
+  return 'Mostly negative coverage'
 }
+// the small print under it: what the score is based on
+export const heroNote = (n, brand) => `Based on how the ${n === 1 ? 'page AI cites describes' : `${n} pages AI cites describe`} ${brand}. 50 means positive and negative mentions are even.`
 
 // the account's own brands only (no competitor sentiment); a brand never analysed: nothing yet
 export const sentimentFor = (domain, own) => (domain === own ? { runs: RUNS, pages: PAGES, swot: SWOT } : { runs: [], pages: [], swot: null })
