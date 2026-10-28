@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Bar, BarChart as RBarChart, CartesianGrid, Cell, LabelList, Line, LineChart as RLineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, usePlotArea, useXAxisScale } from 'recharts'
 import { useIsMobile } from '../../hooks/useMedia'
 import { BarChart3, Check, ChevronDown, LineChart, TrendingUp } from 'lucide-react'
@@ -6,10 +6,11 @@ import Card from './Card'
 import { chart } from '../../theme/chart'
 import { defaultRange, getHistory, historyManyPreview, historyRanges } from '../../data/mock'
 import { historyMany } from '../../data/historyMany'
-import { drawnRivals, groupedBarSize } from '../../utils/historyChart'
+import { chipCap, drawnRivals, groupedBarSize, MAX_RIVALS, pickRival, picksFrom } from '../../utils/historyChart'
 import { brandName } from '../../utils/brand'
 import Segmented from './Segmented'
 import Switch from '../ui/Switch'
+import SiteLogo from '../ui/SiteLogo'
 import { useBrandView } from '../../hooks/useBrandView'
 import Insight, { hlOpacity, useExplain } from '../ui/Insight'
 import { sourceLine } from './insights'
@@ -17,7 +18,7 @@ import { useTracking } from '../../store/trackingSettings'
 import { engineName, engineScale } from '../../data/brandViews'
 
 // colours follow the slots, set once per render by the card: the focal brand ("Viewing as") is ink; the 3 competitors
-// drawn are slots 0–2 (by share; a brand swapped in from "+N more" takes slot 2). Trend and Share views: indigo, red,
+// drawn are slots 0–2 (by share, or as picked in "All N brands"). Trend and Share views: indigo, red,
 // green. Growth view: the graphite steps c1–c3, since red there means a drop. Never more than 3 colours + ink.
 let FOCAL = { key: null }
 let SLOT = {} // series key → 0 | 1 | 2
@@ -32,8 +33,9 @@ const tick = { fontSize: 13, fontWeight: 400, fill: 'var(--color-stone-500)', cl
 
 // ---- ALL view state lives in one object, mirrored to the URL so the view is shareable and survives refresh:
 //      ?compare=off&hide=ordinary&period=monthly&chart=line&range=last-6m
-const DEFAULT_VIEW = { compare: true, hidden: [], granularity: 'weekly', chart: 'line', range: defaultRange.weekly, swap: null }
-// ?swap=<key>: the brand from "+N more" shown in the 3rd competitor slot
+const DEFAULT_VIEW = { compare: true, hidden: [], granularity: 'weekly', chart: 'line', range: defaultRange.weekly, picks: null }
+// ?brands=a,b,c: the competitors on the chart, in slot order (none: the top 3 by share). An older link's ?swap=<key>
+// still opens with that brand in the 3rd slot.
 function readView(historySeries) {
   const q = new URLSearchParams(window.location.search)
   const granularity = q.get('period') === 'monthly' ? 'monthly' : 'weekly'
@@ -45,7 +47,8 @@ function readView(historySeries) {
     granularity,
     chart: ['line', 'bar', 'growth'].includes(q.get('chart')) ? q.get('chart') : DEFAULT_VIEW.chart,
     range,
-    swap: historySeries.some((c) => c.key === q.get('swap')) ? q.get('swap') : null,
+    picks: q.get('brands') ? q.get('brands').split(',').filter((k) => historySeries.some((c) => c.key === k))
+      : historySeries.some((c) => c.key === q.get('swap')) ? { swap: q.get('swap') } : null,
   }
 }
 function writeView(v) {
@@ -56,7 +59,8 @@ function writeView(v) {
   set('period', v.granularity, DEFAULT_VIEW.granularity)
   set('chart', v.chart, DEFAULT_VIEW.chart)
   set('range', v.range, defaultRange[v.granularity])
-  set('swap', v.swap ?? '', '')
+  q.delete('swap')
+  set('brands', Array.isArray(v.picks) ? v.picks.join(',') : '', '')
   const qs = q.toString()
   window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`)
 }
@@ -210,106 +214,72 @@ function TopValueLabel({ x, y, width = 0, value }) {
   )
 }
 
-// The legend chips on one line, never wrapped or cut mid-name: 14px labels with gap-4; if they don't fit, 13px with
-// gap-3; if they still don't, as many as fit (brand first) and a "+N more" chip with the rest. Measured
-// from the row's own width, again on every resize and once the web fonts have loaded.
-const GAP = { md: 16, sm: 12 }
-function FitChips({ items, chip, more, measureKey, extra = 0, wrap = false }) {
-  // tablet and desktop: the brand + its 3 competitors always show by name; with long names the row wraps to a second
-  // line (the chart takes the height that's left) and "+N more" holds only the brands that aren't drawn
-  if (wrap) {
-    return (
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
-        {items.map((s) => chip(s, false))}
-        {extra > 0 && more([], false)}
-      </div>
-    )
-  }
-  return <FitChipsRow items={items} chip={chip} more={more} measureKey={measureKey} extra={extra} />
-}
-function FitChipsRow({ items, chip, more, measureKey, extra }) {
-  const row = useRef(null)
-  const probe = useRef(null)
-  const [fit, setFit] = useState({ small: false, count: items.length })
-  const keys = items.map((s) => s.key).join('|')
+// The legend chips on one line, never wrapped. Wider screens: short names stay whole and only the longest end in an
+// ellipsis, all cut to one width (chipCap; the full name is in the tooltip), measured again on resize and once the web
+// fonts load. Phones: the chips scroll sideways, with a soft fade on the side(s) that have more. The "All N brands"
+// menu stays at the end either way.
+const CHIP_GAP = 4
+function ChipRow({ mobile, children, menu, measureKey }) {
+  const box = useRef(null)
+  const [edges, setEdges] = useState({ left: false, right: false })
+  const [cap, setCap] = useState(Infinity)
   useLayoutEffect(() => {
+    const el = box.current
+    if (mobile || !el) return
     const measure = () => {
-      if (!row.current || !probe.current) return
-      const avail = row.current.clientWidth
-      const widths = (size) => [...probe.current.querySelectorAll(`[data-probe="${size}"]`)].map((n) => n.getBoundingClientRect().width)
-      const md = widths('md')
-      const sm = widths('sm')
-      const moreW = probe.current.querySelector('[data-probe="more"]')?.getBoundingClientRect().width ?? 0
-      const span = (w, n, gap) => w.slice(0, n).reduce((a, b) => a + b, 0) + gap * Math.max(0, n - 1)
-      // brands outside the drawn 4 always have a "+N more", so its width is always kept
-      const room = extra > 0 ? avail - moreW - GAP.sm : avail
-      let next
-      if (span(md, md.length, GAP.md) <= room) next = { small: false, count: items.length }
-      else if (span(sm, sm.length, GAP.sm) <= room) next = { small: true, count: items.length }
-      else {
-        // as many as fit next to "+N more"; on a phone that can be none (then "+N more" holds every brand)
-        let n = items.length - 1
-        while (n > 0 && span(sm, n, GAP.sm) + GAP.sm + moreW > avail) n--
-        next = { small: true, count: n }
-      }
-      setFit((f) => (f.small === next.small && f.count === next.count ? f : next))
+      // a chip's full width = its width now + the part of its name the ellipsis hides
+      const widths = [...el.children].map((b) => {
+        const t = b.querySelector('.truncate')
+        return b.offsetWidth + (t ? t.scrollWidth - t.clientWidth : 0)
+      })
+      const next = chipCap(widths, el.clientWidth, CHIP_GAP)
+      setCap((c) => (c === next ? c : next))
     }
     measure()
     const ro = new ResizeObserver(measure)
-    ro.observe(row.current)
+    ro.observe(el)
     document.fonts?.ready.then(measure)
     return () => ro.disconnect()
-  }, [keys, measureKey, extra]) // eslint-disable-line react-hooks/exhaustive-deps
-  const shown = items.slice(0, fit.count)
-  const rest = items.slice(fit.count)
+  }, [mobile, measureKey])
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!mobile || !el) return
+    const read = () => {
+      const next = { left: el.scrollLeft > 1, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1 }
+      setEdges((e) => (e.left === next.left && e.right === next.right ? e : next))
+    }
+    read()
+    el.addEventListener('scroll', read, { passive: true })
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', read); ro.disconnect() }
+  }, [mobile])
+  const fade = mobile && (edges.left || edges.right)
+    ? `linear-gradient(to right, ${edges.left ? 'transparent' : '#000'}, #000 24px, #000 calc(100% - 24px), ${edges.right ? 'transparent' : '#000'})`
+    : undefined
   return (
-    <div ref={row} className="relative min-w-0 flex-1">
-      <div className={`flex items-center ${fit.small ? 'gap-3' : 'gap-4'}`}>
-        {shown.map((s) => chip(s, fit.small))}
-        {rest.length + extra > 0 && more(rest, fit.small)}
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div ref={box} style={fade ? { maskImage: fade, WebkitMaskImage: fade } : { '--chip-max': Number.isFinite(cap) ? `${cap}px` : 'none' }}
+        className={`flex min-w-0 flex-1 items-center gap-1 ${mobile ? 'overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'overflow-hidden'}`}>
+        {children}
       </div>
-      {/* off-screen copies at both sizes, for the widths; clipped, so the copies never widen the page (on phones that
-          made the whole layout, and every drawer, wider than the screen) */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-        <div ref={probe} aria-hidden inert="" className="invisible absolute left-0 top-0 flex w-max whitespace-nowrap">
-          {items.map((s) => <span key={`md-${s.key}`} data-probe="md" className="inline-flex">{chip(s, false)}</span>)}
-          {items.map((s) => <span key={`sm-${s.key}`} data-probe="sm" className="inline-flex">{chip(s, true)}</span>)}
-          <span data-probe="more" className="inline-flex"><MoreTrigger n={items.length + extra} small /></span>
-        </div>
-      </div>
+      {menu}
     </div>
   )
 }
 
-const MoreTrigger = forwardRef(function MoreTrigger({ n, small, open, ...rest }, ref) {
-  return (
-  <button ref={ref} type="button" aria-haspopup="menu" aria-expanded={!!open} {...rest}
-    className={`inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} font-medium text-stone-600 outline-none transition-colors duration-150 hover:bg-[var(--tint)] hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus`}>
-    +{n} more <ChevronDown size={14} className="text-stone-500" aria-hidden />
-  </button>
-  )
-})
-
-// "+N more": the drawn brands' chips that didn't fit (show / hide, the same marks), then every brand outside the 4
-// drawn, by share; picking one swaps it in for the 3rd competitor (`swapOut`), which moves into this list
-function MoreChips({ rest, small, hidden, marker, onToggle, swaps = [], swapOut, onSwap }) {
+// "All 7 brands ▾": every brand (logo, name, latest share) as a checklist of what's on the chart. At most 4: the brand
+// (always on, locked) + 3 competitors. Checking a 4th competitor swaps out the last one, with a short note saying so.
+function BrandsMenu({ brands, focalKey, drawn, onPick, mobile }) {
   const [open, setOpen] = useState(false)
-  const [place, setPlace] = useState({ left: false, shift: 0 })
+  const [note, setNote] = useState('')
   const wrap = useRef(null)
   const btn = useRef(null)
   const menu = useRef(null)
-  const ITEM = '[role=menuitemcheckbox],[role=menuitem]'
-  // the list opens toward the side with room (a phone's "+N more" can sit near the left edge)
-  useLayoutEffect(() => {
-    if (!open || !menu.current || !btn.current) return
-    const b = btn.current.getBoundingClientRect()
-    const w = menu.current.offsetWidth
-    if (b.right - w >= 16) setPlace({ left: false, shift: 0 })
-    else setPlace({ left: true, shift: Math.min(0, window.innerWidth - 16 - (b.left + w)) })
-  }, [open])
+  const ITEM = '[role=menuitemcheckbox]'
   useEffect(() => {
-    if (!open) return
-    menu.current?.querySelector(ITEM)?.focus()
+    if (!open) { setNote(''); return }
+    menu.current?.querySelector(`${ITEM}:not([aria-disabled=true])`)?.focus()
     const out = (e) => { if (!wrap.current?.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', out)
     return () => document.removeEventListener('mousedown', out)
@@ -321,40 +291,43 @@ function MoreChips({ rest, small, hidden, marker, onToggle, swaps = [], swapOut,
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); els[(i + (e.key === 'ArrowDown' ? 1 : -1) + els.length) % els.length]?.focus() }
     else if (e.key === 'Tab') setOpen(false)
   }
-  const n = rest.length + swaps.length
-  const row = 'flex min-h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] leading-[18px] outline-none hover:bg-tint focus-visible:bg-tint'
+  const name = (k) => brandName(brands.find((b) => b.key === k)?.label ?? k)
+  const pick = (key) => {
+    const r = pickRival(drawn, key)
+    if (r.drawn === drawn) { setNote('At least one competitor stays on the chart'); return }
+    onPick(r.drawn)
+    setNote(r.out ? `Showing ${name(key)} instead of ${name(r.out)}. Up to 4 brands at a time.` : '')
+  }
   return (
     <div ref={wrap} className="relative shrink-0" onKeyDown={open ? onKey : undefined}>
-      <MoreTrigger ref={btn} n={n} small={small} open={open} onClick={() => setOpen((o) => !o)} aria-label={`${n} more brands`} />
+      <button ref={btn} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+        aria-label={`All ${brands.length} brands: pick up to 4 for the chart`}
+        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-raised pl-3 pr-2.5 text-small font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
+        {mobile ? `All ${brands.length}` : `All ${brands.length} brands`}
+        <ChevronDown size={13} className={`text-stone-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} aria-hidden />
+      </button>
       {open && (
-        <div ref={menu} role="menu" aria-label="More brands" style={place.shift ? { transform: `translateX(${place.shift}px)` } : undefined}
-          className={`absolute ${place.left ? 'left-0' : 'right-0'} top-full z-30 mt-1 w-max min-w-56 max-w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-line bg-raised p-1 shadow-md`}>
-          {rest.map((s) => {
-            const shown = !hidden.includes(s.key)
+        <div ref={menu} role="menu" aria-label="Brands on the chart"
+          className="absolute right-0 top-full z-30 mt-1 w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-line bg-raised p-1 shadow-md motion-safe:animate-[fade-in_120ms_ease-out]">
+          <div className="px-2 pb-1 pt-1.5 text-[12px] leading-4 text-stone-500">Up to 4 on the chart</div>
+          {brands.map((b) => {
+            const you = b.key === focalKey
+            const on = you || drawn.includes(b.key)
             return (
-              <button key={s.key} type="button" role="menuitemcheckbox" aria-checked={shown} onClick={() => onToggle(s.key)}
-                className={`${row} ${shown ? 'font-medium text-stone-900' : 'text-stone-600'}`}>
-                {marker(s, shown)}
-                <span className="flex-1">{brandName(s.label)}</span>
+              <button key={b.key} type="button" role="menuitemcheckbox" aria-checked={on} aria-disabled={you || undefined}
+                onClick={() => !you && pick(b.key)} title={brandName(b.label)}
+                className={`flex min-h-9 w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] leading-[18px] outline-none focus-visible:bg-tint ${you ? 'cursor-default' : 'hover:bg-tint'} ${on ? 'text-stone-900' : 'text-stone-600'}`}>
+                <span aria-hidden className={`grid h-4 w-4 shrink-0 place-items-center rounded-[4px] ${on ? (you ? 'bg-stone-400' : 'bg-ink') : ''}`}
+                  style={on ? undefined : { boxShadow: 'inset 0 0 0 1.5px var(--color-stone-500)' }}>
+                  {on && <Check size={12} strokeWidth={3} style={{ color: 'var(--line-check)' }} />}
+                </span>
+                <SiteLogo domain={b.label} name={brandName(b.label)} className="h-5 w-5 shrink-0 rounded" imgPad="p-0" initialClass="text-[10px]" plate />
+                <span className={`min-w-0 flex-1 truncate ${on ? 'font-medium' : ''}`}>{brandName(b.label)}{you && <span className="font-normal text-stone-500"> · you</span>}</span>
+                <span className="num shrink-0 pl-2 text-stone-500">{b.share}%</span>
               </button>
             )
           })}
-          {swaps.length > 0 && (
-            <>
-              {rest.length > 0 && <div className="mx-2 my-1 h-px bg-stone-100" aria-hidden />}
-              <div className="px-2 pb-1 pt-1.5 text-[12px] leading-4 text-stone-500">
-                Pick one to show instead of {brandName(swapOut.label)}
-              </div>
-              {swaps.map((s) => (
-                <button key={s.key} type="button" role="menuitem" onClick={() => { onSwap(s.key); setOpen(false); btn.current?.focus() }}
-                  className={`${row} text-stone-700`}>
-                  <span className="h-2 w-2 shrink-0 rounded-full shadow-[inset_0_0_0_1.5px_var(--color-stone-400)]" aria-hidden />
-                  <span className="flex-1">{brandName(s.label)}</span>
-                  <span className="num pl-3 text-stone-500">{s.share}%</span>
-                </button>
-              ))}
-            </>
-          )}
+          <div aria-live="polite" className={note ? 'mx-1 mt-1 border-t border-line px-1 pb-1 pt-2 text-[12px] leading-4 text-stone-600' : 'sr-only'}>{note}</div>
         </div>
       )}
     </div>
@@ -416,15 +389,16 @@ export default function VisibilityHistory() {
   const [hovered, setHovered] = useState(null) // series key highlighted from the legend
   useEffect(() => writeView(view), [view])
 
-  // competitors by share (highest first); the top 3 are drawn (or 2 + the one swapped in), the rest sit under "+N more"
+  // competitors by share (highest first); the top 3 are drawn unless others were picked in "All N brands"
   const ranked = historySeries.filter((s) => s.key !== YOU).sort((a, b) => b.share - a.share)
-  const { drawn, rest: notDrawn } = drawnRivals(ranked.map((s) => s.key), view.swap)
+  const rankedKeys = ranked.map((s) => s.key)
+  const drawn = view.picks?.swap ? drawnRivals(rankedKeys, view.picks.swap).drawn : picksFrom(rankedKeys, view.picks, MAX_RIVALS)
+  const notDrawn = rankedKeys.filter((k) => !drawn.includes(k))
   const byKey = (k) => historySeries.find((s) => s.key === k)
   const COMPETITORS = drawn.map(byKey) // the competitors on the chart (and in the legend), in slot order
-  const SWAPS = notDrawn.map(byKey)
   SLOT = Object.fromEntries(drawn.map((k, i) => [k, i]))
 
-  // the chart reads ONLY this. Brands under "+N more" are left out like hidden ones.
+  // the chart reads ONLY this. Brands not picked are left out like hidden ones.
   // engine filter: every series is that engine's share
   const h = useMemo(
     () => getHistory({ ...view, hidden: [...view.hidden, ...notDrawn], focal: YOU, dataset, scale: engine === 'all' ? null : engineScale(engine) }),
@@ -461,8 +435,12 @@ export default function VisibilityHistory() {
       if (COMPETITORS.every((c) => hidden.includes(c.key))) return { ...v, hidden: [], compare: false }
       return { ...v, hidden }
     })
-  // "+N more" → a brand swapped in for the 3rd competitor (shown, even if it was hidden before)
-  const swapIn = (key) => setView((v) => ({ ...v, swap: key === ranked[2]?.key ? null : key, hidden: v.hidden.filter((k) => k !== key) }))
+  // "All N brands" → the competitors on the chart (a newly picked one shows, even if it was hidden before)
+  const setPicks = (next) => setView((v) => ({
+    ...v,
+    picks: next.join(',') === rankedKeys.slice(0, MAX_RIVALS).join(',') ? null : next,
+    hidden: v.hidden.filter((k) => k === YOU || (next.includes(k) && drawn.includes(k))),
+  }))
 
   const compare = view.compare
   const isGrowth = chartType === 'growth'
@@ -471,7 +449,7 @@ export default function VisibilityHistory() {
   const isLine = chartType === 'line'
   // hovering a pill: line mode drops the others to 25%, bar/growth keep 30%
   // explain mode ("Why?"): the series the insight is about stay, the rest dim
-  const explain = useExplain(`${chartType}|${view.granularity}|${view.range}|${view.compare}|${engine}|${YOU}|${view.swap}`)
+  const explain = useExplain(`${chartType}|${view.granularity}|${view.range}|${view.compare}|${engine}|${YOU}|${drawn.join(',')}`)
   const dim = (key) => (hovered && hovered !== key ? (isLine ? 0.25 : 0.3) : 1) * (hlOpacity(explain, `series:${key}`) ?? 1)
   // points scored before the scoring change: lighter
   // (lines at 40%; bars as a 25% fill with a full-colour outline, so ink and the greys stay told apart)
@@ -608,8 +586,8 @@ export default function VisibilityHistory() {
     : <span className="h-2 w-2 shrink-0 rounded-full" style={chartType === 'bar'
       ? (shown ? { background: barFill(s).fill, opacity: barFill(s).opacity } : { boxShadow: `inset 0 0 0 1.5px ${barFill(s).fill}`, opacity: barFill(s).opacity })
       : (shown ? { background: color(s) } : { boxShadow: `inset 0 0 0 1.5px ${color(s)}` })} />)
-  // one legend chip = a show/hide toggle for that series; small: the 13px step (FitChips)
-  const chip = (s, small = false) => {
+  // one legend chip = a show/hide toggle for that series; a long name ends in an ellipsis, the full name in the tooltip
+  const chip = (s) => {
     const shown = !view.hidden.includes(s.key)
     const lastOne = shown && series.length === 1 // the last visible series can't be hidden
     return (
@@ -623,17 +601,18 @@ export default function VisibilityHistory() {
                 onMouseLeave={() => setHovered(null)}
                 onFocus={() => shown && setHovered(s.key)}
                 onBlur={() => setHovered(null)}
+                aria-label={`${brandName(s.label)}: ${shown ? 'shown' : 'hidden'}`}
                 className={isLine
-                  ? `inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
+                  ? `inline-flex h-8 $shrink-0 ${mobile ? 'max-w-[15rem]' : 'max-w-[var(--chip-max)]'} items-center gap-2 whitespace-nowrap rounded-md px-2 text-[14px] leading-5 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'font-medium text-stone-900' : 'font-normal text-stone-600'
                   }`
-                  : `inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
+                  : `inline-flex h-8 $shrink-0 ${mobile ? 'max-w-[15rem]' : 'max-w-[var(--chip-max)]'} items-center gap-2 whitespace-nowrap rounded-full px-3 text-[14px] leading-5 outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'bg-tint text-stone-900' : 'bg-transparent text-stone-600/60 hover:text-stone-600'
                   }`}
-                title={lastOne ? 'At least one brand stays on the chart' : shown ? `Hide ${brandName(s.label)}` : `Show ${brandName(s.label)}`}
+                title={lastOne ? `${brandName(s.label)} · at least one brand stays on the chart` : brandName(s.label)}
               >
                 {marker(s, shown)}
-                {brandName(s.label)}
+                <span className="min-w-0 truncate">{brandName(s.label)}</span>
               </button>
     )
   }
@@ -664,22 +643,16 @@ export default function VisibilityHistory() {
         </div>
       </div>
 
-      {/* legend = filter: one line, never wrapped (FitChips). At most 4 brands: the brand + 3 competitors; the others
-          are under "+N more", where picking one swaps it in for the 3rd */}
-      <div className="mt-3 flex min-w-0 items-start">
-        {/* top-aligned: when the chips wrap to a second line, Compare stays on the first */}
+      {/* legend = filter: one line, never wrapped. At most 4 brands: the brand + 3 competitors; "All N brands" at the
+          end picks which (checking a 4th competitor swaps out the last one) */}
+      <div className="mt-3 flex min-h-9 min-w-0 items-center">
         <span className="flex h-8 shrink-0 items-center"><Switch checked={compare} onChange={setCompare} className="shrink-0">Compare</Switch></span>
-        <span className="mx-3 mt-1.5 h-5 w-px shrink-0 bg-stone-200" aria-hidden />
+        <span className="mx-3 h-5 w-px shrink-0 bg-stone-200" aria-hidden />
         {compare ? (
-          <FitChips
-            items={[byKey(YOU), ...COMPETITORS]}
-            extra={SWAPS.length}
-            wrap={!mobile}
-            measureKey={`${chartType}|${view.hidden.join(',')}|${view.swap}`}
-            chip={chip}
-            more={(rest, small) => <MoreChips rest={rest} small={small} hidden={view.hidden} marker={marker} onToggle={toggleHidden}
-              swaps={SWAPS} swapOut={COMPETITORS[COMPETITORS.length - 1]} onSwap={swapIn} />}
-          />
+          <ChipRow mobile={mobile} measureKey={`${chartType}|${drawn.join(',')}|${view.hidden.join(',')}`}
+            menu={notDrawn.length > 0 && <BrandsMenu brands={[byKey(YOU), ...ranked]} focalKey={YOU} drawn={drawn} onPick={setPicks} mobile={mobile} />}>
+            {[byKey(YOU), ...COMPETITORS].map((s) => chip(s))}
+          </ChipRow>
         ) : isLine ? (
           <span className="inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap px-1 text-[14px] leading-5 font-medium text-stone-900">
             <LegendBox color={chart.lineYou} checked /> {focal.name}
