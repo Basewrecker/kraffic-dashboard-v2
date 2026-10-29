@@ -352,7 +352,7 @@ export function buildReport(rawOpts, prompt = '') {
   const byShare = d.rivals.map((r) => ({ key: r.key, name: brandName(r.domain), domain: r.domain, from: d.share[r.key][i0], now: d.share[r.key].at(-1) })).sort((a, b) => b.now - a.now)
   const lineOf = (key) => { const i = byShare.findIndex((r) => r.key === key); return i >= 0 && i < 3 ? `var(--line-${i + 1})` : 'var(--color-stone-400)' }
   const youRow = { key: youKey(d), name: d.name, domain: d.domain, you: true, from: me[i0], now: me.at(-1) }
-  let verdict, headline, visual
+  let verdict, headline, visual, strip
   const chips = []
 
   // merge, don't repeat: the hero answers the question (no stat row); one table per report holds the topics, their
@@ -380,39 +380,44 @@ export function buildReport(rawOpts, prompt = '') {
     // the competitor in its own brand colour (the Visibility history's), never red
     const color = byShare.findIndex((x) => x.key === r.key) < 3 ? lineOf(r.key) : 'var(--line-1)'
     verdict = ours > theirs * 4 ? 'Winning' : ours > theirs ? 'Mixed' : 'Losing'
-    headline = `${rv} wins ${theirs} prompts, mostly ${list(h.themes.slice(0, 2).map((t) => t.theme.toLowerCase()))}.`
-    visual = promptStrip([
-      { key: 'onlyYou', label: 'Only you', n: h.onlyYou, tone: 'you' },
-      { key: 'youFirst', label: 'Both, you first', n: h.youFirst, tone: 'youSoft' },
-      { key: 'themFirst', label: `Both, ${rv} first`, n: h.themFirst, tone: 'themSoft' },
-      { key: 'onlyThem', label: `Only ${rv}`, n: h.onlyThem, tone: 'them' },
-      { key: 'neither', label: 'Neither', n: h.neither, tone: 'none' },
-    ], { color })
+    // the counts live in the hero's head-to-head; the headline says where they come from
+    headline = `${rv}’s wins come mostly from ${list(h.themes.slice(0, 2).map((t) => t.theme.toLowerCase()))}.`
     // every prompt they win: the engine that gave it to them, and whether you're named on it at all
     const wins = h.themes.flatMap((t) => t.prompts.map((p) => ({ text: p, theme: t.theme, engine: h.wins?.[p]?.engine ?? 'aio', only: !!h.wins?.[p]?.only })))
-    const engCounts = asked.filter((e) => d.ran.includes(e) && h.engines[e]).map((e) => ({ id: e, name: ENGINE_NAMES[e], n: wins.filter((w) => w.engine === e).length }))
+    // the head-to-head (the one place these two counts and their changes appear) and, under it, every prompt once
+    visual = { kind: 'split', color, you: { name: d.name, n: ours, delta: h.youWin.at(-1) - h.youWin[i0] }, them: { name: rn, n: theirs, delta: h.theyWin.at(-1) - h.theyWin[i0] }, total: d.prompts, since }
+    strip = promptStrip([
+      { key: 'onlyYou', label: 'Only you', n: h.onlyYou, tone: 'you' },
+      { key: 'youFirst', label: 'Both, you first', n: h.youFirst, tone: 'youSoft' },
+      { key: 'themFirst', label: `Both, ${rv} first`, n: h.themFirst, tone: 'themSoft', prompts: wins.filter((w) => !w.only).map((w) => w.text) },
+      { key: 'onlyThem', label: `Only ${rv}`, n: h.onlyThem, tone: 'them', prompts: wins.filter((w) => w.only).map((w) => w.text) },
+      { key: 'neither', label: 'Neither', n: h.neither, tone: 'none' },
+    ], { color })
+    const onEngines = asked.filter((e) => d.ran.includes(e) && h.engines[e])
     const bare = h.why.filter((w) => !w.you).length
+    // the page battle: the page AI cites for them and for you on each topic, on one scale across the table
+    const short = (path) => { const segs = path.split('/').filter(Boolean); return segs.length > 1 ? `…/${segs.at(-1)}` : path }
+    const page = (c) => c && { text: short(c.path), title: c.path, n: c.n }
     S.push({ id: 'where', title: `Where ${rv} wins`, takeaway: `${h.themes[0].theme} is the biggest gap${bare ? `; on ${bare === 1 ? 'one topic' : `${bare} topics`} AI cites no page of yours` : ''}.`, visual: {
       kind: 'topicTable', color, dotsLabel: `${rv} wins`, actionLabel: 'What to do',
-      columns: [{ key: 'them', label: `${rv}’s cited page`, color }, { key: 'you', label: 'Your page', you: true }],
+      scale: Math.max(...h.why.flatMap((w) => [w.them?.n ?? 0, w.you?.n ?? 0])),
+      columns: [{ key: 'battle', label: 'Cited page · answers', kind: 'battle' }],
       rows: [...h.themes].sort((a, b) => b.prompts.length - a.prompts.length).map((t) => {
         const w = h.why.find((x) => x.theme === t.theme)
-        // the page by its last segment (the full path on hover), so it fits its column
-        const page = (c) => c && { text: c.path.split('/').filter(Boolean).length > 1 ? `…/${c.path.split('/').filter(Boolean).at(-1)}` : c.path, title: c.path, sub: `${c.n} ${c.n === 1 ? 'answer' : 'answers'}` }
+        const its = wins.filter((x) => x.theme === t.theme)
         return {
-          theme: t.theme, ...ex(t.prompts), prompts: wins.filter((x) => x.theme === t.theme).map((x) => ({ text: x.text, engine: x.engine, note: x.only ? `Only ${rv}` : `${rv} first` })),
+          theme: t.theme, ...ex(t.prompts), prompts: its.map((x) => ({ text: x.text, engine: x.engine, note: x.only ? `Only ${rv}` : `${rv} first` })),
           dots: dotsOf(t.prompts.length, 'them'), dotsAria: `${t.prompts.length} won by ${rv}`,
-          cells: { them: page(w?.them), you: page(w?.you) ?? { text: 'No page', neg: true } }, action: actOf(t.theme),
+          engines: onEngines.map((e) => ({ id: e, name: ENGINE_NAMES[e], n: its.filter((x) => x.engine === e).length })).filter((e) => e.n > 0),
+          cells: { battle: { them: page(w?.them), you: page(w?.you), themName: rv, youName: d.name } }, action: actOf(t.theme),
         }
       }),
-      notes: [`Prompts ${rv} wins, by engine: ${engCounts.map((e) => `${e.name} ${e.n}`).join(' · ')}.`],
     } })
     const lead = h.youWin.map((v, i) => v - h.theyWin[i])
-    S.push({ id: 'momentum', title: 'Momentum', visual: { kind: 'momentum', since, items: [
-      { label: 'Lead', value: `${lead.at(-1)} prompts`, d: lead.at(-1) - lead[i0] },
-      { label: d.name, d: h.youWin.at(-1) - h.youWin[i0] },
-      { label: rv, d: h.theyWin.at(-1) - h.theyWin[i0], them: true, color },
-    ] } })
+    S.push({ id: 'momentum', title: 'Momentum', takeaway: lead.at(-1) >= lead[i0] ? 'Your lead is growing: you’re winning prompts faster than they are.' : 'Your lead is shrinking.', visual: {
+      kind: 'leadLines', since, dates: DATES.slice(i0), lead: lead.at(-1), leadDelta: lead.at(-1) - lead[i0],
+      you: { name: d.name, series: h.youWin.slice(i0) }, them: { name: rv, series: h.theyWin.slice(i0), color },
+    } })
   } else if (o.kind === 'ceo') {
     const top = ranked[0]
     const ahead = me.at(-1) > top.now
@@ -518,7 +523,7 @@ export function buildReport(rawOpts, prompt = '') {
 
   const secs = o.length === 'one' ? S.slice(0, 2) : S
   const blocks = [
-    { id: 'hero', type: 'hero', data: { client, brand: d.name, domain: d.domain, period: periodRange(o.period), span: shortRange(DATES[i0], 'Oct 26'), counted: engines.map((e) => ENGINE_NAMES[e]), audience: o.audience, verdict, headline, kind: o.kind, since, chips, visual } },
+    { id: 'hero', type: 'hero', data: { strip, client, brand: d.name, domain: d.domain, period: periodRange(o.period), span: shortRange(DATES[i0], 'Oct 26'), counted: engines.map((e) => ENGINE_NAMES[e]), audience: o.audience, verdict, headline, kind: o.kind, since, chips, visual } },
     ...secs.map((s) => ({ id: `s-${s.id}`, type: 'section', data: s })),
     { id: 'sources', type: 'sources', data: { span: shortRange(DATES[i0], 'Oct 26'), off: noData.map((e) => ENGINE_NAMES[e]), period: o.period, syncs: DATES.length - i0, from: DATES[i0], to: 'Oct 26', engines: engines.map((e) => ENGINE_NAMES[e]), left } },
   ].filter(Boolean)

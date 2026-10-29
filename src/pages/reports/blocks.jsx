@@ -305,7 +305,7 @@ function Split({ v }) {
       <div className="mt-2 flex justify-between gap-4 text-[13px] leading-[18px]">
         <Delta n={v.you.delta} bad={v.you.delta < 0} />
         <span className={META}>vs {v.since}</span>
-        <Delta n={v.them.delta} bad={v.them.delta > 0} />
+        <Delta n={v.them.delta} />
       </div>
     </figure>
   )
@@ -331,10 +331,29 @@ const SEG_TONE = (v) => ({
 })
 function PromptStrip({ v }) {
   const c = SEG_TONE(v)
+  const [hi, setHi] = useState(null)
+  const segs = v.segs.filter((x) => x.n > 0)
+  let at = 0
+  const spans = segs.map((x) => { const from = at; at += x.n; return { ...x, mid: ((from + x.n / 2) / v.total) * 100 } })
+  const tip = hi != null ? spans[hi] : null
   return (
     <div className="w-full">
-      <div role="img" aria-label={`${v.total} tracked prompts: ${v.segs.map((x) => `${x.label} ${x.n}`).join(', ')}`} className="flex h-2.5 w-full gap-[2px] overflow-hidden rounded-full">
-        {v.segs.filter((x) => x.n > 0).map((x) => <span key={x.key} className="h-full" style={{ flex: `${x.n} 1 0`, background: c[x.tone] }} />)}
+      <div className="relative">
+        <div role="img" aria-label={`${v.total} tracked prompts: ${v.segs.map((x) => `${x.label} ${x.n}`).join(', ')}`} className="flex h-3.5 w-full gap-[2px] overflow-hidden rounded-full">
+          {spans.map((x, k) => (
+            <span key={x.key} tabIndex={0} aria-label={x.label} onMouseEnter={() => setHi(k)} onMouseLeave={() => setHi(null)} onFocus={() => setHi(k)} onBlur={() => setHi(null)}
+              className="h-full outline-none transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-focus" style={{ flex: `${x.n} 1 0`, background: c[x.tone], opacity: hi != null && hi !== k ? 0.45 : 1 }} />
+          ))}
+        </div>
+        {tip && (
+          <span role="tooltip" className={`pointer-events-none absolute bottom-full z-20 mb-2 block w-max max-w-[300px] rounded-lg border border-line bg-raised px-3 py-2 text-[12px] leading-[18px] text-stone-700 shadow-md ${tip.mid < 18 ? '' : tip.mid > 82 ? '-translate-x-full' : '-translate-x-1/2'}`}
+            style={{ left: tip.mid < 18 ? 0 : tip.mid > 82 ? '100%' : `${tip.mid}%` }}>
+            <b className="block font-semibold text-stone-900">{tip.label}</b>
+            {tip.prompts?.length
+              ? <>{tip.prompts.slice(0, 6).map((p) => <span key={p} className="block truncate">{p}</span>)}{tip.prompts.length > 6 && <span className={`block ${t3}`}>+{tip.prompts.length - 6} more</span>}</>
+              : <span className={`block ${t3}`}>Prompt Hub lists these prompts.</span>}
+          </span>
+        )}
       </div>
       <p className={`mt-3 flex flex-wrap gap-x-5 gap-y-1.5 ${LABEL} tabular-nums`}>
         {v.segs.map((x) => (
@@ -370,6 +389,7 @@ function HeroBand({ data: d }) {
         {wide && <div className="mt-8"><V v={d.visual} /></div>}
       </div>
       {V && !wide && <div className="flex min-w-0 md:col-span-5 md:justify-end md:pt-7"><V v={d.visual} /></div>}
+      {d.strip && <div className="min-w-0 md:col-span-12"><PromptStrip v={d.strip} /></div>}
     </header>
   )
 }
@@ -897,17 +917,24 @@ function CompareTable({ v }) {
 // full prompt list (not in a client report, which is read as a PDF). Notes: one t3 line each, under the table
 const DOT_TONE = (v) => ({ you: INK, red: RED, them: v.color ?? 'var(--line-1)' })
 function TopicTable({ v }) {
-  const cols = `minmax(0,1.5fr) minmax(72px,0.55fr)${v.columns.map(() => ' minmax(0,1.1fr)').join('')}`
+  const cols = `minmax(0,1.5fr) minmax(72px,0.55fr)${v.columns.map((c) => (c.kind === 'battle' ? ' minmax(0,2.1fr)' : ' minmax(0,1.1fr)')).join('')}`
+  const names = v.rows.find((r) => r.cells?.battle)?.cells.battle
   return (
     <div className="flex min-w-0 flex-col" style={{ '--cols': cols }}>
       <div className={`grid gap-x-5 border-b border-[var(--div)] pb-2 ${META} max-md:hidden md:grid-cols-[var(--cols)]`}>
         <span>Topic</span><span>{v.dotsLabel}</span>
-        {v.columns.map((c) => (
+        {v.columns.map((c) => (c.kind === 'battle' && names ? (
+          <span key={c.key} className="inline-flex min-w-0 flex-wrap items-center gap-x-3">
+            <span className="truncate">{c.label}</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: v.color }} aria-hidden />{names.themName}</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-ink" aria-hidden />You</span>
+          </span>
+        ) : (
           <span key={c.key} className="inline-flex min-w-0 items-center gap-1.5">
             {(c.color || c.you) && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: c.color ?? INK }} aria-hidden />}
             <span className="truncate">{c.label}</span>
           </span>
-        ))}
+        )))}
       </div>
       <ul className="flex flex-col divide-y divide-[var(--div)]">{v.rows.map((r) => <TopicTableRow key={r.theme} r={r} v={v} />)}</ul>
       {v.notes?.map((n) => <p key={n} className={`mt-3 text-[13px] leading-[18px] tabular-nums ${t3} [text-wrap:pretty]`}>{n}</p>)}
@@ -946,9 +973,15 @@ function TopicTableRow({ r, v }) {
                 {r.dots.map((t, i) => <span key={i} className="h-[7px] w-[7px] rounded-full" style={t === 'none' ? { boxShadow: 'inset 0 0 0 1px var(--color-line-strong)' } : { background: tone[t] }} />)}
               </span>
             : <span className={`text-[13px] leading-[18px] ${t3}`}>No change</span>}
+          {r.engines?.length > 0 && (
+            <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] leading-4 tabular-nums text-stone-600" aria-label={r.engines.map((e) => `${e.name} ${e.n}`).join(', ')}>
+              {r.engines.map((e) => <span key={e.id} className="inline-flex items-center gap-1" title={e.name}><EngineMark id={e.id} size={12} />{e.n}</span>)}
+            </span>
+          )}
         </div>
         {v.columns.map((c) => {
           const x = r.cells?.[c.key]
+          if (c.kind === 'battle') return <div key={c.key} className="min-w-0">{mLabel(c.label)}<PageBattle b={x} scale={v.scale} color={v.color} /></div>
           return (
             <div key={c.key} className="min-w-0">
               {mLabel(c.label)}
@@ -983,6 +1016,83 @@ function TopicTableRow({ r, v }) {
         </ul>
       )}
     </li>
+  )
+}
+// the page battle: the page AI cites for them and for you on this topic, two bars on one scale (the table's), the
+// answers at each bar's end. No page of yours: an empty dashed bar, "No page" in red
+function PageBattle({ b, scale, color }) {
+  const line = (c, fill, who) => (
+    <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] items-center gap-3">
+      <span className={`truncate text-[13px] leading-5 ${c ? 'text-stone-900' : 'font-medium text-negative'}`} title={c ? `${who}: ${c.title}` : undefined}>{c ? c.text : 'No page'}</span>
+      <span className="relative mr-7 h-2">
+        {c
+          ? <>
+              <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${(c.n / scale) * 100}%`, background: fill }} />
+              <span className="absolute top-1/2 -translate-y-1/2 pl-1.5 text-[12px] leading-4 tabular-nums text-stone-600" style={{ left: `${(c.n / scale) * 100}%` }}>{c.n}</span>
+            </>
+          : <span className="absolute inset-0 rounded-full border border-dashed border-line-strong" />}
+      </span>
+    </div>
+  )
+  return (
+    <div role="img" aria-label={`${b.themName}: ${b.them ? `${b.them.title}, ${b.them.n} answers` : 'no page'}. You: ${b.you ? `${b.you.title}, ${b.you.n} answers` : 'no page'}.`} className="flex min-w-0 flex-col gap-1.5">
+      {line(b.them, color ?? 'var(--line-1)', b.themName)}
+      {line(b.you, INK, b.youName)}
+    </div>
+  )
+}
+// momentum, competitor: prompts each of you wins per weekly sync; the gap tinted, the axis fitted to the data (3 lines),
+// the lines named at their ends (the counts are the hero's) and a bracket with the lead
+const NICE = [1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500]
+function LeadLines({ v }) {
+  const [ref, w] = useWidth(560)
+  const H = 180
+  const padL = 30
+  const padR = 112
+  const top = 14
+  const bot = 22
+  const all = [...v.you.series, ...v.them.series]
+  const lo0 = Math.min(...all)
+  const hi0 = Math.max(...all)
+  const step = NICE.find((st) => Math.ceil(hi0 / st) - Math.floor(lo0 / st) <= 2) ?? 1000
+  const lo = Math.floor(lo0 / step) * step
+  const ticks = [lo, lo + step, lo + 2 * step]
+  const n = v.dates.length
+  const x = (i) => padL + (i * (w - padL - padR)) / (n - 1)
+  const y = (val) => top + (1 - (val - lo) / (2 * step)) * (H - top - bot)
+  const pts = (s) => s.map((val, i) => `${x(i)},${y(val)}`)
+  const you = v.you.series
+  const them = v.them.series
+  const xe = x(n - 1)
+  const bx = xe + 10
+  const show = [0, Math.floor((n - 1) / 2), n - 1]
+  const arrow = v.leadDelta > 0 ? '▲' : v.leadDelta < 0 ? '▼' : '±'
+  return (
+    <div ref={ref} className="w-full">
+      {w > 0 && (
+        <svg width={w} height={H} role="img" aria-label={`Prompts each of you wins per week since ${v.since}: a lead of ${v.lead}, ${v.leadDelta >= 0 ? 'up' : 'down'} ${Math.abs(v.leadDelta)}`} className="block overflow-visible">
+          {ticks.map((t) => (
+            <g key={t}>
+              <line x1={padL} x2={xe} y1={y(t)} y2={y(t)} stroke="var(--div)" />
+              <text x={padL - 8} y={y(t)} dy="0.32em" textAnchor="end" className="fill-stone-500 text-[11px] tabular-nums">{t}</text>
+            </g>
+          ))}
+          <polygon points={[...pts(you), ...pts(them).reverse()].join(' ')} fill="color-mix(in srgb, var(--ink) 5%, transparent)" />
+          <polyline points={pts(them).join(' ')} fill="none" stroke={v.them.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          <polyline points={pts(you).join(' ')} fill="none" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+          <circle cx={xe} cy={y(them.at(-1))} r="3.5" fill={v.them.color} stroke="var(--color-surface)" strokeWidth="2" />
+          <circle cx={xe} cy={y(you.at(-1))} r="4" fill={INK} stroke="var(--color-surface)" strokeWidth="2" />
+          <text x={xe - 6} y={y(you.at(-1)) - 10} textAnchor="end" className="fill-stone-900 text-[12px] font-semibold">{v.you.name}</text>
+          <text x={xe - 6} y={y(them.at(-1)) - 9} textAnchor="end" className="text-[12px]" style={{ fill: v.them.color }}>{v.them.name}</text>
+          <path d={`M${bx} ${y(you.at(-1))} h5 V${y(them.at(-1))} h-5`} fill="none" stroke="var(--color-stone-400)" strokeWidth="1.25" />
+          <text x={bx + 12} y={(y(you.at(-1)) + y(them.at(-1))) / 2} dy="0.32em" className="text-[14px] tabular-nums">
+            <tspan className="fill-stone-900 font-semibold">Lead {v.lead}</tspan>
+            <tspan className={v.leadDelta < 0 ? 'fill-negative' : 'fill-stone-500'} dx="5">({arrow}{Math.abs(v.leadDelta)})</tspan>
+          </text>
+          {show.map((i) => <text key={i} x={x(i)} y={H - 4} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} className="fill-stone-500 text-[11px]">{v.dates[i]}</text>)}
+        </svg>
+      )}
+    </div>
   )
 }
 // one line: where things stand, each with its change since the start of the period. Red only for a change that
@@ -1053,7 +1163,7 @@ function ScoreLine({ v }) {
     </figure>
   )
 }
-const VISUAL = { topicTable: TopicTable, momentum: Momentum, quadrant: Quadrant, groupedList: GroupedList, topicList: GroupedList, compareTable: CompareTable, ownerBoard: OwnerBoard, dumbbell: Dumbbell, engineCols: EngineCols, citeShare: CiteShare, changeTable: ChangeTable, waffle: Waffle, ranking: Ranking, trend: Trend, diverging: Diverging, topicBars: TopicBars, engineStack: EngineStack, engineBars: EngineBars, cited: ({ v }) => <CitedList rows={v.rows} domain={v.domain} />, citedPair: CitedPair }
+const VISUAL = { topicTable: TopicTable, momentum: Momentum, leadLines: LeadLines, quadrant: Quadrant, groupedList: GroupedList, topicList: GroupedList, compareTable: CompareTable, ownerBoard: OwnerBoard, dumbbell: Dumbbell, engineCols: EngineCols, citeShare: CiteShare, changeTable: ChangeTable, waffle: Waffle, ranking: Ranking, trend: Trend, diverging: Diverging, topicBars: TopicBars, engineStack: EngineStack, engineBars: EngineBars, cited: ({ v }) => <CitedList rows={v.rows} domain={v.domain} />, citedPair: CitedPair }
 
 // the spine: every section is one row of the 12-column grid. Left 3 columns: the number, the title, one takeaway
 // (top-aligned, repeated down the page); right 9: the visual. On phones the spine stacks above the visual
@@ -1173,6 +1283,7 @@ export function explainFor(block) {
     case 'section': return {
       topicTable: 'One row per topic: a dot per prompt, the columns for this report, and the action for that topic. Open a row for its prompts.',
       momentum: 'Each number now, with its change since the start of the period.',
+      leadLines: 'Prompts each of you wins at each weekly sync in the period; the shaded band is your lead. The axis is fitted to the data.',
       quadrant: 'Every tracked prompt, by whether AI names you, them, both or neither; each block is as big as its count. Where both are named, “first” is whoever the answer names first.',
       groupedList: 'The prompts they win, by topic, with the engine whose answer named them and not you (or named them first).',
       topicList: 'Topics where prompts were won or lost in the period, with their prompts.',
