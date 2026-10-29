@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DATES, scoreStrip, shortRange, addReport, optsLine, refineSuggestions, reportById, updateReport, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
+import { DATES, library, seriesRuns, scoreStrip, shortRange, addReport, optsLine, refineSuggestions, reportById, updateReport, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
 
 const types = (r) => r.blocks.map((b) => b.type)
 const block = (r, type) => r.blocks.find((b) => b.type === type)?.data
@@ -245,4 +245,34 @@ test('the report hero and footer: the engines that ran, a compact range, what di
   const f = r.blocks.find((b) => b.type === 'sources').data
   assert.deepEqual(f.off, ['Gemini', 'Claude'])
   assert.equal(r.blocks.find((b) => b.type === 'section').data.title, 'What moved')
+})
+
+test('the library: brand-scoped series (with their runs) and one-off reports', () => {
+  const ds = library('dermasuri')
+  assert.deepEqual(ds.series.map((x) => x.title), ['Weekly summary', 'Client update'])
+  assert.equal(ds.scheduled, 2)
+  assert.ok(ds.oneOffs.every((r) => r.brand === 'dermasuri'))
+  assert.ok(ds.oneOffs.some((r) => r.id === 'r-ds-cerave'))
+  assert.ok(!ds.oneOffs.some((r) => ['r-ds-week', 'r-ds-client'].includes(r.id)), 'a scheduled report is a series, not a one-off')
+  const all = library()
+  assert.equal(all.series.length, 4)
+  assert.equal(all.scheduled, 4)
+  assert.deepEqual(new Set(all.oneOffs.map((r) => r.brand)), new Set(['foa', 'dermasuri']))
+  assert.deepEqual(library('lumen').series, [])
+})
+
+test('series runs: one per run of the schedule, newest first; the newest is the saved report itself', () => {
+  const week = seriesRuns(schedules.find((x) => x.id === 's-ds-week'))
+  assert.equal(week.length, 7)
+  assert.equal(week[0].id, 'r-ds-week')
+  assert.equal(week[0].headline, buildReport(reportById('r-ds-week').opts).headline)
+  assert.deepEqual(week.map((r) => r.date), [...DATES].reverse().slice(0, 7))
+  assert.ok(week.slice(1).every((r) => r.run && r.from === r.idx - 1))
+  assert.equal(week[1].change, `+${dataFor('dermasuri').series.named[6] - dataFor('dermasuri').series.named[5]} answers`)
+  const client = seriesRuns(schedules.find((x) => x.id === 's-ds-client'))
+  assert.deepEqual(client.map((r) => r.idx), [7, 5, 3, 1])
+  const ceo = seriesRuns(schedules.find((x) => x.id === 's-foa-ceo'))
+  assert.deepEqual(ceo.map((r) => r.idx), [7, 3])
+  assert.match(ceo[1].change, /pts share$/)
+  for (const r of [...week, ...client, ...ceo]) assert.ok(['Good week', 'Good month', 'Mixed', 'Tough week', 'Tough month', 'Winning', 'Losing'].includes(r.verdict), r.verdict)
 })

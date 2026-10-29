@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Check, LayoutGrid, List, MoreHorizontal, Repeat, Search, Sparkles, Star } from 'lucide-react'
+import { ArrowRight, Briefcase, CalendarDays, Check, ChevronRight, MoreHorizontal, PenLine, Repeat, Search, Sparkles, Star, Swords } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import Segmented from '../../components/dashboard/Segmented'
 import ActionMenu from '../../components/audit/ActionMenu'
 import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate, usePath } from '../../router'
-import { AUDIENCES, DATES, KINDS, REPORT_BRANDS, VERDICT_TONE, buildReport, dataFor, libraryItems, monthGroup, parseDay, periodRange, runSummary, savedReports, schedules, weeklyRuns } from '../../data/reports'
+import { AUDIENCES, KINDS, REPORT_BRANDS, VERDICT_TONE, buildReport, library, monthGroup, periodRange, runSummary, savedReports, schedules } from '../../data/reports'
+import { brand as workspaceBrand } from '../../store/workspace'
 import ReportThread from './ReportPage'
 import { Block, Thumb, VerdictDot } from './blocks'
 import { DotIllustration } from './DotField'
@@ -32,100 +33,84 @@ const AUD = Object.fromEntries(AUDIENCES.map((a) => [a.id, a.label]))
 const groupBy = (xs, key) => { const m = new Map(); for (const x of xs) { const k = key(x); m.set(k, [...(m.get(k) ?? []), x]) } return [...m] }
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
-// a change: ▲2 / ▼1 (red) / ±0, read out as words
-function Delta({ d }) {
-  if (!d) return <span className={`text-[12px] ${t3}`}><span aria-hidden>±0</span><span className="sr-only">no change</span></span>
-  const up = d > 0
-  return (
-    <span className={`whitespace-nowrap text-[12px] tabular-nums ${up ? t2 : 'font-medium text-negative'}`}>
-      <span aria-hidden>{up ? '▲' : '▼'}{Math.abs(d)}</span><span className="sr-only">{up ? 'up' : 'down'} {Math.abs(d)}</span>
-    </span>
-  )
-}
-
-// a report in a list: thumbnail · its headline · verdict · brand · audience · date; hovering shows "Open →".
-// An earlier run of a weekly summary opens what was sent (onRun).
-function ReportRow({ r, showBrand = true, onRun, className = '' }) {
-  const meta = (
-    <>
-      <VerdictDot verdict={r.verdict} />
-      {showBrand && <span className="inline-flex min-w-0 items-center gap-1.5"><BrandLogo id={r.brand} className="h-3.5 w-3.5" /><span className="truncate">{brandOf(r.brand)?.name}</span></span>}
-      <span>{AUD[r.audience]}</span>
-      <span className="inline-flex items-center gap-1 tabular-nums">{r.scheduled && <Repeat size={12} aria-label="Scheduled" className="text-stone-500" />}{r.created}</span>
-    </>
-  )
-  const cls = `thumb-live group flex w-full items-center gap-4 rounded-xl px-3 py-2.5 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:bg-tint focus-visible:ring-2 focus-visible:ring-focus max-md:items-start ${className}`
-  const inner = (
-    <>
-      <span className="grid h-12 w-[76px] shrink-0 place-items-center rounded-lg bg-tint transition-colors duration-150 group-hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]"><Thumb kind={r.kind} net={r.kindNet} className="h-9 w-[60px]" /></span>
-      <span className="min-w-0 flex-1">
-        <span className="line-clamp-2 text-[14px] leading-5 font-semibold text-stone-900 [text-wrap:pretty]">{r.headline}</span>
-        <span className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] leading-4 ${t3} md:hidden`}>{meta}</span>
-      </span>
-      <span className={`hidden shrink-0 items-center gap-4 text-[12px] leading-4 ${t3} md:flex [&>*:first-child]:w-[92px]`}>{meta}</span>
-      <span className="hidden w-14 shrink-0 items-center justify-end gap-1 text-[13px] font-medium text-stone-900 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:inline-flex">Open<ArrowRight size={14} aria-hidden /></span>
-    </>
-  )
-  return r.run
-    ? <button type="button" onClick={() => onRun?.(r)} className={cls}>{inner}</button>
-    : <a href={`/reports/${r.id}`} onClick={linkClick(`/reports/${r.id}`)} className={cls}>{inner}</a>
-}
-
-// ---- All reports: a library. Search and filters; the scheduled reports; the weekly verdicts as a streak; then every
-// report by month, as a gallery of tiles (hover: the key numbers) or a compact list
+// ---- All reports: the reports for the brand you're viewing (the brand switcher), or every brand, grouped by brand.
+// Calm and scannable: Starred (if any) · Series (each scheduled report, one row: its verdict history as dots, the latest
+// headline; click to see its past runs) · One-off reports by month. Search, Type and Audience; one quiet line for the
+// schedules
 const TYPES = Object.entries(KINDS).map(([id, k]) => ({ id, label: k.name }))
-const VERDICTS = [{ id: 'good', label: 'Good' }, { id: 'mixed', label: 'Mixed' }, { id: 'tough', label: 'Tough' }, { id: 'opportunity', label: 'Opportunity' }]
-const verdictGroup = (v) => (v === 'Opportunity' ? 'opportunity' : { up: 'good', down: 'tough' }[VERDICT_TONE[v]] ?? 'mixed')
+const KIND_ICON = { weekly: CalendarDays, ceo: Briefcase, rival: Swords, content: PenLine }
+const KIND_WORD = { weekly: 'Summary', ceo: 'CEO summary', rival: 'Competitor', content: 'Content plan' }
+const TONE_DOT = { up: 'var(--ink)', mid: 'var(--color-stone-400)', down: 'var(--negative)' }
+const toneOf = (v) => VERDICT_TONE[v] ?? 'mid'
+// the brand in scope: the one the brand switcher is on (when it has reports at all), else the default
+const scopeBrand = () => (REPORT_BRANDS.some((b) => b.id === workspaceBrand.id) ? workspaceBrand.id : defaultBrand())
+const H2 = 'flex items-baseline gap-2 text-[15px] leading-5 font-semibold text-stone-900'
+
 function AllReports() {
   const q0 = new URLSearchParams(window.location.search)
-  const all = useMemo(() => (mockEmpty() ? [] : libraryItems()), [])
+  const home = q0.get('brand') ?? scopeBrand()
+  const [scope, setScope] = useState(q0.get('scope') === 'all' ? 'all' : 'brand')
   const [search, setSearch] = useState('')
-  const [brandId, setBrandId] = useState(q0.get('brand') ?? 'all')
   const [type, setType] = useState(null)
   const [aud, setAud] = useState(null)
-  const [verdict, setVerdict] = useState(null)
-  const [view, setView] = useState(q0.get('view') === 'list' ? 'list' : 'gallery')
-  const [stars, setStars] = useState(() => new Set(all.filter((r) => r.saved).map((r) => r.id)))
+  const [open, setOpen] = useState(() => new Set(q0.get('open') ? [q0.get('open')] : []))
+  const [stars, setStars] = useState(() => new Set(savedReports.filter((r) => r.saved).map((r) => r.id)))
   const [run, setRun] = useState(null)
   const [toastNode, toast] = useToast({ position: 'center' })
+  const lib = useMemo(() => (mockEmpty() ? { series: [], oneOffs: [], scheduled: 0 } : library(scope === 'all' ? null : home)), [scope, home])
   const s = search.trim().toLowerCase()
-  const shown = all.filter((r) => (brandId === 'all' || r.brand === brandId) && (!type || r.kind === type) && (!aud || r.audience === aud)
-    && (!verdict || verdictGroup(r.verdict) === verdict) && (!s || `${r.headline} ${r.title} ${brandOf(r.brand)?.name}`.toLowerCase().includes(s)))
-  const filtered = brandId !== 'all' || type || aud || verdict || s
-  const clear = () => { setSearch(''); setBrandId('all'); setType(null); setAud(null); setVerdict(null) }
-  const star = (r) => {
-    const on = !stars.has(r.id)
-    setStars((x) => { const n = new Set(x); if (on) n.add(r.id); else n.delete(r.id); return n })
-    toast(on ? 'Saved. It stays in the library after older reports are cleared.' : 'Removed from saved')
+  const fits = (kind, audience, text) => (!type || kind === type) && (!aud || audience === aud) && (!s || text.toLowerCase().includes(s))
+  const series = lib.series.filter((x) => fits(x.kind, x.audience, `${x.title} ${x.runs.map((r) => r.headline).join(' ')} ${brandOf(x.brand)?.name}`))
+  const oneOffs = lib.oneOffs.filter((r) => fits(r.kind, r.audience, `${r.headline} ${r.title} ${brandOf(r.brand)?.name}`))
+  const total = lib.series.length + lib.oneOffs.length
+  const filtered = !!(type || aud || s)
+  const clear = () => { setSearch(''); setType(null); setAud(null) }
+  const star = (id, name) => {
+    const on = !stars.has(id)
+    setStars((x) => { const n = new Set(x); if (on) n.add(id); else n.delete(id); return n })
+    toast(on ? `Starred “${name}”` : 'Removed from starred')
   }
-  const streakBrand = brandId !== 'all' && weeklyRuns(brandId).length ? brandId : (weeklyRuns(defaultBrand()).length ? defaultBrand() : 'foa')
-  const scheds = schedules.filter((x) => brandId === 'all' || x.brand === brandId)
+  const toggle = (id) => setOpen((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const starred = [
+    ...series.filter((x) => stars.has(x.reportId)).map((x) => ({ id: x.reportId, kind: x.kind, brand: x.brand, headline: x.latest.headline, title: x.title, date: x.latest.date })),
+    ...oneOffs.filter((r) => stars.has(r.id)).map((r) => ({ id: r.id, kind: r.kind, brand: r.brand, headline: r.headline, title: KIND_WORD[r.kind], date: r.created })),
+  ].slice(0, 3)
+  const all = scope === 'all'
   const newBtn = <a href="/reports" onClick={linkClick('/reports')} className={inkBtn}><Sparkles size={14} aria-hidden />New report</a>
   const radio = (opts, cur, set) => (close) => [{ id: null, label: 'All' }, ...opts].map((o) => (
     <button key={o.id ?? 'all'} type="button" role="menuitemradio" aria-checked={cur === o.id} onClick={() => { set(o.id); close() }} className={`${menuItem} text-stone-900`}>
-      {o.logo}<span className="min-w-0 flex-1 truncate">{o.label}</span>{cur === o.id && <Check size={14} className="shrink-0 text-ink" aria-hidden />}
+      <span className="min-w-0 flex-1 truncate">{o.label}</span>{cur === o.id && <Check size={14} className="shrink-0 text-ink" aria-hidden />}
     </button>
   ))
+  const homeName = brandOf(home)?.name ?? 'This brand'
 
-  if (!all.length) {
-    return (
-      <>
-        <div className="flex items-end justify-between gap-3"><h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Reports</h1></div>
-        <div className="flex flex-col items-center px-4 pb-16 pt-14 text-center md:pt-20">
-          <DotIllustration className="h-[140px] w-[260px]" />
-          <p className="mt-7 text-[20px] leading-7 font-semibold tracking-[-0.01em] text-stone-900">Your first report is one question away</p>
-          <p className={`mt-1.5 max-w-[46ch] text-[14px] leading-5 ${t2}`}>Ask anything about your brands’ AI visibility. Kraffic writes the report from your tracked prompts and keeps it here.</p>
-          <a href="/reports" onClick={linkClick('/reports')} className={`${inkBtn} mt-6`}><Sparkles size={14} aria-hidden />Ask a question</a>
-        </div>
-      </>
-    )
-  }
+  // the reports of one brand (or, in All brands, one brand's group): its series, then its one-offs by month
+  const body = (ss, oo, showBrand) => (
+    <>
+      {ss.length > 0 && (
+        <section aria-label="Series">
+          <h3 className={`${H2} mb-1`}>Series <span className={`text-[13px] font-normal tabular-nums ${t3}`}>{ss.length}</span></h3>
+          <ul className="-mx-3 flex flex-col">
+            {ss.map((x) => <SeriesRow key={x.id} s={x} open={open.has(x.id)} onToggle={() => toggle(x.id)} onRun={setRun} starred={stars.has(x.reportId)} onStar={() => star(x.reportId, x.title)} showBrand={showBrand} />)}
+          </ul>
+        </section>
+      )}
+      {groupBy(oo, (r) => monthGroup(r.created)).map(([month, rows]) => (
+        <section key={month} aria-label={`${month}, one-off reports`}>
+          <h3 className={`${H2} mb-1`}>{month} <span className={`text-[13px] font-normal ${t3}`}>· one-off reports</span></h3>
+          <ul className="-mx-3 flex flex-col">
+            {rows.map((r) => <OneOffRow key={r.id} r={r} starred={stars.has(r.id)} onStar={() => star(r.id, r.headline)} showBrand={showBrand} />)}
+          </ul>
+        </section>
+      ))}
+    </>
+  )
 
   return (
     <>
       <div className="flex items-end justify-between gap-3">
         <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">
-          Reports <span className={`ml-1 text-[15px] font-normal tracking-normal tabular-nums ${t3} lg:text-[17px]`}>{filtered ? `${shown.length} of ${all.length}` : all.length}</span>
+          Reports {total > 0 && <span className={`ml-1 text-[15px] font-normal tracking-normal tabular-nums ${t3} lg:text-[17px]`}>{filtered ? `${series.length + oneOffs.length} of ${total}` : total}</span>}
         </h1>
         {newBtn}
       </div>
@@ -137,181 +122,177 @@ function AllReports() {
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search headlines"
             className="h-8 w-60 rounded-full bg-tint pl-8 pr-3 text-[13px] text-stone-900 outline-none placeholder:text-stone-500 focus-visible:ring-2 focus-visible:ring-focus max-md:w-full" />
         </label>
-        <ChipMenu label="Brand" logo={brandId !== 'all' ? <BrandLogo id={brandId} /> : undefined} value={brandId !== 'all' ? brandOf(brandId)?.name : null} width={260}>
-          {radio(REPORT_BRANDS.filter((b) => dataFor(b.id)).map((b) => ({ id: b.id, label: b.name, logo: <BrandLogo id={b.id} className="h-5 w-5" /> })), brandId === 'all' ? null : brandId, (v) => setBrandId(v ?? 'all'))}
-        </ChipMenu>
         <ChipMenu label="Type" value={TYPES.find((x) => x.id === type)?.label ?? null} width={240}>{radio(TYPES, type, setType)}</ChipMenu>
         <ChipMenu label="Audience" value={AUD[aud] ?? null} width={200}>{radio(AUDIENCES.map((a) => ({ id: a.id, label: a.label })), aud, setAud)}</ChipMenu>
-        <ChipMenu label="Verdict" value={VERDICTS.find((x) => x.id === verdict)?.label ?? null} width={200}>{radio(VERDICTS, verdict, setVerdict)}</ChipMenu>
         {filtered && <button type="button" onClick={clear} className="h-8 rounded-full px-2.5 text-[13px] font-medium text-stone-600 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Clear</button>}
-        <Segmented className="ml-auto" size="sm" label="View" value={view} onChange={setView} options={[{ value: 'gallery', label: 'Gallery', icon: LayoutGrid }, { value: 'list', label: 'List', icon: List }]} />
+        <Segmented className="ml-auto max-md:ml-0" size="sm" label="Brands" value={scope} onChange={setScope} options={[{ value: 'brand', label: homeName }, { value: 'all', label: 'All brands' }]} />
       </div>
 
-      {scheds.length > 0 && (
-        <div className="-mx-4 flex items-center gap-1 overflow-x-auto px-4 text-[13px] leading-5 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0">
-          <span className="mr-2 inline-flex shrink-0 items-center gap-1.5 font-medium text-stone-900"><Repeat size={14} className="text-stone-500" aria-hidden />Scheduled</span>
-          {scheds.map((x) => (
-            <a key={x.id} href={`/reports/scheduled?preview=${x.id}`} onClick={linkClick(`/reports/scheduled?preview=${x.id}`)}
-              className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-2.5 py-1 outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
-              <BrandLogo id={x.brand} className="h-4 w-4" /><span className="text-stone-900">{x.title}</span>
-              <span className={t3}>· {x.when} · {plural(x.recipients.length, 'recipient')}</span>
-            </a>
-          ))}
-          <a href="/reports/scheduled" onClick={linkClick('/reports/scheduled')} className="ml-1 shrink-0 rounded px-1 font-medium text-stone-600 underline-offset-4 outline-none hover:text-stone-900 hover:underline focus-visible:ring-2 focus-visible:ring-focus">Manage</a>
-        </div>
+      {lib.scheduled > 0 && (
+        <p className={`flex items-center gap-1.5 text-[13px] leading-5 ${t2}`}>
+          <Repeat size={14} className="text-stone-500" aria-hidden />{lib.scheduled} scheduled ·
+          <a href="/reports/scheduled" onClick={linkClick('/reports/scheduled')} className="inline-flex items-center gap-1 rounded font-medium text-stone-700 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Manage<ArrowRight size={13} aria-hidden /></a>
+        </p>
       )}
 
-      <Streak brandId={streakBrand} onRun={setRun} />
-
-      {shown.length === 0 ? (
+      {total === 0 ? (
+        <div className="flex flex-col items-center px-4 pb-16 pt-14 text-center">
+          <DotIllustration className="h-[120px] w-[220px]" />
+          <p className="mt-6 text-[17px] leading-6 font-semibold text-stone-900">{all ? 'No reports yet' : `No reports for ${homeName} yet`}</p>
+          <p className={`mt-1.5 max-w-[46ch] text-[14px] leading-5 ${t2}`}>Ask a question and Kraffic writes the report from your tracked prompts and keeps it here. Scheduled reports show up as a series.</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">{newBtn}{!all && !mockEmpty() && <button type="button" onClick={() => setScope('all')} className={lineBtn}>See all brands</button>}</div>
+        </div>
+      ) : series.length + oneOffs.length === 0 ? (
         <div className="flex flex-col items-center px-4 py-14 text-center">
           <p className="text-[15px] leading-5 font-semibold text-stone-900">No reports match</p>
           <p className={`mt-1 text-[13px] leading-[18px] ${t2}`}>Try another word, or clear the filters.</p>
           <button type="button" onClick={clear} className={`${lineBtn} mt-4`}>Clear filters</button>
         </div>
-      ) : groupBy(shown, (r) => monthGroup(r.created)).map(([month, rows]) => (
-        <section key={month} aria-labelledby={`m-${month}`} className="mt-4">
-          <h2 id={`m-${month}`} className="flex items-baseline gap-2 text-[17px] leading-6 font-semibold text-stone-900">{month}<span className={`text-[13px] font-normal tabular-nums ${t3}`}>{rows.length}</span></h2>
-          {view === 'gallery' ? (
-            <ul className="mt-4 grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-              {rows.map((r) => <li key={r.id}><Tile r={r} starred={stars.has(r.id)} onStar={() => star(r)} onRun={setRun} /></li>)}
-            </ul>
-          ) : (
-            <ul className="-mx-3 mt-2 flex flex-col">
-              {rows.map((r) => (
-                <li key={r.id} className="group/li relative">
-                  <ReportRow r={r} onRun={setRun} className="max-md:pr-11" />
-                  <StarBtn on={stars.has(r.id)} onClick={() => star(r)} name={r.headline} className="absolute right-[76px] top-1/2 -translate-y-1/2 max-md:right-2 max-md:top-3 max-md:translate-y-0" />
-                </li>
-              ))}
-            </ul>
+      ) : (
+        <div className="mt-2 flex flex-col gap-8">
+          {starred.length > 0 && (
+            <section aria-label="Starred">
+              <h2 className={`${H2} mb-1`}><Star size={14} className="fill-current text-stone-900" aria-hidden />Starred</h2>
+              <ul className="-mx-3 flex flex-col">
+                {starred.map((r) => {
+                  const Icon = KIND_ICON[r.kind] ?? Sparkles
+                  return (
+                    <li key={r.id}>
+                      <a href={`/reports/${r.id}`} onClick={linkClick(`/reports/${r.id}`)} className="group flex min-h-10 items-center gap-3 rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
+                        <Icon size={15} className="shrink-0 text-stone-500" aria-hidden />
+                        <span className="w-[132px] shrink-0 truncate text-[13px] leading-[18px] text-stone-600 max-md:hidden">{r.title}</span>
+                        <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-stone-900">{r.headline}</span>
+                        {all && <BrandLogo id={r.brand} className="h-4 w-4" />}
+                        <span className={`w-12 shrink-0 text-right text-[12px] tabular-nums ${t3}`}>{r.date}</span>
+                      </a>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
           )}
-        </section>
-      ))}
+          {all
+            ? REPORT_BRANDS.filter((b) => series.some((x) => x.brand === b.id) || oneOffs.some((r) => r.brand === b.id)).map((b) => (
+              <section key={b.id} aria-label={b.name} className="flex flex-col gap-6 border-t border-[var(--div)] pt-6">
+                <h2 className="flex items-center gap-2.5 text-[17px] leading-6 font-semibold text-stone-900"><BrandLogo id={b.id} className="h-5 w-5" />{b.name}</h2>
+                {body(series.filter((x) => x.brand === b.id), oneOffs.filter((r) => r.brand === b.id), false)}
+              </section>
+            ))
+            : body(series, oneOffs, false)}
+        </div>
+      )}
       <RunPreview run={run} onClose={() => setRun(null)} />
       {toastNode}
     </>
   )
 }
 
+// a series: one row. Name and schedule; the verdict history as dots (oldest → newest, at most 12; hover one for that
+// run's headline); the latest headline, its date and Open latest. Click the row: its past runs, in place
+function SeriesRow({ s, open, onToggle, onRun, starred, onStar, showBrand }) {
+  const [tip, setTip] = useState(null)
+  const dots = s.runs.slice(0, 12).reverse()
+  const id = `runs-${s.id}`
+  const openLatest = (e) => { e.stopPropagation(); linkClick(`/reports/${s.reportId}`)(e) }
+  return (
+    <li className="group/li border-b border-[var(--div)] last:border-0">
+      <div onClick={onToggle} className="relative grid cursor-pointer grid-cols-[minmax(0,230px)_188px_minmax(0,1fr)] items-center gap-x-6 gap-y-2 rounded-lg px-3 py-3 transition-colors duration-150 hover:bg-tint max-md:grid-cols-[minmax(0,1fr)_auto]">
+        <button type="button" aria-expanded={open} aria-controls={id} onClick={(e) => { e.stopPropagation(); onToggle() }} className="flex min-w-0 items-start gap-2 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-focus">
+          <ChevronRight size={16} className={`mt-0.5 shrink-0 text-stone-500 transition-transform duration-150 ${open ? 'rotate-90' : ''}`} aria-hidden />
+          <span className="min-w-0">
+            <span className="flex items-center gap-2 text-[15px] leading-5 font-medium text-stone-900">{showBrand && <BrandLogo id={s.brand} className="h-4 w-4" />}<span className="truncate">{s.title}</span></span>
+            <span className={`block text-[12px] leading-4 ${t3}`}>{s.cadence} · {s.recipients === 1 ? '1 recipient' : `${s.recipients} recipients`}</span>
+          </span>
+        </button>
+        <span className="relative flex items-center gap-1.5" onMouseLeave={() => setTip(null)} role="img" aria-label={`Verdicts, oldest to newest: ${dots.map((r) => `${r.date} ${r.verdict}`).join(', ')}`}>
+          {dots.map((r, i) => <span key={r.id} onMouseEnter={() => setTip(i)} className="h-2.5 w-2.5 rounded-full transition-transform duration-150 hover:scale-125" style={{ background: TONE_DOT[toneOf(r.verdict)] }} />)}
+          {tip != null && (
+            <span role="tooltip" className="pointer-events-none absolute bottom-full z-20 mb-2 w-max max-w-[280px] -translate-x-1/2 rounded-lg border border-line bg-raised px-2.5 py-1.5 text-[12px] leading-4 text-stone-800 shadow-sm" style={{ left: tip * 16 + 5 }}>
+              <span className={`block ${t3}`}>{dots[tip].date} · {dots[tip].verdict}</span>{dots[tip].headline}
+            </span>
+          )}
+        </span>
+        <span className="flex min-w-0 items-center gap-4 max-md:col-span-2">
+          <span className="min-w-0 flex-1 truncate text-[14px] leading-5 text-stone-700">{s.latest.headline}</span>
+          <span className={`shrink-0 text-[12px] tabular-nums ${t3}`}>{s.latest.date}</span>
+          <a href={`/reports/${s.reportId}`} onClick={openLatest} className="inline-flex shrink-0 items-center gap-1 rounded text-[13px] font-medium text-stone-700 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Open latest<ArrowRight size={14} aria-hidden /></a>
+          <StarBtn on={starred} onClick={(e) => { e?.stopPropagation?.(); onStar() }} name={s.title} className="-my-1 shrink-0" />
+        </span>
+      </div>
+      {open && (
+        <ol id={id} className="mb-3 ml-9 mr-3 flex flex-col border-l border-line motion-safe:animate-[fade-in_150ms_ease-out] max-md:ml-5">
+          {s.runs.map((r) => {
+            const cls = 'grid w-full grid-cols-[56px_minmax(0,1fr)_112px_96px] items-center gap-4 rounded-r-lg py-2 pl-4 pr-2 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus max-md:grid-cols-[48px_minmax(0,1fr)] max-md:gap-y-0.5'
+            const inner = (
+              <>
+                <span className={`text-[12px] tabular-nums ${t3}`}>{r.date}</span>
+                <span className="truncate text-[14px] leading-5 text-stone-900">{r.headline}{!r.run && <span className={`ml-2 text-[12px] ${t3}`}>latest</span>}</span>
+                <VerdictDot verdict={r.verdict} className="max-md:col-start-2" />
+                <span className={`text-right text-[12px] tabular-nums max-md:hidden ${r.change.startsWith('−') ? 'font-medium text-negative' : t2}`}>{r.change}</span>
+              </>
+            )
+            return (
+              <li key={r.id}>
+                {r.run
+                  ? <button type="button" onClick={() => onRun(r)} className={cls}>{inner}</button>
+                  : <a href={`/reports/${r.id}`} onClick={linkClick(`/reports/${r.id}`)} className={cls}>{inner}</a>}
+              </li>
+            )
+          })}
+        </ol>
+      )}
+    </li>
+  )
+}
+
+// a one-off report: its hero as a 56px thumbnail, the type's icon and the headline, the verdict, the audience, the date;
+// hovering tints the row and shows "Open →"
+function OneOffRow({ r, starred, onStar, showBrand }) {
+  const Icon = KIND_ICON[r.kind] ?? Sparkles
+  return (
+    <li className="group/li relative">
+      <a href={`/reports/${r.id}`} onClick={linkClick(`/reports/${r.id}`)}
+        className="thumb-live group grid grid-cols-[56px_minmax(0,1fr)_104px_96px_48px_64px] items-center gap-4 rounded-lg px-3 py-2 pr-12 outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus max-md:grid-cols-[56px_minmax(0,1fr)] max-md:gap-y-1">
+        <span className="row-span-2 grid h-8 w-14 place-items-center rounded-md bg-tint transition-colors duration-150 group-hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] md:row-span-1"><Thumb kind={r.kind} className="h-6 w-11" /></span>
+        <span className="flex min-w-0 items-center gap-2">
+          <Icon size={14} className="shrink-0 text-stone-500" aria-label={KIND_WORD[r.kind]} />
+          {showBrand && <BrandLogo id={r.brand} className="h-4 w-4" />}
+          <span className="truncate text-[15px] leading-5 font-medium text-stone-900">{r.headline}</span>
+        </span>
+        <span className="max-md:hidden">{r.verdict && <VerdictDot verdict={r.verdict} />}</span>
+        <span className={`truncate text-[12px] ${t3} max-md:hidden`}>{AUD[r.audience]}</span>
+        <span className={`text-right text-[12px] tabular-nums ${t3} max-md:hidden`}>{r.created}</span>
+        <span className="hidden items-center justify-end gap-1 text-[13px] font-medium text-stone-900 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:inline-flex">Open<ArrowRight size={14} aria-hidden /></span>
+        <span className={`col-start-2 flex items-center gap-3 text-[12px] ${t3} md:hidden`}>{r.verdict && <VerdictDot verdict={r.verdict} />}<span>{AUD[r.audience]}</span><span className="tabular-nums">{r.created}</span></span>
+      </a>
+      <StarBtn on={starred} onClick={onStar} name={r.headline} className="absolute right-2 top-1/2 -translate-y-1/2" />
+    </li>
+  )
+}
+
 function StarBtn({ on, onClick, name, className = '' }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={on} aria-label={on ? `Saved: ${name}` : `Save ${name}`} title={on ? 'Saved' : 'Save'}
-      className={`grid h-8 w-8 place-items-center rounded-full outline-none transition-[opacity,color,background-color] duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'text-stone-900' : 'text-stone-500 opacity-0 group-hover/li:opacity-100 group-hover/tile:opacity-100 max-md:opacity-100'} ${className}`}>
-      <Star size={15} fill={on ? 'currentColor' : 'none'} strokeWidth={1.75} aria-hidden />
+    <button type="button" onClick={onClick} aria-pressed={on} aria-label={on ? `Starred: ${name}` : `Star ${name}`} title={on ? 'Starred' : 'Star'}
+      className={`grid h-8 w-8 place-items-center rounded-full outline-none transition-[opacity,color,background-color] duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'text-stone-900' : 'text-stone-500 opacity-0 group-hover/li:opacity-100 max-md:opacity-100'} ${className}`}>
+      <Star size={15} className={on ? 'fill-current' : ''} aria-hidden />
     </button>
   )
 }
 
-// a tile: the hero as a large thumbnail (hover: the report's score, prompts and share of voice), its headline, the
-// verdict, brand and date
-function Tile({ r, starred, onStar, onRun }) {
-  const cls = 'thumb-live group flex w-full flex-col gap-3 rounded-2xl text-left outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-4 focus-visible:ring-offset-[var(--color-page)]'
-  const body = (
-    <>
-      <span className="relative grid aspect-[16/10] w-full place-items-center overflow-hidden rounded-2xl bg-tint transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:-translate-y-0.5 motion-reduce:transition-none">
-        <Thumb kind={r.kind} net={r.kindNet} className="h-[52%] w-[64%] transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] md:group-hover:-translate-y-5 md:group-focus-visible:-translate-y-5 motion-reduce:transition-none" />
-        <span className="absolute inset-x-2.5 bottom-2.5 hidden grid-cols-3 gap-2 rounded-xl bg-surface/90 px-3 py-2 opacity-0 shadow-[0_1px_2px_rgba(0,0,0,0.06)] backdrop-blur-sm transition-[opacity,transform] duration-200 ease-out md:grid md:translate-y-2 md:group-hover:translate-y-0 md:group-hover:opacity-100 md:group-focus-visible:translate-y-0 md:group-focus-visible:opacity-100 motion-reduce:translate-y-0">
-          {r.stats.map((m) => (
-            <span key={m.id} className="min-w-0">
-              <span className={`block truncate text-[11px] leading-4 ${t3}`}>{m.label}</span>
-              <span className="flex items-baseline gap-1 tabular-nums"><span className="text-[14px] leading-5 font-semibold text-stone-900">{m.value}{m.unit ?? ''}</span><Delta d={m.delta} /></span>
-            </span>
-          ))}
-        </span>
-      </span>
-      <span className="px-0.5">
-        <span className="line-clamp-2 text-[14px] leading-5 font-semibold text-stone-900 [text-wrap:pretty]">{r.headline}</span>
-        <span className={`mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] leading-4 ${t3}`}>
-          <VerdictDot verdict={r.verdict} />
-          <span className="inline-flex min-w-0 items-center gap-1.5"><BrandLogo id={r.brand} className="h-3.5 w-3.5" /><span className="truncate">{brandOf(r.brand)?.name}</span></span>
-          <span className="inline-flex items-center gap-1 tabular-nums">{r.scheduled && <Repeat size={12} aria-label="Scheduled" className="text-stone-500" />}{r.created}</span>
-        </span>
-      </span>
-    </>
-  )
-  return (
-    <article className="group/tile relative" aria-label={r.headline}>
-      {r.run
-        ? <button type="button" onClick={() => onRun(r)} className={cls}>{body}</button>
-        : <a href={`/reports/${r.id}`} onClick={linkClick(`/reports/${r.id}`)} className={cls}>{body}</a>}
-      <StarBtn on={starred} onClick={onStar} name={r.headline} className="absolute right-2 top-2 bg-surface/70 backdrop-blur-sm" />
-    </article>
-  )
-}
-
-// the weekly verdicts as a streak: one dot per weekly summary over the last 12 weeks (before the first two syncs there
-// was nothing to compare); hover or focus a dot for its headline
-const fmtDay = (dt) => `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][dt.getMonth()]} ${dt.getDate()}`
-const TONE_DOT = { up: 'var(--ink)', mid: 'var(--color-stone-400)', down: 'var(--negative)' }
-function Streak({ brandId, onRun }) {
-  const runs = weeklyRuns(brandId)
-  if (!runs.length) return null
-  const first = parseDay(runs[0].date)
-  const before = Array.from({ length: 12 - runs.length }, (_, i) => {
-    const dt = new Date(first)
-    dt.setDate(dt.getDate() - 7 * (12 - runs.length - i))
-    const day = fmtDay(dt)
-    return { empty: true, date: day, note: day === DATES[0] ? 'First sync: nothing to compare with yet' : 'Not tracked yet' }
-  })
-  const slots = [...before, ...runs]
-  let streak = 0
-  for (let i = runs.length - 1; i >= 0 && VERDICT_TONE[runs[i].verdict] === 'up'; i--) streak++
-  const summary = streak >= 2 ? `${streak} good weeks in a row` : `${runs.at(-1).verdict} last week`
-  return (
-    <section aria-label={`Weekly verdicts for ${brandOf(brandId)?.name}`} className="mt-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="text-[13px] leading-5"><span className="font-semibold text-stone-900">Weekly verdicts</span><span className={t3}> · {brandOf(brandId)?.name} · last 12 weeks</span></p>
-        <p className="text-[13px] leading-5 font-medium text-stone-900">{summary}</p>
-      </div>
-      <ol className="relative mt-3 grid grid-cols-12">
-        <span aria-hidden className="absolute left-[4.17%] right-[4.17%] top-[11px] h-px bg-line" />
-        {slots.map((x, i) => {
-          const tone = x.empty ? null : VERDICT_TONE[x.verdict]
-          const side = i < 6 ? 'left-0' : 'right-0'
-          const label = x.empty ? `${x.date}: ${x.note}` : `${x.date}: ${x.verdict}. ${x.headline}`
-          const open = () => { if (x.empty) return; if (x.run) onRun(x); else navigate(`/reports/${x.id}`) }
-          return (
-            <li key={x.date} className="relative flex flex-col items-center gap-1.5">
-              <button type="button" onClick={open} aria-label={label} aria-disabled={x.empty || undefined}
-                className={`group/dot relative grid h-[22px] w-[22px] place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-focus ${x.empty ? 'cursor-default' : 'hover:bg-tint'}`}>
-                {x.empty
-                  ? <span className="h-1.5 w-1.5 rounded-full border border-stone-300 bg-[var(--color-page)]" />
-                  : <span className="h-3 w-3 rounded-full ring-[3px] ring-[var(--color-page)] transition-transform duration-150 group-hover/dot:scale-125" style={{ background: TONE_DOT[tone] }} />}
-                <span aria-hidden className={`pointer-events-none absolute bottom-full z-20 mb-2 hidden w-64 rounded-lg border border-line bg-raised p-3 text-left shadow-md group-hover/dot:block group-focus-visible/dot:block motion-safe:animate-[fade-in_120ms_ease-out] ${side}`}>
-                  <span className={`block text-[12px] leading-4 tabular-nums ${t3}`}>Week of {x.date}</span>
-                  {x.empty ? <span className="mt-1 block text-[13px] leading-[18px] text-stone-700">{x.note}</span> : (
-                    <>
-                      <VerdictDot verdict={x.verdict} className="mt-1.5" />
-                      <span className="mt-1 block text-[13px] leading-[18px] font-medium text-stone-900">{x.headline}</span>
-                    </>
-                  )}
-                </span>
-              </button>
-              <span className={`whitespace-nowrap text-[11px] leading-4 tabular-nums ${t3} ${i === 0 || i === slots.length - 1 ? '' : 'max-md:invisible'}`}>{x.date}</span>
-            </li>
-          )
-        })}
-      </ol>
-    </section>
-  )
-}
-
-// an earlier run of a weekly summary: what was sent that week (the full report is kept for the newest run)
+// an earlier run of a series: what was sent that time (the full report is kept for the latest run)
 function RunPreview({ run, onClose }) {
-  const sch = run && schedules.find((x) => x.brand === run.brand && x.title === 'Weekly summary')
+  const sch = run && schedules.find((x) => x.id === run.series)
   const s = run && runSummary(run)
   const who = sch ? (sch.recipients.length > 1 ? `${sch.recipients.slice(0, -1).join(', ')} and ${sch.recipients.at(-1)}` : sch.recipients[0]) : ''
-  const latest = run && weeklyRuns(run.brand).at(-1)
   return (
-    <Modal open={!!run} onClose={onClose} size="lg" title={run ? `Weekly summary · week of ${run.date}` : ''} subtitle={run ? `Sent ${run.date} at 9am${who ? ` to ${who}` : ''}` : ''}>
+    <Modal open={!!run} onClose={onClose} size="lg" title={run ? `${run.title} · ${run.date}` : ''} subtitle={run ? `Written from the ${run.date} sync${who ? ` and sent to ${who}` : ''}` : ''}>
       {run && (
         <div className="flex flex-col gap-6">
-          <Block block={{ id: 'header', type: 'header', data: s.header }} title="Weekly summary" />
+          <Block block={{ id: 'header', type: 'header', data: s.header }} title={run.title} />
           <Block block={{ id: 'scoreline', type: 'scoreline', data: s.scoreline }} />
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-            <p className={`max-w-[52ch] text-[12px] leading-[18px] ${t3}`}>Earlier weeks keep what was sent. The full report, with its sections and actions, is kept for the latest week.</p>
-            {latest && <a href={`/reports/${latest.id}`} onClick={(e) => { onClose(); linkClick(`/reports/${latest.id}`)(e) }} className={lineBtn}>Open the latest<ArrowRight size={14} aria-hidden /></a>}
+            <p className={`max-w-[52ch] text-[12px] leading-[18px] ${t3}`}>Earlier runs keep what was sent. The full report, with its sections and actions, is kept for the latest run.</p>
+            {sch && <a href={`/reports/${sch.reportId}`} onClick={(e) => { onClose(); linkClick(`/reports/${sch.reportId}`)(e) }} className={lineBtn}>Open the latest<ArrowRight size={14} aria-hidden /></a>}
           </div>
         </div>
       )}
@@ -319,7 +300,6 @@ function RunPreview({ run, onClose }) {
   )
 }
 
-// ---- Scheduled: reports that write and send themselves, and the email each one sends
 const people = (n) => `to ${n} ${n === 1 ? 'person' : 'people'}`
 function Scheduled() {
   const [list, setList] = useState(mockEmpty() ? [] : schedules.map((s) => ({ ...s, paused: false })))

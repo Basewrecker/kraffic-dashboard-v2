@@ -586,12 +586,69 @@ export function runSummary(run) {
   const d = dataFor(run.brand)
   const sov = d.share[youKey(d)]
   const i = run.idx
-  const m = (id, label, series, extra = {}) => ({ id, label, value: series[i], delta: series[i] - series[i - 1], series: series.slice(0, i + 1), ...extra })
+  const j = run.from ?? i - 1
+  const m = (id, label, series, extra = {}) => ({ id, label, value: series[i], delta: series[i] - series[j], series: series.slice(0, i + 1), ...extra })
   return {
-    header: { brand: d.name, domain: d.domain, period: `${DATES[i - 1]} – ${DATES[i]}, 2026`, audience: 'team', engines: 'All engines', verdict: run.verdict, headline: run.headline, kind: 'weekly' },
-    scoreline: { since: DATES[i - 1], items: [m('score', 'Visibility score', d.series.score), m('named', 'Prompts named', d.series.named, { of: d.prompts }), m('sov', 'Share of voice', sov, { unit: '%' }), m('cited', 'Pages cited', d.series.cited)] },
+    header: { brand: d.name, domain: d.domain, period: `${DATES[j]} – ${DATES[i]}, 2026`, audience: run.audience ?? 'team', engines: 'All engines', verdict: run.verdict, headline: run.headline, kind: run.kind ?? 'weekly' },
+    scoreline: { since: DATES[j], items: [m('score', 'Visibility score', d.series.score), m('named', 'Prompts named', d.series.named, { of: d.prompts }), m('sov', 'Share of voice', sov, { unit: '%' }), m('cited', 'Pages cited', d.series.cited)] },
   }
 }
+// ---- the library (All reports): series (the scheduled reports, each with its runs) and one-off reports ------------
+// a schedule's cadence in weekly syncs, and how it's said
+const CADENCE = { 'Mondays 9am': { step: 1, label: 'every Monday' }, 'Every other Friday 10am': { step: 2, label: 'every other Friday' }, '1st of the month 8am': { step: 4, label: 'monthly' } }
+const signedN = (n) => `${n > 0 ? '+' : n < 0 ? '−' : '±'}${Math.abs(n)}`
+// a series' runs, newest first: one per run of its schedule (a sync every `step` weeks), each compared with the run
+// before it. The newest is the saved report itself; the earlier ones keep what was sent (headline, verdict, the change)
+export function seriesRuns(s) {
+  const saved = savedReports.find((r) => r.id === s.reportId)
+  const d = saved && dataFor(s.brand)
+  if (!d) return []
+  const step = CADENCE[s.cadence]?.step ?? 1
+  const kind = saved.opts.kind
+  const latest = buildReport(saved.opts, saved.prompt)
+  const me = d.share[youKey(d)]
+  const out = []
+  for (let i = DATES.length - 1; i > 0; i -= step) {
+    const j = Math.max(0, i - step) // the earliest run compares with the first sync
+    const first = i === DATES.length - 1
+    let verdict, headline, change
+    if (kind === 'ceo') {
+      const lead = (x) => me[x] - Math.max(...d.rivals.map((r) => d.share[r.key][x]))
+      const ahead = lead(i) > 0
+      const gaining = me[i] > me[j]
+      verdict = ahead && gaining ? 'Winning' : ahead || gaining ? 'Mixed' : 'Losing'
+      headline = ahead ? `The brand AI names most for ${d.lead}${gaining ? ', and gaining' : ''}.` : `A competitor is named more than you for ${d.lead}.`
+      change = `${signedN(me[i] - me[j])} pts share`
+    } else {
+      const net = d.series.named[i] - d.series.named[j]
+      const ds = d.series.score[i] - d.series.score[j]
+      const span = step === 1 ? 'week' : 'month'
+      verdict = net > 0 && ds > 0 ? `Good ${span}` : net < 0 && ds < 0 ? `Tough ${span}` : 'Mixed'
+      const since = step === 1 ? 'the week before' : DATES[j]
+      headline = net > 0 ? `In ${net} more AI ${net === 1 ? 'answer' : 'answers'} than ${since}.` : net < 0 ? `In ${-net} fewer AI ${net === -1 ? 'answer' : 'answers'} than ${since}.` : `In as many AI answers as ${since}.`
+      change = `${signedN(net)} ${Math.abs(net) === 1 ? 'answer' : 'answers'}`
+    }
+    if (first) { verdict = latest.verdict; headline = latest.headline }
+    out.push({ id: first ? saved.id : `run-${s.id}-${i}`, series: s.id, brand: s.brand, kind, idx: i, from: j, date: DATES[i], verdict, headline, change, run: !first, audience: saved.opts.audience, title: s.title })
+  }
+  return out
+}
+// the library for one brand (or every brand: null): its series and its one-off reports, newest first
+export function library(brandId = null) {
+  const inScope = (b) => !brandId || b === brandId
+  const scheduled = new Set(schedules.map((s) => s.reportId))
+  const series = schedules.filter((s) => inScope(s.brand)).map((s) => {
+    const saved = savedReports.find((r) => r.id === s.reportId)
+    const runs = seriesRuns(s)
+    return { id: s.id, reportId: s.reportId, brand: s.brand, title: s.title, cadence: CADENCE[s.cadence]?.label ?? s.cadence, recipients: s.recipients.length, kind: saved?.opts.kind, audience: saved?.opts.audience, saved: !!saved?.saved, runs, latest: runs[0] }
+  }).filter((s) => s.runs.length)
+  const oneOffs = savedReports.filter((r) => !scheduled.has(r.id) && inScope(r.brand)).map((r) => {
+    const b = buildReport(r.opts, r.prompt)
+    return { id: r.id, brand: r.brand, kind: b.ok ? b.kind : r.opts.kind, verdict: b.ok ? b.verdict : null, headline: b.ok ? b.headline : r.title, title: r.title, audience: b.opts?.audience ?? r.opts.audience, created: r.created, saved: !!r.saved }
+  }).sort((a, b) => parseDay(b.created) - parseDay(a.created))
+  return { series, oneOffs, scheduled: schedules.filter((s) => inScope(s.brand)).length }
+}
+
 // every report in the library, newest first: the saved reports and the weekly summaries' earlier runs
 export function libraryItems() {
   const saved = savedReports.map((r) => {
