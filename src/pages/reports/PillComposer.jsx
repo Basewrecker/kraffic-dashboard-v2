@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowUp, AlignLeft, Calendar, Check, ChevronLeft, ChevronRight, Plus, Square, UserRound, X } from 'lucide-react'
 import SiteLogo from '../../components/ui/SiteLogo'
 import { EngineMark } from '../insights/parts'
+import { textHeight } from '../../data/composer'
 import { AUDIENCES, ENGINE_IDS, ENGINE_NAMES, LENGTHS, MAX_COMPARE, PERIODS, REPORT_BRANDS, dataFor, inferOpts, rivalsOf, suggestionsFor } from '../../data/reports'
 import { BrandLogo, ChipMenu, brandOf, menuItem, menuLabel, t3 } from './parts'
 
@@ -32,16 +33,21 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
   const [active, setActive] = useState(-1)
   const [closed, setClosed] = useState(false) // Esc hides the suggestions until the box is focused again
   // the box is as tall as its text; measured again when the text changes or its width does (a chip comes or goes)
+  // (one line while empty, up to 8 lines, then it scrolls inside itself)
+  const fitW = useRef(-1)
   const fit = () => {
     const el = area.current
     if (!el) return
+    fitW.current = el.clientWidth
     el.style.height = 'auto'
-    el.style.height = `${Math.min(200, el.scrollHeight)}px`
+    const { height, scroll } = textHeight(el.value, el.scrollHeight)
+    el.style.height = `${height}px`
+    el.style.overflowY = scroll ? 'auto' : 'hidden'
   }
   useLayoutEffect(fit, [prompt])
   useEffect(() => {
-    let w = 0
-    const ro = new ResizeObserver(([e]) => { if (Math.abs(e.contentRect.width - w) > 1) { w = e.contentRect.width; fit() } })
+    // compared with the width it was last fitted at, so a width that changes and settles before the observer runs still refits
+    const ro = new ResizeObserver(() => { if (area.current && area.current.clientWidth !== fitW.current) fit() })
     if (area.current) ro.observe(area.current)
     return () => ro.disconnect()
   }, [])
@@ -116,18 +122,18 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
       : { opacity: 0, transform: 'translateY(4px)', transition: 'none' })
 
   return (
-    <div ref={ref} className="relative mx-auto w-full max-w-[720px]">
+    <div ref={ref} className="relative mx-auto w-full max-w-[760px]">
       {/* the page's one focal surface: the raised layer (lighter than cards in dark, white in light).
           row 1: the question, full width (grows as it wraps); row 2, pinned to the bottom: "+", chips, the dropdowns, send */}
-      <div className="flex flex-col rounded-[24px] border border-line bg-raised px-5 pb-3 pt-4 transition-[border-color] duration-150 focus-within:border-line-strong max-md:px-3.5">
+      <div className="flex flex-col rounded-[24px] border border-line bg-raised px-5 pb-[11px] pt-[15px] transition-[border-color] duration-150 focus-within:border-line-strong max-md:px-3.5">
         <label className="sr-only" htmlFor="report-q">Ask about {brand?.name ?? 'your brand'}’s AI visibility</label>
         <textarea id="report-q" ref={area} value={prompt} rows={1} autoFocus={autoFocus}
           role="combobox" aria-expanded={phase === 'in'} aria-controls="report-suggestions" aria-autocomplete="list" aria-activedescendant={active >= 0 && sugg[active] ? `sugg-${sugg[active].id}` : undefined}
           onChange={(e) => { setPrompt(e.target.value); setClosed(false) }} onKeyDown={onKey}
           onFocus={() => { setFocused(true); setClosed(false) }} onBlur={() => { setFocused(false); setActive(-1) }}
           placeholder={placeholder ?? `Ask about ${brand?.name ?? 'your brand'}’s AI visibility`}
-          className="block min-h-10 w-full resize-none bg-transparent p-0 text-[16px] leading-6 font-normal tracking-normal text-stone-900 outline-none placeholder:text-stone-500" />
-        <div className="mt-5 flex items-end gap-2 md:gap-3">
+          className="block h-6 w-full resize-none overflow-hidden bg-transparent p-0 text-[16px] leading-6 font-normal tracking-normal text-stone-900 outline-none placeholder:truncate placeholder:text-stone-500" />
+        <div className="mt-4 flex items-end gap-2 md:gap-3">
           {/* one wrapping row: "+" (12px to what follows), chips, the dropdowns 6px apart */}
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1.5">
             <PlusMenu opts={opts} set={set} rivals={rivals} up={docked} />

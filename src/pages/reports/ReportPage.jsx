@@ -8,6 +8,7 @@ import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate } from '../../router'
 import { addReport, buildReport, optsLine, refine, refineSuggestions, reportById, stepsFor, updateReport } from '../../data/reports'
 import PillComposer from './PillComposer'
+import { dockSpace } from '../../data/composer'
 import { DotAssemble } from './DotField'
 import { Block, Thumb, WIDE, blockName, explainFor } from './blocks'
 import { brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
@@ -94,9 +95,8 @@ function Thread({ rest, mock, greeting, inter }) {
   const threadRef = useRef(null)
   const heroRef = useRef(null)
   const flipFrom = useRef(null)
-  const dockWrap = useRef(null)
   const [dockBox, setDockBox] = useState({ left: 0, width: 0 }) // the thread column, for the fixed box
-  const [dockH, setDockH] = useState(0) // the fixed box's height (padding for the thread's end)
+  const [space, setSpace] = useState({ pad: 0, down: 0 }) // the thread's end padding and the ↓ button's offset, from the box's height
   const follow = useRef(true)
   const streaming = useRef(false)
   useInterFont(inter)
@@ -205,20 +205,26 @@ function Thread({ rest, mock, greeting, inter }) {
   useLayoutEffect(() => {
     if (mode !== 'thread') return undefined
     const col = threadRef.current
-    const wrap = dockWrap.current
-    if (!col || !wrap) return undefined
+    const box = dock.current
+    if (!col || !box) return undefined
+    const main = col.closest('main')
     const measure = () => {
       const r = col.getBoundingClientRect()
       setDockBox((b) => (Math.abs(b.left - r.left) < 0.5 && Math.abs(b.width - r.width) < 0.5 ? b : { left: r.left, width: r.width }))
-      setDockH(wrap.offsetHeight)
+      const s = dockSpace(box.offsetHeight, main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0)
+      // at the end of the thread when the box grows (a longer question): stay at the end, so nothing slides under it
+      atEnd.current = document.documentElement.scrollHeight - window.innerHeight - window.scrollY < 4
+      setSpace((o) => (o.pad === s.pad && o.down === s.down ? o : s))
     }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(col)
-    ro.observe(wrap)
+    ro.observe(box)
     window.addEventListener('resize', measure)
     return () => { ro.disconnect(); window.removeEventListener('resize', measure) }
   }, [mode])
+  const atEnd = useRef(false)
+  useLayoutEffect(() => { if (atEnd.current) window.scrollTo(0, document.documentElement.scrollHeight) }, [space.pad])
   const jumpDown = () => { follow.current = true; setShowDown(false); window.scrollTo({ top: document.documentElement.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' }) }
 
   const latest = [...turns].reverse().find((t) => t.built?.ok)
@@ -299,7 +305,7 @@ function Thread({ rest, mock, greeting, inter }) {
         </div>
       )}
       {thread && (
-        <div key="thread" ref={threadRef} className="mx-auto flex w-full max-w-[880px] flex-1 flex-col gap-8 pt-2" style={{ paddingBottom: Math.max(0, dockH - 48) }}>
+        <div key="thread" ref={threadRef} className="mx-auto flex w-full max-w-[880px] flex-1 flex-col gap-8 pt-2" style={{ paddingBottom: space.pad }}>
           {missing && (
             <StateCard title="This report doesn’t exist any more">
               It may have been deleted. <a href="/reports/all" onClick={linkClick('/reports/all')} className="font-medium text-stone-900 underline underline-offset-4">All reports</a>
@@ -317,12 +323,13 @@ function Thread({ rest, mock, greeting, inter }) {
           })}
         </div>
       )}
-      {/* in a thread the box is fixed to the bottom of the viewport, as wide as the thread column (plus its gutters),
-          over a fade to the page so the report scrolls under it; the thread is padded so nothing ends up behind it */}
-      <div key="dock" ref={dockWrap} data-dock className={thread ? 'fixed bottom-0 z-20 px-4 pb-6 pt-10' : 'flex flex-[1.2] flex-col'}
-        style={thread ? { left: dockBox.left - 16, width: dockBox.width + 32, background: 'linear-gradient(to bottom, transparent, var(--color-page) 36px)' } : undefined}>
+      {/* in a thread the box is fixed 16px above the viewport's bottom, centred on the thread column (never under the
+          sidebar, never in the page's flow), over a 48px fade to the page so the report scrolls under it cleanly; the thread
+          is padded so its end stays 32px clear of the box */}
+      <div key="dock" data-dock className={thread ? 'fixed bottom-0 z-20 px-4 pb-4 pt-12' : 'flex flex-[1.2] flex-col'}
+        style={thread ? { left: dockBox.left - 16, width: dockBox.width + 32, background: 'linear-gradient(to bottom, transparent, var(--color-page) 48px)' } : undefined}>
         {thread && showDown && (
-          <button type="button" onClick={jumpDown} aria-label="Jump to the latest" style={{ bottom: dockH - 40 + 12 }}
+          <button type="button" onClick={jumpDown} aria-label="Jump to the latest" style={{ bottom: space.down }}
             className="absolute left-1/2 grid h-9 w-9 -translate-x-1/2 place-items-center rounded-full border border-line bg-raised text-stone-700 shadow-md outline-none transition-colors duration-150 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus motion-safe:animate-[fade-in_150ms_ease-out]">
             <ArrowDown size={16} aria-hidden />
           </button>
