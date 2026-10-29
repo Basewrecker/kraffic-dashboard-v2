@@ -378,14 +378,22 @@ export function buildReport(rawOpts, prompt = '') {
     const topKeys = ranked.map((x) => x.key)
     const lead = me.map((v, i) => v - Math.max(...topKeys.map((k) => d.share[k][i])))
     chips = [chip('lead', `Lead over ${first(top.name)}`, lead, { unit: ' pts' }), chip('named', 'Prompts named', d.series.named, { of: d.prompts }), chip('score', 'Visibility score', d.series.score)]
-    const others = 100 - me.at(-1) - ranked.slice(0, 3).reduce((a, x) => a + x.now, 0)
-    visual = { kind: 'donut', since, you: { name: d.name, now: me.at(-1), delta: me.at(-1) - me[i0] }, parts: [{ key: youKey(d), name: d.name, you: true, v: me.at(-1) }, ...ranked.slice(0, 3).map((x) => ({ key: x.key, name: x.name, v: x.now })), ...(others > 0 ? [{ key: 'others', name: 'Everyone else', v: others }] : [])] }
-    S.push({ id: 'stand', title: 'Where you stand', takeaway: `${top.name} is the closest competitor${top.now < top.from ? ', and slipping' : ''}.`, visual: standing(ranked) })
-    S.push({ id: 'engines', title: 'By engine', takeaway: `${ENGINE_NAMES[Object.entries(d.engines).filter(([e]) => engines.includes(e)).sort((a, b) => b[1].now - a[1].now)[0][0]]} names you on the most prompts.`, visual: engineStack(wonLost) })
-    S.push({ id: 'trend', title: 'Trend', takeaway: `Share of voice against the two closest competitors, last 8 weeks.`, visual: trendOf(shareLines(ranked)) })
+    // the lead chart: you and the closest competitor over the period, the gap between you shaded (share of voice
+    // values themselves only appear in Where you stand)
+    visual = { kind: 'lead', dates: DATES.slice(i0), you: { name: d.name, series: me.slice(i0) }, them: { name: top.name, series: d.share[top.key].slice(i0) } }
+    S.push({ id: 'stand', title: 'Where you stand', takeaway: `Share of voice, ${DATES[i0]} to now: ${top.name} is closest${top.now < top.from ? ', and slipping' : ''}.`, visual: { kind: 'dumbbell', rows: [youRow, ...ranked].sort((a, b) => b.now - a.now) } })
+    const best = Object.entries(d.engines).filter(([e]) => engines.includes(e)).sort((a, b) => b[1].now - a[1].now)[0][0]
+    S.push({ id: 'engines', title: 'By engine', takeaway: `${ENGINE_NAMES[best]} names you on the most prompts.`, visual: {
+      kind: 'engineCols', when: o.period === 'week' ? 'this week' : 'in this period',
+      rows: asked.map((e) => (d.ran.includes(e) && d.engines[e] ? { id: e, name: ENGINE_NAMES[e], now: d.engines[e].now, won: wonLost(e)[0], lost: wonLost(e)[1], series: d.engines[e].series.slice(-5) } : { id: e, name: ENGINE_NAMES[e], off: true })),
+    } })
     const behind = d.topicLead.filter((t) => t.d < 0)
     const owners = [...new Set(behind.slice(-2).map((t) => t.who))]
-    S.push({ id: 'lead', title: 'Where you lead, and where you trail', takeaway: `${list(owners)} ${owners.length === 1 ? 'owns' : 'own'} ${list(behind.slice(-2).map((t) => t.theme.toLowerCase()))}.`, visual: { kind: 'diverging', unit: ' pts', rows: d.topicLead.map((t) => ({ theme: t.theme, d: t.d, note: t.who })) } })
+    S.push({ id: 'lead', title: 'By topic', takeaway: `${list(owners)} ${owners.length === 1 ? 'owns' : 'own'} ${list(behind.slice(-2).map((t) => t.theme.toLowerCase()))}.`, visual: { kind: 'diverging', unit: ' pts', rows: d.topicLead.map((t) => ({ theme: t.theme, d: t.d, note: t.who })) } })
+    const citedTotal = d.cited.reduce((a, c) => a + c.n, 0)
+    S.push({ id: 'cited', title: 'Top cited pages', takeaway: `${d.cited[0].path} gets the most citations of any page you own.`, visual: { kind: 'citeShare', domain: d.domain, total: citedTotal, rows: d.cited } })
+    const moves = [...moved].sort((a, b) => Math.abs(b.d) - Math.abs(a.d))
+    S.push({ id: 'changed', title: 'What changed', takeaway: `The biggest moves since ${DATES[i0]}, by topic.`, visual: { kind: 'changeTable', rows: moves.map((m) => ({ theme: m.theme, d: m.d, example: m.prompts[0], prompts: m.prompts })) } })
   } else if (o.kind === 'content') {
     const missing = d.prompts - d.series.named.at(-1)
     const owned = d.ownedSeries.at(-1)
@@ -427,11 +435,12 @@ export function buildReport(rawOpts, prompt = '') {
   }
 
   const secs = o.length === 'one' ? S.slice(0, 2) : S
-  const acts = (o.kind === 'rival' ? d.actions.filter((a) => a.about.includes(o.compare[0])) : d.actions).slice(0, 3).map(card)
+  const acts0 = (o.kind === 'rival' ? d.actions.filter((a) => a.about.includes(o.compare[0])) : d.actions).slice(0, 3).map(card)
+  const acts = o.kind === 'ceo' ? [...acts0].sort((a, b) => b.n - a.n) : acts0
   const blocks = [
     { id: 'hero', type: 'hero', data: { brand: d.name, domain: d.domain, period: periodRange(o.period), span: shortRange(DATES[i0], 'Oct 26'), counted: engines.map((e) => ENGINE_NAMES[e]), audience: o.audience, verdict, headline, kind: o.kind, since, chips, visual } },
     ...secs.map((s) => ({ id: `s-${s.id}`, type: 'section', data: s })),
-    acts.length ? { id: 'actions', type: 'actions', data: { title: client ? 'What we’re doing next' : o.kind === 'ceo' ? 'Three decisions' : 'What to do', takeaway: 'Each one targets a topic where you’re missing prompts.', items: acts } } : null,
+    acts.length ? { id: 'actions', type: 'actions', data: { title: client ? 'What we’re doing next' : o.kind === 'ceo' ? 'Three decisions' : 'What to do', takeaway: o.kind === 'ceo' ? 'Ranked by the prompts each could win.' : 'Each one targets a topic where you’re missing prompts.', layout: o.kind === 'ceo' ? 'ranked' : 'columns', items: acts } } : null,
     { id: 'sources', type: 'sources', data: { span: shortRange(DATES[i0], 'Oct 26'), off: noData.map((e) => ENGINE_NAMES[e]), period: o.period, syncs: DATES.length - i0, from: DATES[i0], to: 'Oct 26', engines: engines.map((e) => ENGINE_NAMES[e]), left } },
   ].filter(Boolean)
   return { ok: true, kind: o.kind, verdict, headline, title: titleFor(prompt, o), opts: o, blocks }

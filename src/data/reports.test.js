@@ -18,13 +18,13 @@ test('every report has the same bands: hero · sections · action cards · foote
     assert.ok(block(r, 'actions').items.length <= 3, kind)
     assert.ok(sections(r).every((s) => s.takeaway && !s.takeaway.includes('. ', s.takeaway.length - 2) && s.visual), `${kind}: one takeaway + a visual`)
     // the weekly's history is the hero's score strip; the others keep one trend chart
-    assert.equal(sections(r).filter((s) => s.visual.kind === 'trend').length, kind === 'weekly' ? 0 : 1, `${kind}: trend`)
+    assert.equal(sections(r).filter((s) => s.visual.kind === 'trend').length, ['weekly', 'ceo'].includes(kind) ? 0 : 1, `${kind}: trend`)
   }
 })
 
 test('each kind has its own hero visual; the weekly sections are in the agreed order', () => {
   const visual = (kind) => hero(buildReport({ brand: 'foa', kind, compare: kind === 'rival' ? ['longbridge'] : [] })).visual.kind
-  assert.deepEqual(['weekly', 'ceo', 'rival', 'content'].map(visual), ['strip', 'donut', 'split', 'gap'])
+  assert.deepEqual(['weekly', 'ceo', 'rival', 'content'].map(visual), ['strip', 'lead', 'split', 'gap'])
   const w = buildReport({ brand: 'dermasuri', kind: 'weekly', period: 'week', length: 'detailed' })
   assert.deepEqual(sections(w).map((s) => s.title), ['What moved', 'Where you stand', 'By topic', 'By engine'])
   assert.equal(block(w, 'actions').title, 'What to do')
@@ -68,10 +68,34 @@ test('where you stand: every brand by share, you included, sorted; the CEO trend
   assert.equal(rows.length, dataFor('foa').rivals.length + 1)
   assert.ok(rows.some((x) => x.you))
   assert.deepEqual(rows.map((x) => x.now), [...rows.map((x) => x.now)].sort((a, b) => b - a))
-  const lines = sections(buildReport({ brand: 'foa', kind: 'ceo', length: 'detailed' })).find((s) => s.id === 'trend').visual.lines
-  assert.equal(lines.length, 3)
-  assert.ok(lines[0].you && lines.slice(1).every((l) => /^var\(--line-[12]\)$/.test(l.color)))
+  const lines = sections(buildReport({ brand: 'foa', kind: 'rival', compare: ['longbridge'], length: 'detailed' })).find((s) => s.id === 'trend').visual.lines
+  assert.equal(lines.length, 2)
+  assert.ok(lines[0].you && /^var\(--line-[123]\)$/.test(lines[1].color))
   assert.ok(lines.every((l) => l.series.length === 8))
+})
+
+test('CEO v6: one visual type per section; share of voice, visibility and prompts named each in one place', () => {
+  const one = buildReport({ brand: 'dermasuri', kind: 'ceo', period: '30d', length: 'one' })
+  assert.deepEqual(sections(one).map((s) => s.visual.kind), ['dumbbell', 'engineCols'])
+  const r = buildReport({ brand: 'dermasuri', kind: 'ceo', period: '30d', length: 'detailed' })
+  const kinds = sections(r).map((s) => s.visual.kind)
+  assert.deepEqual(kinds, ['dumbbell', 'engineCols', 'diverging', 'citeShare', 'changeTable'])
+  assert.equal(new Set(kinds).size, kinds.length)
+  // the hero's lead chart: 30 days (5 syncs), you and the closest competitor; the stat row has no share of voice
+  const v = hero(r).visual
+  assert.equal(v.kind, 'lead')
+  assert.equal(v.dates.length, 5)
+  assert.equal(v.them.name, 'CeraVe')
+  assert.equal(v.you.series.at(-1) - v.them.series.at(-1), chipOf(r, 'lead').value)
+  assert.deepEqual(hero(r).chips.map((c) => c.id), ['lead', 'named', 'score'])
+  assert.equal(sections(r).filter((s) => s.visual.rows?.some((x) => x.you && x.now != null)).length, 1, 'share of voice in one section')
+  // the decisions, by impact
+  const n = block(r, 'actions').items.map((a) => a.n)
+  assert.deepEqual(n, [...n].sort((a, b) => b - a))
+  assert.equal(block(r, 'actions').layout, 'ranked')
+  // what changed: the topics that moved, biggest first
+  const moves = sections(r).find((s) => s.id === 'changed').visual.rows.map((x) => Math.abs(x.d))
+  assert.deepEqual(moves, [...moves].sort((a, b) => b - a))
 })
 
 test('engines: won + held = the prompts each engine names; that matches its share', () => {

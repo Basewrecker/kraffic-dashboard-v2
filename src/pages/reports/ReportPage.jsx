@@ -617,7 +617,7 @@ function PrintView({ prompt, opts, title }) {
       <div className="w-full overflow-x-auto">
         <div ref={sheet} className={`print-sheet mx-auto flex w-[210mm] flex-col gap-[6mm] bg-surface px-[14mm] py-[12mm] shadow-[0_1px_3px_rgba(0,0,0,0.08),0_12px_32px_-12px_rgba(0,0,0,0.18)] ${one ? 'h-[297mm] overflow-hidden' : 'min-h-[297mm]'}`}>
           <div className="flex flex-col divide-y divide-[var(--div)]" style={{ zoom: 0.62, width: 960 }}>
-            {r.blocks.map((b, i) => <div key={b.id} className="py-8"><Block block={b} title={title ?? r.title} n={numbers(r.blocks)[i]} /></div>)}
+            {r.blocks.map((b, i) => <div key={b.id} className="py-8 [break-inside:avoid]"><Block block={b} title={title ?? r.title} n={numbers(r.blocks)[i]} /></div>)}
           </div>
           <p className={`mt-auto text-[9px] ${t3}`}>Kraffic · {brandOf(r.opts.brand)?.name} · page 1 of 1</p>
         </div>
