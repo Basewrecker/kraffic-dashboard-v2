@@ -380,12 +380,15 @@ export function buildReport(rawOpts, prompt = '') {
     chips = [chip('lead', `Lead over ${first(top.name)}`, lead, { unit: ' pts' }), chip('named', 'Prompts named', d.series.named, { of: d.prompts }), chip('score', 'Visibility score', d.series.score)]
     // the lead chart: you and the closest competitor over the period, the gap between you shaded (share of voice
     // values themselves only appear in Where you stand)
-    visual = { kind: 'lead', dates: DATES.slice(i0), you: { name: d.name, series: me.slice(i0) }, them: { name: top.name, series: d.share[top.key].slice(i0) } }
+    const gap = me.map((v, i) => v - d.share[top.key][i])
+    const spanLabel = { week: 'last week', '30d': 'last 30 days', quarter: 'last 8 weeks' }[o.period] ?? 'this period'
+    visual = { kind: 'lead', label: `Lead over ${top.name} · ${spanLabel}`, since: DATES[i0], dates: DATES.slice(i0), lead: gap.at(-1), leadDelta: gap.at(-1) - gap[i0], you: { name: d.name, series: me.slice(i0) }, them: { name: top.name, series: d.share[top.key].slice(i0) } }
     S.push({ id: 'stand', title: 'Where you stand', takeaway: `Share of voice, ${DATES[i0]} to now: ${top.name} is closest${top.now < top.from ? ', and slipping' : ''}.`, visual: { kind: 'dumbbell', rows: [youRow, ...ranked].sort((a, b) => b.now - a.now) } })
     const best = Object.entries(d.engines).filter(([e]) => engines.includes(e)).sort((a, b) => b[1].now - a[1].now)[0][0]
     S.push({ id: 'engines', title: 'By engine', takeaway: `${ENGINE_NAMES[best]} names you on the most prompts.`, visual: {
-      kind: 'engineCols', when: o.period === 'week' ? 'this week' : 'in this period',
-      rows: asked.map((e) => (d.ran.includes(e) && d.engines[e] ? { id: e, name: ENGINE_NAMES[e], now: d.engines[e].now, won: wonLost(e)[0], lost: wonLost(e)[1], series: d.engines[e].series.slice(-5) } : { id: e, name: ENGINE_NAMES[e], off: true })),
+      kind: 'engineCols', since: DATES[i0],
+      // every engine keeps its slot; one that didn't run says so instead of a number
+      rows: asked.map((e) => (d.ran.includes(e) && d.engines[e] ? { id: e, name: ENGINE_NAMES[e], now: d.engines[e].now, won: wonLost(e)[0], lost: wonLost(e)[1], change: d.engines[e].series.at(-1) - d.engines[e].series[i0] } : { id: e, name: ENGINE_NAMES[e], off: true })),
     } })
     const behind = d.topicLead.filter((t) => t.d < 0)
     const owners = [...new Set(behind.slice(-2).map((t) => t.who))]

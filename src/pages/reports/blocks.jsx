@@ -236,40 +236,56 @@ function Strip({ v }) {
     </figure>
   )
 }
-// CEO: the lead chart. You (ink) and the closest competitor (t3) over the period, the gap between you softly shaded and
-// named once; the brands at the right edge, a few dates under. No axis numbers: the values live in Where you stand
+// CEO: the lead chart. You (ink) and the closest competitor (t3) over the period on a 0–100% scale (faint gridlines at
+// 0, 50, 100), start values at the left end, end values at the right end, and one annotation: a bracket between the two
+// end dots with the lead and its change
 function LeadChart({ v }) {
   const [ref, w] = useWidth(360)
-  const H = 200
-  const padR = 96
-  const top = 10
-  const bot = 24
-  const vals = [...v.you.series, ...v.them.series]
-  const span = Math.max(...vals) - Math.min(...vals)
-  const lo = Math.min(...vals) - span * 0.08
-  const hi = Math.max(...vals) + span * 0.08
+  const H = 196
+  const padL = 34
+  const padR = 128
+  const top = 22
+  const bot = 22
   const n = v.dates.length
-  const x = (i) => (i * (w - padR - 8)) / (n - 1)
-  const y = (val) => top + (1 - (val - lo) / (hi - lo)) * (H - top - bot)
+  const x = (i) => padL + (i * (w - padL - padR)) / (n - 1)
+  const y = (val) => top + (1 - val / 100) * (H - top - bot)
   const pts = (s) => s.map((val, i) => `${x(i)},${y(val)}`)
-  const mid = Math.floor((n - 1) / 2)
-  const gapY = (y(v.you.series[mid]) + y(v.them.series[mid])) / 2
-  const show = [0, mid, n - 1]
+  const you = v.you.series
+  const them = v.them.series
+  const xe = x(n - 1)
+  const bx = xe + 10 // the bracket
+  const show = [0, Math.floor((n - 1) / 2), n - 1]
   return (
-    <figure ref={ref} className="w-full">
-      {w > 0 && (
-        <svg width={w} height={H} role="img" aria-label={`${v.you.name} against ${v.them.name}, ${v.dates[0]} to ${v.dates.at(-1)}`} className="block overflow-visible">
-          <polygon points={[...pts(v.you.series), ...pts(v.them.series).reverse()].join(' ')} fill="color-mix(in srgb, var(--ink) 6%, transparent)" />
-          <text x={x(mid)} y={gapY} dy="0.32em" textAnchor="middle" className="fill-stone-600 text-[13px]">lead</text>
-          <polyline points={pts(v.them.series).join(' ')} fill="none" stroke="var(--color-stone-500)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-          <polyline points={pts(v.you.series).join(' ')} fill="none" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-          <circle cx={x(n - 1)} cy={y(v.them.series.at(-1))} r="3.5" fill="var(--color-stone-500)" stroke="var(--color-surface)" strokeWidth="2" />
-          <circle cx={x(n - 1)} cy={y(v.you.series.at(-1))} r="4" fill={INK} stroke="var(--color-surface)" strokeWidth="2" />
-          <text x={x(n - 1) + 12} y={y(v.you.series.at(-1))} dy="0.32em" className="fill-stone-900 text-[13px] font-semibold">{v.you.name}</text>
-          <text x={x(n - 1) + 12} y={y(v.them.series.at(-1))} dy="0.32em" className="fill-stone-500 text-[13px]">{v.them.name}</text>
-          {show.map((i) => <text key={i} x={x(i)} y={H - 4} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} className="fill-stone-500 text-[11px]">{v.dates[i]}</text>)}
-        </svg>
-      )}
+    <figure className="w-full">
+      <figcaption className={META}>{v.label}</figcaption>
+      <div ref={ref} className="mt-2 w-full">
+        {w > 0 && (
+          <svg width={w} height={H} role="img" aria-label={`${v.you.name} ${you.at(-1)}%, ${v.them.name} ${them.at(-1)}%: ${v.lead} points ahead, ${v.leadDelta >= 0 ? 'up' : 'down'} ${Math.abs(v.leadDelta)} since ${v.since}`} className="block overflow-visible">
+            {[0, 50, 100].map((t) => (
+              <g key={t}>
+                <line x1={padL} x2={xe} y1={y(t)} y2={y(t)} stroke="var(--div)" />
+                <text x={padL - 8} y={y(t)} dy="0.32em" textAnchor="end" className="fill-stone-500 text-[11px] tabular-nums">{t}%</text>
+              </g>
+            ))}
+            <polygon points={[...pts(you), ...pts(them).reverse()].join(' ')} fill="color-mix(in srgb, var(--ink) 4%, transparent)" />
+            <polyline points={pts(them).join(' ')} fill="none" stroke="var(--color-stone-500)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            <polyline points={pts(you).join(' ')} fill="none" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+            {/* start values, at the left end */}
+            <text x={x(0)} y={y(you[0]) - 8} className="fill-stone-500 text-[11px] tabular-nums">{you[0]}%</text>
+            <text x={x(0)} y={y(them[0]) + 15} className="fill-stone-500 text-[11px] tabular-nums">{them[0]}%</text>
+            {/* end values, at the right end */}
+            <circle cx={xe} cy={y(them.at(-1))} r="3.5" fill="var(--color-stone-500)" stroke="var(--color-surface)" strokeWidth="2" />
+            <circle cx={xe} cy={y(you.at(-1))} r="4" fill={INK} stroke="var(--color-surface)" strokeWidth="2" />
+            <text x={xe} y={y(you.at(-1)) - 10} textAnchor="end" className="fill-stone-900 text-[13px] font-semibold tabular-nums">{v.you.name} {you.at(-1)}%</text>
+            <text x={xe} y={y(them.at(-1)) + 18} textAnchor="end" className="fill-stone-500 text-[13px] tabular-nums">{v.them.name} {them.at(-1)}%</text>
+            {/* the one annotation: a bracket between the end dots, the lead next to it */}
+            <path d={`M${bx} ${y(you.at(-1))} h5 V${y(them.at(-1))} h-5`} fill="none" stroke="var(--color-stone-400)" strokeWidth="1.25" />
+            <text x={bx + 12} y={(y(you.at(-1)) + y(them.at(-1))) / 2 - 2} className="fill-stone-900 text-[14px] font-semibold tabular-nums">{v.lead} pts ahead</text>
+            <text x={bx + 12} y={(y(you.at(-1)) + y(them.at(-1))) / 2 + 15} className="fill-stone-500 text-[12px] tabular-nums">{v.leadDelta > 0 ? '▲' : v.leadDelta < 0 ? '▼' : '±'}{Math.abs(v.leadDelta)} since {v.since}</text>
+            {show.map((i) => <text key={i} x={x(i)} y={H - 4} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} className="fill-stone-500 text-[11px]">{v.dates[i]}</text>)}
+          </svg>
+        )}
+      </div>
     </figure>
   )
 }
@@ -672,24 +688,27 @@ function Dumbbell({ v }) {
     </div>
   )
 }
-// CEO, by engine: an open column per engine that ran: name, the visibility %, won / lost, a 5-point line
+// CEO, by engine: a scoreboard with a slot for each of the four engines, evenly across the visual. Each: mark and
+// name, the visibility %, won / lost, the change since the period began. An engine that didn't run keeps its slot
 function EngineCols({ v }) {
-  const ran = v.rows.filter((e) => !e.off)
-  const off = v.rows.filter((e) => e.off).map((e) => e.name)
   return (
-    <div className="flex flex-col">
-      <ul className="grid gap-x-10 gap-y-6" style={{ gridTemplateColumns: `repeat(${Math.max(2, ran.length)}, minmax(0, 1fr))` }}>
-        {ran.map((e) => (
-          <li key={e.id} className="min-w-0">
-            <span className={`flex items-center gap-2 ${LABEL}`}><EngineMark id={e.id} size={16} />{e.name}</span>
-            <span className="mt-2 block text-[32px] leading-9 font-semibold tracking-[-0.01em] tabular-nums text-stone-900">{e.now}%</span>
-            <span className={`mt-1 block ${META}`}>▲{e.won} won · {e.lost ? <span className="font-medium text-negative">▼{e.lost} lost</span> : 'none lost'}</span>
-            <span className="mt-3 block"><Sparkline series={e.series} w={112} h={22} fill={false} /></span>
-          </li>
-        ))}
-      </ul>
-      {off.length > 0 && <p className={`mt-5 ${META}`}>{joinAnd(off)} didn’t run {v.when ?? 'in this period'}.</p>}
-    </div>
+    <ul className="grid grid-cols-4 gap-x-6 max-md:grid-cols-2 max-md:gap-y-6">
+      {v.rows.map((e) => (
+        <li key={e.id} className="min-w-0">
+          <span className={`flex items-center gap-2 ${LABEL} ${e.off ? 'text-stone-500' : ''}`}>
+            {e.off ? <span className="grid place-items-center rounded-md border border-dashed border-stone-300 p-0.5 opacity-60"><EngineMark id={e.id} size={14} /></span> : <EngineMark id={e.id} size={16} />}
+            <span className="truncate">{e.name}</span>
+          </span>
+          {e.off
+            ? <span className="mt-2 block text-[15px] leading-9 text-stone-500">Didn’t run</span>
+            : <>
+                <span className="mt-2 block text-[32px] leading-9 font-semibold tracking-[-0.01em] tabular-nums text-stone-900">{e.now}%</span>
+                <span className={`mt-1 block ${META} tabular-nums`}>+{e.won} won · {e.lost ? <span className="font-medium text-negative">−{e.lost} lost</span> : 'none lost'}</span>
+                <span className="mt-0.5 block text-[12px] leading-4"><Delta n={e.change} unit=" pts" bad={e.change < 0} /> <span className="text-stone-500">since {v.since ?? 'the start'}</span></span>
+              </>}
+        </li>
+      ))}
+    </ul>
   )
 }
 // CEO detailed, top cited pages: each page's part of the citations to your pages, as one strip; the counts on the right edge

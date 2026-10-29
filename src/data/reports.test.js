@@ -88,6 +88,14 @@ test('CEO v6: one visual type per section; share of voice, visibility and prompt
   assert.equal(v.them.name, 'CeraVe')
   assert.equal(v.you.series.at(-1) - v.them.series.at(-1), chipOf(r, 'lead').value)
   assert.deepEqual(hero(r).chips.map((c) => c.id), ['lead', 'named', 'score'])
+  assert.equal(v.lead, chipOf(r, 'lead').value)
+  assert.equal(v.leadDelta, chipOf(r, 'lead').delta)
+  assert.equal(v.label, 'Lead over CeraVe · last 30 days')
+  // by engine: a slot for each of the 4 engines; the two that didn't run say so, with no number
+  const eng = sections(r).find((s) => s.id === 'engines').visual.rows
+  assert.deepEqual(eng.map((e) => e.id), ['aio', 'chatgpt', 'gemini', 'claude'])
+  assert.deepEqual(eng.filter((e) => e.off).map((e) => e.id), ['gemini', 'claude'])
+  assert.equal(eng[0].change, dataFor('dermasuri').engines.aio.now - dataFor('dermasuri').engines.aio.series[3])
   assert.equal(sections(r).filter((s) => s.visual.rows?.some((x) => x.you && x.now != null)).length, 1, 'share of voice in one section')
   // the decisions, by impact
   const n = block(r, 'actions').items.map((a) => a.n)
