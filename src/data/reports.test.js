@@ -106,25 +106,39 @@ test('CEO v6: one visual type per section; share of voice, visibility and prompt
   assert.deepEqual(moves, [...moves].sort((a, b) => b - a))
 })
 
-test('engines: won + held = the prompts each engine names; that matches its share', () => {
+test('engines: the prompts each engine names match its share; the scoreboard reads won / lost and the change from the data', () => {
   for (const brand of ['foa', 'dermasuri']) {
+    const d = dataFor(brand)
+    for (const [id, e] of Object.entries(d.engines)) assert.equal(Math.round((e.named / d.prompts) * 100), e.now, `${brand} ${id}`)
     const r = buildReport({ brand, kind: 'weekly', period: 'week', length: 'detailed' })
-    for (const e of sections(r).find((s) => s.id === 'engines').visual.rows.filter((x) => !x.off)) {
-      assert.equal(e.won + e.held, e.named, `${brand} ${e.id}`)
-      assert.equal(Math.round((e.named / dataFor(brand).prompts) * 100), e.now, `${brand} ${e.id}`)
+    for (const e of sections(r).find((x) => x.id === 'engines').visual.rows.filter((x) => !x.off)) {
+      assert.deepEqual([e.won, e.lost], d.engines[e.id].week, `${brand} ${e.id}`)
+      assert.equal(e.change, d.engines[e.id].series[7] - d.engines[e.id].series[6])
     }
   }
 })
 
-test('head-to-head: the waffle adds up; the split and the topics match', () => {
+test('head-to-head: the quadrant adds up; the split, the topics and the per-prompt data match', () => {
   for (const [brand, rival] of [['foa', 'longbridge'], ['dermasuri', 'cerave']]) {
     const r = buildReport({ brand, kind: 'rival', compare: [rival], length: 'detailed' })
-    const g = Object.fromEntries(sections(r)[0].visual.groups.map((x) => [x.key, x.n]))
-    assert.equal(Object.values(g).reduce((a, b) => a + b, 0), dataFor(brand).prompts)
-    const theirs = g.onlyThem + g.themFirst
+    const q = sections(r)[0].visual
+    assert.equal(q.kind, 'quadrant')
+    assert.equal(q.onlyYou + q.youFirst + q.themFirst + q.onlyThem + q.neither, dataFor(brand).prompts)
+    const theirs = q.onlyThem + q.themFirst
     assert.equal(hero(r).visual.them.n, theirs)
-    assert.equal(hero(r).visual.you.n, g.onlyYou + g.youFirst)
-    assert.equal(sections(r)[1].visual.rows.reduce((a, t) => a + t.n, 0), theirs)
+    assert.equal(hero(r).visual.you.n, q.onlyYou + q.youFirst)
+    // the prompts they win: as many as the topics hold; each engine's share and the "only them" ones match the counts
+    const where = sections(r).find((x) => x.id === 'where').visual
+    assert.equal(where.groups.reduce((a, g) => a + g.items.length, 0), theirs)
+    const h = dataFor(brand).h2h[rival]
+    for (const e of where.engines) assert.equal(e.n, h.engines[e.id].n, `${brand} ${e.id}`)
+    assert.equal(q.prompts.onlyThem.length, q.onlyThem)
+    assert.equal(q.prompts.both.length, q.themFirst)
+    assert.ok(!sections(r).some((x) => x.id === 'engines'), 'the per-engine counts live in Where they win')
+    // why they win: one row per topic they win
+    assert.deepEqual(sections(r).find((x) => x.id === 'why').visual.rows.map((w) => w.theme), h.themes.map((t) => t.theme))
+    // the competitor in its brand colour, never red
+    assert.match(hero(r).visual.color, /^var\(--line-\d\)$/)
   }
   assert.match(buildReport({ brand: 'foa', kind: 'rival', compare: ['longbridge'] }).headline, /^Longbridge wins 23 prompts/)
 })
@@ -134,9 +148,10 @@ test('content plan: topic gaps add up to the prompts missing; the red part to th
   const v = hero(r).visual
   assert.equal(sections(r)[0].visual.rows.reduce((a, t) => a + t.n, 0), v.missing)
   assert.equal(sections(r)[0].visual.rows.reduce((a, t) => a + t.part, 0), v.owned)
-  assert.equal(sections(r)[1].visual.rows.reduce((a, t) => a + t.now, 0), v.owned)
+  assert.equal(sections(r)[1].visual.kind, 'ownerBoard')
+  assert.equal(sections(r)[1].visual.rows.reduce((a, t) => a + t.n, 0), v.owned)
   assert.match(r.headline, /^Calculators first: Longbridge holds 7 of its 8 prompts/)
-  assert.deepEqual(block(r, 'actions').items.map((a) => a.type), ['New page', 'Add to FAQ', 'Outreach'])
+  assert.ok(block(r, 'actions').items.every((a) => a.type === 'New page'))
 })
 
 test('verdicts: Good week / Mixed / Tough week; Winning / Mixed / Losing', () => {
@@ -275,4 +290,44 @@ test('series runs: one per run of the schedule, newest first; the newest is the 
   assert.deepEqual(ceo.map((r) => r.idx), [7, 3])
   assert.match(ceo[1].change, /pts share$/)
   for (const r of [...week, ...client, ...ceo]) assert.ok(['Good week', 'Good month', 'Mixed', 'Tough week', 'Tough month', 'Winning', 'Losing'].includes(r.verdict), r.verdict)
+})
+
+const BAR_KINDS = new Set(['ranking', 'diverging', 'topicBars', 'engineStack', 'engineBars', 'bars'])
+test('v7: at most one horizontal-bar section in any report', () => {
+  for (const brand of ['foa', 'dermasuri']) {
+    const opts = [
+      { kind: 'weekly', period: 'week' }, { kind: 'weekly', period: '30d', audience: 'client' }, { kind: 'ceo', period: '30d' },
+      { kind: 'rival', compare: [brand === 'foa' ? 'longbridge' : 'cerave'] }, { kind: 'content' },
+    ]
+    for (const o of opts) {
+      const r = buildReport({ brand, length: 'detailed', ...o })
+      const bars = sections(r).filter((x) => BAR_KINDS.has(x.visual.kind)).map((x) => x.visual.kind)
+      assert.ok(bars.length <= 1, `${brand} ${o.kind} ${o.audience ?? ''}: ${bars}`)
+    }
+  }
+})
+
+test('v7: what to do follows the question: no two kinds of report suggest the same actions', () => {
+  const titles = (o) => block(buildReport({ brand: 'dermasuri', length: 'detailed', ...o }), 'actions').items.map((a) => a.title)
+  const sets = [titles({ kind: 'weekly', period: 'week' }), titles({ kind: 'ceo' }), titles({ kind: 'rival', compare: ['cerave'] }), titles({ kind: 'content' })]
+  for (let i = 0; i < sets.length; i++) for (let j = i + 1; j < sets.length; j++) assert.ok(!sets[i].some((t) => sets[j].includes(t)), `${i} and ${j} share an action`)
+  // the competitor's actions each close one of the gaps where they win, biggest first
+  const rival = block(buildReport({ brand: 'dermasuri', kind: 'rival', compare: ['cerave'], length: 'detailed' }), 'actions').items
+  assert.deepEqual(rival.map((a) => a.theme), ['Sensitive skin', 'Body wash', 'Moisturising'])
+  assert.ok(rival.every((a) => /closes the .+ gap$/.test(a.meta)))
+})
+
+test('v7: the client update speaks to the client, with its own hero and sections', () => {
+  const r = buildReport({ brand: 'dermasuri', kind: 'weekly', period: '30d', audience: 'client', length: 'detailed' })
+  assert.equal(hero(r).client, true)
+  assert.equal(hero(r).visual.kind, 'scoreLine')
+  assert.equal(hero(r).visual.span, 'this month')
+  assert.equal(hero(r).visual.series.length, 5)
+  assert.match(r.headline, /^You’re in \d+ more AI answers than a month ago/)
+  assert.deepEqual(sections(r).map((x) => x.visual.kind), ['waffle', 'dumbbell', 'diverging', 'engineCols'])
+  assert.ok(sections(r).every((x) => x.client))
+  const acts = block(r, 'actions')
+  assert.equal(acts.title, 'What we’re doing next')
+  assert.equal(acts.layout, 'ranked')
+  assert.ok(acts.items.every((a) => a.title.startsWith('We’ll ')))
 })

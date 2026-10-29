@@ -2,6 +2,7 @@ import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, FilePlus2, Megaphone, MessageCircleQuestion } from 'lucide-react'
 import SiteLogo from '../../components/ui/SiteLogo'
 import { EngineMark } from '../insights/parts'
+import { agency } from '../../store/workspace'
 
 // The report's block library, on a 12-column grid. Same bands for every kind: a hero band (headline, stat chips, one big
 // visual answer) · numbered sections (7 + 5 side by side, or full width) · action cards · a one-line footer. Graphite;
@@ -297,11 +298,11 @@ function Split({ v }) {
       <figcaption className={LABEL}>Prompts each of you wins, of {v.total}</figcaption>
       <div className="mt-4 flex items-end justify-between gap-4">
         <span className="min-w-0"><span className={`block ${BIG} text-stone-900`}>{v.you.n}</span><span className={`block truncate ${LABEL}`}>{v.you.name}</span></span>
-        <span className="min-w-0 text-right"><span className={`block ${BIG} text-negative`}>{v.them.n}</span><span className={`block truncate ${LABEL}`}>{v.them.name}</span></span>
+        <span className="min-w-0 text-right"><span className={`block ${BIG}`} style={{ color: v.color ?? RED }}>{v.them.n}</span><span className={`block truncate ${LABEL}`}>{v.them.name}</span></span>
       </div>
       <div className="mt-3 flex h-3 gap-1" aria-hidden>
         <span className="rounded-l-full" style={{ width: `${(v.you.n / all) * 100}%`, background: INK }} />
-        <span className="flex-1 rounded-r-full" style={{ background: RED }} />
+        <span className="flex-1 rounded-r-full" style={{ background: v.color ?? RED }} />
       </div>
       <div className="mt-2 flex justify-between gap-4 text-[13px] leading-[18px]">
         <Delta n={v.you.delta} bad={v.you.delta < 0} />
@@ -325,11 +326,17 @@ function Gap({ v }) {
     </RingFrame>
   )
 }
-const HERO_VISUAL = { strip: Strip, lead: LeadChart, split: Split, gap: Gap }
+const HERO_VISUAL = { strip: Strip, lead: LeadChart, split: Split, gap: Gap, scoreLine: ScoreLine }
 function HeroBand({ data: d }) {
   const V = HERO_VISUAL[d.visual?.kind]
   return (
     <header className="grid items-start gap-x-8 gap-y-8 md:grid-cols-12">
+      {d.client && (
+        <p className="flex items-center gap-2.5 border-b border-[var(--div)] pb-4 text-[13px] leading-5 text-stone-600 md:col-span-12">
+          <SiteLogo domain={agency.domain} name={agency.name} className="h-6 w-6 shrink-0 rounded" imgPad="p-0" initialClass="text-[10px]" plate />
+          <b className="font-semibold text-stone-900">{agency.name}</b><span className="text-stone-400" aria-hidden>·</span>Prepared for {d.brand}
+        </p>
+      )}
       <div className="min-w-0 md:col-span-7">
         {/* one line of text, so a long one wraps between words, never at a separator */}
         <p className={`${META} tabular-nums`}>
@@ -415,7 +422,7 @@ function Waffle({ v }) {
         )}
       </div>
       <div className="pt-3">
-        {!sel && <p className={META}>Click a group to list its prompts.</p>}
+        {!sel && !v.client && <p className={META}>Click a group to list its prompts.</p>}
         {sel && (sel.prompts
           ? <PromptList id={`w-${sel.key}`} prompts={sel.prompts} />
           : <p className={META}>The {sel.n} prompts {sel.key === 'missing' ? 'missed' : sel.label} are listed in <a href="/tracker" className="text-stone-700 underline underline-offset-[3px] hover:text-stone-900">Prompt Hub</a>.</p>)}
@@ -459,9 +466,9 @@ function Ranking({ v }) {
 // The y axis is fitted to the data
 function Trend({ v }) {
   const [ref, w] = useWidth(800)
-  const H = 180
+  const H = v.compact ? 140 : 180
   const padL = 36
-  const padR = 52
+  const padR = v.compact ? 132 : 52
   const top = 10
   const bot = 24
   const vals = v.lines.flatMap((l) => l.series)
@@ -469,8 +476,8 @@ function Trend({ v }) {
   const hi0 = Math.max(...vals)
   const range = Math.max(4, hi0 - lo0)
   const step = [1, 2, 5, 10, 20, 25, 50].find((s) => range / s <= 4) ?? 50
-  const lo = Math.max(0, Math.floor((lo0 - range * 0.06) / step) * step)
-  const hi = Math.ceil((hi0 + range * 0.06) / step) * step
+  const lo = Math.max(0, Math.floor(lo0 / step) * step)
+  const hi = Math.ceil(hi0 / step) * step
   const ticks = []
   for (let t = lo; t <= hi + 1e-9; t += step) ticks.push(t)
   const n = v.dates.length
@@ -481,7 +488,7 @@ function Trend({ v }) {
   const color = (l) => (l.you ? INK : l.color)
   return (
     <div className="flex flex-1 flex-col">
-      <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <p className={`flex flex-wrap items-center gap-x-4 gap-y-1 ${v.compact ? 'hidden' : ''}`}>
         {v.lines.map((l) => (
           <span key={l.key} className={`inline-flex items-center gap-1.5 ${LABEL} ${l.you ? 'font-medium text-stone-900' : ''}`}>
             <span className="w-3.5 rounded-full" style={{ background: color(l), height: l.you ? 3 : 2 }} aria-hidden />{l.name}
@@ -510,7 +517,7 @@ function Trend({ v }) {
               </g>
             ))}
             {ends.map(({ l, y: ly }) => (
-              <text key={l.key} x={x(n - 1) + 10} y={ly} dy="0.32em" className={`text-[13px] tabular-nums ${l.you ? 'fill-stone-900 font-semibold' : 'fill-stone-600'}`}>{l.series.at(-1)}{v.unit}</text>
+              <text key={l.key} x={x(n - 1) + 10} y={ly} dy="0.32em" className={`text-[13px] tabular-nums ${l.you ? 'fill-stone-900 font-semibold' : 'fill-stone-600'}`}>{v.compact ? `${l.name} ` : ''}{l.series.at(-1)}{v.unit}</text>
             ))}
           </svg>
         )}
@@ -754,7 +761,162 @@ function ChangeTable({ v }) {
     </table>
   )
 }
-const VISUAL = { dumbbell: Dumbbell, engineCols: EngineCols, citeShare: CiteShare, changeTable: ChangeTable, waffle: Waffle, ranking: Ranking, trend: Trend, diverging: Diverging, topicBars: TopicBars, engineStack: EngineStack, engineBars: EngineBars, cited: ({ v }) => <CitedList rows={v.rows} domain={v.domain} />, citedPair: CitedPair }
+// ---- v7 visuals ------------------------------------------------------------------------------------------------------
+// competitor, head to head: a 2×2 matrix sized by count. Columns: you named / not; in each, the competitor named (top)
+// or not. Click a block to list its prompts (where the report holds them)
+function Quadrant({ v }) {
+  const [pick, setPick] = useState(null)
+  const both = v.youFirst + v.themFirst
+  const named = v.onlyYou + both
+  const not = v.onlyThem + v.neither
+  const block = (key, n, label, sub, style, fg) => (
+    <button key={key} type="button" aria-pressed={pick === key} onClick={() => setPick((p) => (p === key ? null : key))}
+      className={`flex min-h-[78px] min-w-0 flex-col justify-end rounded-lg p-3 text-left outline-none transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-focus ${pick && pick !== key ? 'opacity-40' : ''}`}
+      style={{ flexGrow: n, flexBasis: 0, ...style }}>
+      <span className="text-[24px] leading-7 font-semibold tracking-[-0.01em] tabular-nums" style={{ color: fg }}>{n}</span>
+      <span className="text-[13px] leading-[18px] [overflow-wrap:anywhere]" style={{ color: fg }}>{label}</span>
+      {sub}
+    </button>
+  )
+  const list = pick === 'both' ? v.prompts.both : pick === 'onlyThem' ? v.prompts.onlyThem : null
+  return (
+    <div className="flex flex-col">
+      <div className={`mb-1.5 flex gap-1.5 ${META}`}>
+        <span style={{ flexGrow: named, flexBasis: 0 }}>{v.you} named</span>
+        <span style={{ flexGrow: Math.max(not, named * 0.3), flexBasis: 0 }}>{v.you} not named</span>
+      </div>
+      <div className="flex h-[272px] gap-1.5">
+        <div className="flex min-w-0 flex-col gap-1.5" style={{ flexGrow: named, flexBasis: 0 }}>
+          {block('both', both, `Both named`, (
+            <span className="mt-1.5 flex flex-col gap-1">
+              <span className="flex h-1.5 w-full max-w-[220px] gap-0.5 overflow-hidden rounded-full" aria-hidden><span style={{ width: `${(v.youFirst / both) * 100}%`, background: INK }} /><span className="flex-1" style={{ background: v.color }} /></span>
+              <span className={`text-[12px] leading-4 tabular-nums ${t2}`}>you first {v.youFirst} · {v.them} first {v.themFirst}</span>
+            </span>
+          ), { background: TRACK }, 'var(--color-stone-900)')}
+          {block('onlyYou', v.onlyYou, 'Only you', null, { background: INK }, 'var(--color-on-ink)')}
+        </div>
+        <div className="flex min-w-0 flex-col gap-1.5" style={{ flexGrow: Math.max(not, named * 0.3), flexBasis: 0 }}>
+          {block('onlyThem', v.onlyThem, `Only ${v.them}`, null, { background: v.color }, '#FFFFFF')}
+          {block('neither', v.neither, 'Neither', null, { boxShadow: 'inset 0 0 0 1px var(--color-stone-300)', backgroundImage: 'none' }, 'var(--color-stone-600)')}
+        </div>
+      </div>
+      <div className="pt-3">
+        {!pick && !v.client && <p className={META}>Click a block to list its prompts.</p>}
+        {list && <><p className={`mb-1 ${META}`}>{pick === 'both' ? `Both named, ${v.them} first` : `Only ${v.them} named`}</p><PromptList id={`q-${pick}`} prompts={list} /></>}
+        {pick && !list && <p className={META}>These prompts are listed in <a href="/tracker" className="text-stone-700 underline underline-offset-[3px] hover:text-stone-900">Prompt Hub</a>.</p>}
+        {pick === 'both' && <p className={`mt-1 ${META}`}>The {v.youFirst} where you’re named first are in <a href="/tracker" className="text-stone-700 underline underline-offset-[3px] hover:text-stone-900">Prompt Hub</a>.</p>}
+      </div>
+    </div>
+  )
+}
+// competitor, where they win: the prompts themselves, grouped by topic, one line each with the engine that gave it;
+// the per-engine counts in one line above. Weekly, by topic: the same list, each topic with its net change
+function GroupedList({ v }) {
+  const signedHead = v.kind === 'topicList'
+  return (
+    <div className="flex flex-col">
+      {v.engines?.length > 0 && (
+        <p className={`mb-4 flex flex-wrap items-center gap-x-5 gap-y-1 ${LABEL}`}>
+          {v.engines.map((e) => <span key={e.id} className="inline-flex items-center gap-1.5"><EngineMark id={e.id} size={14} />{e.name}<b className="font-semibold tabular-nums text-stone-900">{e.n}</b></span>)}
+        </p>
+      )}
+      <div className="gap-x-10 md:columns-2">
+        {v.groups.map((g) => (
+          <div key={g.theme} className="mb-5 break-inside-avoid">
+            <p className="flex items-baseline justify-between gap-3 border-b border-[var(--div)] pb-1.5">
+              <span className="truncate text-[14px] leading-5 font-semibold text-stone-900">{g.theme}</span>
+              {signedHead
+                ? <span className={`text-[14px] font-semibold tabular-nums ${g.d < 0 ? 'text-negative' : 'text-stone-900'}`}>{signed(g.d)}</span>
+                : <span className={`text-[13px] tabular-nums ${t3}`}>{g.n}</span>}
+            </p>
+            <ul className="mt-1">
+              {g.items.map((it) => (
+                <li key={it.text} className="flex min-h-7 items-center gap-2 text-[13px] leading-5 text-stone-800">
+                  {it.engine ? <EngineMark id={it.engine} size={13} /> : <span className={`h-1 w-1 shrink-0 rounded-full ${g.d < 0 ? 'bg-negative' : 'bg-stone-400'}`} aria-hidden />}
+                  <span className="truncate" title={it.text}>{it.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+// competitor, why they win: per topic, the page AI cites for them and for you, side by side
+function CompareTable({ v }) {
+  const cell = (c) => (c
+    ? <span className="flex min-w-0 flex-col"><span className="truncate text-[13px] leading-5 text-stone-900" title={c.path}>{c.path}</span><span className={`text-[12px] leading-4 tabular-nums ${t3}`}>{c.n} answers</span></span>
+    : <span className="text-[13px] font-medium text-negative">None</span>)
+  return (
+    <table className="w-full table-fixed border-collapse text-left max-md:block">
+      <thead className="max-md:hidden">
+        <tr className={`${META} border-b border-[var(--div)]`}>
+          <th className="w-[26%] pb-2 font-normal">Topic</th>
+          <th className="pb-2 font-normal"><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: v.color ?? 'var(--line-1)' }} aria-hidden />{v.them}’s cited page</span></th>
+          <th className="pb-2 font-normal"><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 shrink-0 rounded-full bg-ink" aria-hidden />Your cited page</span></th>
+        </tr>
+      </thead>
+      <tbody className="max-md:block">
+        {v.rows.map((r) => (
+          <tr key={r.theme} className="border-b border-[var(--div)] align-top last:border-0 max-md:grid max-md:grid-cols-2 max-md:gap-x-4 max-md:py-2.5">
+            <td className={`py-2.5 pr-4 ${BODY} text-stone-900 max-md:col-span-2 max-md:py-0 max-md:pb-1 max-md:font-semibold`}>{r.theme}</td>
+            <td className="py-2.5 pr-4 max-md:min-w-0 max-md:py-0"><span className={`mb-0.5 block ${META} md:hidden`}>{v.them}</span>{cell(r.them)}</td>
+            <td className="py-2.5 max-md:min-w-0 max-md:py-0"><span className={`mb-0.5 block ${META} md:hidden`}>You</span>{cell(r.you)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+// content plan, who's named instead: a scoreboard, one open column per competitor (its brand colour on the dot)
+function OwnerBoard({ v }) {
+  return (
+    <ul className="grid gap-x-6 gap-y-6 max-md:!grid-cols-2" style={{ gridTemplateColumns: `repeat(${Math.min(5, v.rows.length)}, minmax(0, 1fr))` }}>
+      {v.rows.map((r) => (
+        <li key={r.key} className="min-w-0">
+          <span className={`flex items-center gap-2 ${LABEL}`}><SiteLogo domain={r.domain} name={r.name} className="h-4 w-4 shrink-0 rounded" imgPad="p-0" initialClass="text-[8px]" plate /><span className="truncate">{r.name}</span></span>
+          <span className="mt-2 block text-[32px] leading-9 font-semibold tracking-[-0.01em] tabular-nums text-stone-900">{r.n}</span>
+          <span className={`mt-1 flex items-center gap-1.5 ${META}`}><span className="h-1.5 w-1.5 rounded-full" style={{ background: r.color }} aria-hidden />named instead of you</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+// client update: the visibility score over the period, start → end above it; the y axis fitted to the data
+function ScoreLine({ v }) {
+  const [ref, w] = useWidth(360)
+  const H = 150
+  const top = 12
+  const bot = 22
+  const lo0 = Math.min(...v.series)
+  const hi0 = Math.max(...v.series)
+  const pad = Math.max(2, (hi0 - lo0) * 0.25)
+  const lo = lo0 - pad
+  const hi = hi0 + pad
+  const n = v.series.length
+  const x = (i) => 6 + (i * (w - 12)) / (n - 1)
+  const y = (val) => top + (1 - (val - lo) / (hi - lo)) * (H - top - bot)
+  return (
+    <figure className="w-full">
+      <figcaption className={META}>{v.label}</figcaption>
+      <p className="mt-1 text-[28px] leading-8 font-semibold tracking-[-0.01em] tabular-nums text-stone-900">{v.series[0]} → {v.series.at(-1)} <span className="text-[15px] font-normal tracking-normal text-stone-500">{v.span}</span></p>
+      <div ref={ref} className="mt-3 w-full">
+        {w > 0 && (
+          <svg width={w} height={H} role="img" aria-label={`${v.label} from ${v.series[0]} to ${v.series.at(-1)} ${v.span}`} className="block overflow-visible">
+            {[lo0, hi0].map((t) => <line key={t} x1={0} x2={w} y1={y(t)} y2={y(t)} stroke="var(--div)" />)}
+            <polyline points={v.series.map((s, i) => `${x(i)},${y(s)}`).join(' ')} fill="none" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+            <circle cx={x(0)} cy={y(v.series[0])} r="4" fill="var(--color-surface)" stroke={INK} strokeWidth="2" />
+            <circle cx={x(n - 1)} cy={y(v.series.at(-1))} r="4.5" fill={INK} stroke="var(--color-surface)" strokeWidth="2" />
+            <text x={0} y={H - 4} className="fill-stone-500 text-[11px]">{v.dates[0]}</text>
+            <text x={w} y={H - 4} textAnchor="end" className="fill-stone-500 text-[11px]">{v.dates.at(-1)}</text>
+          </svg>
+        )}
+      </div>
+    </figure>
+  )
+}
+const VISUAL = { quadrant: Quadrant, groupedList: GroupedList, topicList: GroupedList, compareTable: CompareTable, ownerBoard: OwnerBoard, dumbbell: Dumbbell, engineCols: EngineCols, citeShare: CiteShare, changeTable: ChangeTable, waffle: Waffle, ranking: Ranking, trend: Trend, diverging: Diverging, topicBars: TopicBars, engineStack: EngineStack, engineBars: EngineBars, cited: ({ v }) => <CitedList rows={v.rows} domain={v.domain} />, citedPair: CitedPair }
 
 // the spine: every section is one row of the 12-column grid. Left 3 columns: the number, the title, one takeaway
 // (top-aligned, repeated down the page); right 9: the visual. On phones the spine stacks above the visual
@@ -775,7 +937,7 @@ function Section({ data: s, n }) {
   return (
     <section className={SPINE_ROW}>
       <Spine n={n} title={s.title} takeaway={s.takeaway} />
-      <div className="flex min-w-0 flex-col md:col-span-9">{V && <V v={s.visual} />}</div>
+      <div className="flex min-w-0 flex-col md:col-span-9">{V && <V v={s.client ? { ...s.visual, client: true } : s.visual} />}</div>
     </section>
   )
 }
@@ -803,7 +965,7 @@ function ActionCol({ a }) {
 }
 // CEO: the decisions as a ranked list. The impact in a fixed column on the left, the action (one line) and its meta,
 // View prompts on the right edge; hairlines between rows only
-function ActionRow({ a }) {
+function ActionRow({ a, client }) {
   const t = useToggle()
   return (
     <li className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-x-5 py-4 first:pt-0 max-md:grid-cols-[56px_minmax(0,1fr)] max-md:gap-x-3">
@@ -813,9 +975,9 @@ function ActionRow({ a }) {
       </span>
       <span className="min-w-0 self-start pt-1">
         <span className="block text-[16px] leading-[22px] font-semibold text-stone-900 md:truncate" title={a.title}>{a.title}</span>
-        <span className={`mt-1 block ${META}`}>{a.type} · {a.theme}</span>
+        <span className={`mt-1 block ${META}`}>{a.meta ?? `${a.type} · ${a.theme}`}</span>
       </span>
-      {a.prompts?.length > 0 && <span className="-mr-1.5 self-start max-md:col-start-2 max-md:-ml-1.5 max-md:mr-0">{t.button(t.open ? 'Hide prompts' : 'View prompts')}</span>}
+      {a.prompts?.length > 0 && !client && <span className="-mr-1.5 self-start max-md:col-start-2 max-md:-ml-1.5 max-md:mr-0">{t.button(t.open ? 'Hide prompts' : 'View prompts')}</span>}
       {t.open && <div className="col-start-2 col-end-4 mt-3"><PromptList id={t.id} prompts={a.prompts} /></div>}
     </li>
   )
@@ -825,7 +987,7 @@ function Actions({ data: d, n }) {
     <section className={SPINE_ROW}>
       <Spine n={n} title={d.title} takeaway={d.takeaway} />
       {d.layout === 'ranked'
-        ? <ol className="flex min-w-0 flex-col divide-y divide-[var(--div)] md:col-span-9">{d.items.map((a) => <ActionRow key={a.title} a={a} />)}</ol>
+        ? <ol className="flex min-w-0 flex-col divide-y divide-[var(--div)] md:col-span-9">{d.items.map((a) => <ActionRow key={a.title} a={a} client={d.client} />)}</ol>
         : <ol className="flex min-w-0 flex-col md:col-span-9 md:grid md:grid-cols-3 md:grid-rows-[repeat(4,auto)]">{d.items.map((a) => <ActionCol key={a.title} a={a} />)}</ol>}
     </section>
   )
@@ -865,11 +1027,17 @@ export function explainFor(block) {
     case 'hero': return {
       strip: 'The visibility score at each of the last 8 weekly syncs; this week’s is compared with the last week that was scanned. A week without a scan is left empty, not counted as 0. Good week: you won at least twice as many prompts as you lost.',
       donut: 'Of all brand mentions in AI answers to your prompts, the share each brand got in the latest sync. Winning: first in share of voice and gaining.',
+      scoreLine: 'The visibility score at each weekly sync in the period, from the first to the latest.',
       lead: 'Share of voice for you and the closest competitor at each weekly sync in the period; the shaded band is your lead.',
       split: 'Every tracked prompt where AI names only you, or names you first, is yours; where it names only them, or them first, is theirs.',
       gap: 'Tracked prompts where AI doesn’t name you in the latest sync; in red, those that name a competitor instead.',
     }[d.visual?.kind] ?? ''
     case 'section': return {
+      quadrant: 'Every tracked prompt, by whether AI names you, them, both or neither; each block is as big as its count. Where both are named, “first” is whoever the answer names first.',
+      groupedList: 'The prompts they win, by topic, with the engine whose answer named them and not you (or named them first).',
+      topicList: 'Topics where prompts were won or lost in the period, with their prompts.',
+      compareTable: 'Per topic they win, the page AI cites most for each of you on those prompts, and how many answers cite it.',
+      ownerBoard: 'How many of the prompts you’re missing name each competitor instead.',
       dumbbell: 'Share of voice per brand: the hollow dot is the start of the period, the filled dot the latest sync.',
       engineCols: 'Per engine that ran: the share of tracked prompts it names you on, the prompts won and lost in the period, and its last 5 syncs.',
       citeShare: 'Your pages that AI answers cite most in the latest sync; the strip shows each page’s part of those citations.',
