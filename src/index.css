@@ -55,6 +55,8 @@
   --color-ink: var(--ink);      /* graphite system: see :root below */
   --color-ink-hover: var(--ink-hover);
   --color-on-ink: var(--on-ink);
+  --color-beta: var(--beta);      /* violet: ONLY the Beta tag (see CLAUDE.md) */
+  --color-on-beta: var(--on-beta);
   --color-tint: var(--tint);
   --color-negative: var(--negative);
   --color-ink-2: #57534e;       /* stone-600 */
@@ -99,6 +101,8 @@ body {
   --ink: #171412;          /* primary data, primary buttons, active states */
   --ink-hover: #0C0A09;
   --on-ink: #FFFFFF;       /* text on ink buttons */
+  --beta: #6E56CF;
+  --on-beta: #FFFFFF;
   --data-you: var(--ink);
   --data-c1: #78716C;      /* largest competitor */
   --data-c2: #A8A29E;
@@ -138,6 +142,8 @@ html[data-theme="dark"] {
   --ink: #ECECEC;
   --ink-hover: #FFFFFF;
   --on-ink: #000000;
+  --beta: #7C66DC;
+  --on-beta: #FFFFFF;
   --data-c1: #A3A3A3;
   --data-c2: #737373;
   --data-c3: #525252;
@@ -200,6 +206,8 @@ html[data-theme="dark"] {
     --ink: #ECECEC;
     --ink-hover: #FFFFFF;
     --on-ink: #000000;
+  --beta: #7C66DC;
+  --on-beta: #FFFFFF;
     --data-c1: #A3A3A3;
     --data-c2: #737373;
     --data-c3: #525252;
@@ -436,3 +444,54 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
 
 /* Sentiment Over time: a ribbon draws in (stroke-dashoffset on a pathLength=1 path) */
 @keyframes ribbon-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+/* Reports: Print or save as PDF prints only the A4 sheet (no sidebar, top bar or page chrome) */
+@media print {
+  @page { size: A4; margin: 0; }
+  body * { visibility: hidden; }
+  .print-sheet, .print-sheet * { visibility: visible; }
+  .print-sheet { position: absolute; left: 0; top: 0; box-shadow: none !important; }
+}
+
+/* Reports: a template or report thumbnail replays its mini visual while its tile is hovered or focused */
+@keyframes thumb-sweep { from { transform: scaleX(0); opacity: 0.2; } to { transform: none; opacity: 1; } }
+@keyframes thumb-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes thumb-settle { from { transform: translateY(-5px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes thumb-pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+  .thumb-live [data-a] { transform-box: fill-box; }
+  .thumb-live [data-a="sweep"] { transform-origin: left center; }
+  .thumb-live [data-a="pop"] { transform-origin: center; }
+  .thumb-live [data-a="draw"] { stroke-dasharray: 1; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="sweep"] { animation: thumb-sweep 620ms cubic-bezier(.2,.8,.2,1) calc(var(--i) * 70ms) both; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="draw"] { animation: thumb-draw 700ms cubic-bezier(.3,.7,.2,1) calc(var(--i) * 90ms) both; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="settle"] { animation: thumb-settle 420ms cubic-bezier(.34,1.56,.64,1) calc(var(--i) * 28ms) both; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="pop"] { animation: thumb-pop 520ms cubic-bezier(.34,1.56,.64,1) calc(var(--i) * 80ms + 120ms) both; }
+}
+
+/* Reports thread: the question bubble (tint in light, the raised layer in dark) and the send / back motion */
+:root { --bubble: var(--tint); }
+html[data-theme="dark"] { --bubble: var(--color-raised); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bubble: var(--color-raised); } }
+@keyframes greet-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes greet-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes step-in { from { opacity: 0; transform: translateY(4px); } }
+/* reduced motion: the thread's entrances are instant (no rise, no stagger) */
+@media (prefers-reduced-motion: reduce) { .thread-motion, .thread-motion * { animation-duration: 1ms !important; animation-delay: 0ms !important; } }
+/* The Reports composer's send button: ChatGPT's blue, the same in light and dark. The app's one accent colour, a
+   deliberate exception to the no-accent rule, used for this button only. */
+:root { --send: #3C65C0; --send-hover: #3558AA; --send-active: #2F4E97; --send-fg: #FFFFFF; } /* --send-fg: the icon (not text-white, which dark mode remaps) */
+
+/* Reports thread: a thin overlay-style scrollbar, hidden at rest. It shows while scrolling or hovering the scroll area
+   (data-sb="on", set by the page) and fades out ~800ms after. Chrome / Safari: the thumb takes the element's border
+   colour (the element has no border), which is what fades; Firefox: scrollbar-color. Always 6px wide, so nothing shifts. */
+.thread-scroll { border-color: transparent; transition: border-color 300ms ease-out; }
+.thread-scroll[data-sb='on'] { border-color: var(--color-line-strong); transition-duration: 120ms; }
+.thread-scroll::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
+.thread-scroll::-webkit-scrollbar-track, .thread-scroll::-webkit-scrollbar-corner { background: transparent; }
+.thread-scroll::-webkit-scrollbar-thumb { border-radius: 3px; border-style: solid; border-width: 0 6px 0 0; border-color: inherit; }
+@supports not selector(::-webkit-scrollbar) {
+  .thread-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color 300ms ease-out; }
+  .thread-scroll[data-sb='on'] { scrollbar-color: var(--color-line-strong) transparent; transition-duration: 120ms; }
+}

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { BarChart3, Check, ChevronsUpDown, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2 } from 'lucide-react'
+import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2 } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
 import { Wordmark } from '../ui/Logo'
 import SiteLogo from '../ui/SiteLogo'
+import BetaTag from '../ui/BetaTag'
 import { agency, brand, recentBrands, role, switchBrand, visibleDirectory } from '../../store/workspace'
 
 // grouped nav (same items and order as production); items without an href have no page yet.
@@ -13,8 +14,13 @@ export const groups = [
   { label: 'Insights', items: [
     { label: 'Visibility Overview', icon: BarChart3, href: '/overview' },
     { label: 'Prompt Hub', icon: MessageSquareText, href: '/tracker' },
-    { label: 'Sentiment', icon: Gauge, href: '/sentiment' },
+    { label: 'Sentiment', icon: Gauge, href: '/sentiment', beta: true },
     { label: 'Trends', icon: TrendingUp, href: '/trends' },
+  ] },
+  { label: 'Reports', items: [
+    { label: 'New report', icon: Sparkles, href: '/reports', beta: true },
+    { label: 'All reports', icon: FileText, href: '/reports/all' },
+    { label: 'Scheduled', icon: CalendarClock, href: '/reports/scheduled' },
   ] },
   { label: 'Optimize', items: [
     { label: 'Structured Data', icon: Code2, href: '/structured-data' },
@@ -180,7 +186,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
       {nav.map((g, gi) => (
       <div key={g.label} role="group" aria-labelledby={`nav-${g.label}`} className="flex flex-col gap-0.5">
       <div id={`nav-${g.label}`} className={`mb-1.5 px-3 text-[12px] leading-4 font-medium text-stone-500 ${gi ? 'mt-6' : ''}`}>{g.label}</div>
-      {g.items.map(({ label, icon: Icon, href }) => {
+      {g.items.map(({ label, icon: Icon, href, beta }) => {
         const active = href === path
         return (
         <a
@@ -195,6 +201,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
           {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-ink" aria-hidden />}
           <Icon size={18} strokeWidth={2} className={active ? 'text-ink' : undefined} />
           {label}
+          {beta && <BetaTag className="ml-auto" />}
         </a>
         )
       })}
