@@ -189,7 +189,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
           onClick={href ? (e) => { onNavigate?.(); linkClick(href)(e) } : (e) => e.preventDefault()}
           aria-current={active ? 'page' : undefined}
           className={`relative flex h-11 items-center gap-3 rounded-lg px-3 text-body font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus lg:h-10 ${
-            active ? 'bg-tint text-ink' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+            active ? 'bg-selected text-ink' : 'text-stone-600 hover:bg-nav-hover hover:text-stone-900'
           }`}
         >
           {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-ink" aria-hidden />}
@@ -207,7 +207,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
 export default function Sidebar({ path = '/overview', nav }) {
   return (
     // below lg the sidebar is replaced by the top bar + drawer (MobileNav)
-    <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-stone-200 bg-stone-50 lg:flex">
+    <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-sidebar-line bg-sidebar lg:flex">
       {/* top: the logo (a link home). px-3 everywhere: logo, nav icons and the footer blocks share one x */}
       <div className="shrink-0 px-3 pt-4">
         <a href={HOME} title="Home" aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
