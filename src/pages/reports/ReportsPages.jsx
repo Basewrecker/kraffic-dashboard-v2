@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Briefcase, CalendarDays, Check, ChevronRight, MoreHorizontal, PenLine, Repeat, Search, Sparkles, Star, Swords } from 'lucide-react'
+import { ArrowRight, Briefcase, CalendarDays, Check, ChevronRight, PenLine, Repeat, Search, Sparkles, Star, Swords } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import Segmented from '../../components/dashboard/Segmented'
-import ActionMenu from '../../components/audit/ActionMenu'
 import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate, usePath } from '../../router'
-import { AUDIENCES, KINDS, REPORT_BRANDS, VERDICT_TONE, buildReport, library, monthGroup, periodRange, runSummary, savedReports, schedules } from '../../data/reports'
+import { AUDIENCES, KINDS, REPORT_BRANDS, VERDICT_TONE, library, monthGroup, runSummary, savedReports, schedules } from '../../data/reports'
 import { brand as workspaceBrand } from '../../store/workspace'
 import ReportThread from './ReportPage'
+import ScheduledPage from './ScheduledPage'
 import { Block, Thumb, VerdictDot } from './blocks'
 import { DotIllustration } from './DotField'
-import { BetaTag, BrandLogo, ChipMenu, Empty, ReportsHead, brandOf, defaultBrand, inkBtn, lineBtn, menuItem, t2, t3 } from './parts'
+import { BetaTag, BrandLogo, ChipMenu, brandOf, defaultBrand, inkBtn, lineBtn, menuItem, t2, t3 } from './parts'
 
 // /reports → New report (the empty thread) · /reports/all → All reports · /reports/scheduled → Scheduled
 // /reports/<id> (and /reports/new?… · /reports/view?…) → the report thread. The empty state and every report are the same
@@ -24,7 +24,7 @@ export default function ReportsRouter() {
     else if (rest === 'scheduled') document.title = 'Scheduled reports · Kraffic'
   }, [rest])
   if (rest === 'all') return <AllReports />
-  if (rest === 'scheduled') return <Scheduled />
+  if (rest === 'scheduled') return <ScheduledPage />
   return <ReportThread rest={rest} />
 }
 const mockEmpty = () => new URLSearchParams(window.location.search).get('mock') === 'empty'
@@ -296,83 +296,6 @@ function RunPreview({ run, onClose }) {
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
             <p className={`max-w-[52ch] text-[12px] leading-[18px] ${t3}`}>Earlier runs keep what was sent. The full report, with its sections and actions, is kept for the latest run.</p>
             {sch && <a href={`/reports/${sch.reportId}`} onClick={(e) => { onClose(); linkClick(`/reports/${sch.reportId}`)(e) }} className={lineBtn}>Open the latest<ArrowRight size={14} aria-hidden /></a>}
-          </div>
-        </div>
-      )}
-    </Modal>
-  )
-}
-
-const people = (n) => `to ${n} ${n === 1 ? 'person' : 'people'}`
-function Scheduled() {
-  const [list, setList] = useState(mockEmpty() ? [] : schedules.map((s) => ({ ...s, paused: false })))
-  // ?preview=<id> opens that schedule's email; opened after mount, since a dialog that mounts open closes itself on
-  // StrictMode's second run of its Back-button effect
-  const [preview, setPreview] = useState(null)
-  useEffect(() => { setPreview(new URLSearchParams(window.location.search).get('preview')) }, [])
-  const [toastNode, toast] = useToast({ position: 'center' })
-  const COLS = 'md:grid md:grid-cols-[minmax(0,1fr)_190px_120px_64px_32px]'
-  return (
-    <>
-      <ReportsHead title="Scheduled" subtitle="Reports that write themselves from the latest sync and arrive by email" />
-      {list.length ? (
-        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-          <div className={`hidden h-9 items-center gap-3 border-b border-[var(--div)] bg-tint px-5 text-[13px] leading-[18px] font-medium ${t3} ${COLS}`}>
-            <span>Report</span><span>When</span><span>To</span><span>Next</span><span />
-          </div>
-          <ul className="divide-y divide-[var(--div)]">
-            {list.map((s) => (
-              <li key={s.id} className={`flex min-h-14 items-center gap-3 px-5 py-2.5 transition-colors duration-150 hover:bg-tint max-md:px-4 ${COLS}`}>
-                <button type="button" onClick={() => setPreview(s.id)} className="min-w-0 flex-1 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-focus">
-                  <span className="flex items-center gap-2 text-[14px] leading-5 font-medium text-stone-900"><BrandLogo id={s.brand} /><span className="truncate">{s.title}</span></span>
-                  <span className={`mt-0.5 block truncate text-[12px] leading-4 ${t3}`}>{brandOf(s.brand)?.name}<span className="md:hidden"> · {s.paused ? 'Paused' : s.cadence} · {people(s.recipients.length)}</span></span>
-                </button>
-                <span className={`hidden text-[13px] ${s.paused ? t3 : 'text-stone-700'} md:block`}>{s.paused ? 'Paused' : s.cadence}</span>
-                <span className={`hidden text-[13px] ${t2} md:block`} title={s.recipients.join(', ')}>{people(s.recipients.length)}</span>
-                <span className={`hidden text-[13px] tabular-nums ${t2} md:block`}>{s.paused ? '—' : s.next}</span>
-                <ActionMenu label={`Actions for ${s.title}`} className="grid h-8 w-8 place-items-center rounded-md text-stone-600 outline-none hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)] hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"
-                  items={[
-                    { label: 'Preview the email', onClick: () => setPreview(s.id) },
-                    { label: s.paused ? 'Resume' : 'Pause', onClick: () => { setList((l) => l.map((x) => (x.id === s.id ? { ...x, paused: !x.paused } : x))); toast(s.paused ? `Resumed “${s.title}”` : `Paused “${s.title}”`) } },
-                    { label: 'Delete', danger: true, onClick: () => { setList((l) => l.filter((x) => x.id !== s.id)); toast(`Deleted the schedule for “${s.title}”`) } },
-                  ]}>
-                  <MoreHorizontal size={16} aria-hidden />
-                </ActionMenu>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : (
-        <Empty title="Nothing scheduled" action={<a href="/reports/all" onClick={linkClick('/reports/all')} className={lineBtn}>Open a report</a>}>
-          Open any report and choose Schedule this report. It’s written again from the latest sync each time and sent by email.
-        </Empty>
-      )}
-      <EmailPreview s={list.find((s) => s.id === preview)} onClose={() => setPreview(null)} />
-      {toastNode}
-    </>
-  )
-}
-
-// the email a schedule sends: the short answer, the key numbers, and a link to the full report
-const SENT = { 'Mondays 9am': 'every Monday at 9am', '1st of the month 8am': 'on the 1st of each month at 8am', 'Every other Friday 10am': 'every other Friday at 10am' }
-export function EmailPreview({ s, onClose }) {
-  const saved = s && savedReports.find((x) => x.id === s.reportId)
-  const r = saved && buildReport(saved.opts, saved.prompt)
-  const range = r?.ok ? periodRange(r.opts.period) : ''
-  const pick = (type) => r?.blocks?.find((b) => b.type === type)
-  return (
-    <Modal open={!!s} onClose={onClose} size="lg" title="Email preview" subtitle={s ? `What ${s.recipients.length > 1 ? `${s.recipients.slice(0, -1).join(', ')} and ${s.recipients[s.recipients.length - 1]}` : s.recipients[0]} ${s.recipients.length === 1 ? 'gets' : 'get'}, ${SENT[s.cadence] ?? s.cadence}` : ''}>
-      {s && r?.ok && (
-        <div className="overflow-hidden rounded-xl border border-line">
-          <dl className={`grid grid-cols-[64px_1fr] gap-x-3 gap-y-1 border-b border-line bg-tint px-4 py-3 text-[13px] leading-[18px] ${t2}`}>
-            <dt className={t3}>From</dt><dd className="text-stone-900">Kraffic Reports for PTA Agency</dd>
-            <dt className={t3}>To</dt><dd className="text-stone-900">{s.recipients.join(', ')}</dd>
-            <dt className={t3}>Subject</dt><dd className="font-medium text-stone-900">{brandOf(s.brand)?.name} · {s.title} · {range}</dd>
-          </dl>
-          <div className="flex flex-col gap-5 bg-surface px-6 py-6 max-md:px-4">
-            {pick('hero') && <Block block={pick('hero')} title={s.title} />}
-            <div><span className={inkBtn}>Open the full report</span></div>
-            <p className={`border-t border-line pt-4 text-[12px] leading-[18px] ${t3}`}>Sent {SENT[s.cadence] ?? s.cadence} by Kraffic for PTA Agency, written from the latest sync each time. To change or stop it, open Scheduled in Kraffic.</p>
           </div>
         </div>
       )}
