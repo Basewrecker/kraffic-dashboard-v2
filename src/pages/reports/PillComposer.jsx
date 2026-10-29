@@ -132,7 +132,7 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
           onChange={(e) => { setPrompt(e.target.value); setClosed(false) }} onKeyDown={onKey}
           onFocus={() => { setFocused(true); setClosed(false) }} onBlur={() => { setFocused(false); setActive(-1) }}
           placeholder={placeholder ?? `Ask about ${brand?.name ?? 'your brand'}’s AI visibility`}
-          className="block h-6 w-full resize-none overflow-hidden bg-transparent p-0 text-[16px] leading-6 font-normal tracking-normal text-stone-900 outline-none placeholder:truncate placeholder:text-stone-500" />
+          className="block h-6 w-full resize-none overflow-hidden overscroll-contain bg-transparent p-0 text-[16px] leading-6 font-normal tracking-normal text-stone-900 outline-none placeholder:truncate placeholder:text-stone-500" />
         <div className="mt-4 flex items-end gap-2 md:gap-3">
           {/* one wrapping row: "+" (12px to what follows), chips, the dropdowns 6px apart */}
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1.5">

@@ -1,11 +1,6 @@
-// the Reports composer's sizes: the text grows a line at a time up to 8 lines, then scrolls inside itself;
-// in a thread the box is fixed 16px above the viewport's bottom, over a 48px fade, and the thread keeps 32px clear above it
+// the Reports composer's sizes: the text grows a line at a time up to 8 lines, then scrolls inside itself
 export const LINE = 24
 export const MAX_LINES = 8
-export const BOTTOM_GAP = 16
-export const FADE = 48
-export const CLEAR = 32
-export const DOWN_GAP = 12
 
 // the text area's height from its content: one line while empty (a long placeholder never makes it taller)
 export const textHeight = (value, scrollHeight) => {
@@ -14,8 +9,6 @@ export const textHeight = (value, scrollHeight) => {
   return { height: Math.min(max, Math.max(LINE, scrollHeight)), scroll: scrollHeight > max }
 }
 
-// the thread's bottom padding (less what the page already adds below it) and the ↓ button's offset from the bottom
-export const dockSpace = (composerH, pagePad = 0) => ({
-  pad: Math.max(0, BOTTOM_GAP + composerH + CLEAR - pagePad),
-  down: BOTTOM_GAP + composerH + DOWN_GAP,
-})
+// the thread page fills the visible viewport below its top: [scroll area] + [box]. The page's own padding under it is
+// cancelled, so the document is exactly the viewport's height and the window never scrolls (only the scroll area does)
+export const pageFit = (viewH, top, pagePad = 0) => ({ height: Math.max(0, Math.round(viewH - top)), marginBottom: -pagePad })

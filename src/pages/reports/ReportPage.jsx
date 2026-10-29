@@ -8,7 +8,7 @@ import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate } from '../../router'
 import { addReport, buildReport, optsLine, refine, refineSuggestions, reportById, stepsFor, updateReport } from '../../data/reports'
 import PillComposer from './PillComposer'
-import { dockSpace } from '../../data/composer'
+import { pageFit } from '../../data/composer'
 import { DotAssemble } from './DotField'
 import { Block, Thumb, WIDE, blockName, explainFor } from './blocks'
 import { brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
@@ -95,8 +95,9 @@ function Thread({ rest, mock, greeting, inter }) {
   const threadRef = useRef(null)
   const heroRef = useRef(null)
   const flipFrom = useRef(null)
-  const [dockBox, setDockBox] = useState({ left: 0, width: 0 }) // the thread column, for the fixed box
-  const [space, setSpace] = useState({ pad: 0, down: 0 }) // the thread's end padding and the ↓ button's offset, from the box's height
+  const pageRef = useRef(null)
+  const scroller = useRef(null) // the thread's scroll area: the only thing on the page that scrolls
+  const atEnd = useRef(true)
   const follow = useRef(true)
   const streaming = useRef(false)
   useInterFont(inter)
@@ -152,8 +153,39 @@ function Thread({ rest, mock, greeting, inter }) {
     }
   }, [rest]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // the box's glide between the centre and the dock (FLIP: measured before and after the change, transform only;
-  // measuring mid-glide includes the current transform, so a glide can be reversed halfway)
+  // a thread is a column exactly as tall as the visible viewport below the page's top: [scroll area] + [box]. The window
+  // doesn't scroll (the document is the viewport's height, and overflow is off while the thread is open), so the box, outside
+  // the scroll area, can't move when the report scrolls. Set on the element directly, before the glide below measures it;
+  // the visible viewport shrinks with a phone's keyboard, and the page with it
+  useLayoutEffect(() => {
+    const page = pageRef.current
+    if (mode !== 'thread' || !page) return undefined
+    const root = document.documentElement
+    const was = root.style.overflow
+    root.style.overflow = 'hidden'
+    window.scrollTo(0, 0)
+    const main = page.closest('main')
+    const fitPage = () => {
+      const vv = window.visualViewport
+      const { height, marginBottom } = pageFit(vv ? vv.height : window.innerHeight, page.getBoundingClientRect().top + window.scrollY, main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0)
+      page.style.height = `${height}px`
+      page.style.marginBottom = `${marginBottom}px`
+      if (window.scrollY) window.scrollTo(0, 0)
+    }
+    fitPage()
+    window.addEventListener('resize', fitPage)
+    window.visualViewport?.addEventListener('resize', fitPage)
+    return () => {
+      root.style.overflow = was
+      page.style.height = ''
+      page.style.marginBottom = ''
+      window.removeEventListener('resize', fitPage)
+      window.visualViewport?.removeEventListener('resize', fitPage)
+    }
+  }, [mode])
+
+  // the box's glide between the centre and the bottom (FLIP: measured before and after the change, transform only, with no
+  // fill, so nothing is left on it when it ends; measuring mid-glide includes the current transform, so it can reverse halfway)
   useLayoutEffect(() => {
     const from = flipFrom.current
     flipFrom.current = null
@@ -165,67 +197,41 @@ function Thread({ rest, mock, greeting, inter }) {
     const dx = from.left - to.left
     const dy = from.top - to.top
     if (Math.abs(dx) + Math.abs(dy) < 1) return
-    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 400, easing: EASE })
+    const a = el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 400, easing: EASE, fill: 'none' })
+    a.onfinish = () => a.cancel()
   }, [mode])
 
-  // following the stream: down as it grows, unless you scroll up (then a ↓ button brings you back)
+  // following the stream: down as it grows, unless you scroll up (then a ↓ button brings you back). All of it on the scroll area
+  const toEnd = (smooth) => { const sc = scroller.current; if (sc) sc.scrollTo({ top: sc.scrollHeight, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' }) }
   useEffect(() => {
-    const atEnd = () => window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 96
-    const onScroll = () => { const end = atEnd(); if (end) follow.current = true; setShowDown(!end && !follow.current) }
+    const sc = scroller.current
+    if (mode !== 'thread' || !sc) return undefined
+    const onScroll = () => {
+      const gap = sc.scrollHeight - sc.clientHeight - sc.scrollTop
+      atEnd.current = gap < 4
+      if (gap < 96) follow.current = true
+      setShowDown(gap >= 96 && !follow.current)
+    }
     const onWheel = (e) => { if (e.deltaY < 0) follow.current = false }
     const onTouch = () => { follow.current = false }
     const onKey = (e) => { if (['ArrowUp', 'PageUp', 'Home'].includes(e.key) && !e.target.closest?.('textarea,input,[role=menu],[role=listbox]')) follow.current = false }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('wheel', onWheel, { passive: true })
-    window.addEventListener('touchmove', onTouch, { passive: true })
+    sc.addEventListener('scroll', onScroll, { passive: true })
+    sc.addEventListener('wheel', onWheel, { passive: true })
+    sc.addEventListener('touchmove', onTouch, { passive: true })
     window.addEventListener('keydown', onKey)
-    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('wheel', onWheel); window.removeEventListener('touchmove', onTouch); window.removeEventListener('keydown', onKey) }
-  }, [])
-  useEffect(() => {
-    const el = threadRef.current
-    if (!el) return undefined
-    const ro = new ResizeObserver(() => {
-      if (follow.current && streaming.current) window.scrollTo({ top: document.documentElement.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' })
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [mode])
-  useEffect(() => {
-    if (mode !== 'thread') return undefined
-    const id = setInterval(() => {
-      if (!follow.current || !streaming.current) return
-      const max = document.documentElement.scrollHeight - window.innerHeight
-      if (max - window.scrollY > 4) window.scrollTo({ top: max, behavior: reducedMotion() ? 'auto' : 'smooth' })
-    }, 250)
-    return () => clearInterval(id)
-  }, [mode])
+    // the report grows (streaming) or the area shrinks (a taller box, the keyboard): stay at the end if following or there
+    const ro = new ResizeObserver(() => { if ((follow.current && streaming.current) || atEnd.current) toEnd(follow.current && streaming.current) })
+    ro.observe(sc)
+    if (threadRef.current) ro.observe(threadRef.current)
+    const id = setInterval(() => { if (follow.current && streaming.current && sc.scrollHeight - sc.clientHeight - sc.scrollTop > 4) toEnd(true) }, 250)
+    return () => {
+      sc.removeEventListener('scroll', onScroll); sc.removeEventListener('wheel', onWheel); sc.removeEventListener('touchmove', onTouch)
+      window.removeEventListener('keydown', onKey); ro.disconnect(); clearInterval(id)
+    }
+  }, [mode]) // eslint-disable-line react-hooks/exhaustive-deps
   // the box's stop button: stop whatever is being written
   const stopAll = () => turns.filter((t) => t.status === 'steps').forEach((t) => { clearTimeout(timers.current[t.id]); patch(t.id, { status: 'cancelled' }) })
-  // keep the fixed box over the thread column, and the thread padded by its height
-  useLayoutEffect(() => {
-    if (mode !== 'thread') return undefined
-    const col = threadRef.current
-    const box = dock.current
-    if (!col || !box) return undefined
-    const main = col.closest('main')
-    const measure = () => {
-      const r = col.getBoundingClientRect()
-      setDockBox((b) => (Math.abs(b.left - r.left) < 0.5 && Math.abs(b.width - r.width) < 0.5 ? b : { left: r.left, width: r.width }))
-      const s = dockSpace(box.offsetHeight, main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0)
-      // at the end of the thread when the box grows (a longer question): stay at the end, so nothing slides under it
-      atEnd.current = document.documentElement.scrollHeight - window.innerHeight - window.scrollY < 4
-      setSpace((o) => (o.pad === s.pad && o.down === s.down ? o : s))
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(col)
-    ro.observe(box)
-    window.addEventListener('resize', measure)
-    return () => { ro.disconnect(); window.removeEventListener('resize', measure) }
-  }, [mode])
-  const atEnd = useRef(false)
-  useLayoutEffect(() => { if (atEnd.current) window.scrollTo(0, document.documentElement.scrollHeight) }, [space.pad])
-  const jumpDown = () => { follow.current = true; setShowDown(false); window.scrollTo({ top: document.documentElement.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' }) }
+  const jumpDown = () => { follow.current = true; setShowDown(false); toEnd(true) }
 
   const latest = [...turns].reverse().find((t) => t.built?.ok)
   useEffect(() => { document.title = `${mode === 'empty' ? 'New report' : latest?.built.title ?? 'Report'} · Kraffic` }, [mode, latest?.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -296,44 +302,48 @@ function Thread({ rest, mock, greeting, inter }) {
   const thread = mode === 'thread'
   const refineList = latest ? refineSuggestions(latest.opts.brand).map((text, i) => ({ id: `r${i}`, text, icon: REFINE_ICONS[i] })) : null
   return (
-    <div style={inter ? { fontFamily: "'Inter', var(--font-sans)" } : undefined}
-      className="thread-motion relative flex min-h-[calc(100dvh-88px)] w-full flex-col lg:min-h-[calc(100dvh-72px)]">
+    <div ref={pageRef} style={inter ? { fontFamily: "'Inter', var(--font-sans)" } : undefined}
+      className={`thread-motion relative flex w-full flex-col ${thread ? '' : 'min-h-[calc(100dvh-88px)] lg:min-h-[calc(100dvh-72px)]'}`}>
       {!thread && (
         <div key="hello" className="flex flex-1 flex-col items-center justify-end pb-6">
           <h1 ref={greetRef} className="text-center text-[24px] leading-[1.3] font-medium tracking-normal text-stone-900 md:text-[28px]"
             style={greetIn ? { animation: `greet-in 220ms ${EASE} 120ms both` } : undefined}>{greeting}</h1>
         </div>
       )}
+      {/* a thread: [scroll area] + [box]. The scroll area (out to the page's edges, so the wheel works anywhere over it) holds
+          the question, the report and its actions; a 48px fade at its bottom edge, and ↓ in its bottom corner */}
       {thread && (
-        <div key="thread" ref={threadRef} className="mx-auto flex w-full max-w-[880px] flex-1 flex-col gap-8 pt-2" style={{ paddingBottom: space.pad }}>
-          {missing && (
-            <StateCard title="This report doesn’t exist any more">
-              It may have been deleted. <a href="/reports/all" onClick={linkClick('/reports/all')} className="font-medium text-stone-900 underline underline-offset-4">All reports</a>
-            </StateCard>
+        <div key="scroll" className="relative -mx-4 min-h-0 flex-1 md:-mx-6">
+          <div ref={scroller} data-scroll className="h-full overflow-y-auto overscroll-contain px-4 md:px-6">
+            <div ref={threadRef} className="mx-auto flex w-full max-w-[880px] flex-col gap-8 pb-12 pt-2">
+              {missing && (
+                <StateCard title="This report doesn’t exist any more">
+                  It may have been deleted. <a href="/reports/all" onClick={linkClick('/reports/all')} className="font-medium text-stone-900 underline underline-offset-4">All reports</a>
+                </StateCard>
+              )}
+              {turns.map((t) => {
+                const n = versions.indexOf(t) + 1
+                const isLatest = t === latest
+                return (
+                  <Turn key={t.id} t={t} n={n} isLatest={isLatest} many={versions.length > 1} heroRef={isLatest ? heroRef : null}
+                    open={isLatest || !!open[t.id]} onToggle={() => setOpen((o) => ({ ...o, [t.id]: !o[t.id] }))}
+                    onRetry={() => run(t)} onCancel={() => { clearTimeout(timers.current[t.id]); patch(t.id, { status: 'cancelled' }) }}
+                    explain={explain} setExplain={setExplain} move={(bid, d) => move(t, bid, d)} remove={(bid) => remove(t, bid)} actions={actionsFor(t)} />
+                )
+              })}
+            </div>
+          </div>
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-12" style={{ background: 'linear-gradient(to bottom, transparent, var(--color-page))' }} />
+          {showDown && (
+            <button type="button" onClick={jumpDown} aria-label="Jump to the latest"
+              className="absolute bottom-3 left-1/2 grid h-9 w-9 -translate-x-1/2 place-items-center rounded-full border border-line-strong bg-raised text-stone-700 outline-none transition-colors duration-150 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus motion-safe:animate-[fade-in_150ms_ease-out]">
+              <ArrowDown size={16} aria-hidden />
+            </button>
           )}
-          {turns.map((t) => {
-            const n = versions.indexOf(t) + 1
-            const isLatest = t === latest
-            return (
-              <Turn key={t.id} t={t} n={n} isLatest={isLatest} many={versions.length > 1} heroRef={isLatest ? heroRef : null}
-                open={isLatest || !!open[t.id]} onToggle={() => setOpen((o) => ({ ...o, [t.id]: !o[t.id] }))}
-                onRetry={() => run(t)} onCancel={() => { clearTimeout(timers.current[t.id]); patch(t.id, { status: 'cancelled' }) }}
-                explain={explain} setExplain={setExplain} move={(bid, d) => move(t, bid, d)} remove={(bid) => remove(t, bid)} actions={actionsFor(t)} />
-            )
-          })}
         </div>
       )}
-      {/* in a thread the box is fixed 16px above the viewport's bottom, centred on the thread column (never under the
-          sidebar, never in the page's flow), over a 48px fade to the page so the report scrolls under it cleanly; the thread
-          is padded so its end stays 32px clear of the box */}
-      <div key="dock" data-dock className={thread ? 'fixed bottom-0 z-20 px-4 pb-4 pt-12' : 'flex flex-[1.2] flex-col'}
-        style={thread ? { left: dockBox.left - 16, width: dockBox.width + 32, background: 'linear-gradient(to bottom, transparent, var(--color-page) 48px)' } : undefined}>
-        {thread && showDown && (
-          <button type="button" onClick={jumpDown} aria-label="Jump to the latest" style={{ bottom: space.down }}
-            className="absolute left-1/2 grid h-9 w-9 -translate-x-1/2 place-items-center rounded-full border border-line bg-raised text-stone-700 shadow-md outline-none transition-colors duration-150 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus motion-safe:animate-[fade-in_150ms_ease-out]">
-            <ArrowDown size={16} aria-hidden />
-          </button>
-        )}
+      {/* the box: in a thread, a sibling below the scroll area (never inside it), 16px above the bottom */}
+      <div key="dock" data-dock className={thread ? 'flex-none pb-4' : 'flex flex-[1.2] flex-col'}>
         <div ref={dock}>
           <PillComposer docked={thread} prompt={prompt} setPrompt={setPrompt} opts={opts} setOpts={setOpts} onSend={send}
             busy={turns.some((t) => t.status === 'steps')} onStop={stopAll} homeBrand={thread ? null : fromQuery('').opts.brand}
