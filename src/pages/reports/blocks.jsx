@@ -102,19 +102,6 @@ const VALUE = 'text-[28px] leading-8 font-semibold tracking-[-0.01em] tabular-nu
 const pad2 = (n) => String(n).padStart(2, '0')
 const joinAnd = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`)
 
-// a section's head: "01  What moved", then its one takeaway
-function SectionHead({ n, title, takeaway, paired }) {
-  return (
-    <div className={`mb-4 ${paired ? 'lg:min-h-[76px]' : ''}`}>
-      <div className="flex items-baseline gap-3">
-        {n != null && <span className="text-[13px] leading-[18px] tabular-nums text-stone-500">{pad2(n)}</span>}
-        <h2 className="text-[17px] leading-6 font-semibold text-stone-900">{title}</h2>
-      </div>
-      {takeaway && <p className={`mt-1 ${BODY} text-stone-600 [text-wrap:pretty]`}>{takeaway}</p>}
-    </div>
-  )
-}
-
 // a sparkline as wide as its column, 24px tall
 function LineFill({ series, color = INK, h = 24 }) {
   const [ref, w] = useWidth(160)
@@ -165,23 +152,30 @@ function Scoreline({ data: d }) {
   )
 }
 
-// ---- the hero band: the verdict, the headline, 3 stat chips; on the right one big visual answer --------------------
+// ---- the hero (no panel): the verdict, the headline, one inline stat row; on the right one visual answer ------------
 // ▲ / ▼ with the change; red only when it's going against the brand
 function Delta({ n, unit = '', bad, className = '' }) {
   if (n == null) return null
   return <span className={`whitespace-nowrap tabular-nums ${bad ? 'font-medium text-negative' : 'text-stone-600'} ${className}`}>{n > 0 ? '▲' : n < 0 ? '▼' : '±'}{Math.abs(n)}{n === 0 ? '' : unit}</span>
 }
-function StatChip({ c }) {
-  const unit = c.unit === '%' ? '%' : c.unit ?? ''
-  const bad = c.delta != null && c.delta !== 0 && (c.against ? c.delta > 0 : c.delta < 0)
+// the stats under the headline: one row, vertical hairlines between, no boxes
+function StatRow({ chips }) {
   return (
-    <span className="flex min-w-0 flex-col rounded-xl bg-surface px-3 py-2">
-      <span className={`truncate ${META} text-stone-600`}>{c.label}</span>
-      <span className="mt-0.5 flex items-baseline gap-1.5">
-        <span className="text-[17px] leading-6 font-semibold tabular-nums text-stone-900">{c.value}{unit}</span>
-        <Delta n={c.delta} bad={bad} className="text-[12px] leading-4" />
-      </span>
-    </span>
+    <dl className="mt-6 grid grid-cols-3">
+      {chips.map((c, i) => {
+        const unit = c.unit === '%' ? '%' : c.unit ?? ''
+        const bad = c.delta != null && c.delta !== 0 && (c.against ? c.delta > 0 : c.delta < 0)
+        return (
+          <div key={c.id} className={`min-w-0 ${i ? 'border-l border-line pl-5 max-md:pl-3' : ''} pr-5 max-md:pr-3`}>
+            <dt className={`${META} text-stone-600 md:truncate`}>{c.label}</dt>
+            <dd className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
+              <span className="text-[17px] leading-6 font-semibold tabular-nums text-stone-900">{c.value}{unit}{c.of != null && <span className="font-normal text-stone-500">/{c.of}</span>}</span>
+              <Delta n={c.delta} bad={bad} className="text-[12px] leading-4" />
+            </dd>
+          </div>
+        )
+      })}
+    </dl>
   )
 }
 // an arc on a ring: from 12 o'clock, clockwise, as fractions of the whole
@@ -205,15 +199,41 @@ function RingFrame({ children, label, sub, center }) {
     </figure>
   )
 }
-// weekly: the visibility score as a gauge
-function Ring({ v }) {
-  const r = (RING - RW) / 2
+// weekly: the visibility score, last 8 weeks. One slim column per weekly sync (height = the score, out of 100); this
+// week in ink with its number above it, earlier weeks in the border tint. A week that wasn't scanned: an empty outline
+function Strip({ v }) {
+  const [hov, setHov] = useState(null)
+  const last = v.weeks.length - 1
+  const tip = hov != null ? v.weeks[hov] : null
   return (
-    <RingFrame label={v.label} sub={<><b className="font-semibold tabular-nums text-stone-900">{v.named}</b> of {v.total} prompts</>}
-      center={<><span className={`${BIG} text-stone-900`}>{v.value}</span><Delta n={v.delta} bad={v.delta < 0} className="mt-1 text-[13px] leading-[18px]" /><span className={META}>vs {v.since}</span></>}>
-      <circle r={r} fill="none" stroke={TRACK} strokeWidth={RW} />
-      <g strokeLinecap="round"><Arc r={r} from={0} to={v.value / 100} color={INK} w={RW} /></g>
-    </RingFrame>
+    <figure className="w-full max-w-[380px]">
+      <div className="flex items-end justify-between gap-4">
+        <figcaption className={META}>{v.label}</figcaption>
+        <span className="text-right">
+          <span className="block text-[28px] leading-8 font-semibold tracking-[-0.01em] tabular-nums text-stone-900">{v.value ?? '–'}</span>
+          <span className="block text-[13px] leading-[18px]"><Delta n={v.delta} bad={v.delta < 0} /> <span className="text-stone-500">vs last week</span></span>
+        </span>
+      </div>
+      <div className="relative mt-3 flex h-24 items-end gap-1.5" onMouseLeave={() => setHov(null)} role="img"
+        aria-label={`Visibility score by week: ${v.weeks.map((w) => `${w.date} ${w.score ?? 'not scanned'}`).join(', ')}`}>
+        {v.weeks.map((w, i) => (
+          <span key={w.date} data-week={w.date} onMouseEnter={() => setHov(i)} className="relative flex h-full flex-1 cursor-default items-end">
+            {w.score == null
+              ? <span className="h-full w-full rounded-[3px] border border-dashed border-stone-300" />
+              : <span className="w-full rounded-[3px] transition-colors duration-150" style={{ height: `${w.score}%`, background: i === last ? INK : hov === i ? 'var(--color-stone-400)' : 'var(--color-line-strong)' }} />}
+          </span>
+        ))}
+        {tip && (
+          <span role="tooltip" className="pointer-events-none absolute z-20 -translate-x-1/2 whitespace-nowrap rounded-lg border border-line bg-raised px-2 py-1 text-[12px] leading-4 text-stone-800 shadow-sm"
+            style={{ left: `${((hov + 0.5) / v.weeks.length) * 100}%`, bottom: `calc(${tip.score ?? 100}% + 6px)` }}>
+            {tip.date} · {tip.score == null ? 'not scanned' : <b className="font-semibold tabular-nums text-stone-900">{tip.score}</b>}
+          </span>
+        )}
+      </div>
+      <div className="mt-2 flex gap-1.5">
+        {v.weeks.map((w, i) => <span key={w.date} className={`flex-1 text-center text-[11px] leading-4 whitespace-nowrap max-md:text-[10px] ${i === last ? 'font-medium text-stone-900' : 'text-stone-500'}`}>{w.date}</span>)}
+      </div>
+    </figure>
   )
 }
 // CEO: everyone's share of voice, you in ink
@@ -237,7 +257,7 @@ function Donut({ v }) {
 function Split({ v }) {
   const all = v.you.n + v.them.n
   return (
-    <figure className="w-full max-w-[320px]">
+    <figure className="w-full max-w-[340px]">
       <figcaption className={LABEL}>Prompts each of you wins, of {v.total}</figcaption>
       <div className="mt-4 flex items-end justify-between gap-4">
         <span className="min-w-0"><span className={`block ${BIG} text-stone-900`}>{v.you.n}</span><span className={`block truncate ${LABEL}`}>{v.you.name}</span></span>
@@ -269,21 +289,21 @@ function Gap({ v }) {
     </RingFrame>
   )
 }
-const HERO_VISUAL = { ring: Ring, donut: Donut, split: Split, gap: Gap }
+const HERO_VISUAL = { strip: Strip, donut: Donut, split: Split, gap: Gap }
 function HeroBand({ data: d }) {
   const V = HERO_VISUAL[d.visual?.kind]
   return (
-    <header className="grid items-center gap-8 rounded-2xl bg-tint p-8 lg:grid-cols-12 max-md:gap-6 max-md:p-5">
-      <div className="min-w-0 lg:col-span-7">
+    <header className="grid items-end gap-x-8 gap-y-8 md:grid-cols-12">
+      <div className="min-w-0 md:col-span-7">
         {/* one line of text, so a long one wraps between words, never at a separator */}
         <p className={`${META} tabular-nums`}>
           <VerdictDot verdict={d.verdict} className="mr-1.5 align-[-1px]" />
           · {d.brand} · {d.span ?? d.period} · {(d.counted?.length ? d.counted.join(', ') : 'no engines')} · {AUDIENCE[d.audience]}
         </p>
-        <h1 className="mt-3 text-[28px] leading-9 font-semibold tracking-[-0.01em] text-stone-900 [text-wrap:balance] max-md:text-[22px] max-md:leading-[30px]">{d.headline}</h1>
-        <div className="mt-5 grid grid-cols-3 gap-2 max-md:grid-cols-1">{d.chips.map((c) => <StatChip key={c.id} c={c} />)}</div>
+        <h1 className="mt-3 text-[30px] leading-[38px] font-semibold tracking-[-0.01em] text-stone-900 [text-wrap:balance] max-md:text-[24px] max-md:leading-[31px]">{d.headline}</h1>
+        <StatRow chips={d.chips} />
       </div>
-      {V && <div className="flex min-w-0 justify-center lg:col-span-5"><V v={d.visual} /></div>}
+      {V && <div className="flex min-w-0 md:col-span-5 md:justify-end"><V v={d.visual} /></div>}
     </header>
   )
 }
@@ -328,7 +348,6 @@ function Waffle({ v }) {
   const tip = hover && cells[hover.i]
   const tipText = tip?.g.prompts ? tip.g.prompts[tip.k] : null
   const toggle = (key) => setPick((p) => (p === key ? null : key))
-  const cols = Math.ceil(v.total / 8) // about 8 rows, whatever the number of prompts
   return (
     <div className="flex flex-1 flex-col">
       <p className="-mx-1.5 flex flex-wrap items-center gap-y-1 text-[13px] leading-[18px]">
@@ -343,10 +362,10 @@ function Waffle({ v }) {
           </span>
         ))}
       </p>
-      <div ref={box} className="relative mt-3 grid w-full gap-[3px]" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, maxWidth: cols * 21 }} onMouseLeave={() => setHover(null)}
+      <div ref={box} className="relative mt-3 grid w-full gap-[3px]" style={{ gridTemplateColumns: 'repeat(auto-fill, 10px)', justifyContent: 'space-between' }} onMouseLeave={() => setHover(null)}
         role="img" aria-label={`${v.total} prompts: ${v.groups.map((g) => `${g.n} ${g.label}`).join(', ')}`}>
         {cells.map((c, i) => (
-          <span key={i} data-cell={c.g.key} className="aspect-square cursor-pointer rounded-[2px] transition-[opacity,transform] duration-150"
+          <span key={i} data-cell={c.g.key} className="h-2.5 w-2.5 cursor-pointer rounded-[2px] transition-[opacity,transform] duration-150"
             style={{ ...TONES[c.g.tone], opacity: pick && pick !== c.g.key ? 0.2 : 1, transform: hover?.i === i ? 'scale(1.35)' : undefined }}
             onMouseEnter={(e) => setHover({ i, x: e.currentTarget.offsetLeft + e.currentTarget.offsetWidth / 2, y: e.currentTarget.offsetTop })}
             onClick={() => toggle(c.g.key)} />
@@ -359,7 +378,7 @@ function Waffle({ v }) {
           </span>
         )}
       </div>
-      <div className="mt-auto pt-3">
+      <div className="pt-3">
         {!sel && <p className={META}>Click a group to list its prompts.</p>}
         {sel && (sel.prompts
           ? <PromptList id={`w-${sel.key}`} prompts={sel.prompts} />
@@ -381,7 +400,7 @@ function Ranking({ v }) {
           const ch = r.from != null ? r.now - r.from : null
           const bad = ch != null && ch !== 0 && (r.you ? ch < 0 : ch > 0)
           return (
-            <li key={r.key} className="-mx-2 grid min-h-11 grid-cols-[minmax(0,184px)_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 tabular-nums transition-colors duration-150 hover:bg-tint">
+            <li key={r.key} className="-mx-2 grid min-h-10 grid-cols-[minmax(0,184px)_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 tabular-nums transition-colors duration-150 hover:bg-tint">
               <span className="flex min-w-0 items-center gap-2">
                 <SiteLogo domain={r.domain} name={r.name} className="h-5 w-5 shrink-0 rounded" imgPad="p-0" initialClass="text-[9px]" plate />
                 <span className={`truncate ${BODY} ${r.you ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>{r.name}</span>
@@ -395,10 +414,7 @@ function Ranking({ v }) {
           )
         })}
       </ul>
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
-        {v.rows.length > 5 ? <button type="button" onClick={() => setAll((a) => !a)} className="-mx-1.5 h-7 rounded-md px-1.5 text-[13px] text-stone-600 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">{all ? 'Show fewer' : `+${v.rows.length - 5} more`}</button> : <span />}
-        {v.rows.some((r) => r.from != null) && <p className={META}>Change since the period began</p>}
-      </div>
+      {v.rows.length > 5 && <div className="pt-2"><button type="button" onClick={() => setAll((a) => !a)} className="-mx-1.5 h-7 rounded-md px-1.5 text-[13px] text-stone-600 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">{all ? 'Show fewer' : `+${v.rows.length - 5} more`}</button></div>}
     </div>
   )
 }
@@ -600,41 +616,56 @@ function CitedPair({ v }) {
 }
 const VISUAL = { waffle: Waffle, ranking: Ranking, trend: Trend, diverging: Diverging, topicBars: TopicBars, engineStack: EngineStack, engineBars: EngineBars, cited: ({ v }) => <CitedList rows={v.rows} domain={v.domain} />, citedPair: CitedPair }
 
-// a section: "01  Title", one takeaway, its visual. Side by side, the heads keep one height so the visuals start level,
-// and each visual fills down so they end level too
-function Section({ data: s, n, paired }) {
+// the spine: every section is one row of the 12-column grid. Left 3 columns: the number, the title, one takeaway
+// (top-aligned, repeated down the page); right 9: the visual. On phones the spine stacks above the visual
+const SPINE_ROW = 'grid gap-x-8 gap-y-4 md:grid-cols-12'
+function Spine({ n, title, takeaway }) {
+  return (
+    <div className="min-w-0 md:col-span-3">
+      <div className="flex items-baseline gap-2.5">
+        {n != null && <span className="text-[13px] leading-[18px] tabular-nums text-stone-500">{pad2(n)}</span>}
+        <h2 className="text-[17px] leading-6 font-semibold text-stone-900">{title}</h2>
+      </div>
+      {takeaway && <p className="mt-1.5 text-[14px] leading-5 text-stone-600 [text-wrap:pretty]">{takeaway}</p>}
+    </div>
+  )
+}
+function Section({ data: s, n }) {
   const V = VISUAL[s.visual.kind]
   return (
-    <section className="flex h-full flex-col">
-      <SectionHead n={n} title={s.title} takeaway={s.takeaway} paired={paired} />
-      <div className="flex flex-1 flex-col">{V && <V v={s.visual} />}</div>
+    <section className={SPINE_ROW}>
+      <Spine n={n} title={s.title} takeaway={s.takeaway} />
+      <div className="flex min-w-0 flex-col md:col-span-9">{V && <V v={s.visual} />}</div>
     </section>
   )
 }
 
-// ---- what to do: 3 cards in a row (tint, no borders): the kind of action, the action, the prompts it could win
+// ---- what to do: three open columns, vertical hairlines between, no fills. The rows are shared (subgrid), so the
+// tallest title sets the height and the impact numbers sit on one line across all three
 const ACTION_ICON = { 'New page': FilePlus2, 'Add to FAQ': MessageCircleQuestion, Outreach: Megaphone }
-function ActionCard({ a }) {
+function ActionCol({ a }) {
   const t = useToggle()
   const Icon = ACTION_ICON[a.type] ?? FilePlus2
   return (
-    <li className="flex min-w-0 flex-col rounded-2xl bg-tint p-5">
-      <span className={`flex items-center gap-2 ${LABEL}`}><Icon size={16} strokeWidth={1.75} className="text-stone-700" aria-hidden />{a.type}</span>
-      <span className="mt-3 text-[16px] leading-[22px] font-semibold text-stone-900 [text-wrap:pretty] md:min-h-[66px]">{a.title}</span>
-      <span className="pt-5">
+    <li className="flex min-w-0 flex-col border-line max-md:border-t max-md:py-5 max-md:first:border-t-0 max-md:first:pt-0 md:row-span-4 md:grid md:grid-rows-subgrid md:gap-y-0 md:border-l md:px-6 md:first:border-l-0 md:first:pl-0 md:last:pr-0">
+      <span className={`flex items-center gap-2 ${META}`}><Icon size={15} strokeWidth={1.75} className="text-stone-500" aria-hidden />{a.type}</span>
+      <span className="mt-2 text-[16px] leading-[22px] font-semibold text-stone-900 [text-wrap:pretty]">{a.title}</span>
+      <span className="mt-4 md:self-end">
         <span className="block text-[24px] leading-8 font-semibold tracking-[-0.01em] tabular-nums text-stone-900">{plural(a.n)}</span>
         <span className={`block ${META}`}>could be won · {a.theme}</span>
       </span>
-      {a.prompts?.length > 0 && <span className="-mx-1.5 mt-3">{t.button(t.open ? 'Hide prompts' : 'View prompts')}</span>}
-      {t.open && <div className="mt-2"><PromptList id={t.id} prompts={a.prompts} /></div>}
+      <span className="mt-2 flex flex-col items-start">
+        {a.prompts?.length > 0 && <span className="-mx-1.5">{t.button(t.open ? 'Hide prompts' : 'View prompts')}</span>}
+        {t.open && <div className="mt-2 w-full"><PromptList id={t.id} prompts={a.prompts} /></div>}
+      </span>
     </li>
   )
 }
 function Actions({ data: d, n }) {
   return (
-    <section>
-      <SectionHead n={n} title={d.title} />
-      <ol className="grid items-start gap-4 md:grid-cols-3">{d.items.map((a) => <ActionCard key={a.title} a={a} />)}</ol>
+    <section className={SPINE_ROW}>
+      <Spine n={n} title={d.title} takeaway={d.takeaway} />
+      <ol className="flex min-w-0 flex-col md:col-span-9 md:grid md:grid-cols-3 md:grid-rows-[repeat(4,auto)]">{d.items.map((a) => <ActionCol key={a.title} a={a} />)}</ol>
     </section>
   )
 }
@@ -644,7 +675,7 @@ function Sources({ data: d }) {
   const [tip, setTip] = useState(false)
   const id = useId()
   return (
-    <footer className={`flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--div)] pt-4 ${META} tabular-nums`}>
+    <footer className={`flex flex-wrap items-center gap-x-2 gap-y-1 ${META} tabular-nums`}>
       <span>Source: {d.syncs} weekly syncs, {d.span ?? `${d.from} – ${d.to}`} · {d.engines.join(', ') || 'no engines'}{d.off?.length ? ` · ${joinAnd(d.off)} didn’t run` : ''}</span>
       <span className="relative" onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)}>
         <button type="button" aria-describedby={tip ? id : undefined} onFocus={() => setTip(true)} onBlur={() => setTip(false)} onClick={() => setTip((x) => !x)}
@@ -661,31 +692,17 @@ function Sources({ data: d }) {
 }
 
 const RENDER = { header: Header, scoreline: Scoreline, hero: HeroBand, section: Section, actions: Actions, sources: Sources }
-export function Block({ block, title, n, paired }) {
+export function Block({ block, title, n }) {
   const C = RENDER[block.type]
-  return C ? <C data={block.data} title={title} n={n} paired={paired} /> : null
+  return C ? <C data={block.data} title={title} n={n} /> : null
 }
 export const blockName = (b) => (b.type === 'section' ? b.data.title : { header: 'Header', scoreline: 'Scoreline', hero: 'Summary', actions: b.data.title, sources: 'Sources' }[b.type])
-// the grid: a section says how wide it'd like to be (7 + 5 side by side, or 12); a 7 and a 5 next to each other share
-// a row, anything else takes the full width
-export function blockSpans(blocks) {
-  const want = (b) => (b?.type === 'section' ? b.data.span ?? 12 : 12)
-  const out = blocks.map(() => 12)
-  for (let i = 0; i < blocks.length - 1; i++) {
-    const a = want(blocks[i])
-    const b = want(blocks[i + 1])
-    if (a !== 12 && a + b === 12) { out[i] = a; out[i + 1] = b; i++ }
-  }
-  return out
-}
-export const SPAN_CLASS = { 12: 'col-span-12', 7: 'col-span-12 lg:col-span-7', 5: 'col-span-12 lg:col-span-5' }
-
 // "Explain this": how a block was worked out, in a sentence or two
 export function explainFor(block) {
   const d = block.data
   switch (block.type) {
     case 'hero': return {
-      ring: 'The visibility score is the latest sync’s; the change is against the start of the period. Good week: you won at least twice as many prompts as you lost.',
+      strip: 'The visibility score at each of the last 8 weekly syncs; this week’s is compared with the last week that was scanned. A week without a scan is left empty, not counted as 0. Good week: you won at least twice as many prompts as you lost.',
       donut: 'Of all brand mentions in AI answers to your prompts, the share each brand got in the latest sync. Winning: first in share of voice and gaining.',
       split: 'Every tracked prompt where AI names only you, or names you first, is yours; where it names only them, or them first, is theirs.',
       gap: 'Tracked prompts where AI doesn’t name you in the latest sync; in red, those that name a competitor instead.',

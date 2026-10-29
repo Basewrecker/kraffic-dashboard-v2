@@ -10,7 +10,7 @@ import { addReport, buildReport, optsLine, refine, refineSuggestions, reportById
 import PillComposer from './PillComposer'
 import { pageFit } from '../../data/composer'
 import { DotAssemble } from './DotField'
-import { Block, SPAN_CLASS, Thumb, blockName, blockSpans, explainFor } from './blocks'
+import { Block, Thumb, blockName, explainFor } from './blocks'
 import { brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
 
 // Reports as a chat thread, ChatGPT-style. /reports is the empty state: a greeting and the box at the centre. Sending
@@ -447,10 +447,10 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
           )}
           <article aria-label={t.built.title} className={ARTICLE}>
             {t.blocks.map((b, i) => (
-              <BlockFrame key={`${t.id}-${b.id}`} b={b} i={i} n={t.blocks.length} span={blockSpans(t.blocks)[i]} reveal={t.live} explainOpen={explain === `${t.id}|${b.id}`}
+              <BlockFrame key={`${t.id}-${b.id}`} b={b} i={i} n={t.blocks.length} reveal={t.live} explainOpen={explain === `${t.id}|${b.id}`}
                 onExplain={() => setExplain((e) => (e === `${t.id}|${b.id}` ? null : `${t.id}|${b.id}`))} onUp={() => move(b.id, -1)} onDown={() => move(b.id, 1)} onRemove={() => remove(b.id)}
                 explainText={explainFor(b)}>
-                <Block block={b} title={t.built.title} n={numbers(t.blocks)[i]} paired={blockSpans(t.blocks)[i] !== 12} />
+                <Block block={b} title={t.built.title} n={numbers(t.blocks)[i]} />
               </BlockFrame>
             ))}
           </article>
@@ -469,9 +469,9 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
   )
 }
 
-// the report card: at most 960 wide, a 12-column grid, 32px inside; bands 40px apart (the 24px gap plus each block's 8px
-// frame above and below)
-const ARTICLE = 'mx-auto grid w-full max-w-[960px] min-w-0 grid-cols-12 gap-x-8 gap-y-6 rounded-xl border border-line bg-surface p-8 max-md:gap-y-5 max-md:px-4 max-md:py-5'
+// the report card: the only container, at most 960 wide, 32px inside. Its bands (hero, sections, footer) are separated
+// by full-width hairlines with 40px above and below (each block's own padding)
+const ARTICLE = 'mx-auto flex w-full max-w-[960px] min-w-0 flex-col divide-y divide-[var(--div)] rounded-xl border border-line bg-surface px-8 py-2 max-md:px-4'
 
 // while it's written: only the hero's place, where the dots gather (short, so the question stays in view)
 const HERO_H = { weekly: 220, ceo: 240, rival: 280, content: 240 }
@@ -500,20 +500,20 @@ function NotEnough({ r }) {
 }
 
 // ---- a block on the page: on hover (or focus) small actions: move up / down, explain this, remove
-function BlockFrame({ b, i, n, span = 12, reveal, explainOpen, explainText, onExplain, onUp, onDown, onRemove, children }) {
+function BlockFrame({ b, i, n, reveal, explainOpen, explainText, onExplain, onUp, onDown, onRemove, children }) {
   const fixed = FIXED.has(b.type)
   const name = blockName(b)
   const iconBtn = 'grid h-7 w-7 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-30'
   return (
-    <div role="group" aria-label={name} className={`group/block relative -mx-3 min-w-0 rounded-xl px-3 py-2 ${SPAN_CLASS[span] ?? SPAN_CLASS[12]} transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] focus-within:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] max-md:-mx-2 max-md:px-2 max-md:pr-9`}
+    <div role="group" aria-label={name} className={`group/block relative min-w-0 py-10 max-md:py-8 max-md:pr-9`}
       style={reveal ? { animation: `card-in 420ms cubic-bezier(0.22, 1, 0.36, 1) ${i * 120}ms both` } : undefined}>
-      <div className="absolute -top-3.5 right-2 z-10 hidden items-center gap-0.5 rounded-lg border border-line bg-raised p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover/block:opacity-100 group-focus-within/block:opacity-100 md:flex">
+      <div className="absolute right-0 top-2 z-10 hidden items-center gap-0.5 rounded-lg border border-line bg-raised p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover/block:opacity-100 group-focus-within/block:opacity-100 md:flex">
         {!fixed && <button type="button" onClick={onUp} disabled={i <= FIRST_MOVABLE} aria-label={`Move “${name}” up`} title="Move up" className={iconBtn}><ArrowUp size={14} aria-hidden /></button>}
         {!fixed && <button type="button" onClick={onDown} disabled={i >= n - 2} aria-label={`Move “${name}” down`} title="Move down" className={iconBtn}><ArrowDown size={14} aria-hidden /></button>}
         <button type="button" onClick={onExplain} aria-expanded={explainOpen} className="inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[12px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><HelpCircle size={14} aria-hidden />Explain this</button>
         {!fixed && <button type="button" onClick={onRemove} aria-label={`Remove “${name}”`} title="Remove" className={iconBtn}><X size={14} aria-hidden /></button>}
       </div>
-      <div className="absolute right-0 top-0 md:hidden">
+      <div className="absolute right-0 top-6 md:hidden">
         <ActionMenu label={`Actions for ${name}`} className="grid h-8 w-8 place-items-center rounded-md text-stone-500 outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus"
           items={[
             ...(fixed ? [] : [{ label: 'Move up', onClick: onUp }, { label: 'Move down', onClick: onDown }]),
@@ -616,8 +616,8 @@ function PrintView({ prompt, opts, title }) {
       </div>
       <div className="w-full overflow-x-auto">
         <div ref={sheet} className={`print-sheet mx-auto flex w-[210mm] flex-col gap-[6mm] bg-surface px-[14mm] py-[12mm] shadow-[0_1px_3px_rgba(0,0,0,0.08),0_12px_32px_-12px_rgba(0,0,0,0.18)] ${one ? 'h-[297mm] overflow-hidden' : 'min-h-[297mm]'}`}>
-          <div className="grid grid-cols-12 gap-x-8 gap-y-8" style={{ zoom: 0.62, width: 960 }}>
-            {r.blocks.map((b, i) => <div key={b.id} className={SPAN_CLASS[blockSpans(r.blocks)[i]].replace('lg:', '')}><Block block={b} title={title ?? r.title} n={numbers(r.blocks)[i]} paired={blockSpans(r.blocks)[i] !== 12} /></div>)}
+          <div className="flex flex-col divide-y divide-[var(--div)]" style={{ zoom: 0.62, width: 960 }}>
+            {r.blocks.map((b, i) => <div key={b.id} className="py-8"><Block block={b} title={title ?? r.title} n={numbers(r.blocks)[i]} /></div>)}
           </div>
           <p className={`mt-auto text-[9px] ${t3}`}>Kraffic · {brandOf(r.opts.brand)?.name} · page 1 of 1</p>
         </div>

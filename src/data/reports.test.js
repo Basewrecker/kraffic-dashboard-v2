@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DATES, shortRange, addReport, optsLine, refineSuggestions, reportById, updateReport, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
+import { DATES, scoreStrip, shortRange, addReport, optsLine, refineSuggestions, reportById, updateReport, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
 
 const types = (r) => r.blocks.map((b) => b.type)
 const block = (r, type) => r.blocks.find((b) => b.type === type)?.data
@@ -9,7 +9,7 @@ const sections = (r) => r.blocks.filter((b) => b.type === 'section').map((b) => 
 const hero = (r) => block(r, 'hero')
 const chipOf = (r, id) => hero(r).chips.find((c) => c.id === id)
 
-test('every report has the same bands: hero · sections (7 + 5 or 12) · action cards · footer', () => {
+test('every report has the same bands: hero · sections · action cards · footer', () => {
   for (const kind of ['weekly', 'ceo', 'rival', 'content']) {
     const r = buildReport({ brand: 'foa', kind, period: '30d', length: 'detailed', compare: kind === 'rival' ? ['longbridge'] : [] })
     assert.equal(r.ok, true, kind)
@@ -17,19 +17,17 @@ test('every report has the same bands: hero · sections (7 + 5 or 12) · action 
     assert.equal(hero(r).chips.length, 3, `${kind}: 3 stat chips`)
     assert.ok(block(r, 'actions').items.length <= 3, kind)
     assert.ok(sections(r).every((s) => s.takeaway && !s.takeaway.includes('. ', s.takeaway.length - 2) && s.visual), `${kind}: one takeaway + a visual`)
-    // a 7 is always followed by its 5, so the pairs share a row
-    const spans = sections(r).map((s) => s.span)
-    for (let i = 0; i < spans.length; i++) if (spans[i] === 7) assert.equal(spans[i + 1], 5, `${kind}: 7 then 5`)
-    assert.ok(spans.every((x) => [5, 7, 12].includes(x)), kind)
-    assert.equal(sections(r).filter((s) => s.visual.kind === 'trend').length, 1, `${kind}: one trend chart`)
+    // the weekly's history is the hero's score strip; the others keep one trend chart
+    assert.equal(sections(r).filter((s) => s.visual.kind === 'trend').length, kind === 'weekly' ? 0 : 1, `${kind}: trend`)
   }
 })
 
 test('each kind has its own hero visual; the weekly sections are in the agreed order', () => {
   const visual = (kind) => hero(buildReport({ brand: 'foa', kind, compare: kind === 'rival' ? ['longbridge'] : [] })).visual.kind
-  assert.deepEqual(['weekly', 'ceo', 'rival', 'content'].map(visual), ['ring', 'donut', 'split', 'gap'])
+  assert.deepEqual(['weekly', 'ceo', 'rival', 'content'].map(visual), ['strip', 'donut', 'split', 'gap'])
   const w = buildReport({ brand: 'dermasuri', kind: 'weekly', period: 'week', length: 'detailed' })
-  assert.deepEqual(sections(w).map((s) => `${s.title}:${s.span}`), ['What moved:7', 'Where you stand:5', 'Trend:12', 'By topic:7', 'By engine:5'])
+  assert.deepEqual(sections(w).map((s) => s.title), ['What moved', 'Where you stand', 'By topic', 'By engine'])
+  assert.equal(block(w, 'actions').title, 'What to do')
 })
 
 test('the weekly waffle accounts for every prompt, and matches the ring and the chips', () => {
@@ -41,8 +39,9 @@ test('the weekly waffle accounts for every prompt, and matches the ring and the 
       assert.equal(g.won + g.held + g.lost + g.missing, dataFor(brand).prompts, `${brand} ${period}`)
       assert.equal(g.won + g.held, named.value, `${brand} ${period}: named now`)
       assert.equal(g.held + g.lost, named.value - named.delta, `${brand} ${period}: named at the start`)
-      assert.equal(hero(r).visual.named, named.value)
+      assert.equal(named.of, dataFor(brand).prompts)
       assert.equal(hero(r).visual.value, dataFor(brand).series.score.at(-1))
+      assert.equal(hero(r).visual.weeks.length, 8)
     }
   }
   // a square's prompt is only shown when the report holds exactly that group's prompts
@@ -52,13 +51,24 @@ test('the weekly waffle accounts for every prompt, and matches the ring and the 
   assert.equal(groups.find((x) => x.key === 'held').prompts, undefined)
 })
 
-test('where you stand: every brand by share, you included, sorted; the trend is you and the top 2 in brand colours', () => {
+test('the score strip: 8 weeks from history; an unscanned week stays empty, never 0; compared with the last scanned week', () => {
+  const s = scoreStrip([61, 62, 61, 64, 65, 64, 66, 73])
+  assert.deepEqual(s.weeks.map((w) => w.date), DATES)
+  assert.equal(s.value, 73)
+  assert.equal(s.delta, 7)
+  const gap = scoreStrip([61, 62, 61, 64, 65, 64, null, 73])
+  assert.equal(gap.weeks[6].score, null)
+  assert.equal(gap.delta, 9) // against Oct 5, the last week that was scanned
+  assert.equal(scoreStrip([61, 62, 61, 64, 65, 64, 66, undefined]).delta, null)
+})
+
+test('where you stand: every brand by share, you included, sorted; the CEO trend is you and the top 2 in brand colours', () => {
   const r = buildReport({ brand: 'foa', kind: 'weekly', period: 'week', length: 'detailed' })
   const rows = sections(r).find((s) => s.id === 'stand').visual.rows
   assert.equal(rows.length, dataFor('foa').rivals.length + 1)
   assert.ok(rows.some((x) => x.you))
   assert.deepEqual(rows.map((x) => x.now), [...rows.map((x) => x.now)].sort((a, b) => b - a))
-  const lines = sections(r).find((s) => s.id === 'trend').visual.lines
+  const lines = sections(buildReport({ brand: 'foa', kind: 'ceo', length: 'detailed' })).find((s) => s.id === 'trend').visual.lines
   assert.equal(lines.length, 3)
   assert.ok(lines[0].you && lines.slice(1).every((l) => /^var\(--line-[12]\)$/.test(l.color)))
   assert.ok(lines.every((l) => l.series.length === 8))
@@ -112,7 +122,7 @@ test('an engine that didn’t run shows as such and is named in the footer, neve
 
 test('one page keeps the first two sections', () => {
   assert.equal(sections(buildReport({ brand: 'foa', kind: 'weekly', length: 'one' })).length, 2)
-  assert.equal(sections(buildReport({ brand: 'foa', kind: 'weekly', length: 'detailed' })).length, 5)
+  assert.equal(sections(buildReport({ brand: 'foa', kind: 'weekly', length: 'detailed' })).length, 4)
 })
 
 test('not enough data, and no breakdown for a competitor: no report, and why', () => {
