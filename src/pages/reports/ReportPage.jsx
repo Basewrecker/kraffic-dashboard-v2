@@ -26,7 +26,7 @@ const STEP_MS = 850
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 const FIXED = new Set(['hero', 'sources']) // the fixed bands: explain only
 const FIRST_MOVABLE = 1 // after the hero band
-const GREETINGS = { 1: 'What do you want to know?', 2: 'What should we look into today?', 3: 'What’s on your mind today?' }
+const GREETINGS = { 1: 'What would you like a report on?', 2: 'What should we look into today?', 3: 'What’s on your mind today?' }
 const REFINE_ICONS = [Minimize2, Plus, Crosshair, UserRound]
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 // 01 What moved · 02 Where you stand · … · the last number is What to do (the hero band isn't numbered)
@@ -307,7 +307,7 @@ function Thread({ rest, mock, greeting, inter }) {
       {!thread && (
         <div key="hello" className="flex flex-1 flex-col items-center justify-end pb-6">
           {/* the H1 runs inline so, when the greeting wraps on a phone, the tag follows its last word */}
-          <div className="text-center text-[24px] leading-[1.3] md:text-[28px]" style={greetIn ? { animation: `greet-in 220ms ${EASE} 120ms both` } : undefined}>
+          <div className="text-center text-[24px] leading-[1.3] [text-wrap:balance] md:text-[28px]" style={greetIn ? { animation: `greet-in 220ms ${EASE} 120ms both` } : undefined}>
             <h1 ref={greetRef} className="inline font-medium tracking-normal text-stone-900">{greeting}</h1>
             <BetaTag tipAlign="center" className="ml-2.5 -translate-y-[3.5px] md:-translate-y-[5px]" />
           </div>
