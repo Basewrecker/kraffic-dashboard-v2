@@ -5,6 +5,7 @@ import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
 import { Wordmark } from '../ui/Logo'
 import SiteLogo from '../ui/SiteLogo'
+import BetaTag from '../ui/BetaTag'
 import { agency, brand, recentBrands, role, switchBrand, visibleDirectory } from '../../store/workspace'
 
 // grouped nav (same items and order as production); items without an href have no page yet.
@@ -13,10 +14,10 @@ export const groups = [
   { label: 'Insights', items: [
     { label: 'Visibility Overview', icon: BarChart3, href: '/overview' },
     { label: 'Prompt Hub', icon: MessageSquareText, href: '/tracker' },
-    { label: 'Sentiment', icon: Gauge, href: '/sentiment' },
+    { label: 'Sentiment', icon: Gauge, href: '/sentiment', beta: true },
     { label: 'Trends', icon: TrendingUp, href: '/trends' },
   ] },
-  { label: 'Reports', items: [
+  { label: 'Reports', beta: true, items: [
     { label: 'New report', icon: Sparkles, href: '/reports' },
     { label: 'All reports', icon: FileText, href: '/reports/all' },
     { label: 'Scheduled', icon: CalendarClock, href: '/reports/scheduled' },
@@ -184,8 +185,9 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
     <nav className="flex flex-col" aria-label="Main">
       {nav.map((g, gi) => (
       <div key={g.label} role="group" aria-labelledby={`nav-${g.label}`} className="flex flex-col gap-0.5">
-      <div id={`nav-${g.label}`} className={`mb-1.5 px-3 text-[12px] leading-4 font-medium text-stone-500 ${gi ? 'mt-6' : ''}`}>{g.label}</div>
-      {g.items.map(({ label, icon: Icon, href }) => {
+      {/* beta: one tag for the whole group, right-aligned like the items' */}
+      <div id={`nav-${g.label}`} className={`mb-1.5 flex items-center justify-between gap-1.5 px-3 text-[12px] leading-4 font-medium text-stone-500 ${gi ? 'mt-6' : ''}`}>{g.label}{g.beta && <BetaTag />}</div>
+      {g.items.map(({ label, icon: Icon, href, beta }) => {
         const active = href === path
         return (
         <a
@@ -200,6 +202,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
           {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-ink" aria-hidden />}
           <Icon size={18} strokeWidth={2} className={active ? 'text-ink' : undefined} />
           {label}
+          {beta && <BetaTag strong={active} className="ml-auto" />}
         </a>
         )
       })}

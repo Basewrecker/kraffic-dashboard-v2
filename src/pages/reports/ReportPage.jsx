@@ -11,7 +11,7 @@ import PillComposer from './PillComposer'
 import { pageFit } from '../../data/composer'
 import { DotAssemble } from './DotField'
 import { Block, Thumb, blockName, explainFor } from './blocks'
-import { brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
+import { BetaTag, brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
 
 // Reports as a chat thread, ChatGPT-style. /reports is the empty state: a greeting and the box at the centre. Sending
 // turns the page into a thread in one motion: the greeting fades up and out, the box glides to the bottom and docks
@@ -306,8 +306,10 @@ function Thread({ rest, mock, greeting, inter }) {
       className={`thread-motion relative flex w-full flex-col ${thread ? '' : 'min-h-[calc(100dvh-88px)] lg:min-h-[calc(100dvh-72px)]'}`}>
       {!thread && (
         <div key="hello" className="flex flex-1 flex-col items-center justify-end pb-6">
-          <h1 ref={greetRef} className="text-center text-[24px] leading-[1.3] font-medium tracking-normal text-stone-900 md:text-[28px]"
-            style={greetIn ? { animation: `greet-in 220ms ${EASE} 120ms both` } : undefined}>{greeting}</h1>
+          <div className="flex items-baseline justify-center gap-1.5" style={greetIn ? { animation: `greet-in 220ms ${EASE} 120ms both` } : undefined}>
+            <h1 ref={greetRef} className="text-center text-[24px] leading-[1.3] font-medium tracking-normal text-stone-900 md:text-[28px]">{greeting}</h1>
+            <BetaTag tipAlign="center" />
+          </div>
         </div>
       )}
       {/* a thread: [scroll area] + [box]. The scroll area (out to the page's edges, so the wheel works anywhere over it) holds

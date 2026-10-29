@@ -10,7 +10,7 @@ import { brand as workspaceBrand } from '../../store/workspace'
 import ReportThread from './ReportPage'
 import { Block, Thumb, VerdictDot } from './blocks'
 import { DotIllustration } from './DotField'
-import { BrandLogo, ChipMenu, Empty, ReportsHead, brandOf, defaultBrand, inkBtn, lineBtn, menuItem, t2, t3 } from './parts'
+import { BetaTag, BrandLogo, ChipMenu, Empty, ReportsHead, brandOf, defaultBrand, inkBtn, lineBtn, menuItem, t2, t3 } from './parts'
 
 // /reports → New report (the empty thread) · /reports/all → All reports · /reports/scheduled → Scheduled
 // /reports/<id> (and /reports/new?… · /reports/view?…) → the report thread. The empty state and every report are the same
@@ -109,9 +109,12 @@ function AllReports() {
   return (
     <>
       <div className="flex items-end justify-between gap-3">
-        <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">
-          Reports {total > 0 && <span className={`ml-1 text-[15px] font-normal tracking-normal tabular-nums ${t3} lg:text-[17px]`}>{filtered ? `${series.length + oneOffs.length} of ${total}` : total}</span>}
-        </h1>
+        <div className="flex items-baseline gap-1.5">
+          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">
+            Reports {total > 0 && <span className={`ml-1 text-[15px] font-normal tracking-normal tabular-nums ${t3} lg:text-[17px]`}>{filtered ? `${series.length + oneOffs.length} of ${total}` : total}</span>}
+          </h1>
+          <BetaTag tipAlign="left" />
+        </div>
         {newBtn}
       </div>
 
