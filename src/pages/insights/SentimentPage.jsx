@@ -160,7 +160,7 @@ function Header({ brand, domain, setDomain, engine, setEngine, running, onRun, h
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
       <div className="min-w-0">
-        <div className="flex items-baseline gap-1.5"><h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Sentiment</h1><BetaTag tipAlign="left" /></div>
+        <div className="flex items-baseline gap-2.5"><h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Sentiment</h1><BetaTag tipAlign="left" className="-translate-y-[3px] lg:-translate-y-[6px]" /></div>
         <p className="mt-1 text-body text-stone-600">How third-party pages talk about {brand.name}.</p>
       </div>
       <div className="flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:gap-2.5">

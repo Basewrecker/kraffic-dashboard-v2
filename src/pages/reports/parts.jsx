@@ -36,7 +36,7 @@ export function ReportsHead({ title, subtitle, actions }) {
   return (
     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between md:gap-6">
       <div className="min-w-0">
-        <div className="flex items-baseline gap-1.5"><h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">{title}</h1><BetaTag tipAlign="left" /></div>
+        <div className="flex items-baseline gap-2.5"><h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">{title}</h1><BetaTag tipAlign="left" className="-translate-y-[3px] lg:-translate-y-[5px]" /></div>
         {subtitle && <p className={`mt-1 text-[13px] leading-[18px] ${t2}`}>{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

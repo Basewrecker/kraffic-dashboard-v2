@@ -109,11 +109,11 @@ function AllReports() {
   return (
     <>
       <div className="flex items-end justify-between gap-3">
-        <div className="flex items-baseline gap-1.5">
+        <div className="flex items-baseline gap-2.5">
           <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">
             Reports {total > 0 && <span className={`ml-1 text-[15px] font-normal tracking-normal tabular-nums ${t3} lg:text-[17px]`}>{filtered ? `${series.length + oneOffs.length} of ${total}` : total}</span>}
           </h1>
-          <BetaTag tipAlign="left" />
+          <BetaTag tipAlign="left" className="-translate-y-[3px] lg:-translate-y-[5px]" />
         </div>
         {newBtn}
       </div>

@@ -306,9 +306,10 @@ function Thread({ rest, mock, greeting, inter }) {
       className={`thread-motion relative flex w-full flex-col ${thread ? '' : 'min-h-[calc(100dvh-88px)] lg:min-h-[calc(100dvh-72px)]'}`}>
       {!thread && (
         <div key="hello" className="flex flex-1 flex-col items-center justify-end pb-6">
-          <div className="flex items-baseline justify-center gap-1.5" style={greetIn ? { animation: `greet-in 220ms ${EASE} 120ms both` } : undefined}>
-            <h1 ref={greetRef} className="text-center text-[24px] leading-[1.3] font-medium tracking-normal text-stone-900 md:text-[28px]">{greeting}</h1>
-            <BetaTag tipAlign="center" />
+          {/* the H1 runs inline so, when the greeting wraps on a phone, the tag follows its last word */}
+          <div className="text-center text-[24px] leading-[1.3] md:text-[28px]" style={greetIn ? { animation: `greet-in 220ms ${EASE} 120ms both` } : undefined}>
+            <h1 ref={greetRef} className="inline font-medium tracking-normal text-stone-900">{greeting}</h1>
+            <BetaTag tipAlign="center" className="ml-2.5 -translate-y-[3.5px] md:-translate-y-[5px]" />
           </div>
         </div>
       )}
