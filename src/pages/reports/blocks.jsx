@@ -1,8 +1,11 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, FilePlus2, Megaphone, MessageCircleQuestion } from 'lucide-react'
+import SiteLogo from '../../components/ui/SiteLogo'
+import { EngineMark } from '../insights/parts'
 
-// The report's fixed block library. Same rhythm for every kind: header · scoreline · hero · numbered sections · action
-// cards · sources. Graphite only; red only for what's going against the brand.
+// The report's block library, on a 12-column grid. Same bands for every kind: a hero band (headline, stat chips, one big
+// visual answer) · numbered sections (7 + 5 side by side, or full width) · action cards · a one-line footer. Graphite;
+// red only for what's going against the brand; brand colours only in the trend lines and the logos.
 export const t2 = 'text-stone-600'
 export const t3 = 'text-stone-500'
 const AUDIENCE = { team: 'For the team', ceo: 'For the CEO', client: 'For the client' }
@@ -90,7 +93,7 @@ export function PromptsToggle({ prompts, n = prompts.length, label }) {
   )
 }
 
-// ---- the type scale (the only sizes in a report): headline 30/600 · section titles 17/600 · body 15 · labels 13 t2 ·
+// ---- the type scale (the only sizes in a report): headline 28/600 · big numbers 44 and 24/600 · section titles 17/600 · body 15 · labels 13 t2 ·
 // meta 12 t3 · values 28/600. Numbers are tabular.
 const LABEL = 'text-[13px] leading-[18px] text-stone-600'
 const META = 'text-[12px] leading-4 text-stone-500'
@@ -100,9 +103,9 @@ const pad2 = (n) => String(n).padStart(2, '0')
 const joinAnd = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`)
 
 // a section's head: "01  What moved", then its one takeaway
-function SectionHead({ n, title, takeaway }) {
+function SectionHead({ n, title, takeaway, paired }) {
   return (
-    <div className="mb-4">
+    <div className={`mb-4 ${paired ? 'lg:min-h-[76px]' : ''}`}>
       <div className="flex items-baseline gap-3">
         {n != null && <span className="text-[13px] leading-[18px] tabular-nums text-stone-500">{pad2(n)}</span>}
         <h2 className="text-[17px] leading-6 font-semibold text-stone-900">{title}</h2>
@@ -137,7 +140,7 @@ function MetricCols({ items, cols = 4 }) {
   )
 }
 
-// ---- 1. header: the verdict before the meta line, the headline, an optional lede
+// ---- 1. header (the library's and the email's previews of an earlier run)
 function Header({ data: d }) {
   return (
     <header>
@@ -145,13 +148,11 @@ function Header({ data: d }) {
         <VerdictDot verdict={d.verdict} />
         <span>· {d.brand} · {d.span ?? d.period} · {(d.counted?.length ? d.counted.join(', ') : d.engines)} · {AUDIENCE[d.audience]}</span>
       </p>
-      <h1 className="mt-3 max-w-[40ch] text-[30px] leading-[38px] font-semibold tracking-[-0.01em] text-stone-900 [text-wrap:balance] max-md:text-[24px] max-md:leading-[31px]">{d.headline}</h1>
-      {d.lede && <p className={`mt-2 ${BODY} text-stone-600`}>{d.lede}</p>}
+      <h1 className="mt-3 max-w-[40ch] text-[28px] leading-9 font-semibold tracking-[-0.01em] text-stone-900 [text-wrap:balance] max-md:text-[24px] max-md:leading-[31px]">{d.headline}</h1>
     </header>
   )
 }
-
-// ---- 2. scoreline: 4 columns, hairlines between, a sparkline under each value; "vs Oct 19 · last 8 weeks" on hover
+// ---- 2. scoreline (the same previews): 4 columns, hairlines between, a sparkline under each value
 function Scoreline({ data: d }) {
   return (
     <MetricCols items={d.items.map((m) => {
@@ -164,194 +165,131 @@ function Scoreline({ data: d }) {
   )
 }
 
-// ---- 3. hero visuals (section 01) ----------------------------------------------------------------------------------
-// weekly: what moved. The held prompts are a thin neutral band (context); won (ink) and lost (red) carry the story,
-// labelled on the ribbons. Columns: named (ink) over not named (grey), last sync → this one.
-function Flow({ d }) {
-  const [ref, w] = useWidth()
-  const H = 168
-  const k = H / d.total
-  const bw = 10
-  const narrow = w < 520
-  const x1 = narrow ? 0 : 8
-  const x2 = w - bw - (narrow ? 0 : 8)
-  const g = 8
-  const L = { named: d.held + d.lost, not: d.won + d.missing }
-  const R = { named: d.held + d.won, not: d.lost + d.missing }
-  const notL = L.named * k + g
-  const notR = R.named * k + g
-  const xa = x1 + bw
-  const xb = x2
-  const m = (xa + xb) / 2
-  const rib = (ya, ha, yb, hb) => `M${xa},${ya} C${m},${ya} ${m},${yb} ${xb},${yb} L${xb},${yb + hb} C${m},${yb + hb} ${m},${ya + ha} ${xa},${ya + ha} Z`
-  const wonH = Math.max(d.won * k, 4)
-  const lostH = Math.max(d.lost * k, 3)
-  const heldY = (d.held * k) / 2 - 2
-  const halo = { paintOrder: 'stroke', stroke: 'var(--color-surface)', strokeWidth: 4, strokeLinejoin: 'round' }
-  const at = (t, ya, yb) => ya + (yb - ya) * (t * t * (3 - 2 * t))
+// ---- the hero band: the verdict, the headline, 3 stat chips; on the right one big visual answer --------------------
+// ▲ / ▼ with the change; red only when it's going against the brand
+function Delta({ n, unit = '', bad, className = '' }) {
+  if (n == null) return null
+  return <span className={`whitespace-nowrap tabular-nums ${bad ? 'font-medium text-negative' : 'text-stone-600'} ${className}`}>{n > 0 ? '▲' : n < 0 ? '▼' : '±'}{Math.abs(n)}{n === 0 ? '' : unit}</span>
+}
+function StatChip({ c }) {
+  const unit = c.unit === '%' ? '%' : c.unit ?? ''
+  const bad = c.delta != null && c.delta !== 0 && (c.against ? c.delta > 0 : c.delta < 0)
   return (
-    <figure className="m-0" aria-label={`Prompts named: ${L.named} on ${d.from}, ${R.named} on ${d.to}. Won ${d.won}, lost ${d.lost}, held ${d.held}.`}>
-      <div className="mb-3 flex items-baseline justify-between gap-3 tabular-nums">
-        <span className={META}>{d.from}</span>
-        <span className={LABEL}><b className="font-semibold text-stone-900">{L.named}</b> → <b className="font-semibold text-stone-900">{R.named}</b> named</span>
-        <span className={META}>{d.to}</span>
+    <span className="flex min-w-0 flex-col rounded-xl bg-surface px-3 py-2">
+      <span className={`truncate ${META} text-stone-600`}>{c.label}</span>
+      <span className="mt-0.5 flex items-baseline gap-1.5">
+        <span className="text-[17px] leading-6 font-semibold tabular-nums text-stone-900">{c.value}{unit}</span>
+        <Delta n={c.delta} bad={bad} className="text-[12px] leading-4" />
+      </span>
+    </span>
+  )
+}
+// an arc on a ring: from 12 o'clock, clockwise, as fractions of the whole
+function Arc({ r, from, to, color, w }) {
+  const C = 2 * Math.PI * r
+  return <circle r={r} cx="0" cy="0" fill="none" stroke={color} strokeWidth={w} strokeDasharray={`${Math.max(0, (to - from) * C)} ${C}`} strokeDashoffset={-from * C} transform="rotate(-90)" />
+}
+const RING = 164
+const RW = 14
+const TRACK = 'color-mix(in srgb, var(--ink) 9%, transparent)'
+const BIG = 'text-[44px] leading-[48px] font-semibold tracking-[-0.02em] tabular-nums'
+function RingFrame({ children, label, sub, center }) {
+  return (
+    <figure className="flex flex-col items-center text-center">
+      {label && <figcaption className={LABEL}>{label}</figcaption>}
+      <div className="relative mt-3" style={{ width: RING, height: RING }}>
+        <svg viewBox={`${-RING / 2} ${-RING / 2} ${RING} ${RING}`} width={RING} height={RING} aria-hidden className="block">{children}</svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">{center}</div>
       </div>
-      <div ref={ref}>
-        <svg width={w} height={H + g} className="block overflow-visible" aria-hidden>
-          <path d={rib(heldY, 4, heldY, 4)} fill="var(--color-stone-300)" />
-          <path d={rib(notL, wonH, d.held * k, wonH)} fill={INK} opacity="0.85" />
-          <path d={rib(d.held * k, lostH, notR, lostH)} fill={RED} opacity="0.85" />
-          <rect x={x1} y={0} width={bw} height={L.named * k} rx="2" fill={INK} /><rect x={x1} y={notL} width={bw} height={L.not * k} rx="2" fill="var(--color-stone-300)" />
-          <rect x={x2} y={0} width={bw} height={R.named * k} rx="2" fill={INK} /><rect x={x2} y={notR} width={bw} height={R.not * k} rx="2" fill="var(--color-stone-300)" />
-          <text x={m} y={heldY - 6} textAnchor="middle" fontSize="12" fill="var(--color-stone-500)" className="tabular-nums" style={halo}>{d.held} held</text>
-          {/* the ribbons cross mid-way: each is labelled just above itself, won near the right end and lost near the left */}
-          <text x={xa + (xb - xa) * 0.84} y={at(0.84, notL, d.held * k) - 7} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--color-stone-900)" className="tabular-nums" style={halo}>+{d.won} won</text>
-          <text x={xa + (xb - xa) * 0.16} y={at(0.16, d.held * k, notR) - 7} textAnchor="middle" fontSize="13" fontWeight="600" fill={RED} className="tabular-nums" style={halo}>−{d.lost} lost</text>
-        </svg>
+      {sub && <p className={`mt-3 ${LABEL}`}>{sub}</p>}
+    </figure>
+  )
+}
+// weekly: the visibility score as a gauge
+function Ring({ v }) {
+  const r = (RING - RW) / 2
+  return (
+    <RingFrame label={v.label} sub={<><b className="font-semibold tabular-nums text-stone-900">{v.named}</b> of {v.total} prompts</>}
+      center={<><span className={`${BIG} text-stone-900`}>{v.value}</span><Delta n={v.delta} bad={v.delta < 0} className="mt-1 text-[13px] leading-[18px]" /><span className={META}>vs {v.since}</span></>}>
+      <circle r={r} fill="none" stroke={TRACK} strokeWidth={RW} />
+      <g strokeLinecap="round"><Arc r={r} from={0} to={v.value / 100} color={INK} w={RW} /></g>
+    </RingFrame>
+  )
+}
+// CEO: everyone's share of voice, you in ink
+function Donut({ v }) {
+  const r = (RING - RW) / 2
+  const greys = ['var(--color-stone-400)', 'var(--color-stone-300)', 'var(--color-stone-200)', TRACK]
+  const gap = 0.006
+  let at = 0
+  return (
+    <RingFrame label="Share of voice" sub="of every brand mention in AI answers"
+      center={<><span className={`${BIG} text-stone-900`}>{v.you.now}%</span><Delta n={v.you.delta} unit=" pts" bad={v.you.delta < 0} className="mt-1 text-[13px] leading-[18px]" /><span className={META}>vs {v.since}</span></>}>
+      {v.parts.map((p, i) => {
+        const from = at
+        at += p.v / 100
+        return <g key={p.key}><title>{p.name}: {p.v}%</title><Arc r={r} from={from + gap} to={at - gap} color={p.you ? INK : greys[Math.min(i - 1, greys.length - 1)]} w={RW} /></g>
+      })}
+    </RingFrame>
+  )
+}
+// competitor: the prompts each of you wins, on one bar
+function Split({ v }) {
+  const all = v.you.n + v.them.n
+  return (
+    <figure className="w-full max-w-[320px]">
+      <figcaption className={LABEL}>Prompts each of you wins, of {v.total}</figcaption>
+      <div className="mt-4 flex items-end justify-between gap-4">
+        <span className="min-w-0"><span className={`block ${BIG} text-stone-900`}>{v.you.n}</span><span className={`block truncate ${LABEL}`}>{v.you.name}</span></span>
+        <span className="min-w-0 text-right"><span className={`block ${BIG} text-negative`}>{v.them.n}</span><span className={`block truncate ${LABEL}`}>{v.them.name}</span></span>
+      </div>
+      <div className="mt-3 flex h-3 gap-1" aria-hidden>
+        <span className="rounded-l-full" style={{ width: `${(v.you.n / all) * 100}%`, background: INK }} />
+        <span className="flex-1 rounded-r-full" style={{ background: RED }} />
+      </div>
+      <div className="mt-2 flex justify-between gap-4 text-[13px] leading-[18px]">
+        <Delta n={v.you.delta} bad={v.you.delta < 0} />
+        <span className={META}>vs {v.since}</span>
+        <Delta n={v.them.delta} bad={v.them.delta > 0} />
       </div>
     </figure>
   )
 }
-
-// CEO: share of voice, start → now: you (ink) vs the top competitors (grey; red when gaining on you)
-function Slope({ d }) {
-  const [ref, w] = useWidth()
-  const H = 200
-  const top = Math.ceil(Math.max(...d.rows.flatMap((r) => [r.from, r.now])) / 10) * 10
-  const narrow = w < 520
-  const x1 = 44
-  const x2 = narrow ? w - 150 : Math.min(w - 260, 520)
-  const y = (v) => 12 + (1 - v / top) * (H - 24)
-  const place = (key) => {
-    const rows = [...d.rows].sort((a, b) => b[key] - a[key]).map((r) => ({ r, y: y(r[key]) }))
-    for (let i = 1; i < rows.length; i++) if (rows[i].y - rows[i - 1].y < 18) rows[i].y = rows[i - 1].y + 18
-    return Object.fromEntries(rows.map((x) => [x.r.key, x.y]))
-  }
-  const Lp = place('from')
-  const Rp = place('now')
-  const col = (r) => (r.you ? INK : r.now > r.from ? RED : 'var(--color-stone-400)')
+// content plan: the prompts you're missing; the red part names a competitor instead
+function Gap({ v }) {
+  const r = (RING - RW) / 2
+  const m = v.missing / v.total
+  const o = v.owned / v.total
   return (
-    <figure className="m-0">
-      <div ref={ref}>
-        <svg width={w} height={H + 22} className="block overflow-visible" role="img" aria-label={`Share of voice, ${d.from} to ${d.to}. A competitor in red gained on you.`}>
-          <text x={x1} y={10} textAnchor="middle" fontSize="12" fill="var(--color-stone-500)">{d.from}</text>
-          <text x={x2} y={10} textAnchor="middle" fontSize="12" fill="var(--color-stone-500)">{d.to}</text>
-          <g transform="translate(0,18)">
-            <line x1={x1} x2={x1} y1={0} y2={H} stroke="var(--div)" />
-            <line x1={x2} x2={x2} y1={0} y2={H} stroke="var(--div)" />
-            {[...d.rows].sort((a) => (a.you ? 1 : -1)).map((r) => (
-              <g key={r.key}>
-                <line x1={x1} x2={x2} y1={y(r.from)} y2={y(r.now)} stroke={col(r)} strokeWidth={r.you ? 3 : 1.5} strokeLinecap="round" />
-                <circle cx={x1} cy={y(r.from)} r={r.you ? 4 : 2.5} fill={col(r)} />
-                <circle cx={x2} cy={y(r.now)} r={r.you ? 4.5 : 3} fill={col(r)} />
-                <text x={x1 - 10} y={Lp[r.key] + 4} textAnchor="end" fontSize="12" fill={r.you ? 'var(--color-stone-900)' : 'var(--color-stone-500)'} fontWeight={r.you ? 600 : 400} className="tabular-nums">{r.from}%</text>
-                <text x={x2 + 10} y={Rp[r.key] + 4} fontSize="13" fill={r.you ? 'var(--color-stone-900)' : 'var(--color-stone-600)'} fontWeight={r.you ? 600 : 400} className="tabular-nums">
-                  <tspan fill={r.you ? 'var(--color-stone-900)' : r.now > r.from ? RED : 'var(--color-stone-600)'}>{r.now}%</tspan>  {r.name}
-                </text>
-              </g>
-            ))}
-          </g>
-        </svg>
+    <RingFrame label="Prompts you’re missing" sub={<><b className="font-semibold tabular-nums text-negative">{v.owned}</b> of them name a competitor instead</>}
+      center={<><span className={`${BIG} text-stone-900`}>{v.missing}</span><span className={META}>of {v.total}</span><Delta n={v.delta} bad={v.delta > 0} className="mt-1 text-[13px] leading-[18px]" /></>}>
+      <circle r={r} fill="none" stroke={TRACK} strokeWidth={RW} />
+      <Arc r={r} from={0} to={o} color={RED} w={RW} />
+      <Arc r={r} from={o + 0.006} to={m} color="var(--color-stone-400)" w={RW} />
+    </RingFrame>
+  )
+}
+const HERO_VISUAL = { ring: Ring, donut: Donut, split: Split, gap: Gap }
+function HeroBand({ data: d }) {
+  const V = HERO_VISUAL[d.visual?.kind]
+  return (
+    <header className="grid items-center gap-8 rounded-2xl bg-tint p-8 lg:grid-cols-12 max-md:gap-6 max-md:p-5">
+      <div className="min-w-0 lg:col-span-7">
+        {/* one line of text, so a long one wraps between words, never at a separator */}
+        <p className={`${META} tabular-nums`}>
+          <VerdictDot verdict={d.verdict} className="mr-1.5 align-[-1px]" />
+          · {d.brand} · {d.span ?? d.period} · {(d.counted?.length ? d.counted.join(', ') : 'no engines')} · {AUDIENCE[d.audience]}
+        </p>
+        <h1 className="mt-3 text-[28px] leading-9 font-semibold tracking-[-0.01em] text-stone-900 [text-wrap:balance] max-md:text-[22px] max-md:leading-[30px]">{d.headline}</h1>
+        <div className="mt-5 grid grid-cols-3 gap-2 max-md:grid-cols-1">{d.chips.map((c) => <StatChip key={c.id} c={c} />)}</div>
       </div>
-    </figure>
+      {V && <div className="flex min-w-0 justify-center lg:col-span-5"><V v={d.visual} /></div>}
+    </header>
   )
 }
 
-// competitor: who AI names, prompt by prompt (rows: them / not; columns: you / not). Their wins in red.
-function Squares({ n, color, size = 9 }) {
-  return (
-    <div className="flex max-w-full flex-wrap" style={{ gap: 2, width: 10 * (size + 2) }}>
-      {Array.from({ length: n }, (_, i) => <span key={i} style={{ width: size, height: size, borderRadius: 2, background: color }} />)}
-    </div>
-  )
-}
-function Quadrant({ d }) {
-  const rv = d.rival.split(' ')[0]
-  const cell = 'flex min-h-[132px] flex-col gap-2 p-4 max-md:p-3'
-  const Num = ({ n, red, label }) => (
-    <div className="flex flex-wrap items-baseline gap-x-2">
-      <span className={`${VALUE} ${red ? 'text-negative' : 'text-stone-900'}`}>{n}</span>
-      <span className={`min-w-0 text-[13px] leading-[18px] ${red ? 'text-negative' : 'text-stone-600'}`}>{label}</span>
-    </div>
-  )
-  return (
-    <figure className="m-0">
-      <div className="grid grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)] max-md:grid-cols-2">
-        <span className="max-md:hidden" />
-        <span className={`px-4 pb-2 ${META} max-md:px-3`}>AI names you</span>
-        <span className={`px-4 pb-2 ${META} max-md:px-3`}>AI doesn’t name you</span>
-        <span className={`self-center pr-2 text-right ${META} max-md:col-span-2 max-md:pb-1 max-md:pt-1 max-md:text-left`}>Names {rv}</span>
-        <div className={`${cell} border-l border-t border-line`}>
-          <div className="flex flex-wrap gap-x-5 gap-y-2">
-            <div className="flex flex-col gap-1.5"><Num n={d.youFirst} label="you first" /><Squares n={d.youFirst} color={INK} /></div>
-            <div className="flex flex-col gap-1.5"><Num n={d.themFirst} red label={`${rv} first`} /><Squares n={d.themFirst} color={soft(RED, 60)} /></div>
-          </div>
-        </div>
-        <div className={`${cell} border-l border-r border-t border-line`} style={{ background: soft(RED, 5) }}>
-          <Num n={d.onlyThem} red label={`only ${rv}`} /><Squares n={d.onlyThem} color={RED} />
-        </div>
-        <span className={`self-center pr-2 text-right ${META} max-md:col-span-2 max-md:pb-1 max-md:pt-3 max-md:text-left`}>Doesn’t name {rv}</span>
-        <div className={`${cell} border-b border-l border-t border-line`}>
-          <Num n={d.onlyYou} label="only you" /><Squares n={d.onlyYou} color={INK} />
-        </div>
-        <div className={`${cell} border border-line`}>
-          <Num n={d.neither} label="neither" /><Squares n={d.neither} color={soft(INK, 10)} />
-        </div>
-      </div>
-      <figcaption className={`mt-2 ${META}`}>All {d.total} tracked prompts. Red: prompts {rv} wins.</figcaption>
-    </figure>
-  )
-}
-
-// content plan: topics as bubbles (prompts you're missing × how strongly competitors own them)
-function Bubbles({ d }) {
-  const [ref, w] = useWidth()
-  const H = 240
-  const pad = { l: 36, r: 16, t: 16, b: 34 }
-  const maxX = Math.max(...d.rows.map((r) => r.missing)) + 1
-  const x = (v) => pad.l + (v / maxX) * (w - pad.l - pad.r)
-  const y = (v) => pad.t + (1 - v / 100) * (H - pad.t - pad.b)
-  const rr = (n) => 6 + Math.sqrt(n) * (w < 520 ? 3 : 5)
-  return (
-    <figure className="m-0">
-      <div ref={ref}>
-        <svg width={w} height={H} className="block overflow-visible" role="img" aria-label="Topics by prompts missing and how strongly competitors own them">
-          <rect x={x(maxX / 2)} y={pad.t} width={x(maxX) - x(maxX / 2)} height={y(50) - pad.t} fill={soft(RED, 4)} />
-          <text x={x(maxX) - 6} y={pad.t + 14} textAnchor="end" fontSize="12" fontWeight="600" fill={RED}>Write these first</text>
-          <line x1={pad.l} x2={x(maxX)} y1={y(50)} y2={y(50)} stroke="var(--div)" strokeDasharray="3 3" />
-          <line x1={x(maxX / 2)} x2={x(maxX / 2)} y1={pad.t} y2={H - pad.b} stroke="var(--div)" strokeDasharray="3 3" />
-          <line x1={pad.l} x2={x(maxX)} y1={H - pad.b} y2={H - pad.b} stroke="var(--color-stone-300)" />
-          {[0, 50, 100].map((v) => <text key={v} x={pad.l - 8} y={y(v) + 4} textAnchor="end" fontSize="12" fill="var(--color-stone-500)">{v}%</text>)}
-          <text x={x(maxX)} y={H - 10} textAnchor="end" fontSize="12" fill="var(--color-stone-500)">Prompts you’re missing →</text>
-          {d.rows.map((r) => {
-            const hot = r.own >= 60 && r.missing >= maxX / 2
-            return (
-              <g key={r.theme}>
-                <circle cx={x(r.missing)} cy={y(r.own)} r={rr(r.missing)} fill={hot ? soft(RED, 22) : soft(INK, 10)} stroke={hot ? RED : 'var(--color-stone-400)'} strokeWidth="1.25" />
-                <text x={x(r.missing)} y={y(r.own) + 4} textAnchor="middle" fontSize="12" fontWeight="600" fill={hot ? RED : 'var(--color-stone-700)'} className="tabular-nums">{r.missing}</text>
-                <text x={x(r.missing)} y={y(r.own) + rr(r.missing) + 14} textAnchor="middle" fontSize="13" fill="var(--color-stone-800)">{r.theme}</text>
-              </g>
-            )
-          })}
-        </svg>
-      </div>
-      <figcaption className={`mt-1 ${META}`}>Up: the share of those prompts where a competitor is named instead. Size: prompts missing.</figcaption>
-    </figure>
-  )
-}
-
-const HERO_TITLE = { flow: 'What moved', slope: 'Share of voice', quadrant: 'Head to head', bubbles: 'Where to write' }
-function Hero({ data: d, n }) {
-  return (
-    <section>
-      <SectionHead n={n} title={HERO_TITLE[d.kind]} />
-      {d.kind === 'flow' ? <Flow d={d} /> : d.kind === 'slope' ? <Slope d={d} /> : d.kind === 'quadrant' ? <Quadrant d={d} /> : <Bubbles d={d} />}
-    </section>
-  )
-}
-
-// ---- 4. section visuals --------------------------------------------------------------------------------------------
-// a row with its prompts behind a quiet "4 prompts ▾" at the end; opening lists them under the row
+// ---- sections -------------------------------------------------------------------------------------------------------
+// a row with its prompts behind a quiet "4 prompts ▾"; opening lists them under the row
 function useToggle() {
   const [open, setOpen] = useState(false)
   const id = useId()
@@ -369,26 +307,185 @@ function PromptList({ id, prompts }) {
     </ul>
   )
 }
-const ROW = 'grid min-h-11 grid-cols-[minmax(0,200px)_minmax(0,220px)_auto_minmax(0,1fr)] items-center gap-x-4 max-md:grid-cols-[minmax(0,1fr)_96px_auto] max-md:gap-x-3 max-md:py-2'
 const plural = (n) => `${n} ${n === 1 ? 'prompt' : 'prompts'}`
 
-// by topic: a diverging bar on one centre axis, right after the topic name (gains right in ink, losses left in red)
+// what moved: one square per tracked prompt, grouped (won · held · lost · missed). Hover a square for its prompt (or its
+// group, where the report doesn't hold the prompt's text); click a group, or a square, to list that group below
+const TONES = {
+  ink: { background: INK },
+  ink2: { background: soft(INK, 40) },
+  held: { background: 'var(--color-line-strong)' },
+  red: { background: RED },
+  red2: { background: soft(RED, 40) },
+  empty: { boxShadow: 'inset 0 0 0 1px var(--color-stone-300)' },
+}
+function Waffle({ v }) {
+  const [pick, setPick] = useState(null)
+  const [hover, setHover] = useState(null) // { i, x, y }
+  const box = useRef(null)
+  const cells = v.groups.flatMap((g) => Array.from({ length: g.n }, (_, k) => ({ g, k })))
+  const sel = v.groups.find((g) => g.key === pick)
+  const tip = hover && cells[hover.i]
+  const tipText = tip?.g.prompts ? tip.g.prompts[tip.k] : null
+  const toggle = (key) => setPick((p) => (p === key ? null : key))
+  const cols = Math.ceil(v.total / 8) // about 8 rows, whatever the number of prompts
+  return (
+    <div className="flex flex-1 flex-col">
+      <p className="-mx-1.5 flex flex-wrap items-center gap-y-1 text-[13px] leading-[18px]">
+        {v.groups.map((g, i) => (
+          <span key={g.key} className="inline-flex items-center">
+            {i > 0 && <span className="px-0.5 text-stone-400" aria-hidden>·</span>}
+            <button type="button" aria-pressed={pick === g.key} onClick={() => toggle(g.key)}
+              className={`inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 tabular-nums outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus ${pick === g.key ? 'bg-tint text-stone-900' : pick ? 'text-stone-500' : 'text-stone-700'}`}>
+              <span className="h-2.5 w-2.5 rounded-[2px]" style={TONES[g.tone]} aria-hidden />
+              <b className={`font-semibold ${g.tone === 'red' ? 'text-negative' : 'text-stone-900'}`}>{g.sign ?? ''}{g.n}</b>{g.label}
+            </button>
+          </span>
+        ))}
+      </p>
+      <div ref={box} className="relative mt-3 grid w-full gap-[3px]" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, maxWidth: cols * 21 }} onMouseLeave={() => setHover(null)}
+        role="img" aria-label={`${v.total} prompts: ${v.groups.map((g) => `${g.n} ${g.label}`).join(', ')}`}>
+        {cells.map((c, i) => (
+          <span key={i} data-cell={c.g.key} className="aspect-square cursor-pointer rounded-[2px] transition-[opacity,transform] duration-150"
+            style={{ ...TONES[c.g.tone], opacity: pick && pick !== c.g.key ? 0.2 : 1, transform: hover?.i === i ? 'scale(1.35)' : undefined }}
+            onMouseEnter={(e) => setHover({ i, x: e.currentTarget.offsetLeft + e.currentTarget.offsetWidth / 2, y: e.currentTarget.offsetTop })}
+            onClick={() => toggle(c.g.key)} />
+        ))}
+        {tip && (
+          <span role="tooltip" className="pointer-events-none absolute z-20 w-max max-w-[260px] -translate-x-1/2 -translate-y-full rounded-lg border border-line bg-raised px-2.5 py-1.5 text-[12px] leading-4 text-stone-800 shadow-sm"
+            style={{ left: Math.min(Math.max(hover.x, 130), Math.max(130, (box.current?.clientWidth ?? 0) - 130)), top: hover.y - 6 }}>
+            <span className={`block font-medium ${tip.g.tone === 'red' ? 'text-negative' : 'text-stone-900'}`}>{tip.g.label.charAt(0).toUpperCase() + tip.g.label.slice(1)}</span>
+            {tipText ? <span className="block">{tipText}</span> : <span className={`block ${t3}`}>One of {tip.g.n}; click to see where they’re listed</span>}
+          </span>
+        )}
+      </div>
+      <div className="mt-auto pt-3">
+        {!sel && <p className={META}>Click a group to list its prompts.</p>}
+        {sel && (sel.prompts
+          ? <PromptList id={`w-${sel.key}`} prompts={sel.prompts} />
+          : <p className={META}>The {sel.n} prompts {sel.key === 'missing' ? 'missed' : sel.label} are listed in <a href="/tracker" className="text-stone-700 underline underline-offset-[3px] hover:text-stone-900">Prompt Hub</a>.</p>)}
+      </div>
+    </div>
+  )
+}
+
+// where you stand: share of voice by brand, you in ink and bold; at most 5 rows, then "+N more"
+function Ranking({ v }) {
+  const [all, setAll] = useState(false)
+  const max = Math.max(...v.rows.map((r) => r.now))
+  const shown = all ? v.rows : v.rows.slice(0, 5)
+  return (
+    <div className="flex flex-1 flex-col">
+      <ul className="flex flex-col">
+        {shown.map((r) => {
+          const ch = r.from != null ? r.now - r.from : null
+          const bad = ch != null && ch !== 0 && (r.you ? ch < 0 : ch > 0)
+          return (
+            <li key={r.key} className="-mx-2 grid min-h-11 grid-cols-[minmax(0,184px)_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 tabular-nums transition-colors duration-150 hover:bg-tint">
+              <span className="flex min-w-0 items-center gap-2">
+                <SiteLogo domain={r.domain} name={r.name} className="h-5 w-5 shrink-0 rounded" imgPad="p-0" initialClass="text-[9px]" plate />
+                <span className={`truncate ${BODY} ${r.you ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>{r.name}</span>
+              </span>
+              <span className="h-2 rounded-full" style={{ width: `${Math.max(2, (r.now / max) * 100)}%`, background: r.you ? INK : GREY }} />
+              <span className="flex items-baseline justify-end gap-2">
+                <span className={`${BODY} ${r.you ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>{r.now}{v.unit}</span>
+                {ch != null && <Delta n={ch} bad={bad} className="w-10 text-right text-[12px] leading-4" />}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
+        {v.rows.length > 5 ? <button type="button" onClick={() => setAll((a) => !a)} className="-mx-1.5 h-7 rounded-md px-1.5 text-[13px] text-stone-600 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">{all ? 'Show fewer' : `+${v.rows.length - 5} more`}</button> : <span />}
+        {v.rows.some((r) => r.from != null) && <p className={META}>Change since the period began</p>}
+      </div>
+    </div>
+  )
+}
+
+// the trend: one 8-week line chart, you in ink and the others in their brand colours; this week's points labelled.
+// The y axis is fitted to the data
+function Trend({ v }) {
+  const [ref, w] = useWidth(800)
+  const H = 180
+  const padL = 36
+  const padR = 52
+  const top = 10
+  const bot = 24
+  const vals = v.lines.flatMap((l) => l.series)
+  const lo0 = Math.min(...vals)
+  const hi0 = Math.max(...vals)
+  const range = Math.max(4, hi0 - lo0)
+  const step = [1, 2, 5, 10, 20, 25, 50].find((s) => range / s <= 4) ?? 50
+  const lo = Math.max(0, Math.floor((lo0 - range * 0.06) / step) * step)
+  const hi = Math.ceil((hi0 + range * 0.06) / step) * step
+  const ticks = []
+  for (let t = lo; t <= hi + 1e-9; t += step) ticks.push(t)
+  const n = v.dates.length
+  const x = (i) => padL + (i * (w - padL - padR)) / (n - 1)
+  const y = (val) => top + (1 - (val - lo) / (hi - lo)) * (H - top - bot)
+  const ends = v.lines.map((l) => ({ l, y: y(l.series.at(-1)) })).sort((a, b) => a.y - b.y)
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 16) ends[i].y = ends[i - 1].y + 16
+  const color = (l) => (l.you ? INK : l.color)
+  return (
+    <div className="flex flex-1 flex-col">
+      <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {v.lines.map((l) => (
+          <span key={l.key} className={`inline-flex items-center gap-1.5 ${LABEL} ${l.you ? 'font-medium text-stone-900' : ''}`}>
+            <span className="w-3.5 rounded-full" style={{ background: color(l), height: l.you ? 3 : 2 }} aria-hidden />{l.name}
+          </span>
+        ))}
+      </p>
+      <div ref={ref} className="mt-3 w-full">
+        {w > 0 && (
+          <svg width={w} height={H} role="img" aria-label={v.lines.map((l) => `${l.name}: ${l.series.at(-1)}${v.unit} this week`).join('; ')} className="block overflow-visible">
+            {ticks.map((t) => (
+              <g key={t}>
+                <line x1={padL} x2={w - padR} y1={y(t)} y2={y(t)} stroke="var(--div)" />
+                <text x={padL - 8} y={y(t)} dy="0.32em" textAnchor="end" className="fill-stone-500 text-[11px] tabular-nums">{t}{v.unit}</text>
+              </g>
+            ))}
+            {v.dates.map((d, i) => {
+              // narrow: the first and last week only
+              const show = w < 520 ? i === 0 || i === n - 1 : i % 2 === 1
+              if (!show) return null
+              return <text key={d} x={x(i)} y={H - 4} textAnchor={i === n - 1 ? 'end' : i === 0 && w < 520 ? 'start' : 'middle'} className="fill-stone-500 text-[11px]">{i === n - 1 ? (w < 520 ? d : `This week, ${d}`) : d}</text>
+            })}
+            {[...v.lines].reverse().map((l) => (
+              <g key={l.key}>
+                <polyline points={l.series.map((s, i) => `${x(i)},${y(s)}`).join(' ')} fill="none" stroke={color(l)} strokeWidth={l.you ? 2.5 : 2} strokeLinejoin="round" strokeLinecap="round" />
+                <circle cx={x(n - 1)} cy={y(l.series.at(-1))} r={l.you ? 4 : 3.5} fill={color(l)} stroke="var(--color-surface)" strokeWidth="2" />
+              </g>
+            ))}
+            {ends.map(({ l, y: ly }) => (
+              <text key={l.key} x={x(n - 1) + 10} y={ly} dy="0.32em" className={`text-[13px] tabular-nums ${l.you ? 'fill-stone-900 font-semibold' : 'fill-stone-600'}`}>{l.series.at(-1)}{v.unit}</text>
+            ))}
+          </svg>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// by topic: diverging bars on one centre axis right after the name; the net number at the bar's end, "4 prompts" inline
 function TopicRow({ r, max, unit }) {
   const t = useToggle()
-  const lossW = r.d < 0 ? (Math.abs(r.d) / max) * 100 : 0
-  const gainW = r.d > 0 ? (r.d / max) * 100 : 0
+  const w = `calc((100% - 72px) * ${Math.abs(r.d) / max})`
+  const num = <span className={`whitespace-nowrap px-2 ${BODY} font-semibold tabular-nums ${r.d < 0 ? 'text-negative' : 'text-stone-900'}`}>{signed(r.d, unit)}</span>
+  const more = (r.note || r.prompts?.length > 0) ? (
+    <span className="inline-flex min-w-0 items-center whitespace-nowrap pl-1">
+      {r.note && <span className={`truncate ${LABEL}`}>{r.note}</span>}
+      {r.prompts?.length > 0 && t.button(plural(r.prompts.length))}
+    </span>
+  ) : null
   return (
     <li className="border-b border-[var(--div)] last:border-0">
-      <div className={ROW}>
+      <div className="grid min-h-11 grid-cols-[minmax(0,30%)_minmax(0,1fr)] items-center gap-x-3 max-md:grid-cols-1 max-md:pb-1 max-md:pt-2.5">
         <span className={`truncate ${BODY} text-stone-900`}>{r.theme}</span>
-        <span className="grid h-3 grid-cols-2" aria-hidden>
-          <span className="flex justify-end">{lossW > 0 && <span className="h-3 rounded-l-sm" style={{ width: `${lossW}%`, background: RED }} />}</span>
-          <span className="flex border-l border-stone-400">{gainW > 0 && <span className="h-3 rounded-r-sm" style={{ width: `${gainW}%`, background: INK }} />}</span>
+        <span className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] items-center">
+          <span className="flex min-w-0 items-center justify-end">{r.d < 0 && <>{num}<span className="h-3 shrink-0 rounded-l-[3px]" style={{ width: w, background: RED }} /></>}</span>
+          <span className="flex min-h-7 min-w-0 items-center border-l border-stone-400">{r.d > 0 && <><span className="h-3 shrink-0 rounded-r-[3px]" style={{ width: `calc((100% - 72px) * ${Math.abs(r.d) / max} / 1.6)`, background: INK }} />{num}</>}{more}</span>
         </span>
-        <span className={`whitespace-nowrap ${BODY} font-semibold tabular-nums ${r.d < 0 ? 'text-negative' : 'text-stone-900'}`}>
-          {signed(r.d, unit)}{r.note && <span className={`ml-1.5 font-normal ${LABEL}`}>{r.note}</span>}
-        </span>
-        {r.prompts?.length > 0 ? <span className="flex justify-end max-md:col-span-3">{t.button(plural(r.prompts.length))}</span> : <span className="max-md:hidden" />}
       </div>
       {t.open && <PromptList id={t.id} prompts={r.prompts} />}
     </li>
@@ -398,20 +495,21 @@ function Diverging({ v }) {
   const max = Math.max(...v.rows.map((r) => Math.abs(r.d)))
   return <ul className="flex flex-col border-t border-[var(--div)]">{v.rows.map((r) => <TopicRow key={r.theme} r={r} max={max} unit={v.unit} />)}</ul>
 }
-// counts per topic (competitor, content plan): the same row, a one-way bar; a red part where a competitor is named
+// counts per topic (competitor, content plan): a one-way bar, the number at its end; red where a competitor is named
 function CountRow({ r, max, against }) {
   const t = useToggle()
   return (
     <li className="border-b border-[var(--div)] last:border-0">
-      <div className={ROW}>
+      <div className="grid min-h-11 grid-cols-[minmax(0,36%)_minmax(0,1fr)] items-center gap-x-3 max-md:grid-cols-1 max-md:pb-1 max-md:pt-2.5">
         <span className={`truncate ${BODY} text-stone-900`}>{r.theme}</span>
-        <span className="flex h-3 overflow-hidden rounded-sm" style={{ width: `${(r.n / max) * 100}%` }} aria-hidden>
-          {r.part != null ? <><span style={{ width: `${(r.part / r.n) * 100}%`, background: RED }} /><span className="flex-1" style={{ background: soft(INK, 22) }} /></> : <span className="flex-1" style={{ background: against ? RED : INK }} />}
+        <span className="flex min-w-0 items-center">
+          <span className="flex h-3 shrink-0 gap-px overflow-hidden rounded-[3px]" style={{ width: `calc((100% - ${r.part != null ? 190 : 110}px) * ${r.n / max})` }} aria-hidden>
+            {r.part != null ? <><span style={{ width: `${(r.part / r.n) * 100}%`, background: RED }} /><span className="flex-1" style={{ background: GREY }} /></> : <span className="flex-1" style={{ background: against ? RED : INK }} />}
+          </span>
+          <span className={`whitespace-nowrap px-2 ${BODY} font-semibold tabular-nums ${against ? 'text-negative' : 'text-stone-900'}`}>{r.n}</span>
+          {r.part != null && <span className={`min-w-0 truncate ${LABEL}`}><span className="text-negative">{r.part}</span> to {r.note}</span>}
+          {r.prompts?.length > 0 && <span className="ml-auto pl-1">{t.button('Prompts')}</span>}
         </span>
-        <span className={`whitespace-nowrap ${BODY} font-semibold tabular-nums ${against ? 'text-negative' : 'text-stone-900'}`}>
-          {r.n}{r.part != null && <span className={`ml-1.5 font-normal ${LABEL}`}><span className="text-negative">{r.part}</span> to {r.note}</span>}
-        </span>
-        {r.prompts?.length > 0 ? <span className="flex justify-end max-md:col-span-3">{t.button('Prompts')}</span> : <span className="max-md:hidden" />}
       </div>
       {t.open && <PromptList id={t.id} prompts={r.prompts} />}
     </li>
@@ -421,50 +519,55 @@ function TopicBars({ v }) {
   const max = Math.max(...v.rows.map((r) => r.n))
   return <ul className="flex flex-col border-t border-[var(--div)]">{v.rows.map((r) => <CountRow key={r.theme} r={r} max={max} against={v.against} />)}</ul>
 }
-// by engine: a column per engine that ran (the scoreline's style); the ones that didn't, in one line under
-function Engines({ v }) {
+// by engine: per engine that ran, its mark and name, won / held / lost stacked across every tracked prompt, and the
+// share of prompts it names you on. The ones that didn't run: one line under
+const HELD = 'var(--color-line-strong)'
+function EngineStack({ v }) {
   const ran = v.rows.filter((e) => !e.off)
   const off = v.rows.filter((e) => e.off).map((e) => e.name)
+  const seg = (n, bg) => (n > 0 ? <span style={{ width: `${(n / v.total) * 100}%`, background: bg }} /> : null)
   return (
-    <div>
-      <MetricCols cols={Math.min(4, Math.max(2, ran.length))} items={ran.map((e) => ({
-        id: e.id, label: e.name, value: `${e.value}${v.unit}`, against: e.against, series: e.series, bad: false,
-        delta: e.won != null ? <>+{e.won} won{e.lost ? <> · <span className="font-medium text-negative">−{e.lost} lost</span></> : null}</> : v.label,
-      }))} />
-      {off.length > 0 && <p className={`mt-3 ${META}`}>{joinAnd(off)} didn’t run {v.when ?? 'in this period'}.</p>}
+    <div className="flex flex-1 flex-col">
+      <p className={`flex flex-wrap items-center gap-x-3 ${META}`}>
+        {[['won', INK], ['held', HELD], ['lost', RED]].map(([l, c]) => <span key={l} className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-[2px]" style={{ background: c }} aria-hidden />{l}</span>)}
+        <span>of {v.total} prompts</span>
+      </p>
+      <ul className="mt-2 flex flex-col">
+        {ran.map((e) => (
+          <li key={e.id} className="grid min-h-11 grid-cols-[minmax(0,112px)_minmax(0,1fr)_44px] items-center gap-3 border-b border-[var(--div)] last:border-0">
+            <span className="flex min-w-0 items-center gap-2"><EngineMark id={e.id} size={16} /><span className={`truncate ${BODY} text-stone-900`}>{e.name}</span></span>
+            <span className="flex h-3 gap-px overflow-hidden rounded-[3px]" title={`${e.won} won · ${e.held} held · ${e.lost} lost`}>
+              {seg(e.won, INK)}{seg(e.held, HELD)}{seg(e.lost, RED)}
+            </span>
+            <span className={`text-right ${BODY} font-semibold tabular-nums text-stone-900`}>{e.now}%</span>
+          </li>
+        ))}
+      </ul>
+      {off.length > 0 && <p className={`mt-auto pt-3 ${META}`}>{joinAnd(off)} didn’t run {v.when ?? 'in this period'}.</p>}
     </div>
   )
 }
-function ShareBars({ v }) {
-  const max = Math.max(...v.rows.map((r) => r.now))
+// competitor: the prompts they win, per engine
+function EngineBars({ v }) {
+  const ran = v.rows.filter((e) => !e.off)
+  const off = v.rows.filter((e) => e.off).map((e) => e.name)
+  const max = Math.max(...ran.map((e) => e.n))
   return (
-    <ul className="flex flex-col">
-      {v.rows.map((r) => {
-        const ch = r.now - r.from
-        const bad = r.you ? ch < 0 : ch > 0
-        return (
-          <li key={r.key} className="grid min-h-10 grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3 border-b border-[var(--div)] last:border-0 tabular-nums">
-            <span className={`truncate ${BODY} ${r.you ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>{r.name}</span>
-            <span className="h-2.5 rounded-sm" style={{ width: `${(r.now / max) * 100}%`, background: r.you ? INK : GREY }} />
-            <span className="text-right"><span className={`${BODY} ${r.you ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>{r.now}%</span> <span className={`text-[13px] ${bad ? 'font-medium text-negative' : 'text-stone-500'}`}>{signed(ch)}</span></span>
+    <div className="flex flex-1 flex-col">
+      <ul className="flex flex-col border-t border-[var(--div)]">
+        {ran.map((e) => (
+          <li key={e.id} className="grid min-h-11 grid-cols-[minmax(0,136px)_minmax(0,1fr)] items-center gap-3 border-b border-[var(--div)] last:border-0">
+            <span className="flex min-w-0 items-center gap-2"><EngineMark id={e.id} size={16} /><span className={`truncate ${BODY} text-stone-900`}>{e.name}</span></span>
+            <span className="flex min-w-0 items-center">
+              <span className="h-3 shrink-0 rounded-[3px]" style={{ width: `calc((100% - 160px) * ${e.n / max})`, background: v.against ? RED : INK }} />
+              <span className={`whitespace-nowrap px-2 ${BODY} font-semibold tabular-nums ${v.against ? 'text-negative' : 'text-stone-900'}`}>{e.n}</span>
+              <span className={`truncate ${LABEL}`}>{v.label}</span>
+            </span>
           </li>
-        )
-      })}
-    </ul>
-  )
-}
-function Bars({ v }) {
-  const max = Math.max(...v.rows.map((r) => r.n))
-  return (
-    <ul className="flex flex-col">
-      {v.rows.map((r) => (
-        <li key={r.name} className="grid min-h-10 grid-cols-[minmax(0,160px)_1fr_32px] items-center gap-3 border-b border-[var(--div)] last:border-0 tabular-nums">
-          <span className={`truncate ${BODY} text-stone-700`}>{r.name}</span>
-          <span className="h-2.5 rounded-sm" style={{ width: `${(r.n / max) * 100}%`, background: v.against ? RED : INK }} />
-          <span className={`text-right ${BODY} font-semibold ${v.against ? 'text-negative' : 'text-stone-900'}`}>{r.n}</span>
-        </li>
-      ))}
-    </ul>
+        ))}
+      </ul>
+      {off.length > 0 && <p className={`mt-auto pt-3 ${META}`}>{joinAnd(off)} didn’t run {v.when ?? 'in this period'}.</p>}
+    </div>
   )
 }
 function CitedList({ rows, domain, against }) {
@@ -485,7 +588,7 @@ function CitedList({ rows, domain, against }) {
 }
 function CitedPair({ v }) {
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="flex flex-col gap-5">
       {v.sides.map((s) => (
         <div key={s.name} className="min-w-0">
           <p className={`mb-1 text-[13px] font-medium ${s.against ? 'text-negative' : 'text-stone-600'}`}>{s.name}</p>
@@ -495,46 +598,43 @@ function CitedPair({ v }) {
     </div>
   )
 }
-const VISUAL = { diverging: Diverging, topicBars: TopicBars, engines: Engines, shareBars: ShareBars, bars: Bars, cited: ({ v }) => <CitedList rows={v.rows} domain={v.domain} />, citedPair: CitedPair }
-export const WIDE = new Set(['diverging', 'topicBars', 'citedPair', 'engines'])
+const VISUAL = { waffle: Waffle, ranking: Ranking, trend: Trend, diverging: Diverging, topicBars: TopicBars, engineStack: EngineStack, engineBars: EngineBars, cited: ({ v }) => <CitedList rows={v.rows} domain={v.domain} />, citedPair: CitedPair }
 
-function Section({ data: s, n }) {
+// a section: "01  Title", one takeaway, its visual. Side by side, the heads keep one height so the visuals start level,
+// and each visual fills down so they end level too
+function Section({ data: s, n, paired }) {
   const V = VISUAL[s.visual.kind]
   return (
-    <section>
-      <SectionHead n={n} title={s.title} takeaway={s.takeaway} />
-      {V && <V v={s.visual} />}
+    <section className="flex h-full flex-col">
+      <SectionHead n={n} title={s.title} takeaway={s.takeaway} paired={paired} />
+      <div className="flex flex-1 flex-col">{V && <V v={s.visual} />}</div>
     </section>
   )
 }
 
-// ---- what to do: 3 numbered rows; "could win" with a bar scaled to the biggest action, so they compare
-function ActionRow({ a, i, max }) {
+// ---- what to do: 3 cards in a row (tint, no borders): the kind of action, the action, the prompts it could win
+const ACTION_ICON = { 'New page': FilePlus2, 'Add to FAQ': MessageCircleQuestion, Outreach: Megaphone }
+function ActionCard({ a }) {
   const t = useToggle()
+  const Icon = ACTION_ICON[a.type] ?? FilePlus2
   return (
-    <li className="border-b border-[var(--div)] last:border-0">
-      <div className="grid grid-cols-[24px_minmax(0,1fr)_168px_auto] items-center gap-x-4 py-3 max-md:grid-cols-[20px_minmax(0,1fr)] max-md:gap-y-2">
-        <span className="self-start pt-0.5 text-[13px] leading-[18px] tabular-nums text-stone-500">{i + 1}</span>
-        <span className="min-w-0">
-          <span className={`block ${META}`}>{a.type} · {a.theme}</span>
-          <span className={`mt-0.5 block truncate ${BODY} font-semibold text-stone-900 max-md:whitespace-normal`}>{a.title}</span>
-        </span>
-        <span className="min-w-0 max-md:col-start-2">
-          <span className={`block ${LABEL} tabular-nums`}>Could win <b className="font-semibold text-stone-900">{plural(a.n)}</b></span>
-          <span className="mt-1.5 block h-1.5 w-full rounded-sm bg-[var(--div)]"><span className="block h-full rounded-sm bg-ink" style={{ width: `${(a.n / max) * 100}%` }} /></span>
-        </span>
-        {a.prompts?.length > 0 && <span className="flex justify-end max-md:col-start-2 max-md:justify-start">{t.button('View prompts')}</span>}
-      </div>
-      {t.open && <PromptList id={t.id} prompts={a.prompts} />}
+    <li className="flex min-w-0 flex-col rounded-2xl bg-tint p-5">
+      <span className={`flex items-center gap-2 ${LABEL}`}><Icon size={16} strokeWidth={1.75} className="text-stone-700" aria-hidden />{a.type}</span>
+      <span className="mt-3 text-[16px] leading-[22px] font-semibold text-stone-900 [text-wrap:pretty] md:min-h-[66px]">{a.title}</span>
+      <span className="pt-5">
+        <span className="block text-[24px] leading-8 font-semibold tracking-[-0.01em] tabular-nums text-stone-900">{plural(a.n)}</span>
+        <span className={`block ${META}`}>could be won · {a.theme}</span>
+      </span>
+      {a.prompts?.length > 0 && <span className="-mx-1.5 mt-3">{t.button(t.open ? 'Hide prompts' : 'View prompts')}</span>}
+      {t.open && <div className="mt-2"><PromptList id={t.id} prompts={a.prompts} /></div>}
     </li>
   )
 }
 function Actions({ data: d, n }) {
-  const max = Math.max(...d.items.map((a) => a.n))
   return (
     <section>
       <SectionHead n={n} title={d.title} />
-      <ol className="flex flex-col border-t border-[var(--div)]">{d.items.map((a, i) => <ActionRow key={a.title} a={a} i={i} max={max} />)}</ol>
+      <ol className="grid items-start gap-4 md:grid-cols-3">{d.items.map((a) => <ActionCard key={a.title} a={a} />)}</ol>
     </section>
   )
 }
@@ -560,35 +660,48 @@ function Sources({ data: d }) {
   )
 }
 
-const RENDER = { header: Header, scoreline: Scoreline, hero: Hero, section: Section, actions: Actions, sources: Sources }
-export function Block({ block, title, n }) {
+const RENDER = { header: Header, scoreline: Scoreline, hero: HeroBand, section: Section, actions: Actions, sources: Sources }
+export function Block({ block, title, n, paired }) {
   const C = RENDER[block.type]
-  return C ? <C data={block.data} title={title} n={n} /> : null
+  return C ? <C data={block.data} title={title} n={n} paired={paired} /> : null
 }
-export const blockName = (b) => (b.type === 'section' ? b.data.title : { header: 'Header', scoreline: 'Scoreline', hero: HERO_TITLE[b.data.kind], actions: b.data.title, sources: 'Sources' }[b.type])
+export const blockName = (b) => (b.type === 'section' ? b.data.title : { header: 'Header', scoreline: 'Scoreline', hero: 'Summary', actions: b.data.title, sources: 'Sources' }[b.type])
+// the grid: a section says how wide it'd like to be (7 + 5 side by side, or 12); a 7 and a 5 next to each other share
+// a row, anything else takes the full width
+export function blockSpans(blocks) {
+  const want = (b) => (b?.type === 'section' ? b.data.span ?? 12 : 12)
+  const out = blocks.map(() => 12)
+  for (let i = 0; i < blocks.length - 1; i++) {
+    const a = want(blocks[i])
+    const b = want(blocks[i + 1])
+    if (a !== 12 && a + b === 12) { out[i] = a; out[i + 1] = b; i++ }
+  }
+  return out
+}
+export const SPAN_CLASS = { 12: 'col-span-12', 7: 'col-span-12 lg:col-span-7', 5: 'col-span-12 lg:col-span-5' }
 
 // "Explain this": how a block was worked out, in a sentence or two
 export function explainFor(block) {
   const d = block.data
   switch (block.type) {
-    case 'header': return 'The verdict compares the start of the period with the latest sync. Good week: you won at least twice as many prompts as you lost. Winning: first in share of voice and gaining.'
-    case 'scoreline': return `Each number is the latest sync; the change is against ${d.since}. The line shows the last 8 weekly syncs.`
     case 'hero': return {
-      flow: 'Every tracked prompt, once: named last week and still named (held), newly named (won), no longer named (lost), or not named either time.',
-      slope: 'Of all brand mentions in AI answers to your prompts, the share each brand got at the start of the period and now.',
-      quadrant: 'Every tracked prompt, by whether AI names you, them, both or neither. Where both are named, “first” is whoever the answer names first.',
-      bubbles: 'Each topic’s prompts where you aren’t named, against how many of those name a competitor instead. Top right: many prompts, firmly owned.',
-    }[d.kind]
+      ring: 'The visibility score is the latest sync’s; the change is against the start of the period. Good week: you won at least twice as many prompts as you lost.',
+      donut: 'Of all brand mentions in AI answers to your prompts, the share each brand got in the latest sync. Winning: first in share of voice and gaining.',
+      split: 'Every tracked prompt where AI names only you, or names you first, is yours; where it names only them, or them first, is theirs.',
+      gap: 'Tracked prompts where AI doesn’t name you in the latest sync; in red, those that name a competitor instead.',
+    }[d.visual?.kind] ?? ''
     case 'section': return {
+      waffle: 'Every tracked prompt, once. Won: newly named. Held: named both times. Lost: no longer named. Missed: not named either time.',
+      ranking: 'Share of voice in the latest sync, and the change since the period began.',
+      trend: 'The last 8 weekly syncs. The y axis is fitted to the data, so it doesn’t start at zero.',
       diverging: 'Prompts gained (right) and lost (left) per topic. Topics come from grouping the prompt texts.',
       topicBars: 'Prompts per topic; open a topic for its prompts.',
-      engines: 'The same measure per engine. An engine that didn’t run shows a dash, not an estimate.',
-      shareBars: 'Share of voice in the latest sync, and the change since the period began.',
-      bars: 'How many of your missing prompts name each competitor instead.',
+      engineStack: 'Per engine, across every tracked prompt: newly named (won), named both times (held), no longer named (lost). The number is the share of prompts it names you on. An engine that didn’t run isn’t estimated.',
+      engineBars: 'Prompts the competitor wins, per engine. An engine that didn’t run isn’t estimated.',
       cited: 'Your pages that AI answers link to most in the latest sync.',
       citedPair: 'The pages AI cites on the prompts you both compete for, by how many answers cite each.',
     }[d.visual.kind]
-    case 'actions': return 'Each action targets one topic; “could win” counts the prompts in that topic you aren’t named on today.'
+    case 'actions': return 'Each action targets one topic; the number counts the prompts in that topic you aren’t named on today.'
     case 'sources': return 'Everything above comes from these syncs. Anything without data is listed here instead of being estimated.'
     default: return ''
   }

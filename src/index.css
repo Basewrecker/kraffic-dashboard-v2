@@ -474,3 +474,16 @@ html[data-theme="dark"] { --bubble: var(--color-raised); }
 /* The Reports composer's send button: ChatGPT's blue, the same in light and dark. The app's one accent colour, a
    deliberate exception to the no-accent rule, used for this button only. */
 :root { --send: #3C65C0; --send-hover: #3558AA; --send-active: #2F4E97; --send-fg: #FFFFFF; } /* --send-fg: the icon (not text-white, which dark mode remaps) */
+
+/* Reports thread: a thin overlay-style scrollbar, hidden at rest. It shows while scrolling or hovering the scroll area
+   (data-sb="on", set by the page) and fades out ~800ms after. Chrome / Safari: the thumb takes the element's border
+   colour (the element has no border), which is what fades; Firefox: scrollbar-color. Always 6px wide, so nothing shifts. */
+.thread-scroll { border-color: transparent; transition: border-color 300ms ease-out; }
+.thread-scroll[data-sb='on'] { border-color: var(--color-line-strong); transition-duration: 120ms; }
+.thread-scroll::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
+.thread-scroll::-webkit-scrollbar-track, .thread-scroll::-webkit-scrollbar-corner { background: transparent; }
+.thread-scroll::-webkit-scrollbar-thumb { border-radius: 3px; border-style: solid; border-width: 0 6px 0 0; border-color: inherit; }
+@supports not selector(::-webkit-scrollbar) {
+  .thread-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color 300ms ease-out; }
+  .thread-scroll[data-sb='on'] { scrollbar-color: var(--color-line-strong) transparent; transition-duration: 120ms; }
+}

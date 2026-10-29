@@ -10,7 +10,7 @@ import { addReport, buildReport, optsLine, refine, refineSuggestions, reportById
 import PillComposer from './PillComposer'
 import { pageFit } from '../../data/composer'
 import { DotAssemble } from './DotField'
-import { Block, Thumb, WIDE, blockName, explainFor } from './blocks'
+import { Block, SPAN_CLASS, Thumb, blockName, blockSpans, explainFor } from './blocks'
 import { brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
 
 // Reports as a chat thread, ChatGPT-style. /reports is the empty state: a greeting and the box at the centre. Sending
@@ -24,20 +24,13 @@ import { brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
 
 const STEP_MS = 850
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
-const FIXED = new Set(['header', 'scoreline', 'hero', 'sources']) // the fixed rhythm: explain only
-const FIRST_MOVABLE = 3 // after header, scoreline, hero
+const FIXED = new Set(['hero', 'sources']) // the fixed bands: explain only
+const FIRST_MOVABLE = 1 // after the hero band
 const GREETINGS = { 1: 'What do you want to know?', 2: 'What should we look into today?', 3: 'What’s on your mind today?' }
 const REFINE_ICONS = [Minimize2, Plus, Crosshair, UserRound]
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
-// sections side by side on wide screens: two narrow sections next to each other share a row
-function spans(blocks) {
-  const half = (b) => b?.type === 'section' && !WIDE.has(b.data.visual.kind)
-  const out = blocks.map(() => 2)
-  for (let i = 0; i < blocks.length - 1; i++) if (out[i] === 2 && half(blocks[i]) && half(blocks[i + 1])) { out[i] = 1; out[i + 1] = 1; i++ }
-  return out
-}
-// 01 What moved · 02 By topic · … · the last number is What to do
-const numbers = (blocks) => { let n = 0; return blocks.map((b) => (['hero', 'section', 'actions'].includes(b.type) ? ++n : null)) }
+// 01 What moved · 02 Where you stand · … · the last number is What to do (the hero band isn't numbered)
+const numbers = (blocks) => { let n = 0; return blocks.map((b) => (['section', 'actions'].includes(b.type) ? ++n : null)) }
 const sameOpts = (a, b) => ['brand', 'period', 'audience', 'length'].every((k) => a[k] === b[k]) && ['engines', 'compare'].every((k) => (a[k] ?? []).join() === (b[k] ?? []).join())
 
 // a turn: the user's message (ask) and the reply — a report version (built from the report's question + options), or a
@@ -215,6 +208,12 @@ function Thread({ rest, mock, greeting, inter }) {
     const onWheel = (e) => { if (e.deltaY < 0) follow.current = false }
     const onTouch = () => { follow.current = false }
     const onKey = (e) => { if (['ArrowUp', 'PageUp', 'Home'].includes(e.key) && !e.target.closest?.('textarea,input,[role=menu],[role=listbox]')) follow.current = false }
+    // the scrollbar: shown while scrolling or moving over the scroll area, hidden ~800ms after the last of either
+    let sbTimer = 0
+    const showBar = () => { sc.dataset.sb = 'on'; clearTimeout(sbTimer); sbTimer = setTimeout(() => { delete sc.dataset.sb }, 800) }
+    sc.addEventListener('scroll', showBar, { passive: true })
+    sc.addEventListener('pointerenter', showBar)
+    sc.addEventListener('pointermove', showBar, { passive: true })
     sc.addEventListener('scroll', onScroll, { passive: true })
     sc.addEventListener('wheel', onWheel, { passive: true })
     sc.addEventListener('touchmove', onTouch, { passive: true })
@@ -226,6 +225,7 @@ function Thread({ rest, mock, greeting, inter }) {
     const id = setInterval(() => { if (follow.current && streaming.current && sc.scrollHeight - sc.clientHeight - sc.scrollTop > 4) toEnd(true) }, 250)
     return () => {
       sc.removeEventListener('scroll', onScroll); sc.removeEventListener('wheel', onWheel); sc.removeEventListener('touchmove', onTouch)
+      sc.removeEventListener('scroll', showBar); sc.removeEventListener('pointerenter', showBar); sc.removeEventListener('pointermove', showBar); clearTimeout(sbTimer)
       window.removeEventListener('keydown', onKey); ro.disconnect(); clearInterval(id)
     }
   }, [mode]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -280,7 +280,7 @@ function Thread({ rest, mock, greeting, inter }) {
     const bs = t.blocks
     const i = bs.findIndex((b) => b.id === bid)
     const j = i + dir
-    if (j < FIRST_MOVABLE || j > bs.length - 2) return // header, scoreline and hero stay first; sources last
+    if (j < FIRST_MOVABLE || j > bs.length - 2) return // the hero band stays first; sources last
     const n = [...bs];
     [n[i], n[j]] = [n[j], n[i]]
     setBlocks(t.id, n)
@@ -314,8 +314,8 @@ function Thread({ rest, mock, greeting, inter }) {
           the question, the report and its actions; a 48px fade at its bottom edge, and ↓ in its bottom corner */}
       {thread && (
         <div key="scroll" className="relative -mx-4 min-h-0 flex-1 md:-mx-6">
-          <div ref={scroller} data-scroll className="h-full overflow-y-auto overscroll-contain px-4 md:px-6">
-            <div ref={threadRef} className="mx-auto flex w-full max-w-[880px] flex-col gap-8 pb-12 pt-2">
+          <div ref={scroller} data-scroll className="thread-scroll h-full overflow-y-auto overscroll-contain px-4 md:px-6">
+            <div ref={threadRef} className="mx-auto flex w-full max-w-[960px] flex-col gap-8 pb-12 pt-2">
               {missing && (
                 <StateCard title="This report doesn’t exist any more">
                   It may have been deleted. <a href="/reports/all" onClick={linkClick('/reports/all')} className="font-medium text-stone-900 underline underline-offset-4">All reports</a>
@@ -447,14 +447,14 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
           )}
           <article aria-label={t.built.title} className={ARTICLE}>
             {t.blocks.map((b, i) => (
-              <BlockFrame key={`${t.id}-${b.id}`} b={b} i={i} n={t.blocks.length} span={spans(t.blocks)[i]} reveal={t.live} explainOpen={explain === `${t.id}|${b.id}`}
+              <BlockFrame key={`${t.id}-${b.id}`} b={b} i={i} n={t.blocks.length} span={blockSpans(t.blocks)[i]} reveal={t.live} explainOpen={explain === `${t.id}|${b.id}`}
                 onExplain={() => setExplain((e) => (e === `${t.id}|${b.id}` ? null : `${t.id}|${b.id}`))} onUp={() => move(b.id, -1)} onDown={() => move(b.id, 1)} onRemove={() => remove(b.id)}
                 explainText={explainFor(b)}>
-                <Block block={b} title={t.built.title} n={numbers(t.blocks)[i]} />
+                <Block block={b} title={t.built.title} n={numbers(t.blocks)[i]} paired={blockSpans(t.blocks)[i] !== 12} />
               </BlockFrame>
             ))}
           </article>
-          <div className={`${col} mt-3 flex flex-wrap items-center gap-x-1 gap-y-1`} style={t.live ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
+          <div className="mx-auto mt-3 flex w-full max-w-[960px] flex-wrap items-center gap-x-1 gap-y-1" style={t.live ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
             {many && <span className={`mr-2 text-[13px] tabular-nums ${t3}`}>v{n}{t.change ? ` · ${t.change}` : ''}</span>}
             {actions.map((a) => (
               <button key={a.label} type="button" onClick={a.onClick}
@@ -469,13 +469,14 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
   )
 }
 
-// 40px inside, 48px between sections (the 32px gap plus each block's 8px frame above and below)
-const ARTICLE = 'grid min-w-0 grid-cols-1 gap-x-12 gap-y-8 overflow-hidden rounded-xl border border-line bg-surface p-10 lg:grid-cols-2 max-md:px-5 max-md:py-7'
+// the report card: at most 960 wide, a 12-column grid, 32px inside; bands 40px apart (the 24px gap plus each block's 8px
+// frame above and below)
+const ARTICLE = 'mx-auto grid w-full max-w-[960px] min-w-0 grid-cols-12 gap-x-8 gap-y-6 rounded-xl border border-line bg-surface p-8 max-md:gap-y-5 max-md:px-4 max-md:py-5'
 
 // while it's written: only the hero's place, where the dots gather (short, so the question stays in view)
 const HERO_H = { weekly: 220, ceo: 240, rival: 280, content: 240 }
 function Skeleton({ kind, heroRef }) {
-  return <div ref={heroRef} aria-hidden className="mx-auto w-full max-w-[760px]" style={{ height: HERO_H[kind] ?? 240 }} />
+  return <div ref={heroRef} aria-hidden className="mx-auto w-full max-w-[960px]" style={{ height: HERO_H[kind] ?? 240 }} />
 }
 
 function StateCard({ icon, title, actions, children }) {
@@ -499,12 +500,12 @@ function NotEnough({ r }) {
 }
 
 // ---- a block on the page: on hover (or focus) small actions: move up / down, explain this, remove
-function BlockFrame({ b, i, n, span = 2, reveal, explainOpen, explainText, onExplain, onUp, onDown, onRemove, children }) {
+function BlockFrame({ b, i, n, span = 12, reveal, explainOpen, explainText, onExplain, onUp, onDown, onRemove, children }) {
   const fixed = FIXED.has(b.type)
   const name = blockName(b)
   const iconBtn = 'grid h-7 w-7 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-30'
   return (
-    <div role="group" aria-label={name} className={`group/block relative -mx-3 min-w-0 rounded-xl px-3 py-2 ${span === 2 ? 'lg:col-span-2' : ''} transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] focus-within:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] max-md:-mx-2 max-md:px-2 max-md:pr-9`}
+    <div role="group" aria-label={name} className={`group/block relative -mx-3 min-w-0 rounded-xl px-3 py-2 ${SPAN_CLASS[span] ?? SPAN_CLASS[12]} transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] focus-within:bg-[color-mix(in_srgb,var(--ink)_2.5%,transparent)] max-md:-mx-2 max-md:px-2 max-md:pr-9`}
       style={reveal ? { animation: `card-in 420ms cubic-bezier(0.22, 1, 0.36, 1) ${i * 120}ms both` } : undefined}>
       <div className="absolute -top-3.5 right-2 z-10 hidden items-center gap-0.5 rounded-lg border border-line bg-raised p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover/block:opacity-100 group-focus-within/block:opacity-100 md:flex">
         {!fixed && <button type="button" onClick={onUp} disabled={i <= FIRST_MOVABLE} aria-label={`Move “${name}” up`} title="Move up" className={iconBtn}><ArrowUp size={14} aria-hidden /></button>}
@@ -615,8 +616,8 @@ function PrintView({ prompt, opts, title }) {
       </div>
       <div className="w-full overflow-x-auto">
         <div ref={sheet} className={`print-sheet mx-auto flex w-[210mm] flex-col gap-[6mm] bg-surface px-[14mm] py-[12mm] shadow-[0_1px_3px_rgba(0,0,0,0.08),0_12px_32px_-12px_rgba(0,0,0,0.18)] ${one ? 'h-[297mm] overflow-hidden' : 'min-h-[297mm]'}`}>
-          <div className="flex flex-col gap-8" style={{ zoom: 0.62 }}>
-            {r.blocks.map((b, i) => <Block key={b.id} block={b} title={title ?? r.title} n={numbers(r.blocks)[i]} />)}
+          <div className="grid grid-cols-12 gap-x-8 gap-y-8" style={{ zoom: 0.62, width: 960 }}>
+            {r.blocks.map((b, i) => <div key={b.id} className={SPAN_CLASS[blockSpans(r.blocks)[i]].replace('lg:', '')}><Block block={b} title={title ?? r.title} n={numbers(r.blocks)[i]} paired={blockSpans(r.blocks)[i] !== 12} /></div>)}
           </div>
           <p className={`mt-auto text-[9px] ${t3}`}>Kraffic · {brandOf(r.opts.brand)?.name} · page 1 of 1</p>
         </div>

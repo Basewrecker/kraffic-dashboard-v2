@@ -6,53 +6,94 @@ const types = (r) => r.blocks.map((b) => b.type)
 const block = (r, type) => r.blocks.find((b) => b.type === type)?.data
 const sections = (r) => r.blocks.filter((b) => b.type === 'section').map((b) => b.data)
 
-test('every report has the same rhythm: header · scoreline · hero · sections · actions · sources', () => {
+const hero = (r) => block(r, 'hero')
+const chipOf = (r, id) => hero(r).chips.find((c) => c.id === id)
+
+test('every report has the same bands: hero · sections (7 + 5 or 12) · action cards · footer', () => {
   for (const kind of ['weekly', 'ceo', 'rival', 'content']) {
-    const r = buildReport({ brand: 'foa', kind, period: '30d', length: 'detailed' })
+    const r = buildReport({ brand: 'foa', kind, period: '30d', length: 'detailed', compare: kind === 'rival' ? ['longbridge'] : [] })
     assert.equal(r.ok, true, kind)
-    assert.deepEqual(types(r).filter((t) => t !== 'section'), ['header', 'scoreline', 'hero', 'actions', 'sources'], kind)
-    assert.equal(block(r, 'scoreline').items.length, 4, kind)
-    assert.ok(block(r, 'scoreline').items.every((m) => m.series.length === 8), `${kind}: 8-point sparklines`)
+    assert.deepEqual(types(r).filter((t) => t !== 'section'), ['hero', 'actions', 'sources'], kind)
+    assert.equal(hero(r).chips.length, 3, `${kind}: 3 stat chips`)
     assert.ok(block(r, 'actions').items.length <= 3, kind)
     assert.ok(sections(r).every((s) => s.takeaway && !s.takeaway.includes('. ', s.takeaway.length - 2) && s.visual), `${kind}: one takeaway + a visual`)
+    // a 7 is always followed by its 5, so the pairs share a row
+    const spans = sections(r).map((s) => s.span)
+    for (let i = 0; i < spans.length; i++) if (spans[i] === 7) assert.equal(spans[i + 1], 5, `${kind}: 7 then 5`)
+    assert.ok(spans.every((x) => [5, 7, 12].includes(x)), kind)
+    assert.equal(sections(r).filter((s) => s.visual.kind === 'trend').length, 1, `${kind}: one trend chart`)
   }
 })
 
-test('each kind has its own hero', () => {
-  const hero = (kind) => block(buildReport({ brand: 'foa', kind }), 'hero').kind
-  assert.deepEqual(['weekly', 'ceo', 'rival', 'content'].map(hero), ['flow', 'slope', 'quadrant', 'bubbles'])
+test('each kind has its own hero visual; the weekly sections are in the agreed order', () => {
+  const visual = (kind) => hero(buildReport({ brand: 'foa', kind, compare: kind === 'rival' ? ['longbridge'] : [] })).visual.kind
+  assert.deepEqual(['weekly', 'ceo', 'rival', 'content'].map(visual), ['ring', 'donut', 'split', 'gap'])
+  const w = buildReport({ brand: 'dermasuri', kind: 'weekly', period: 'week', length: 'detailed' })
+  assert.deepEqual(sections(w).map((s) => `${s.title}:${s.span}`), ['What moved:7', 'Where you stand:5', 'Trend:12', 'By topic:7', 'By engine:5'])
 })
 
-test('the weekly flow accounts for every prompt, and matches the scoreline', () => {
+test('the weekly waffle accounts for every prompt, and matches the ring and the chips', () => {
   for (const brand of ['foa', 'dermasuri']) {
     for (const period of ['week', '30d', 'quarter']) {
-      const r = buildReport({ brand, kind: 'weekly', period })
-      const f = block(r, 'hero')
-      const named = block(r, 'scoreline').items.find((m) => m.id === 'named')
-      assert.equal(f.held + f.won + f.lost + f.missing, dataFor(brand).prompts, `${brand} ${period}`)
-      assert.equal(f.held + f.won, named.value, `${brand} ${period}: named now`)
-      assert.equal(f.held + f.lost, named.value - named.delta, `${brand} ${period}: named at the start`)
+      const r = buildReport({ brand, kind: 'weekly', period, length: 'detailed' })
+      const g = Object.fromEntries(sections(r)[0].visual.groups.map((x) => [x.key, x.n]))
+      const named = chipOf(r, 'named')
+      assert.equal(g.won + g.held + g.lost + g.missing, dataFor(brand).prompts, `${brand} ${period}`)
+      assert.equal(g.won + g.held, named.value, `${brand} ${period}: named now`)
+      assert.equal(g.held + g.lost, named.value - named.delta, `${brand} ${period}: named at the start`)
+      assert.equal(hero(r).visual.named, named.value)
+      assert.equal(hero(r).visual.value, dataFor(brand).series.score.at(-1))
+    }
+  }
+  // a square's prompt is only shown when the report holds exactly that group's prompts
+  const groups = sections(buildReport({ brand: 'dermasuri', kind: 'weekly', period: 'week' }))[0].visual.groups
+  assert.equal(groups.find((x) => x.key === 'won').prompts.length, 9)
+  assert.equal(groups.find((x) => x.key === 'lost').prompts.length, 2)
+  assert.equal(groups.find((x) => x.key === 'held').prompts, undefined)
+})
+
+test('where you stand: every brand by share, you included, sorted; the trend is you and the top 2 in brand colours', () => {
+  const r = buildReport({ brand: 'foa', kind: 'weekly', period: 'week', length: 'detailed' })
+  const rows = sections(r).find((s) => s.id === 'stand').visual.rows
+  assert.equal(rows.length, dataFor('foa').rivals.length + 1)
+  assert.ok(rows.some((x) => x.you))
+  assert.deepEqual(rows.map((x) => x.now), [...rows.map((x) => x.now)].sort((a, b) => b - a))
+  const lines = sections(r).find((s) => s.id === 'trend').visual.lines
+  assert.equal(lines.length, 3)
+  assert.ok(lines[0].you && lines.slice(1).every((l) => /^var\(--line-[12]\)$/.test(l.color)))
+  assert.ok(lines.every((l) => l.series.length === 8))
+})
+
+test('engines: won + held = the prompts each engine names; that matches its share', () => {
+  for (const brand of ['foa', 'dermasuri']) {
+    const r = buildReport({ brand, kind: 'weekly', period: 'week', length: 'detailed' })
+    for (const e of sections(r).find((s) => s.id === 'engines').visual.rows.filter((x) => !x.off)) {
+      assert.equal(e.won + e.held, e.named, `${brand} ${e.id}`)
+      assert.equal(Math.round((e.named / dataFor(brand).prompts) * 100), e.now, `${brand} ${e.id}`)
     }
   }
 })
 
-test('head-to-head quadrants add up; their wins match the topics and the scoreline', () => {
+test('head-to-head: the waffle adds up; the split and the topics match', () => {
   for (const [brand, rival] of [['foa', 'longbridge'], ['dermasuri', 'cerave']]) {
     const r = buildReport({ brand, kind: 'rival', compare: [rival], length: 'detailed' })
-    const h = block(r, 'hero')
-    assert.equal(h.onlyThem + h.themFirst + h.youFirst + h.onlyYou + h.neither, dataFor(brand).prompts)
-    const theirs = h.onlyThem + h.themFirst
-    assert.equal(block(r, 'scoreline').items[1].value, theirs)
-    assert.equal(sections(r)[0].visual.rows.reduce((a, t) => a + t.n, 0), theirs)
+    const g = Object.fromEntries(sections(r)[0].visual.groups.map((x) => [x.key, x.n]))
+    assert.equal(Object.values(g).reduce((a, b) => a + b, 0), dataFor(brand).prompts)
+    const theirs = g.onlyThem + g.themFirst
+    assert.equal(hero(r).visual.them.n, theirs)
+    assert.equal(hero(r).visual.you.n, g.onlyYou + g.youFirst)
+    assert.equal(sections(r)[1].visual.rows.reduce((a, t) => a + t.n, 0), theirs)
   }
-  assert.match(buildReport({ brand: 'foa', kind: 'rival', compare: ['longbridge'] }).headline, /beats Finance of America on 23 prompts/)
+  assert.match(buildReport({ brand: 'foa', kind: 'rival', compare: ['longbridge'] }).headline, /^Longbridge wins 23 prompts/)
 })
 
-test('content plan: topic gaps add up to the prompts missing; the headline names the most-owned topic', () => {
+test('content plan: topic gaps add up to the prompts missing; the red part to those a competitor takes', () => {
   const r = buildReport({ brand: 'foa', kind: 'content', length: 'detailed' })
-  const missing = block(r, 'scoreline').items.find((m) => m.id === 'missing').value
-  assert.equal(block(r, 'hero').rows.reduce((a, t) => a + t.missing, 0), missing)
-  assert.match(r.headline, /^Write for calculators first/)
+  const v = hero(r).visual
+  assert.equal(sections(r)[0].visual.rows.reduce((a, t) => a + t.n, 0), v.missing)
+  assert.equal(sections(r)[0].visual.rows.reduce((a, t) => a + t.part, 0), v.owned)
+  assert.equal(sections(r)[1].visual.rows.reduce((a, t) => a + t.now, 0), v.owned)
+  assert.match(r.headline, /^Calculators first: Longbridge holds 7 of its 8 prompts/)
   assert.deepEqual(block(r, 'actions').items.map((a) => a.type), ['New page', 'Add to FAQ', 'Outreach'])
 })
 
@@ -71,7 +112,7 @@ test('an engine that didn’t run shows as such and is named in the footer, neve
 
 test('one page keeps the first two sections', () => {
   assert.equal(sections(buildReport({ brand: 'foa', kind: 'weekly', length: 'one' })).length, 2)
-  assert.equal(sections(buildReport({ brand: 'foa', kind: 'weekly', length: 'detailed' })).length, 4)
+  assert.equal(sections(buildReport({ brand: 'foa', kind: 'weekly', length: 'detailed' })).length, 5)
 })
 
 test('not enough data, and no breakdown for a competitor: no report, and why', () => {
@@ -151,14 +192,15 @@ test('the thread: the options line, the refine suggestions (each one understood)
   assert.equal(reportById(id).opts.length, 'detailed')
 })
 
-test('the report header and footer: the engines that ran, a compact range, what didn’t run', () => {
+test('the report hero and footer: the engines that ran, a compact range, what didn’t run', () => {
   assert.equal(shortRange('Oct 19', 'Oct 26'), 'Oct 19–26')
   assert.equal(shortRange('Sep 28', 'Oct 26'), 'Sep 28 – Oct 26')
   const r = buildReport({ brand: 'dermasuri', kind: 'weekly', period: 'week', length: 'detailed' })
-  const h = r.blocks.find((b) => b.type === 'header').data
+  const h = r.blocks.find((b) => b.type === 'hero').data
   assert.equal(h.span, 'Oct 19–26')
   assert.deepEqual(h.counted, ['AI Overview', 'ChatGPT'])
+  assert.equal(h.since, 'last week')
   const f = r.blocks.find((b) => b.type === 'sources').data
   assert.deepEqual(f.off, ['Gemini', 'Claude'])
-  assert.equal(r.blocks.find((b) => b.type === 'section').data.title, 'By topic')
+  assert.equal(r.blocks.find((b) => b.type === 'section').data.title, 'What moved')
 })

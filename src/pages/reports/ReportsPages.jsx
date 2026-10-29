@@ -387,8 +387,7 @@ export function EmailPreview({ s, onClose }) {
             <dt className={t3}>Subject</dt><dd className="font-medium text-stone-900">{brandOf(s.brand)?.name} · {s.title} · {range}</dd>
           </dl>
           <div className="flex flex-col gap-5 bg-surface px-6 py-6 max-md:px-4">
-            {pick('header') && <Block block={pick('header')} title={s.title} />}
-            {pick('scoreline') && <Block block={pick('scoreline')} />}
+            {pick('hero') && <Block block={pick('hero')} title={s.title} />}
             <div><span className={inkBtn}>Open the full report</span></div>
             <p className={`border-t border-line pt-4 text-[12px] leading-[18px] ${t3}`}>Sent {SENT[s.cadence] ?? s.cadence} by Kraffic for PTA Agency, written from the latest sync each time. To change or stop it, open Scheduled in Kraffic.</p>
           </div>
