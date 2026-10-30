@@ -14,6 +14,9 @@ import { Block, Thumb, blockName, explainFor } from './blocks'
 import { BetaTag, brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
 import { ContentsRail, FollowUps } from './library'
 import ReportFrame, { FrameSkeleton } from './frame'
+import { buildLiveReport } from '../../data/live-report'
+import { liveFacts, setLiveFacts } from '../../data/live-facts'
+import { sampleFacts } from '../../data/live-facts-sample'
 
 // Reports as a chat thread, ChatGPT-style. /reports is the empty state: a greeting and the box at the centre. Sending
 // turns the page into a thread in one motion: the greeting fades up and out, the box glides to the bottom and docks
@@ -38,9 +41,18 @@ const sameOpts = (a, b) => ['brand', 'period', 'audience', 'length'].every((k) =
 
 // a turn: the user's message (ask) and the reply — a report version (built from the report's question + options), or a
 // note when the message isn't a change a report can make
+// every report is written through the app's live-report adapter from the brand's live facts (here the synthetic sample
+// in the API's shape); ?live=0 writes it from the sample builders instead
+const useLive = () => new URLSearchParams(window.location.search).get('live') !== '0'
+export function writeReport(opts, prompt) {
+  if (!useLive()) return buildReport(opts, prompt)
+  const facts = sampleFacts(opts.brand)
+  setLiveFacts(facts)
+  return facts ? buildLiveReport(facts, prompt, opts) : buildReport(opts, prompt)
+}
 let seq = 0
 function makeTurn(ask, prompt, opts, { done = false, change = null } = {}) {
-  const built = buildReport(opts, prompt)
+  const built = writeReport(opts, prompt)
   return { id: `t${++seq}`, ask, prompt, opts: built.opts ?? opts, built, blocks: built.ok ? built.blocks : [], status: !built.ok ? 'thin' : done ? 'done' : 'steps', step: 0, live: !done, change }
 }
 
@@ -616,7 +628,7 @@ function ScheduleModal({ open, onClose, onSave, title, brand }) {
 
 // ---- Print / PDF: an A4 sheet. One page when Length is One page (it says so if it doesn't fit)
 function PrintView({ prompt, opts, title }) {
-  const r = buildReport(opts, prompt)
+  const r = writeReport(opts, prompt)
   const sheet = useRef(null)
   const [over, setOver] = useState(false)
   useLayoutEffect(() => {
