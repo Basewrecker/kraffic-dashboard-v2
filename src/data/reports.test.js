@@ -121,42 +121,33 @@ test('engines: the prompts each engine names match its share; the table’s engi
   }
 })
 
-test('competitor gap (v2): one hero bar with every prompt once; the prompts they win in full, with engines and who’s named; their pages; next steps that link', () => {
+test('competitor gap (frame): the question and one finding; the chart is us vs them per topic (the sums are the prompts naming each); the donut holds every prompt once; two stats; the table of the prompts they win, with filters', () => {
   for (const [brand, rival] of Object.entries(RIVAL)) {
-    const r = buildReport({ brand, kind: 'rival', compare: [rival], length: 'detailed' })
+    const r = buildReport({ brand, kind: 'rival', compare: [rival], length: 'detailed' }, `Where is ${rival} beating us?`)
     const h = dataFor(brand).h2h[rival]
-    assert.equal(r.v2, true)
-    assert.deepEqual(types(r), ['v2hero', 'v2section', 'v2section', 'v2section', 'sources'])
-    const hr = block(r, 'v2hero')
-    assert.equal(hr.visual.kind, 'h2h')
-    assert.deepEqual(hr.visual.segs.map((x) => x.n), [h.onlyThem, h.youFirst + h.themFirst, h.onlyYou, h.neither])
-    assert.equal(hr.visual.segs.reduce((a, x) => a + x.n, 0), dataFor(brand).prompts, 'every prompt once')
-    assert.doesNotMatch(r.headline, /\d/, 'no number in the headline: the bar has them')
-    assert.doesNotMatch(hr.line, /For the|Winning|Losing|Mixed/, 'the top line is one plain line')
-    assert.ok(['Winning', 'Mixed', 'Losing'].includes(hr.verdict.word))
-    const [gap, pages, steps] = v2sections(r)
-    assert.equal(gap.block.kind, 'promptGroups')
-    assert.equal(gap.total, h.onlyThem + h.themFirst)
-    assert.ok(gap.total > 5, 'details 5 at a time: Show all N')
-    assert.ok(gap.takeaway)
-    const rows = gap.block.groups.flatMap((g) => g.rows)
-    assert.equal(rows.length, gap.total, 'every prompt they win, once, in full')
-    for (const x of rows) { assert.ok(x.engines.length >= 1, x.text); assert.notEqual(x.named[0], 'you', x.text) }
-    assert.deepEqual(gap.block.groups.map((g) => g.rows.length), [...gap.block.groups.map((g) => g.rows.length)].sort((a, b) => b - a), 'biggest gap first')
-    for (const g of gap.block.groups) { const w = h.why.find((y) => y.theme === g.theme); assert.equal(g.page?.n, w.them.n); assert.equal(g.yourPage?.n ?? null, w.you?.n ?? null, `${g.theme}: your page`) }
-    for (const [e, c] of Object.entries(h.engines)) assert.equal(rows.filter((x) => x.engines[0] === e).length, c.n, e)
-    assert.equal(pages.block.kind, 'pages')
-    assert.equal(pages.block.rows.length, h.citedThem.length + h.citedYou.length)
-    assert.deepEqual(pages.block.rows.map((p) => p.n), [...pages.block.rows.map((p) => p.n)].sort((a, b) => b - a), 'by answers')
-    assert.equal(steps.block.kind, 'steps')
-    assert.ok(steps.block.items.length > 0)
-    for (const st of steps.block.items) assert.match(st.action.href, /^\/tracker\?topic=/)
-    // the competitor in its brand colour everywhere, never red
-    assert.match(hr.visual.color, /^var\(--line-\d\)$/)
-    assert.equal(gap.block.color, hr.visual.color)
-    assert.deepEqual(v2sections(buildReport({ brand, kind: 'rival', compare: [rival], length: 'one' })).map((x) => x.id), ['gap', 'pages', 'steps'], 'one page keeps the next steps')
+    const f = r.frame
+    assert.equal(r.v3, true)
+    assert.ok(f.question)
+    assert.ok(f.finding.split(' ').length <= 22, f.finding)
+    assert.equal(f.chart.bands.reduce((a, b) => a + b.you, 0), h.onlyYou + h.youFirst + h.themFirst, 'the prompts naming you')
+    assert.equal(f.chart.bands.reduce((a, b) => a + b.them, 0), h.onlyThem + h.themFirst + h.youFirst, 'the prompts naming them')
+    assert.equal(f.chart.value, h.onlyYou + h.youFirst + h.themFirst)
+    assert.deepEqual(f.chart.legend.map((l) => l.tone), ['primary', 'teal'])
+    assert.deepEqual(f.summary.donut.map((x) => x.n), [h.onlyYou + h.youFirst, h.onlyThem + h.themFirst, h.neither])
+    assert.equal(f.summary.donut.reduce((a, x) => a + x.n, 0), dataFor(brand).prompts, 'every prompt once')
+    assert.equal(f.summary.stats.length, 2)
+    assert.equal(f.summary.stats[0].value, h.onlyThem + h.themFirst)
+    assert.equal(f.summary.stats[0].delta, h.theyWin.at(-1) - h.theyWin[3])
+    assert.equal(f.table.rows.length, h.onlyThem + h.themFirst)
+    for (const x of f.table.rows) { assert.ok(x.topic && x.engineName && x.result, x.text); assert.ok(x.page?.n, `${x.text}: their cited page`) }
+    for (const [e, c] of Object.entries(h.engines)) assert.equal(f.table.rows.filter((x) => x.engine === e).length, c.n, e)
+    assert.deepEqual(f.table.filters.map((x) => x.key), ['topic', 'engine'])
+    assert.ok(!f.table.filters[1].options.some((o) => /Claude|Gemini/.test(o)) || brand === 'foa', 'no engine that didn’t run')
+    assert.equal(f.table.pageSize, 10)
+    assert.ok(f.steps.every((st) => /^\/tracker\?topic=/.test(st.action.href)))
+    assert.equal(block(r, 'sources').syncs, 5)
   }
-  assert.match(buildReport({ brand: 'foa', kind: 'rival', compare: ['longbridge'] }).headline, /^Longbridge’s wins come mostly from/)
+  assert.match(buildReport({ brand: 'foa', kind: 'rival', compare: ['longbridge'] }).headline, /^Longbridge wins 23 of your 113 prompts/)
 })
 
 test('custom report (v2): the question read back (interpreted, scope, data), a verdict, the blocks that fit, and “Not in your data” for what isn’t', () => {
@@ -374,7 +365,7 @@ test('v7: at most one horizontal-bar section in any report', () => {
 })
 
 test('v7: what to do follows the question: no two kinds of report suggest the same actions', () => {
-  const titles = (o) => { const r = buildReport({ brand: 'dermasuri', length: 'detailed', ...o }); return r.v2 ? v2sections(r).find((x) => x.block.kind === 'steps').block.items.map((a) => a.title) : table(r).rows.map((a) => a.action).filter(Boolean) }
+  const titles = (o) => { const r = buildReport({ brand: 'dermasuri', length: 'detailed', ...o }); return r.v3 ? r.frame.steps.map((a) => a.title) : r.v2 ? v2sections(r).find((x) => x.block.kind === 'steps').block.items.map((a) => a.title) : table(r).rows.map((a) => a.action).filter(Boolean) }
   const sets = [titles({ kind: 'weekly', period: 'week' }), titles({ kind: 'ceo' }), titles({ kind: 'rival', compare: ['cerave'] }), titles({ kind: 'content' })]
   for (const x of sets) assert.ok(x.length > 0)
   for (let i = 0; i < sets.length; i++) for (let j = i + 1; j < sets.length; j++) assert.ok(!sets[i].some((t) => sets[j].includes(t)), `${i} and ${j} share an action`)

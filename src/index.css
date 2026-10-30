@@ -469,6 +469,27 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
   .thumb-live:is(:hover, :focus-visible) [data-a="pop"] { animation: thumb-pop 520ms cubic-bezier(.34,1.56,.64,1) calc(var(--i) * 80ms + 120ms) both; }
 }
 
+/* Reports (the Doctime-style frame): one hue in two shades (us), one accent (the main competitor), grey (others);
+   the card hairline, the table header fill, the dark tooltip, and the green / red change chips. Light here, dark below. */
+:root {
+  --rep-primary: #3C65C0; --rep-tint: #B9CBF2; --rep-teal: #4FB6AE; --rep-grey: #E4E6EA;
+  --rep-line: #EAECF0; --rep-head: #F9FAFB; --rep-tip: #101828; --rep-tip-line: #101828; --rep-tip-fg: #FFFFFF; --rep-tip-meta: #98A2B3;
+  --rep-up-fg: #067647; --rep-up-bg: #ECFDF3; --rep-down-fg: #B42318; --rep-down-bg: #FEF3F2;
+}
+html[data-theme="dark"] {
+  --rep-primary: #5B82E0; --rep-tint: #2C3E6B; --rep-teal: #3FA79F; --rep-grey: #2A2A2A;
+  --rep-line: #232323; --rep-head: #161616; --rep-tip: #1B1B1B; --rep-tip-line: #333333; --rep-tip-fg: #ECECEC; --rep-tip-meta: #8E8E8E;
+  --rep-up-fg: #4ADE80; --rep-up-bg: #0F2A1A; --rep-down-fg: #F87171; --rep-down-bg: #2A1414;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --rep-primary: #5B82E0; --rep-tint: #2C3E6B; --rep-teal: #3FA79F; --rep-grey: #2A2A2A;
+    --rep-line: #232323; --rep-head: #161616; --rep-tip: #1B1B1B; --rep-tip-line: #333333; --rep-tip-fg: #ECECEC; --rep-tip-meta: #8E8E8E;
+    --rep-up-fg: #4ADE80; --rep-up-bg: #0F2A1A; --rep-down-fg: #F87171; --rep-down-bg: #2A1414;
+  }
+}
+@keyframes rep-tip { from { opacity: 0; } to { opacity: 1; } }
+
 /* Reports thread: the question bubble (tint in light, the raised layer in dark) and the send / back motion */
 :root { --bubble: var(--tint); }
 html[data-theme="dark"] { --bubble: var(--color-raised); }

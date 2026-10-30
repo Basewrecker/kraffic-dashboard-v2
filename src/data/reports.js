@@ -98,6 +98,12 @@ const FOA = {
       citedThem: [{ path: '/reverse-mortgage-calculator', n: 11 }, { path: '/platinum-jumbo-reverse-mortgage', n: 6 }, { path: '/faq', n: 5 }],
       citedYou: [{ path: '/reverse-mortgage', n: 9 }, { path: '/resources/reverse-mortgage-faq', n: 3 }],
       citedNote: 'Their calculator and jumbo pages are cited more than anything of yours on these prompts.',
+      // per topic, the prompts that name each of you (you: 71 = onlyYou + youFirst + themFirst · them: 35)
+      byTopic: [
+        { theme: 'Lender comparisons', you: 17, them: 4 }, { theme: 'HECM for purchase', you: 12, them: 2 }, { theme: 'Home equity alternatives', you: 11, them: 2 },
+        { theme: 'Retirement income', you: 9, them: 2 }, { theme: 'Eligibility', you: 9, them: 6 }, { theme: 'Property types', you: 7, them: 5 },
+        { theme: 'Jumbo loans', you: 4, them: 6 }, { theme: 'Calculators', you: 2, them: 8 },
+      ],
       // per prompt they win: the engine that gave it to them (default AI Overview), and whether only they are named
       wins: {
         'how much can I borrow with a reverse mortgage': { engine: 'chatgpt' }, 'reverse mortgage payout calculator': { engine: 'chatgpt', only: true },
@@ -188,6 +194,10 @@ const DS = {
       citedThem: [{ path: '/skincare/body/sa-smoothing-cream', n: 9 }, { path: '/skincare/body/sa-body-wash', n: 7 }, { path: '/skin-concerns/keratosis-pilaris', n: 4 }],
       citedYou: [{ path: '/pages/how-to-use', n: 5 }, { path: '/blogs/skin/keratosis-pilaris-routine', n: 3 }],
       citedNote: 'Their product pages are cited for the step after exfoliating; yours stop at the mitt.',
+      byTopic: [
+        { theme: 'Keratosis pilaris', you: 28, them: 9 }, { theme: 'Exfoliation tools', you: 24, them: 6 }, { theme: 'Strawberry legs', you: 18, them: 5 },
+        { theme: 'Ingrown hairs', you: 12, them: 6 }, { theme: 'Sensitive skin', you: 10, them: 12 }, { theme: 'Body wash', you: 9, them: 11 }, { theme: 'Moisturising', you: 10, them: 10 },
+      ],
       wins: {
         'exfoliating with eczema': { engine: 'chatgpt' }, 'fragrance-free body scrub': { engine: 'chatgpt' }, 'what to use after exfoliating': { engine: 'chatgpt', only: true },
         'salicylic acid body wash': { engine: 'chatgpt', only: true }, 'dermatologist body wash': { engine: 'chatgpt' }, 'moisturiser for KP': { engine: 'chatgpt' },
@@ -378,7 +388,14 @@ export function buildReport(rawOpts, prompt = '') {
     const rKey = o.compare[0]
     const color = rKey && byShare.findIndex((x) => x.key === rKey) < 3 ? lineOf(rKey) : 'var(--line-1)'
     const actsFor = (kind, compare) => actionsFor({ ...o, kind, compare }, d, card, client)
-    const v2 = o.kind === 'rival' ? competitorGap(o, d, { i0, asked, since, acts, color }) : customReport(o, d, prompt, { i0, asked, engines, since, color, acts, actsFor })
+    if (o.kind === 'rival') {
+      const v3 = competitorGap(o, d, { i0, since, acts, prompt })
+      if (!v3.ok) return { ...v3, opts: o }
+      const span = shortRange(DATES[i0], 'Oct 26')
+      return { ok: true, v3: true, kind: o.kind, verdict: v3.verdict.word, headline: v3.headline, title: titleFor(prompt, o), opts: o, frame: v3.frame,
+        blocks: [{ id: 'sources', type: 'sources', data: { span, off: noData.map((e) => ENGINE_NAMES[e]), period: o.period, syncs: DATES.length - i0, from: DATES[i0], to: 'Oct 26', engines: engines.map((e) => ENGINE_NAMES[e]), left } }] }
+    }
+    const v2 = customReport(o, d, prompt, { i0, asked, engines, since, color, acts, actsFor })
     if (!v2.ok) return { ...v2, opts: o }
     const secs = o.length === 'one' ? v2.sections.filter((x, i) => i < 2 || x.keep || x.block.kind === 'notInData') : v2.sections
     const span = shortRange(DATES[i0], 'Oct 26')
@@ -559,42 +576,51 @@ const winsOf = (h) => h.themes.flatMap((t) => t.prompts.map((p) => ({ text: p, t
 const rowOf = (w, rv) => ({ text: w.text, engines: [w.engine], named: w.only ? [rv] : [rv, 'you'], note: w.only ? `Only ${rv}` : `${rv} first` })
 
 function competitorGap(o, d, x) {
-  const { i0, asked, since, acts, color } = x
+  const { i0, since, acts, prompt } = x
   const r = d.rivals.find((k) => k.key === o.compare[0])
   const rn = brandName(r.domain)
   const rv = first(rn)
   const h = d.h2h[r.key]
   if (!h) return { ok: false, reason: 'nobreakdown', brand: d.name, rival: rn }
-  const both = h.youFirst + h.themFirst
   const theirs = h.onlyThem + h.themFirst
   const ours = h.onlyYou + h.youFirst
   const word = ours > theirs * 4 ? 'Winning' : ours > theirs ? 'Mixed' : 'Losing'
   const themes = [...h.themes].sort((a, b) => b.prompts.length - a.prompts.length)
-  const headline = `${rv}’s wins come mostly from ${list(themes.slice(0, 2).map((t) => t.theme.toLowerCase()))}.`
   const wins = winsOf(h)
-  // the hero: every tracked prompt once, in four parts
-  const hero = { kind: 'h2h', total: d.prompts, you: d.name, them: rv, color, since,
-    segs: [
-      { key: 'onlyThem', label: `Only ${rv}`, n: h.onlyThem, tone: 'them', prompts: wins.filter((w) => w.only).map((w) => w.text) },
-      { key: 'both', label: 'Both', n: both, tone: 'both', sub: `you first ${h.youFirst} · ${rv} first ${h.themFirst}`, prompts: wins.filter((w) => !w.only).map((w) => w.text) },
-      { key: 'onlyYou', label: 'Only you', n: h.onlyYou, tone: 'you' },
-      { key: 'neither', label: 'Neither', n: h.neither, tone: 'none' },
-    ],
-    deltas: [{ name: d.name, d: h.youWin.at(-1) - h.youWin[i0], you: true }, { name: rv, d: h.theyWin.at(-1) - h.theyWin[i0] }] }
+  const youNamed = h.onlyYou + h.youFirst + h.themFirst
+  const themNamed = h.onlyThem + h.themFirst + h.youFirst
   const bare = h.why.filter((w) => !w.you).length
-  const onEngines = asked.filter((e) => d.ran.includes(e) && h.engines[e])
-  const groups = themes.map((t) => {
-    const w = h.why.find((y) => y.theme === t.theme)
-    return { theme: t.theme, page: pageOf(w?.them, r.domain), yourPage: pageOf(w?.you, d.domain), rows: t.prompts.map((p) => rowOf(wins.find((z) => z.text === p), rv)) }
-  })
-  const pages = [...h.citedThem.map((c) => pageOf(c, r.domain, { who: rv, color })), ...h.citedYou.map((c) => pageOf(c, d.domain, { who: 'You', you: true }))].sort((a, b) => b.n - a.n)
-  const sections = [
-    { id: 'gap', title: `Where ${rv} wins`, takeaway: `${themes[0].theme} is the biggest gap${bare ? `; on ${bare === 1 ? 'one topic' : `${bare} topics`} AI cites no page of yours` : ''}.`, wide: true, total: wins.length, unit: 'prompts',
-      block: { kind: 'promptGroups', them: rv, color, groups, engines: onEngines.map((e) => ({ id: e, name: ENGINE_NAMES[e], n: wins.filter((w) => w.engine === e).length })).filter((e) => e.n > 0) } },
-    { id: 'pages', title: `Pages winning it for ${rv}`, takeaway: h.citedNote, total: pages.length, unit: 'pages', block: { kind: 'pages', rows: pages, unit: 'answers' } },
-    { id: 'steps', title: 'Next steps', takeaway: `Close the ${themes[0].theme.toLowerCase()} gap first: it’s the most prompts.`, keep: true, block: { kind: 'steps', items: acts.map(stepOf) } },
-  ]
-  return { ok: true, verdict: verdictOf(word), headline, hero, sections, rival: { key: r.key, name: rn, short: rv } }
+  // the finding: one plain sentence, at most ~20 words
+  const finding = `${rv} wins ${theirs} of your ${d.prompts} prompts, mostly on ${list(themes.slice(0, 2).map((t) => t.theme.toLowerCase()))}${bare ? `, where AI cites no page of yours` : ''}.`
+  const pageFor = (theme) => pageOf(h.why.find((w) => w.theme === theme)?.them, r.domain)
+  const engines = Object.keys(h.engines).filter((e) => d.ran.includes(e))
+  return {
+    ok: true, verdict: verdictOf(word), headline: finding,
+    frame: {
+      question: titleFor(prompt, o), finding, range: shortRange(DATES[i0], 'Oct 26'), you: d.name, them: rn, themShort: rv,
+      chart: {
+        title: 'Prompts named per topic', label: `Prompts naming ${d.name}`, value: youNamed, delta: d.series.named.at(-1) - d.series.named[i0], since,
+        unit: 'prompts', legend: [{ key: 'you', label: d.name, tone: 'primary' }, { key: 'them', label: rv, tone: 'teal' }],
+        bands: h.byTopic.map((t) => ({ topic: t.theme, you: t.you, them: t.them })),
+      },
+      summary: {
+        title: 'Head to head',
+        donut: [{ key: 'you', label: 'We win', n: ours, tone: 'primary' }, { key: 'them', label: `${rv} wins`, n: theirs, tone: 'teal' }, { key: 'neither', label: 'Neither', n: h.neither, tone: 'grey' }],
+        stats: [
+          { label: `Prompts ${rv} wins`, value: theirs, delta: h.theyWin.at(-1) - h.theyWin[i0], worseUp: true },
+          { label: 'Our pages cited on those', value: h.citedYou.length, sub: `${h.citedYou.reduce((a, c) => a + c.n, 0)} answers` },
+        ],
+      },
+      table: {
+        title: `Prompts ${rv} wins`, searchLabel: 'Search prompts',
+        columns: [{ key: 'text', label: 'Prompt' }, { key: 'topic', label: 'Topic', sort: true }, { key: 'engine', label: 'Engine', sort: true }, { key: 'result', label: 'Result', sort: true }, { key: 'page', label: `${rv}’s cited page` }],
+        rows: themes.flatMap((t) => t.prompts.map((p) => { const w = wins.find((z) => z.text === p); return { id: p, text: p, topic: t.theme, engine: w.engine, engineName: ENGINE_NAMES[w.engine], result: w.only ? `Only ${rv}` : `${rv} first`, tone: w.only ? 'teal' : 'tint', page: pageFor(t.theme), href: topicHref(t.theme) } })),
+        filters: [{ key: 'topic', label: 'Topic', options: themes.map((t) => t.theme) }, { key: 'engine', label: 'Engine', options: engines.map((e) => ENGINE_NAMES[e]), by: 'engineName' }],
+        pageSize: 10,
+      },
+      steps: acts.map(stepOf),
+    },
+  }
 }
 
 // a custom question: read it (a competitor, a topic, pages, a trend, sentiment), say how it was read, then answer
