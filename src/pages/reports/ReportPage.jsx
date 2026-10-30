@@ -471,7 +471,7 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
             </div>
           )}
           {t.built.v3 ? (
-            <div className="mx-auto w-full max-w-[1264px] px-2"><ReportFrame built={t.built} onPeriod={isLatest ? frameActions.period : undefined} onExport={() => actions[0].onClick()} onSchedule={frameActions.schedule} /></div>
+            <div className="mx-auto w-full max-w-[1264px] px-2"><ReportFrame built={t.built} onPeriod={isLatest ? frameActions.period : undefined} actions={actions} onSchedule={frameActions.schedule} /></div>
           ) : (
           <article ref={article} aria-label={t.built.title} className={t.built.v2 ? ARTICLE2 : ARTICLE}>
             {t.built.v2
@@ -480,11 +480,11 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
           </article>
           )}
           {isLatest && (
-            <div className={`mx-auto mt-4 w-full ${t.built.v3 ? 'max-w-[1264px] px-2' : 'max-w-[1200px]'}`} style={t.live && !t.built.v3 ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
+            <div className={`mx-auto w-full ${t.built.v3 ? 'mt-3 max-w-[1264px] px-2' : 'mt-4 max-w-[1200px]'}`} style={t.live && !t.built.v3 ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
               <FollowUps items={followUpsFor(t.built)} onPick={onFollowUp} />
             </div>
           )}
-          <div className={`mx-auto mt-3 flex w-full flex-wrap items-center gap-x-1 gap-y-1 ${t.built.v3 ? 'max-w-[1264px] px-2' : 'max-w-[1200px]'}`} style={t.live && !t.built.v3 ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
+          {!t.built.v3 && <div className="mx-auto mt-3 flex w-full max-w-[1200px] flex-wrap items-center gap-x-1 gap-y-1" style={t.live ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
             {many && <span className={`mr-2 text-[13px] tabular-nums ${t3}`}>v{n}{t.change ? ` · ${t.change}` : ''}</span>}
             {actions.map((a) => (
               <button key={a.label} type="button" onClick={a.onClick}
@@ -492,7 +492,7 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
                 <a.icon size={15} aria-hidden />{a.label}
               </button>
             ))}
-          </div>
+          </div>}
         </div>
       </div>
     </div>

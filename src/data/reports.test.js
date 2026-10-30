@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DATES, library, seriesRuns, scoreStrip, shortRange, addReport, optsLine, followUpsFor, reportById, updateReport, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
+import { DATES, library, seriesRuns, scoreStrip, shares, shortRange, addReport, optsLine, followUpsFor, reportById, updateReport, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
 
 const types = (r) => r.blocks.map((b) => b.type)
 const block = (r, type) => r.blocks.find((b) => b.type === type)?.data
@@ -48,9 +48,17 @@ test('the prompt strip holds every tracked prompt once (content plan); the weekl
     assert.equal(hr.visual.segs.reduce((a, x) => a + x.n, 0), d.prompts, `${brand} content`)
     for (const period of ['week', '30d']) {
       const f = buildReport({ brand, kind: 'weekly', period, length: 'detailed' }).frame
-      const n = Object.fromEntries(f.summary.donut.map((x) => [x.key, x.n]))
+      const n = Object.fromEntries(f.summary.bar.map((x) => [x.key, x.n]))
       assert.deepEqual([n.won, n.held, n.lost, n.missed], [d.flow[period].won, d.flow[period].held, d.flow[period].lost, d.flow[period].missing])
-      assert.equal(f.summary.donut.reduce((a, x) => a + x.n, 0), d.prompts, `${brand} ${period}: every prompt once`)
+      assert.equal(f.summary.bar.reduce((a, x) => a + x.n, 0), d.prompts, `${brand} ${period}: every prompt once`)
+      assert.equal(f.summary.bar.reduce((a, x) => a + x.share, 0), 100)
+      // per engine: won / held / lost / missed cover every prompt, from the engine's named count and its won / lost
+      for (const e of f.summary.byEngine) {
+        const seg = Object.fromEntries(e.segs.map((x) => [x.key, x.n]))
+        assert.equal(seg.won + seg.held + seg.lost + seg.missed, d.prompts, `${brand} ${period} ${e.name}`)
+        assert.deepEqual([seg.won, seg.lost], d.engines[e.id][period], `${brand} ${period} ${e.name}: won / lost`)
+        assert.equal(seg.won + seg.held, d.engines[e.id].named, `${brand} ${period} ${e.name}: named`)
+      }
       assert.equal(f.table.rows.reduce((a, x) => a + x.won, 0), n.won, `${brand} ${period}: won`)
       assert.equal(f.table.rows.reduce((a, x) => a + x.lost, 0), n.lost, `${brand} ${period}: lost`)
       for (const x of f.table.rows) assert.equal(x.net, x.won - x.lost)
@@ -64,6 +72,13 @@ test('the prompt strip holds every tracked prompt once (content plan); the weekl
       for (const [e, x] of Object.entries(d.engines)) { assert.equal(won[e] ?? 0, x[period][0], `${brand} ${period} ${e} won`); assert.equal(lost[e] ?? 0, x[period][1], `${brand} ${period} ${e} lost`) }
     }
   }
+})
+
+test('shares add up to 100 by largest remainder', () => {
+  assert.deepEqual(shares([57, 23, 33]), [51, 20, 29])
+  assert.deepEqual(shares([9, 102, 2, 39]), [6, 67, 1, 26])
+  assert.deepEqual(shares([1, 1, 1]), [34, 33, 33])
+  assert.deepEqual(shares([0, 0]), [0, 0])
 })
 
 test('the score strip: 8 weeks from history; an unscanned week stays empty, never 0; compared with the last scanned week', () => {
@@ -139,13 +154,20 @@ test('competitor gap (frame): the question and one finding; the chart is us vs t
     assert.equal(f.chart.delta, h.theyWin.at(-1) - h.theyWin[3])
     assert.equal(f.chart.worseUp, true)
     assert.equal(f.chart.since, DATES[3])
-    assert.deepEqual(f.chart.legend.map((l) => l.tone), ['primary', 'teal'])
-    assert.deepEqual(f.summary.donut.map((x) => x.n), [h.onlyYou + h.youFirst, h.onlyThem + h.themFirst, h.neither])
-    assert.equal(f.summary.donut.reduce((a, x) => a + x.n, 0), dataFor(brand).prompts, 'every prompt once')
+    assert.deepEqual(f.chart.legend.map((l) => l.tone), ['primary', 'rival'])
+    assert.deepEqual(f.summary.bar.map((x) => x.n), [h.onlyYou + h.youFirst, h.onlyThem + h.themFirst, h.neither])
+    assert.equal(f.summary.bar.reduce((a, x) => a + x.n, 0), dataFor(brand).prompts, 'every prompt once')
+    assert.equal(f.summary.bar.reduce((a, x) => a + x.share, 0), 100, 'the shares add up to 100')
+    // per engine that ran: the same three parts cover every prompt; the note is the prompts they win there
+    for (const e of f.summary.byEngine) { assert.equal(e.segs.reduce((a, x) => a + x.n, 0), dataFor(brand).prompts, e.name); assert.equal(e.note, `${h.engines[e.id].n} lost`) }
+    assert.ok(!f.summary.byEngine.some((e) => !dataFor(brand).ran.includes(e.id)), 'no engine that didn’t run')
+    // the chart's topics by our lead, biggest first
+    const leads = f.chart.bands.map((b) => b.bars[0].value - b.bars[1].value)
+    assert.deepEqual(leads, [...leads].sort((a, b) => b - a))
     // the stats don't repeat the donut or the main card
     assert.deepEqual(f.summary.stats[0], { label: 'Topics they lead', value: h.byTopic.filter((t) => t.them > t.you).length, of: h.byTopic.length })
     assert.equal(f.summary.stats[1].value, h.citedYou.length)
-    for (const x of f.table.rows) assert.equal(x.marker.solid, x.result.startsWith('Only '), x.text)
+    for (const x of f.table.rows) assert.equal(x.strong, x.result.startsWith('Only '), x.text)
     assert.equal(f.table.rows.length, h.onlyThem + h.themFirst)
     for (const x of f.table.rows) { assert.ok(x.topic && x.engineName && x.result, x.text); assert.ok(x.page?.n, `${x.text}: their cited page`) }
     for (const [e, c] of Object.entries(h.engines)) assert.equal(f.table.rows.filter((x) => x.engine === e).length, c.n, e)

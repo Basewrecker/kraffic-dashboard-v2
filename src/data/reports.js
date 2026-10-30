@@ -94,7 +94,7 @@ const FOA = {
         P('Eligibility', ['can you lose your home with a reverse mortgage', 'HECM loan limits 2027', 'reverse mortgage age requirement', 'reverse mortgage with an existing mortgage', 'reverse mortgage credit requirements']),
         P('Property types', ['reverse mortgage for a condo', 'reverse mortgage on a manufactured home', 'FHA-approved condos for a reverse mortgage', 'reverse mortgage on a second home']),
       ],
-      engines: { aio: { n: 13, series: [11, 11, 12, 12, 12, 13, 13, 13] }, chatgpt: { n: 7, series: [5, 5, 5, 6, 6, 6, 6, 7] }, gemini: { n: 3, series: [3, 3, 3, 3, 3, 3, 3, 3] } },
+      engines: { aio: { n: 13, you: 64, neither: 36, series: [11, 11, 12, 12, 12, 13, 13, 13] }, chatgpt: { n: 7, you: 58, neither: 48, series: [5, 5, 5, 6, 6, 6, 6, 7] }, gemini: { n: 3, you: 50, neither: 60, series: [3, 3, 3, 3, 3, 3, 3, 3] } },
       citedThem: [{ path: '/reverse-mortgage-calculator', n: 11 }, { path: '/platinum-jumbo-reverse-mortgage', n: 6 }, { path: '/faq', n: 5 }],
       citedYou: [{ path: '/reverse-mortgage', n: 9 }, { path: '/resources/reverse-mortgage-faq', n: 3 }],
       citedNote: 'Their calculator and jumbo pages are cited more than anything of yours on these prompts.',
@@ -190,7 +190,7 @@ const DS = {
         P('Body wash', ['best body wash for keratosis pilaris', 'what to use after exfoliating', 'body wash for rough skin', 'salicylic acid body wash', 'body wash for bumpy skin', 'dermatologist body wash']),
         P('Moisturising', ['best lotion after exfoliating', 'moisturiser for KP', 'urea cream for rough skin', 'SA cream vs urea cream', 'body lotion for dry bumpy skin']),
       ],
-      engines: { aio: { n: 11, series: [9, 9, 10, 10, 10, 11, 11, 11] }, chatgpt: { n: 7, series: [6, 6, 6, 6, 7, 6, 7, 7] } },
+      engines: { aio: { n: 11, you: 104, neither: 37, series: [9, 9, 10, 10, 10, 11, 11, 11] }, chatgpt: { n: 7, you: 92, neither: 53, series: [6, 6, 6, 6, 7, 6, 7, 7] } },
       citedThem: [{ path: '/skincare/body/sa-smoothing-cream', n: 9 }, { path: '/skincare/body/sa-body-wash', n: 7 }, { path: '/skin-concerns/keratosis-pilaris', n: 4 }],
       citedYou: [{ path: '/pages/how-to-use', n: 5 }, { path: '/blogs/skin/keratosis-pilaris-routine', n: 3 }],
       citedNote: 'Their product pages are cited for the step after exfoliating; yours stop at the mitt.',
@@ -575,6 +575,17 @@ const themesOf = (d) => [...new Set([...d.gaps.map((g) => g.theme), ...Object.va
 const winsOf = (h) => h.themes.flatMap((t) => t.prompts.map((p) => ({ text: p, theme: t.theme, engine: h.wins?.[p]?.engine ?? 'aio', only: !!h.wins?.[p]?.only })))
 const rowOf = (w, rv) => ({ text: w.text, engines: [w.engine], named: w.only ? [rv] : [rv, 'you'], note: w.only ? `Only ${rv}` : `${rv} first` })
 
+export function shares(ns) {
+  const total = ns.reduce((a, n) => a + n, 0)
+  if (!total) return ns.map(() => 0)
+  const raw = ns.map((n) => (n / total) * 100)
+  const out = raw.map(Math.floor)
+  let left = 100 - out.reduce((a, n) => a + n, 0)
+  const order = raw.map((r, i) => [r - out[i], i]).sort((a, b) => b[0] - a[0])
+  for (let k = 0; left > 0 && k < order.length; k++, left--) out[order[k][1]]++
+  return out
+}
+const withShares = (segs) => { const p = shares(segs.map((x) => x.n)); return segs.map((x, i) => ({ ...x, share: p[i] })) }
 const scheduledKind = (d, kind) => (schedules.some((sc) => sc.brand === d.id && savedReports.find((r) => r.id === sc.reportId)?.opts.kind === kind) ? 'week' : 'once')
 function competitorGap(o, d, x) {
   const { i0, since, acts, prompt } = x
@@ -599,12 +610,14 @@ function competitorGap(o, d, x) {
       question: titleFor(prompt, o), finding, range: shortRange(DATES[i0], 'Oct 26'), frequency: scheduledKind(d, o.kind), you: d.name, them: rn, themShort: rv,
       chart: {
         title: 'Prompts named per topic', label: `Prompts ${rv} wins`, value: theirs, delta: h.theyWin.at(-1) - h.theyWin[i0], worseUp: true, since,
-        legend: [{ key: 'you', label: d.name, tone: 'primary' }, { key: 'them', label: rv, tone: 'teal' }],
-        bands: h.byTopic.map((t) => ({ label: t.theme, bars: [{ key: 'you', value: t.you, tone: 'primary' }, { key: 'them', value: t.them, tone: 'teal' }] })),
+        legend: [{ key: 'you', label: d.name, tone: 'primary' }, { key: 'them', label: rv, tone: 'rival' }],
+        // sorted by our lead, biggest first, so the topics they win sit together on the right
+        bands: [...h.byTopic].sort((a, b) => (b.you - b.them) - (a.you - a.them)).map((t) => ({ label: t.theme, bars: [{ key: 'you', value: t.you, tone: 'primary' }, { key: 'them', value: t.them, tone: 'rival' }] })),
       },
       summary: {
         title: 'Head to head',
-        donut: [{ key: 'you', label: 'We win', n: ours, tone: 'primary' }, { key: 'them', label: `${rv} wins`, n: theirs, tone: 'teal' }, { key: 'neither', label: 'Neither', n: h.neither, tone: 'neutral' }],
+        bar: withShares([{ key: 'you', label: 'We win', n: ours, tone: 'primary' }, { key: 'them', label: `${rv} wins`, n: theirs, tone: 'rival' }, { key: 'neither', label: 'Neither', n: h.neither, tone: 'neutral' }]),
+        byEngine: engines.map((e) => ({ id: e, name: ENGINE_NAMES[e], segs: [{ key: 'you', n: h.engines[e].you, tone: 'primary' }, { key: 'them', n: h.engines[e].n, tone: 'rival' }, { key: 'neither', n: h.engines[e].neither, tone: 'neutral' }], note: `${h.engines[e].n} lost` })),
         stats: [
           { label: 'Topics they lead', value: lead, of: h.byTopic.length },
           { label: 'Our pages cited', value: h.citedYou.length, sub: `${h.citedYou.reduce((a, c) => a + c.n, 0)} answers` },
@@ -613,7 +626,7 @@ function competitorGap(o, d, x) {
       table: {
         title: `Prompts ${rv} wins`, searchLabel: 'Search prompts', unit: 'prompts',
         columns: [{ key: 'text', label: 'Prompt', kind: 'text' }, { key: 'topic', label: 'Topic', sort: true }, { key: 'engine', label: 'Engine', kind: 'engine', sort: true }, { key: 'result', label: 'Result', kind: 'strong', sort: true }, { key: 'page', label: `${rv}’s cited page`, kind: 'page' }],
-        rows: themes.flatMap((t) => t.prompts.map((p) => { const w = wins.find((z) => z.text === p); return { id: p, text: p, topic: t.theme, engine: w.engine, engineName: ENGINE_NAMES[w.engine], result: w.only ? `Only ${rv}` : `${rv} first`, marker: { tone: 'teal', solid: w.only }, page: pageFor(t.theme), href: topicHref(t.theme) } })),
+        rows: themes.flatMap((t) => t.prompts.map((p) => { const w = wins.find((z) => z.text === p); return { id: p, text: p, topic: t.theme, engine: w.engine, engineName: ENGINE_NAMES[w.engine], result: w.only ? `Only ${rv}` : `${rv} first`, strong: w.only, page: pageFor(t.theme), href: topicHref(t.theme) } })),
         filters: [{ key: 'topic', label: 'Topic', all: 'All topics', options: themes.map((t) => ({ id: t.theme, label: t.theme })) }, { key: 'engine', label: 'Engine', all: 'All engines', by: 'engineName', options: engines.map((e) => ({ id: ENGINE_NAMES[e], label: ENGINE_NAMES[e] })) }],
         pageSize: 10,
       },
@@ -646,7 +659,6 @@ function weeklySummary(o, d, x) {
   const planOnly = acts.filter((a) => !moved.some((m) => m.theme === a.theme))
   const row = (theme, prompts, dlt, engines) => ({
     id: theme, text: theme, topPrompt: prompts[0] ?? null, won: dlt > 0 ? dlt : 0, lost: dlt < 0 ? -dlt : 0, net: dlt, change: dlt > 0 ? 'gained' : dlt < 0 ? 'lost' : 'none',
-    marker: dlt > 0 ? { tone: 'primary', solid: true } : dlt < 0 ? { tone: 'bad', solid: true } : { tone: 'neutral', solid: false },
     engines: Object.keys(engines ?? {}), next: actOf(theme), href: topicHref(theme),
   })
   return {
@@ -661,7 +673,9 @@ function weeklySummary(o, d, x) {
       },
       summary: {
         title: o.period === 'week' ? 'This week’s movement' : 'This month’s movement',
-        donut: [{ key: 'won', label: 'Won', n: flow.won, tone: 'primary' }, { key: 'held', label: 'Held', n: flow.held, tone: 'tint' }, { key: 'lost', label: 'Lost', n: flow.lost, tone: 'bad' }, { key: 'missed', label: 'Missed', n: flow.missing, tone: 'neutral' }],
+        bar: withShares([{ key: 'won', label: 'Won', n: flow.won, tone: 'primary' }, { key: 'held', label: 'Held', n: flow.held, tone: 'tint' }, { key: 'lost', label: 'Lost', n: flow.lost, tone: 'bad' }, { key: 'missed', label: 'Missed', n: flow.missing, tone: 'neutral' }]),
+        // per engine: named now = held + won; the rest of the tracked prompts are lost or missed
+        byEngine: on.map((e) => { const [won, lost2] = wl(e); const named2 = d.engines[e].named; return { id: e, name: ENGINE_NAMES[e], segs: [{ key: 'won', n: won, tone: 'primary' }, { key: 'held', n: named2 - won, tone: 'tint' }, { key: 'lost', n: lost2, tone: 'bad' }, { key: 'missed', n: d.prompts - named2 - lost2, tone: 'neutral' }], note: `${won} won · ${lost2} lost` } }),
         stats: [
           { label: 'Visibility score', value: d.series.score.at(-1), delta: d.series.score.at(-1) - d.series.score[i0], since: vs },
           { label: 'Share of voice', value: me.at(-1), unit: '%', delta: me.at(-1) - me[i0], since: vs },
