@@ -1,21 +1,23 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowRight, ArrowUp, Calendar, Check, ChevronDown, ChevronsUpDown, MoreHorizontal, Search } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUp, Calendar, Check, ChevronDown, ChevronsUpDown, Loader2, MoreHorizontal, Search } from 'lucide-react'
 import ActionMenu from '../../components/audit/ActionMenu'
+import Segmented from '../../components/dashboard/Segmented'
 import SiteLogo from '../../components/ui/SiteLogo'
 import { EngineMark } from '../insights/parts'
 import { navigate } from '../../router'
-import { PERIODS, periodLabel } from '../../data/reports'
+import { ENGINE_NAMES, PERIODS, periodLabel } from '../../data/reports'
 import { menuItem } from './parts'
 
 // The standard report frame, the same for every kind. Header (the question as the H1, one finding sentence, for a custom
 // question one "How I read your question" line; the date range, the frequency, Export as a menu) · band 1: the KPI strip
-// (one card, equal cells, the only place numbers live) · band 2: two visuals, 2/3 + 1/3, equal height, each a 14px label
-// and a legend, no numbers · band 3: a slim table, every cell on one line, rows that open to their prompts · band 4 (the
-// CEO summary): the pages AI cites most. 24px between bands, 16px between cards, 24px card padding, left edges aligned.
-// Flat cards on a 1px hairline (a 1px shadow in light), weights 400 / 600 (the KPI value 500), sentence case, tabular
-// numbers. The dashboard's own chart colours: us (ink), the competitor (the first competitor line), the tint and the
-// neutral (the graphite data steps); green / red only in the change chips and losing values. Nothing below full opacity
-// at rest; the 35% dim applies only to the other column groups while one is hovered. No motion on load.
+// (one card, equal cells: label, a 28/500 number with its change under it, a small chart of real data on the right) ·
+// band 2: two visuals, 2/3 + 1/3, equal height (left: columns, lines or the topic map; right: the square grid with its
+// legend and the By engine mini table, or the net change by topic) · band 3: a slim table, every cell on one line, rows
+// that open to their prompts · band 4 (the CEO summary): the pages AI cites most. 16px between bands and cards, 20px
+// card padding, left edges aligned. Flat cards on a 1px hairline (a 1px shadow in light), weights 400 / 600 (the KPI
+// number 500), sentence case, tabular numbers. The dashboard's own chart colours. Motion: charts draw once on first
+// view (bars grow, lines draw, squares fill in order), bands fade up 60ms apart when a report is ready, filter changes
+// move the marks in 200ms; nothing loops, nothing under prefers-reduced-motion.
 const TONE = { primary: 'var(--rep-primary)', tint: 'var(--rep-primary-tint)', rival: 'var(--rep-rival)', neutral: 'var(--rep-neutral)', bad: 'var(--rep-down-fg)', good: 'var(--rep-up-fg)' }
 const CARD = 'rounded-xl border border-[var(--rep-line)] bg-surface [box-shadow:var(--rep-shadow)]'
 const OUTLINE = 'inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-[10px] border border-[var(--rep-line)] bg-surface px-4 text-[15px] leading-5 text-stone-900 outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus'
@@ -25,23 +27,25 @@ const T = 'text-[15px] leading-[22px]'
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const fmt = (n) => new Intl.NumberFormat('en-US').format(n)
 const signed = (n, unit = '') => `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmt(Math.abs(n))}${unit}`
+// a mark animates once, on first view; nothing with reduced motion
+const useDraw = () => { const [on] = useState(() => !reducedMotion()); return on }
 
 function useWidth(initial = 720) {
   const ref = useRef(null)
   const [w, setW] = useState(initial)
+  const [h, setH] = useState(0)
   useLayoutEffect(() => {
     if (!ref.current) return undefined
     setW(ref.current.clientWidth)
-    const ro = new ResizeObserver(([e]) => setW(e.contentRect.width))
+    setH(ref.current.clientHeight)
+    const ro = new ResizeObserver(([e]) => { setW(e.contentRect.width); setH(e.contentRect.height) })
     ro.observe(ref.current)
     return () => ro.disconnect()
   }, [])
-  return [ref, w]
+  return [ref, w, h]
 }
 
 // ---- small parts ---------------------------------------------------------------------------------------------------
-// the change chip: tinted, 13px, an arrow; green when it's good for you, red when it isn't (worseUp: a rise is bad);
-// after it, muted, what it's against ("vs Sep 28")
 export function ChangeChip({ delta, worseUp = false, unit = '', since = null, className = '' }) {
   if (delta == null) return null
   const good = delta === 0 ? null : worseUp ? delta < 0 : delta > 0
@@ -111,28 +115,72 @@ function FrameMenu({ icon: Icon, label, value, options, onChange, items, align =
 }
 const Legend = ({ items }) => (
   <ul className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1" aria-label="Legend">
-    {items.map((l) => <li key={l.key} className={`inline-flex items-center gap-2 ${LABEL}`}><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: TONE[l.tone] }} aria-hidden /><span className="truncate">{l.label}</span></li>)}
+    {items.map((l) => <li key={l.key} className={`inline-flex items-center gap-2 ${LABEL}`}><span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: TONE[l.tone] }} aria-hidden /><span className="truncate">{l.label}</span></li>)}
   </ul>
 )
-const CardLabel = ({ children, legend }) => (
-  <div className="flex min-h-5 flex-wrap items-center justify-between gap-x-6 gap-y-1">
+const CardLabel = ({ children, legend, right }) => (
+  <div className="flex min-h-5 flex-wrap items-center justify-between gap-x-6 gap-y-2">
     <p className={LABEL}>{children}</p>
-    {legend && <Legend items={legend} />}
+    {right ?? (legend && <Legend items={legend} />)}
   </div>
 )
 
+// ---- the small charts: an 8-week sparkline, a row of segments, tiny weekly columns ------------------------------------
+function Spark({ series, w = 96, h = 28, tone = 'primary', redIfDown = false, draw = false }) {
+  const pts = series.map((v, i) => [i, v]).filter(([, v]) => v != null)
+  if (pts.length < 2) return null
+  const vals = pts.map(([, v]) => v)
+  const lo = Math.min(...vals)
+  const hi = Math.max(...vals)
+  const x = (i) => 1.5 + (i * (w - 3)) / (series.length - 1)
+  const y = (v) => (hi === lo ? h / 2 : 1.5 + (1 - (v - lo) / (hi - lo)) * (h - 3))
+  const down = redIfDown && vals.at(-1) < vals.at(-2)
+  const color = down ? TONE.bad : TONE[tone]
+  const d = pts.map(([i, v]) => `${x(i)},${y(v)}`).join(' ')
+  return (
+    <svg width={w} height={h} aria-hidden className="block shrink-0 overflow-visible">
+      <polyline points={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" pathLength="1" style={draw ? { animation: 'rep-draw 500ms ease-out both' } : undefined} />
+      <circle cx={x(pts.at(-1)[0])} cy={y(vals.at(-1))} r="2" fill={color} style={draw ? { animation: 'rep-fill 150ms ease-out 450ms both' } : undefined} />
+    </svg>
+  )
+}
+function Segments({ n, of, tone = 'primary', draw = false }) {
+  return (
+    <span className="flex w-20 gap-[3px]" role="img" aria-label={`${n} of ${of}`}>
+      {Array.from({ length: of }, (_, i) => <span key={i} className="h-2.5 flex-1 rounded-[2px]" style={{ background: i < n ? TONE[tone] : 'var(--rep-neutral)', animation: draw ? `rep-fill 150ms ease-out ${i * 40}ms both` : undefined }} />)}
+    </span>
+  )
+}
+function MiniCols({ columns, show, draw = false }) {
+  const vals = columns.map((c) => c[show])
+  const max = Math.max(1, ...vals.filter((v) => v != null))
+  const tone = show === 'lost' ? TONE.bad : TONE.primary
+  return (
+    <span className="flex h-7 w-20 items-end gap-[3px]" role="img" aria-label={`${show} per week: ${vals.map((v) => v ?? '–').join(', ')}`}>
+      {vals.map((v, i) => <span key={i} className="flex-1 rounded-[1.5px]" style={{ height: v == null ? 2 : `${Math.max(8, (v / max) * 100)}%`, background: v == null ? 'var(--rep-neutral)' : tone, transformOrigin: 'bottom', animation: draw ? `rep-grow 400ms ease-out ${i * 30}ms both` : undefined }} />)}
+    </span>
+  )
+}
+
 // ---- band 1: the KPI strip ------------------------------------------------------------------------------------------
 function KpiStrip({ kpis }) {
+  const draw = useDraw()
   return (
-    <section aria-label="Key numbers" className={`${CARD} grid grid-cols-2 gap-y-5 p-6 max-md:p-5 md:grid-cols-3 lg:[grid-template-columns:repeat(var(--n),minmax(0,1fr))]`} style={{ '--n': kpis.length }}>
+    <section aria-label="Key numbers" className={`${CARD} grid grid-cols-2 gap-y-4 p-5 md:grid-cols-3 lg:[grid-template-columns:repeat(var(--n),minmax(0,1fr))]`} style={{ '--n': kpis.length }}>
       {kpis.map((k, i) => (
-        <div key={k.label} className={`min-w-0 px-6 first:pl-0 last:pr-0 ${i ? 'border-l border-[var(--rep-line)]' : ''}`}>
+        <div key={k.label} className={`min-w-0 px-5 first:pl-0 last:pr-0 ${i ? 'border-l border-[var(--rep-line)]' : ''}`}>
           <p className={`${LABEL} truncate`} title={k.label}>{k.label}</p>
-          <p className={`mt-1 truncate text-[32px] leading-10 font-medium tracking-[-0.01em] tabular-nums ${k.bad ? 'text-negative' : 'text-stone-900'}`} title={k.text}>
-            {k.text ?? `${k.signed ? (k.value > 0 ? '+' : k.value < 0 ? '−' : '') : ''}${fmt(Math.abs(k.value))}${k.unit ?? ''}`}
-            {k.of != null && <span className="text-[14px] font-normal text-stone-500"> of {fmt(k.of)}</span>}
-          </p>
-          {/* the second line: the change and what it's against, or a muted note; kept even when empty so the cells line up */}
+          <div className="mt-1 flex items-center justify-between gap-2 overflow-hidden">
+            <p className={`whitespace-nowrap text-[28px] leading-8 font-medium tracking-[-0.01em] tabular-nums ${k.bad ? 'text-negative' : 'text-stone-900'}`} title={k.text}>
+              {k.text ?? `${k.signed ? (k.value > 0 ? '+' : k.value < 0 ? '−' : '') : ''}${fmt(Math.abs(k.value))}${k.unit ?? ''}`}
+              {k.of != null && <span className="text-[14px] font-normal text-stone-500"> of {fmt(k.of)}</span>}
+            </p>
+            <span className="shrink-0">
+              {k.spark && <Spark series={k.spark} w={80} tone={k.sparkTone ?? 'primary'} draw={draw} />}
+              {k.segments && <Segments n={k.segments.n} of={k.segments.of} tone={k.segments.tone} draw={draw} />}
+              {k.columns && <MiniCols columns={k.columns} show={k.columnsShow} draw={draw} />}
+            </span>
+          </div>
           <p className="mt-1 flex min-h-6 items-center">
             {k.delta != null ? <ChangeChip delta={k.delta} worseUp={k.worseUp} since={k.since} /> : k.sub ? <span className={`${META} truncate`}>{k.sub}</span> : null}
           </p>
@@ -142,7 +190,7 @@ function KpiStrip({ kpis }) {
   )
 }
 
-// ---- band 2, left: columns or lines ---------------------------------------------------------------------------------
+// ---- band 2, left: columns, lines or the topic map --------------------------------------------------------------------
 const splitLabel = (s) => {
   if (s.length <= 13) return [s]
   const words = s.split(' ')
@@ -159,6 +207,7 @@ const PAD_R = 8
 function Columns({ c }) {
   const [ref, w] = useWidth(720)
   const [hover, setHover] = useState(null)
+  const draw = useDraw()
   const H = PLOT + TOP + BOT
   const n = c.bands.length
   const per = c.bands[0]?.bars.length ?? 1
@@ -173,11 +222,10 @@ function Columns({ c }) {
   const bw = (pair - 3 * (per - 1)) / per
   const y = (v) => TOP + (1 - v / hi) * PLOT
   const base = y(0)
-  const bar = (x, v) => { const yy = y(v); const r = Math.min(2, Math.max(0, base - yy)); return v <= 0 ? '' : `M${x},${yy + r} a${r},${r} 0 0 1 ${r},-${r} h${bw - 2 * r} a${r},${r} 0 0 1 ${r},${r} V${base} H${x} Z` }
   const tip = hover != null ? c.bands[hover] : null
   const name = (x, i) => x.label ?? c.legend[i]?.label ?? ''
   return (
-    <div ref={ref} className="relative mt-4 w-full">
+    <div ref={ref} className="relative mt-3 w-full">
       {w > 0 && (
         <svg width={w} height={H} role="img" aria-label={`${c.label}: ${c.bands.map((b) => `${b.label} ${b.bars.map((x, i) => `${name(x, i)} ${x.value}`).join(', ')}`).join('; ')}`} className="block overflow-visible" onMouseLeave={() => setHover(null)}>
           {ticks.map((t) => (
@@ -193,7 +241,10 @@ function Columns({ c }) {
             return (
               <g key={b.label} onMouseEnter={() => setHover(i)} style={{ opacity: hover != null && hover !== i ? 0.35 : 1, transition: reducedMotion() ? 'none' : 'opacity 120ms ease-out' }}>
                 <rect x={PAD_L + i * band} y={TOP} width={band} height={PLOT} fill="transparent" />
-                {b.bars.map((x, k) => <path key={x.key} d={bar(x0 + k * (bw + 3), x.value)} fill={TONE[x.tone]} />)}
+                {b.bars.map((x, k) => (
+                  <rect key={x.key} x={x0 + k * (bw + 3)} y={y(x.value)} width={Math.max(0, bw)} height={Math.max(0, base - y(x.value))} rx="2" fill={TONE[x.tone]}
+                    style={{ transformBox: 'fill-box', transformOrigin: 'bottom', transition: reducedMotion() ? 'none' : 'y 200ms ease-out, height 200ms ease-out, fill 200ms ease-out', animation: draw ? `rep-grow 400ms ease-out ${i * 30}ms both` : undefined }} />
+                ))}
                 {lines.map((l, k) => <text key={k} x={PAD_L + i * band + band / 2} y={base + 20 + k * 16} textAnchor="middle" className="fill-stone-600 text-[13px]">{l}</text>)}
               </g>
             )
@@ -205,10 +256,10 @@ function Columns({ c }) {
     </div>
   )
 }
-// lines over the weeks (share of voice): up to 3 series with dots, the y axis 0–100%, one tooltip per week
 function Lines({ c }) {
   const [ref, w] = useWidth(720)
   const [hover, setHover] = useState(null)
+  const draw = useDraw()
   const H = PLOT + TOP + BOT
   const n = c.dates.length
   const hi = c.max ?? 100
@@ -217,7 +268,7 @@ function Lines({ c }) {
   const ticks = [0, 25, 50, 75, 100].filter((t) => t <= hi)
   const band = (w - PAD_L - PAD_R) / Math.max(1, n - 1)
   return (
-    <div ref={ref} className="relative mt-4 w-full">
+    <div ref={ref} className="relative mt-3 w-full">
       {w > 0 && (
         <svg width={w} height={H} role="img" aria-label={`${c.label}: ${c.series.map((s) => `${s.label} ${s.values.at(-1)}${c.unit}`).join(', ')} at the latest sync`} className="block overflow-visible" onMouseLeave={() => setHover(null)}>
           {ticks.map((t) => (
@@ -230,8 +281,8 @@ function Lines({ c }) {
           {c.dates.map((d, i) => <text key={d} x={x(i)} y={y(0) + 20} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} className="fill-stone-600 text-[13px]">{d}</text>)}
           {[...c.series].reverse().map((s) => (
             <g key={s.key}>
-              <polyline points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(' ')} fill="none" stroke={TONE[s.tone]} strokeWidth={s.width} strokeLinejoin="round" strokeLinecap="round" />
-              {s.values.map((v, i) => <circle key={i} cx={x(i)} cy={y(v)} r={hover === i ? 4.5 : 3} fill={TONE[s.tone]} stroke="var(--color-surface)" strokeWidth="1.5" />)}
+              <polyline points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(' ')} fill="none" stroke={TONE[s.tone]} strokeWidth={s.width} strokeLinejoin="round" strokeLinecap="round" pathLength="1" style={draw ? { animation: 'rep-draw 500ms ease-out both' } : undefined} />
+              {s.values.map((v, i) => <circle key={i} cx={x(i)} cy={y(v)} r={hover === i ? 4.5 : 3} fill={TONE[s.tone]} stroke="var(--color-surface)" strokeWidth="1.5" style={draw ? { animation: `rep-fill 150ms ease-out ${(i / Math.max(1, n - 1)) * 500}ms both` } : undefined} />)}
             </g>
           ))}
           {c.dates.map((d, i) => <rect key={d} x={x(i) - band / 2} y={TOP} width={band} height={PLOT} fill="transparent" onMouseEnter={() => setHover(i)} />)}
@@ -241,54 +292,151 @@ function Lines({ c }) {
     </div>
   )
 }
-function LeftCard({ c }) {
+// the topic map: a squarified treemap, one tile per topic, area = its prompts (or answers), the colour of whoever leads
+// in three steps by the lead's margin. Engines re-colour it; a click filters the table to that topic
+function squarify(items, x, y, w, h) {
+  const total = items.reduce((a, it) => a + it.size, 0)
+  const out = []
+  let rest = [...items]
+  let rx = x
+  let ry = y
+  let rw = w
+  let rh = h
+  let left = total
+  while (rest.length) {
+    const vertical = rw >= rh // lay the row along the shorter side
+    const side = vertical ? rh : rw
+    const area = (it) => (it.size / left) * rw * rh
+    let row = []
+    let worst = Infinity
+    for (const it of rest) {
+      const cand = [...row, it]
+      const sum = cand.reduce((a, c) => a + area(c), 0)
+      const thick = sum / side
+      const ratio = Math.max(...cand.map((c) => Math.max(thick / (area(c) / thick), (area(c) / thick) / thick)))
+      if (ratio <= worst) { row = cand; worst = ratio } else break
+    }
+    const sum = row.reduce((a, c) => a + area(c), 0)
+    const thick = sum / side
+    let at = vertical ? ry : rx
+    for (const it of row) {
+      const len = area(it) / thick
+      out.push(vertical ? { ...it, x: rx, y: at, w: thick, h: len } : { ...it, x: at, y: ry, w: len, h: thick })
+      at += len
+    }
+    if (vertical) { rx += thick; rw -= thick } else { ry += thick; rh -= thick }
+    left -= row.reduce((a, c) => a + c.size, 0)
+    rest = rest.slice(row.length)
+  }
+  return out
+}
+const LEAD_STEP = (lead) => (Math.abs(lead) < 10 ? 40 : Math.abs(lead) < 20 ? 70 : 100)
+const fillFor = (leader, lead) => `color-mix(in srgb, ${TONE[leader === 'you' ? 'primary' : leader === 'rival' ? 'rival' : 'neutral']} ${LEAD_STEP(lead)}%, var(--color-surface))`
+const onFill = (leader, lead) => (leader === 'other' || LEAD_STEP(lead) < 70 ? 'var(--color-stone-900)' : leader === 'you' ? 'var(--on-ink)' : 'var(--pie-on-c1)')
+function TopicMap({ c, picked, onPick }) {
+  const [ref, w, h] = useWidth(720)
+  const [engine, setEngine] = useState('all')
+  const [sizeBy, setSizeBy] = useState('prompts')
+  const [hover, setHover] = useState(null)
+  const draw = useDraw()
+  const H = Math.max(240, h) // the map fills its card
+  const tiles = useMemo(() => {
+    const items = c.tiles.map((t) => ({ ...t, size: Math.max(1, t[sizeBy]) })).sort((a, b) => b.size - a.size)
+    return w > 0 ? squarify(items, 0, 0, w, H) : []
+  }, [c.tiles, sizeBy, w, H])
+  const of = (t) => (engine === 'all' ? { leader: t.leader, lead: t.lead, leaderName: t.leaderName } : t.byEngine[engine] ?? { leader: t.leader, lead: t.lead, leaderName: t.leaderName })
+  const tip = hover != null ? tiles.find((t) => t.id === hover) : null
+  const you = c.legend[0].label.replace(/ leads$/, '')
   return (
-    <section aria-label={c.label} className={`${CARD} p-6 max-md:p-5`}>
-      <CardLabel legend={c.legend}>{c.label}</CardLabel>
-      {c.kind === 'lines' ? <Lines c={c} /> : <Columns c={c} />}
+    <div className="flex flex-1 flex-col">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <Segmented size="sm" label="Engine" value={engine} onChange={setEngine} options={[{ value: 'all', label: 'All engines' }, ...c.engines.map((e) => ({ value: e, label: ENGINE_NAMES[e] }))]} />
+        <span className="flex items-center gap-2"><span className={META}>Size by</span><Segmented size="sm" label="Size by" value={sizeBy} onChange={setSizeBy} options={[{ value: 'prompts', label: 'Prompts' }, { value: 'answers', label: 'Answers' }]} /></span>
+      </div>
+      <div ref={ref} className="relative mt-3 min-h-[240px] w-full flex-1" onMouseLeave={() => setHover(null)}>
+        {tiles.map((t, i) => {
+          const v = of(t)
+          const roomy = t.w > 96 && t.h > 44
+          const sel = picked === t.id
+          return (
+            <button key={t.id} type="button" onClick={() => onPick?.(sel ? null : t.id)} onMouseEnter={() => setHover(t.id)} aria-pressed={sel} aria-label={`${t.label}: ${v.leaderName} leads by ${Math.abs(v.lead)} points, ${t.prompts} prompts`}
+              className="absolute overflow-hidden rounded-[4px] text-left outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              style={{ left: t.x + 1.5, top: t.y + 1.5, width: Math.max(0, t.w - 3), height: Math.max(0, t.h - 3), background: fillFor(v.leader, v.lead), color: onFill(v.leader, v.lead), boxShadow: sel ? 'inset 0 0 0 2px var(--ink)' : picked ? 'none' : undefined, opacity: picked && !sel ? 0.45 : 1, transition: reducedMotion() ? 'none' : 'background-color 200ms ease-out, opacity 200ms ease-out, left 200ms ease-out, top 200ms ease-out, width 200ms ease-out, height 200ms ease-out', animation: draw ? `rep-fill 200ms ease-out ${i * 40}ms both` : undefined }}>
+              {roomy && (
+                <span className="block p-2.5">
+                  <span className="block truncate text-[13px] leading-[18px] font-semibold">{t.label}</span>
+                  <span className="block truncate text-[13px] leading-[18px] tabular-nums">{v.leader === 'you' ? signed(v.lead, ' pts') : `${v.leaderName} ${signed(Math.abs(v.lead))}`}</span>
+                </span>
+              )}
+            </button>
+          )
+        })}
+        {tip && <Tip x={tip.x + tip.w / 2} y={tip.y + 8} title={`${tip.label} · ${fmt(tip.prompts)} prompts`} rows={[...tip.shares.map((s) => ({ label: s.name, value: `${s.share}%`, tone: s.name === you ? 'primary' : s.name === c.rival ? 'rival' : 'neutral' })), { label: engine === 'all' ? 'Lead' : `Lead on ${ENGINE_NAMES[engine]}`, value: `${of(tip).leaderName} ${signed(Math.abs(of(tip).lead), ' pts')}`, muted: true }]} />}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <Legend items={c.legend} />
+        <span className={`inline-flex items-center gap-2 ${META}`}>narrow<span className="inline-flex gap-[3px]">{[40, 70, 100].map((p) => <span key={p} className="h-2.5 w-4 rounded-[2px]" style={{ background: `color-mix(in srgb, ${TONE.primary} ${p}%, var(--color-surface))` }} aria-hidden />)}</span>wide lead</span>
+      </div>
+    </div>
+  )
+}
+function LeftCard({ c, picked, onPick }) {
+  return (
+    <section aria-label={c.label} className={`${CARD} flex flex-col p-5`}>
+      <CardLabel legend={c.kind === 'treemap' ? null : c.legend}>{c.label}</CardLabel>
+      {c.kind === 'lines' ? <Lines c={c} /> : c.kind === 'treemap' ? <TopicMap c={c} picked={picked} onPick={onPick} /> : <Columns c={c} />}
     </section>
   )
 }
 
-// ---- band 2, right: a stacked bar, a diverging bar per topic, or where you stand; then a hairline and By engine -------
-function StackedBar({ segs, h = 12, label }) {
-  return (
-    <div role="img" aria-label={label ?? segs.map((s) => `${s.label ?? s.key} ${s.n}`).join(', ')} className="flex w-full overflow-hidden rounded-[4px]" style={{ height: h, gap: 2 }}>
-      {segs.filter((s) => s.n > 0).map((s) => <span key={s.key} style={{ flex: `${s.n} 1 0`, background: TONE[s.tone] }} />)}
-    </div>
-  )
-}
-function Stacked({ r }) {
+// ---- band 2, right: the square grid with its legend, or the net change by topic; then By engine as a mini table -----
+function Grid({ r }) {
+  const [hi, setHi] = useState(null) // a legend row's key, or null
+  const [tip, setTip] = useState(null) // { key, x, y }
+  const draw = useDraw()
+  const box = useRef(null)
+  const cells = useMemo(() => r.cells.flatMap((c) => Array.from({ length: c.cells }, () => c)), [r.cells])
+  const total = r.cells.reduce((a, c) => a + c.n, 0)
   return (
     <div>
-      <StackedBar segs={r.bar} />
-      <ul className="mt-3 flex flex-col gap-1.5">
-        {r.bar.map((d) => (
-          <li key={d.key} className="flex items-center gap-2.5 text-[14px] leading-5 tabular-nums">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: TONE[d.tone] }} aria-hidden />
-            <span className="min-w-0 truncate text-stone-600">{d.label}</span>
-            <span className="ml-auto whitespace-nowrap pl-3 font-semibold text-stone-900">{fmt(d.n)} <span className="font-normal text-stone-500">· {d.share}%</span></span>
+      <div ref={box} className="relative grid grid-cols-10 gap-[3px]" role="img" aria-label={r.cells.map((c) => `${c.label} ${c.n}${r.unit === '%' ? '%' : ''}`).join(', ')} onMouseLeave={() => setTip(null)}>
+        {cells.map((c, i) => (
+          <span key={i} className="aspect-square rounded-[2px]" style={{ background: TONE[c.tone], opacity: hi && hi !== c.key ? 0.25 : 1, transition: reducedMotion() ? 'none' : 'opacity 150ms ease-out', animation: draw ? `rep-fill 150ms ease-out ${i * 3}ms both` : undefined }}
+            onMouseEnter={(e) => { const b = box.current.getBoundingClientRect(); const t = e.currentTarget.getBoundingClientRect(); setTip({ key: c.key, x: t.left - b.left + t.width / 2, y: t.top - b.top }) }} />
+        ))}
+        {tip && (() => { const c = r.cells.find((x) => x.key === tip.key); return <Tip x={tip.x} y={tip.y} title={c.label} rows={[{ label: r.unit === '%' ? 'Share of voice' : 'Prompts', value: r.unit === '%' ? `${c.n}%` : fmt(c.n), tone: c.tone }, { label: 'Of the grid', value: `${c.share}%`, muted: true }]} /> })()}
+      </div>
+      <ul className="mt-3 flex flex-col gap-1">
+        {r.cells.map((c, i) => (
+          <li key={c.key} onMouseEnter={() => setHi(c.key)} onMouseLeave={() => setHi(null)} className="flex h-6 items-center gap-2 text-[14px] leading-5 tabular-nums">
+            <span className="h-3 w-3 shrink-0 rounded-[2px]" style={{ background: TONE[c.tone] }} aria-hidden />
+            {r.ranked && <span className={`w-4 shrink-0 ${META}`}>{i + 1}</span>}
+            {r.ranked && c.domain && <SiteLogo domain={c.domain} name={c.label} className="h-4 w-4 shrink-0 rounded" imgPad="p-0" initialClass="text-[8px]" plate />}
+            <span className="min-w-0 truncate text-stone-700">{c.label}</span>
+            <span className="ml-auto whitespace-nowrap pl-2 text-stone-900">{r.unit === '%' ? `${c.n}%` : <>{fmt(c.n)} <span className="text-stone-500">· {c.share}%</span></>}</span>
+            {c.delta != null ? <ChangeChip delta={c.delta} worseUp={c.worseUp} /> : <span className="w-[42px]" aria-hidden />}
           </li>
         ))}
       </ul>
+      {total === 0 && <p className={`mt-2 ${META}`}>Nothing to show yet.</p>}
     </div>
   )
 }
-// a diverging bar per topic from a centre line: gains right in the brand colour, losses left in red, the value at the end
 function Diverging({ r }) {
   const max = Math.max(1, ...r.rows.map((x) => Math.abs(x.d)))
-  const HALF = 'calc(50% - 28px)' // the room each side of the centre line, leaving space for the value
+  const HALF = 'calc(50% - 28px)'
+  const draw = useDraw()
   return (
     <ul className="flex flex-col gap-1">
-      {r.rows.map((x) => {
+      {r.rows.map((x, i) => {
         const pct = Math.abs(x.d) / max
         return (
           <li key={x.label} className="grid min-h-7 grid-cols-[minmax(0,120px)_minmax(0,1fr)] items-center gap-3">
             <span className={`truncate text-[14px] leading-5 ${x.d === 0 ? 'text-stone-500' : 'text-stone-800'}`} title={x.label}>{x.label}</span>
             <span className="relative h-5" role="img" aria-label={`${x.label} ${signed(x.d)}`}>
               <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--color-line-strong)]" aria-hidden />
-              {x.d > 0 && <span className="absolute left-1/2 top-1/2 h-2.5 -translate-y-1/2 rounded-r-[3px]" style={{ width: `calc(${HALF} * ${pct})`, background: TONE.primary }} />}
-              {x.d < 0 && <span className="absolute right-1/2 top-1/2 h-2.5 -translate-y-1/2 rounded-l-[3px]" style={{ width: `calc(${HALF} * ${pct})`, background: TONE.bad }} />}
+              {x.d > 0 && <span className="absolute left-1/2 top-1/2 h-2.5 -translate-y-1/2 rounded-r-[3px]" style={{ width: `calc(${HALF} * ${pct})`, background: TONE.primary, transformOrigin: 'left', animation: draw ? `rep-grow-x 400ms ease-out ${i * 40}ms both` : undefined }} />}
+              {x.d < 0 && <span className="absolute right-1/2 top-1/2 h-2.5 -translate-y-1/2 rounded-l-[3px]" style={{ width: `calc(${HALF} * ${pct})`, background: TONE.bad, transformOrigin: 'right', animation: draw ? `rep-grow-x 400ms ease-out ${i * 40}ms both` : undefined }} />}
               <span className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[13px] font-medium tabular-nums ${x.d === 0 ? 'text-stone-500' : ''}`}
                 style={x.d >= 0 ? { left: `calc(50% + ${HALF} * ${pct} + 6px)`, color: x.d > 0 ? 'var(--rep-up-fg)' : undefined } : { right: `calc(50% + ${HALF} * ${pct} + 6px)`, color: 'var(--rep-down-fg)' }}>
                 {x.d === 0 ? '0' : signed(x.d)}
@@ -300,53 +448,36 @@ function Diverging({ r }) {
     </ul>
   )
 }
-// where you stand: a 0–100 track per brand, a hollow start dot → a filled now dot joined by a line, the value at the end
-function Standings({ r }) {
+function ByEngine({ by }) {
   return (
-    <ul className="flex flex-col gap-2">
-      {r.rows.map((x) => {
-        const col = TONE[x.tone]
-        const lo = Math.min(x.from, x.now)
-        return (
-          <li key={x.key} className="grid min-h-7 grid-cols-[minmax(0,132px)_minmax(0,1fr)_44px] items-center gap-3">
-            <span className="flex min-w-0 items-center gap-2"><SiteLogo domain={x.domain} name={x.name} className="h-4 w-4 shrink-0 rounded" imgPad="p-0" initialClass="text-[8px]" plate /><span className={`truncate text-[14px] leading-5 ${x.tone === 'primary' ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>{x.name}</span></span>
-            <span className="relative h-5" role="img" aria-label={`${x.name}: ${x.from}% to ${x.now}%`}>
-              <span className="absolute inset-x-0 top-1/2 h-px bg-[var(--rep-line)]" aria-hidden />
-              <span className="absolute top-1/2 h-0.5 -translate-y-1/2" style={{ left: `${lo}%`, width: `${Math.abs(x.now - x.from)}%`, background: col }} aria-hidden />
-              <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-surface" style={{ left: `${x.from}%`, borderColor: col }} aria-hidden />
-              <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${x.now}%`, background: col }} aria-hidden />
-            </span>
-            <span className={`text-right text-[14px] tabular-nums ${x.tone === 'primary' ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>{x.now}{r.unit}</span>
-          </li>
-        )
-      })}
-    </ul>
+    <div className="mt-4 border-t border-[var(--rep-line)] pt-3">
+      <table className="w-full border-collapse text-[14px] leading-5 tabular-nums">
+        <thead><tr className={META}><th scope="col" className="pb-1 text-left font-normal">By engine</th>{by.cols.map((c) => <th key={c} scope="col" className="w-16 pb-1 text-right font-normal">{c}</th>)}</tr></thead>
+        <tbody>
+          {by.rows.map((e) => (
+            <tr key={e.id} className="h-7">
+              <td className="pr-2"><span className="flex min-w-0 items-center gap-2 text-stone-900"><EngineMark id={e.id} size={16} /><span className="truncate">{e.name}</span></span></td>
+              <td className="text-right text-stone-900">{fmt(e.won)}</td>
+              <td className={`text-right ${e.lost > 0 ? 'text-negative' : 'text-stone-500'}`}>{fmt(e.lost)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {by.off?.length > 0 && <p className={`mt-1 ${META}`}>{by.off.join(', ')} · didn’t run</p>}
+    </div>
   )
 }
 function RightCard({ r }) {
-  const Body = { stacked: Stacked, diverging: Diverging, standings: Standings }[r.kind]
-  const by = r.byEngine
   return (
-    <section aria-label={r.label} className={`${CARD} flex flex-col p-6 max-md:p-5`}>
+    <section aria-label={r.label} className={`${CARD} flex flex-col p-5`}>
       <CardLabel legend={r.legend}>{r.label}</CardLabel>
-      <div className="mt-4">{Body && <Body r={r} />}</div>
-      {(by || r.list) && (
-        <div className="mt-5 border-t border-[var(--rep-line)] pt-4">
-          <p className={LABEL}>{r.list ? r.list.label : 'By engine'}</p>
-          <ul className="mt-2 flex flex-col gap-2">
-            {by?.rows.map((e) => (
-              e.segs
-                ? <li key={e.id} className="grid grid-cols-[112px_minmax(0,1fr)_auto] items-center gap-3">
-                    <span className="flex min-w-0 items-center gap-2 text-[14px] leading-5 text-stone-900"><EngineMark id={e.id} size={16} /><span className="truncate">{e.name}</span></span>
-                    <StackedBar segs={e.segs} h={8} label={`${e.name}: ${e.segs.map((x) => `${x.key} ${x.n}`).join(', ')}`} />
-                    <span className={`${META} whitespace-nowrap tabular-nums`}>{e.note}</span>
-                  </li>
-                : <li key={e.id} className="flex items-center gap-2 text-[14px] leading-5 tabular-nums text-stone-900"><EngineMark id={e.id} size={16} />{e.text}</li>
-            ))}
-            {r.list?.rows.map((x) => (
-              <li key={x.key} className="flex items-center gap-2 text-[14px] leading-5 tabular-nums"><SiteLogo domain={x.domain} name={x.name} className="h-4 w-4 shrink-0 rounded" imgPad="p-0" initialClass="text-[8px]" plate /><span className="min-w-0 truncate text-stone-900">{x.name}</span><span className="ml-auto pl-3 text-stone-600">{fmt(x.n)} prompts</span></li>
-            ))}
-            {by?.off?.length > 0 && <li className={`${META}`}>{by.off.join(', ')} · didn’t run</li>}
+      <div className="mt-3">{r.kind === 'grid' ? <Grid r={r} /> : r.kind === 'diverging' ? <Diverging r={r} /> : null}</div>
+      {r.byEngine && <ByEngine by={r.byEngine} />}
+      {r.list && (
+        <div className="mt-4 border-t border-[var(--rep-line)] pt-3">
+          <p className={META}>{r.list.label}</p>
+          <ul className="mt-1 flex flex-col gap-1">
+            {r.list.rows.map((x) => <li key={x.key} className="flex h-6 items-center gap-2 text-[14px] leading-5 tabular-nums"><SiteLogo domain={x.domain} name={x.name} className="h-4 w-4 shrink-0 rounded" imgPad="p-0" initialClass="text-[8px]" plate /><span className="min-w-0 truncate text-stone-900">{x.name}</span><span className="ml-auto pl-3 text-stone-600">{fmt(x.n)} prompts</span></li>)}
           </ul>
         </div>
       )}
@@ -356,26 +487,27 @@ function RightCard({ r }) {
 
 // ---- band 3: the slim table -----------------------------------------------------------------------------------------
 const SORT_KEY = { engine: 'engineName', step: 'id' }
-function TableCard({ t, source, notes = [] }) {
+function TableCard({ t, source, notes = [], picked = null }) {
   const [q, setQ] = useState('')
-  const [picked, setPicked] = useState({})
+  const [filters, setFilters] = useState({})
   const [sort, setSort] = useState({ key: null, dir: 1 })
   const [all, setAll] = useState(false)
   const [open, setOpen] = useState(() => new Set())
+  const draw = useDraw()
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase()
-    let out = t.rows.filter((r) => (!s || `${r.text} ${r.topic ?? ''} ${r.result ?? ''}`.toLowerCase().includes(s)) && t.filters.every((f) => !picked[f.key] || r[f.by ?? f.key] === picked[f.key]))
+    let out = t.rows.filter((r) => (!picked || r.id === picked) && (!s || `${r.text} ${r.topic ?? ''} ${r.result ?? ''}`.toLowerCase().includes(s)) && t.filters.every((f) => !filters[f.key] || r[f.by ?? f.key] === filters[f.key]))
     if (sort.key) {
       const k = SORT_KEY[sort.key] ?? sort.key
       out = [...out].sort((a, b) => (typeof a[k] === 'number' ? a[k] - b[k] : String(a[k]).localeCompare(String(b[k]))) * sort.dir)
     }
     return out
-  }, [t, q, picked, sort])
+  }, [t, q, filters, sort, picked])
   const shown = all ? rows : rows.slice(0, t.pageSize)
   const right = (c) => c.kind === 'num'
   const toggle = (id) => setOpen((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const th = (c) => (
-    <th key={c.key} scope="col" className={`whitespace-nowrap px-4 py-3 text-[14px] leading-5 font-semibold text-stone-900 first:pl-6 ${right(c) ? 'text-right' : 'text-left'}`}>
+    <th key={c.key} scope="col" className={`whitespace-nowrap px-4 py-2.5 text-[14px] leading-5 font-semibold text-stone-900 first:pl-5 ${right(c) ? 'text-right' : 'text-left'}`}>
       {c.sort
         ? <button type="button" onClick={() => setSort((s) => ({ key: c.key, dir: s.key === c.key ? -s.dir : 1 }))} aria-sort={sort.key === c.key ? (sort.dir > 0 ? 'ascending' : 'descending') : undefined}
             className="inline-flex items-center gap-1.5 rounded outline-none hover:text-stone-700 focus-visible:ring-2 focus-visible:ring-focus">{c.label}<ChevronsUpDown size={14} className="text-stone-500" aria-hidden /></button>
@@ -389,6 +521,7 @@ function TableCard({ t, source, notes = [] }) {
       case 'muted': return v ? <span className={`block truncate ${T} text-stone-500`} title={v}>{v}</span> : <span className={`${T} text-stone-500`}>—</span>
       case 'num': return <span className={`${T} tabular-nums text-stone-900`}>{fmt(v)}</span>
       case 'change': return v === 0 ? <span className={`${T} text-stone-500`}>No change</span> : <span className={`${T} font-medium tabular-nums`} style={{ color: v > 0 ? 'var(--rep-up-fg)' : 'var(--rep-down-fg)' }}>{signed(v)}{c.unit ? ` ${c.unit}` : ''}</span>
+      case 'trend': return v ? <Spark series={v} w={60} h={20} redIfDown draw={draw} /> : <span className={`${T} text-stone-500`}>—</span>
       case 'lead': {
         const max = Math.max(1, ...t.rows.map((x) => Math.abs(x.lead ?? 0)))
         const pct = (Math.abs(v) / max) * 50
@@ -396,7 +529,7 @@ function TableCard({ t, source, notes = [] }) {
           <span className="inline-flex items-center gap-3">
             <span className="relative h-2.5 w-[120px]" role="img" aria-label={`${signed(v)} points`}>
               <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--color-line-strong)]" aria-hidden />
-              <span className={`absolute inset-y-0 ${v >= 0 ? 'left-1/2 rounded-r-[3px]' : 'right-1/2 rounded-l-[3px]'}`} style={{ width: `${pct}%`, background: v >= 0 ? TONE.primary : TONE.bad }} />
+              <span className={`absolute inset-y-0 ${v >= 0 ? 'left-1/2 rounded-r-[3px]' : 'right-1/2 rounded-l-[3px]'}`} style={{ width: `${pct}%`, background: v >= 0 ? TONE.primary : TONE.bad, transformOrigin: v >= 0 ? 'left' : 'right', animation: draw ? 'rep-grow-x 400ms ease-out both' : undefined }} />
             </span>
             <span className={`${T} w-16 tabular-nums ${v < 0 ? 'font-medium text-negative' : 'text-stone-900'}`}>{signed(v, ' pts')}</span>
           </span>
@@ -415,7 +548,7 @@ function TableCard({ t, source, notes = [] }) {
   }
   return (
     <section aria-label={t.title} className={`${CARD} overflow-hidden`}>
-      <div className="flex flex-wrap items-center gap-3 p-6 max-md:p-5">
+      <div className="flex flex-wrap items-center gap-3 p-5">
         <label className="relative flex h-11 min-w-[240px] flex-1 items-center">
           <Search size={16} className="pointer-events-none absolute left-3.5 text-stone-500" aria-hidden />
           <span className="sr-only">{t.searchLabel}</span>
@@ -423,21 +556,22 @@ function TableCard({ t, source, notes = [] }) {
             className="h-11 w-full rounded-[10px] border border-[var(--rep-line)] bg-surface pl-10 pr-3 text-[15px] text-stone-900 outline-none placeholder:text-stone-500 focus:border-line-strong" />
         </label>
         {t.filters.map((f) => (
-          <FrameMenu key={f.key} label={f.label} value={picked[f.key] ?? null} onChange={(id) => setPicked((p) => ({ ...p, [f.key]: id }))} options={[{ id: null, label: f.all }, ...f.options]} />
+          <FrameMenu key={f.key} label={f.label} value={filters[f.key] ?? null} onChange={(id) => setFilters((p) => ({ ...p, [f.key]: id }))} options={[{ id: null, label: f.all }, ...f.options]} />
         ))}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
-          <thead><tr className="border-y border-[var(--rep-line)]" style={{ background: 'var(--rep-head)' }}>{t.columns.map(th)}<th scope="col" className="w-14 pr-4"><span className="sr-only">Actions</span></th></tr></thead>
+          <thead><tr className="border-y border-[var(--rep-line)]" style={{ background: 'var(--rep-head)' }}>{t.columns.map(th)}<th scope="col" className="w-14 pr-3"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {shown.map((r) => {
               const isOpen = t.expandable && open.has(r.id)
+              const lit = picked && r.id === picked
               return [
                 <tr key={r.id} onClick={t.expandable ? () => toggle(r.id) : undefined} aria-expanded={t.expandable ? isOpen : undefined}
-                  className={`h-14 border-b border-[var(--rep-line)] transition-colors duration-100 last:border-0 hover:bg-tint ${t.expandable ? 'cursor-pointer' : ''} ${isOpen ? 'bg-tint' : ''}`}>
-                  {t.columns.map((c) => <td key={c.key} className={`whitespace-nowrap px-4 py-1.5 align-middle first:pl-6 ${c.kind === 'text' ? 'max-w-[360px]' : 'w-[1%]'} ${right(c) ? 'text-right' : ''}`}>{cell(r, c)}</td>)}
-                  <td className="pr-4 align-middle" onClick={(e) => e.stopPropagation()}>
-                    <ActionMenu label={`Actions for ${r.text}`} className="grid h-9 w-9 place-items-center rounded-lg text-stone-500 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"
+                  className={`h-[52px] border-b border-[var(--rep-line)] transition-colors duration-100 last:border-0 hover:bg-tint ${t.expandable ? 'cursor-pointer' : ''} ${isOpen || lit ? 'bg-tint' : ''}`}>
+                  {t.columns.map((c) => <td key={c.key} className={`whitespace-nowrap px-4 py-1 align-middle first:pl-5 ${c.kind === 'text' ? 'max-w-[360px]' : 'w-[1%]'} ${right(c) ? 'text-right' : ''}`}>{cell(r, c)}</td>)}
+                  <td className="pr-3 align-middle" onClick={(e) => e.stopPropagation()}>
+                    <ActionMenu label={`Actions for ${r.text}`} className="grid h-8 w-8 place-items-center rounded-lg text-stone-500 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"
                       items={[{ label: 'Open in Prompt Hub', onClick: () => navigate(r.href) }, { label: 'Copy', onClick: () => { try { navigator.clipboard?.writeText(r.text) } catch { /* no clipboard */ } } }]}>
                       <MoreHorizontal size={16} aria-hidden />
                     </ActionMenu>
@@ -445,7 +579,7 @@ function TableCard({ t, source, notes = [] }) {
                 </tr>,
                 isOpen && (
                   <tr key={`${r.id}-x`} className="border-b border-[var(--rep-line)]">
-                    <td colSpan={t.columns.length + 1} className="px-6 py-4">
+                    <td colSpan={t.columns.length + 1} className="px-5 py-3">
                       <div className="grid gap-x-8 gap-y-3 md:grid-cols-[minmax(0,1fr)_240px]">
                         <ul className="columns-2 gap-x-8 text-[14px] leading-6 text-stone-500">{r.expand?.prompts?.map((p) => <li key={p} className="truncate" title={p}>{p}</li>)}{!r.expand?.prompts?.length && <li>No prompts listed for this topic.</li>}</ul>
                         {r.expand?.lines?.length > 0 && <ul className="flex flex-col gap-1 text-[14px] leading-6 tabular-nums text-stone-700">{r.expand.lines.map((l) => <li key={l}>{l}</li>)}</ul>}
@@ -455,15 +589,14 @@ function TableCard({ t, source, notes = [] }) {
                 ),
               ]
             })}
-            {shown.length === 0 && <tr><td colSpan={t.columns.length + 1} className={`px-6 py-10 text-center ${LABEL}`}>Nothing matches</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={t.columns.length + 1} className={`px-5 py-8 text-center ${LABEL}`}>Nothing matches</td></tr>}
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-[var(--rep-line)] px-6 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-[var(--rep-line)] px-5 py-3">
         <div className="min-w-0">
           {source && <p className={`${META} tabular-nums`}>{source}</p>}
-          {t.note && <p className={`${META} tabular-nums`}>{t.note}</p>}
-          {notes.map((n) => <p key={n} className={`${META}`}>Not in your data: {n}</p>)}
+          {notes.map((n) => <p key={n} className={META}>Not in your data: {n}</p>)}
         </div>
         <p className={`${META} whitespace-nowrap tabular-nums`}>
           Showing {Math.min(shown.length, rows.length)} of {rows.length}
@@ -477,15 +610,16 @@ function TableCard({ t, source, notes = [] }) {
 // ---- band 4: the pages AI cites most -------------------------------------------------------------------------------
 function PagesCard({ p }) {
   const max = Math.max(1, ...p.rows.map((r) => r.n))
+  const draw = useDraw()
   return (
-    <section aria-label={p.label} className={`${CARD} p-6 max-md:p-5`}>
+    <section aria-label={p.label} className={`${CARD} p-5`}>
       <CardLabel>{p.label}</CardLabel>
-      <ul className="mt-3 flex flex-col divide-y divide-[var(--rep-line)]">
-        {p.rows.map((r) => (
-          <li key={r.path} className="grid min-h-11 grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)_104px] items-center gap-4 py-1.5 max-md:grid-cols-[minmax(0,1fr)_88px]">
+      <ul className="mt-2 flex flex-col divide-y divide-[var(--rep-line)]">
+        {p.rows.map((r, i) => (
+          <li key={r.path} className="grid min-h-10 grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)_104px] items-center gap-4 py-1 max-md:grid-cols-[minmax(0,1fr)_88px]">
             <span className={`truncate ${T} text-stone-900`} title={r.path}>{r.path}</span>
             <span className={`truncate ${T} text-stone-500 max-md:hidden`}>{r.type}</span>
-            <span className="relative h-2.5 max-md:hidden" aria-hidden><span className="absolute inset-y-0 left-0 rounded-[3px]" style={{ width: `${(r.n / max) * 100}%`, background: TONE.primary }} /></span>
+            <span className="relative h-2.5 max-md:hidden" aria-hidden><span className="absolute inset-y-0 left-0 rounded-[3px]" style={{ width: `${(r.n / max) * 100}%`, background: TONE.primary, transformOrigin: 'left', animation: draw ? `rep-grow-x 400ms ease-out ${i * 60}ms both` : undefined }} /></span>
             <span className={`text-right ${T} tabular-nums text-stone-900`}>{fmt(r.n)} <span className="text-stone-500">answers</span></span>
           </li>
         ))}
@@ -494,17 +628,45 @@ function PagesCard({ p }) {
   )
 }
 
+// ---- while a report is written: the three bands as a skeleton with a soft shimmer, and one status line that steps ---
+export function FrameSkeleton({ steps = [], step = 0 }) {
+  const Block = ({ className, style }) => <div className={`shimmer rounded-md ${className}`} style={style} aria-hidden />
+  return (
+    <div className="flex flex-col gap-4" aria-busy="true">
+      <p aria-live="polite" className="flex flex-wrap items-center gap-x-2 text-[14px] leading-5">
+        {steps.map((s, i) => (
+          <span key={s} className="inline-flex items-center gap-2">
+            {i > 0 && <span className="text-stone-400" aria-hidden>→</span>}
+            <span className={`inline-flex items-center gap-1.5 ${i < step ? 'text-stone-500' : i === step ? 'text-stone-900' : 'text-stone-400'}`}>
+              {i < step ? <Check size={14} strokeWidth={2.5} className="text-stone-500" aria-hidden /> : i === step ? <Loader2 size={14} className="animate-spin text-stone-700 motion-reduce:animate-none" aria-hidden /> : null}{s}{i === step ? '…' : ''}
+            </span>
+          </span>
+        ))}
+      </p>
+      <div className={`${CARD} grid gap-x-10 p-5 lg:grid-cols-5`}>{Array.from({ length: 5 }, (_, i) => <div key={i} className="flex flex-col gap-2"><Block className="h-4 w-24" /><Block className="h-7 w-16" /><Block className="h-5 w-28" /></div>)}</div>
+      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className={`${CARD} p-5`}><Block className="h-4 w-40" /><div className="mt-5 flex h-[240px] items-end gap-6 px-6">{[55, 70, 45, 80, 60, 75, 50, 90].map((h, i) => <Block key={i} className="flex-1" style={{ height: `${h}%` }} />)}</div></div>
+        <div className={`${CARD} p-5`}><Block className="h-4 w-32" /><Block className="mt-4 aspect-square w-full" /><div className="mt-3 flex flex-col gap-2"><Block className="h-4 w-full" /><Block className="h-4 w-5/6" /><Block className="h-4 w-2/3" /></div></div>
+      </div>
+      <div className={`${CARD} p-5`}><Block className="h-11 w-full" /><div className="mt-4 flex flex-col gap-3">{Array.from({ length: 5 }, (_, i) => <Block key={i} className="h-8 w-full" />)}</div></div>
+    </div>
+  )
+}
+
 // ---- the frame ------------------------------------------------------------------------------------------------------
 const FREQ = [{ id: 'once', label: 'One-off' }, { id: 'week', label: 'Weekly' }, { id: 'month', label: 'Monthly' }]
-export default function ReportFrame({ built, onPeriod, onSchedule, actions = [], print = false }) {
+export default function ReportFrame({ built, onPeriod, onSchedule, actions = [], print = false, live = false }) {
   const f = built.frame
   const o = built.opts
+  const [picked, setPicked] = useState(null) // a topic picked on the topic map: the table shows that topic
   const periods = PERIODS.filter((p) => p.id !== 'custom').map((p) => ({ id: p.id, label: p.id === o.period ? f.range : p.label }))
   const src = built.blocks.find((b) => b.type === 'sources')?.data
   const source = src ? `Source: ${src.syncs} weekly syncs, ${src.span} · ${src.engines.join(', ')}${src.off?.length ? ` · ${src.off.join(' and ')} didn’t run` : ''}` : null
+  // when a report is ready its bands fade up, 60ms apart; nothing with reduced motion
+  const band = (i) => (live && !reducedMotion() ? { animation: `rep-up 400ms ease-out ${i * 60}ms both` } : undefined)
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4 lg:flex-nowrap">
+    <div className="flex flex-col gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4 lg:flex-nowrap" style={band(0)}>
         <div className="min-w-0 max-w-[760px] flex-1">
           <h1 className="text-[32px] leading-10 font-semibold tracking-[-0.01em] text-stone-900 [text-wrap:balance] max-md:text-[26px] max-md:leading-8">{f.question}</h1>
           <p className="mt-2 text-[16px] leading-6 font-normal text-stone-600 [text-wrap:pretty]">{f.finding}</p>
@@ -518,13 +680,13 @@ export default function ReportFrame({ built, onPeriod, onSchedule, actions = [],
           </div>
         )}
       </header>
-      <KpiStrip kpis={f.kpis} />
-      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <LeftCard c={f.left} />
+      <div style={band(1)}><KpiStrip kpis={f.kpis} /></div>
+      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" style={band(2)}>
+        <LeftCard c={f.left} picked={picked} onPick={setPicked} />
         <RightCard r={f.right} />
       </div>
-      <TableCard t={f.table} source={source} notes={f.notInData ?? []} />
-      {f.pages && <PagesCard p={f.pages} />}
+      <div style={band(3)}><TableCard t={f.table} source={source} notes={f.notInData ?? []} picked={picked} /></div>
+      {f.pages && <div style={band(4)}><PagesCard p={f.pages} /></div>}
     </div>
   )
 }

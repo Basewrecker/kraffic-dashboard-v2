@@ -37,10 +37,10 @@ test('the 14-day timeline: 15 ticks from today, weekends marked, paused schedule
   assert.deepEqual(t.ticks.filter((x) => x.weekend).map((x) => day(x.date)), ['10/31', '11/1', '11/7', '11/8'])
   assert.deepEqual(t.ticks.filter((x) => x.monthStart).map((x) => day(x.date)), ['10/28', '11/1'])
   // FOA weekly ×2, FOA CEO, Dermasuri weekly ×2, Dermasuri client update
-  assert.equal(t.items.length, 6)
+  assert.equal(t.items.length, 8) // the after-sync schedule adds its two Mondays
   assert.equal(t.items[0].label, 'CEO summary · Finance of America · Sun 8am · 1 person')
   const paused = timeline(schedules.map((s) => ({ ...s, paused: s.id === 's-foa-week' })), TODAY, 14)
-  assert.equal(paused.items.length, 4)
+  assert.equal(paused.items.length, 6)
 })
 
 test('next up skips paused schedules', () => {

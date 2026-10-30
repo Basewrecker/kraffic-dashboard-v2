@@ -52,6 +52,8 @@ const FOA = {
   ],
   // prompt flow per period: held + won = named now; lost + missing = not named now (the four add up to every prompt)
   flow: { week: { held: 65, won: 6, lost: 2, missing: 40 }, '30d': { held: 59, won: 12, lost: 3, missing: 39 }, quarter: { held: 54, won: 17, lost: 4, missing: 38 } },
+  // won / lost at each weekly sync against the one before (won − lost = the change in prompts named); the first has no before
+  wonSeries: [null, 4, 2, 5, 3, 3, 5, 6], lostSeries: [null, 2, 3, 2, 2, 2, 2, 2],
   // topics that moved: d > 0 won, d < 0 lost (|d| = its prompts)
   moved: {
     week: [
@@ -71,8 +73,13 @@ const FOA = {
   },
   // CEO: our lead in points of share, per topic (negative: a competitor leads it)
   topicLead: [
-    { theme: 'Lender comparisons', d: 18, prompts: 22 }, { theme: 'HECM for purchase', d: 14, prompts: 14 }, { theme: 'Home equity alternatives', d: 9, prompts: 13 },
-    { theme: 'Retirement income', d: 6, prompts: 11 }, { theme: 'Eligibility', d: -3, who: 'AAG', prompts: 15 }, { theme: 'Jumbo loans', d: -11, who: 'Longbridge', prompts: 10 }, { theme: 'Calculators', d: -22, who: 'Longbridge', prompts: 10 },
+    { theme: 'Lender comparisons', d: 18, prompts: 22, answers: 40, trend: [12, 13, 14, 15, 16, 16, 17, 18], shares: { foa: 44, longbridge: 26, aag: 18 }, byEngine: { aio: 20, chatgpt: 16, gemini: 17 } },
+    { theme: 'HECM for purchase', d: 14, prompts: 14, answers: 26, trend: [10, 11, 11, 12, 13, 13, 14, 14], shares: { foa: 40, longbridge: 26, aag: 20 }, byEngine: { aio: 16, chatgpt: 12, gemini: 13 } },
+    { theme: 'Home equity alternatives', d: 9, prompts: 13, answers: 24, trend: [5, 6, 6, 7, 8, 8, 9, 9], shares: { foa: 35, longbridge: 26, aag: 22 }, byEngine: { aio: 10, chatgpt: 8, gemini: 9 } },
+    { theme: 'Retirement income', d: 6, prompts: 11, answers: 20, trend: [4, 4, 5, 5, 5, 6, 6, 6], shares: { foa: 32, longbridge: 26, aag: 24 }, byEngine: { aio: 7, chatgpt: 5, gemini: 6 } },
+    { theme: 'Eligibility', d: -3, who: 'AAG', prompts: 15, answers: 28, trend: [-1, -1, -2, -2, -2, -3, -3, -3], shares: { foa: 28, longbridge: 24, aag: 31 }, byEngine: { aio: -2, chatgpt: -5, gemini: -2 } },
+    { theme: 'Jumbo loans', d: -11, who: 'Longbridge', prompts: 10, answers: 18, trend: [-8, -8, -9, -9, -10, -10, -11, -11], shares: { foa: 22, longbridge: 33, aag: 25 }, byEngine: { aio: -9, chatgpt: -14, gemini: -10 } },
+    { theme: 'Calculators', d: -22, who: 'Longbridge', prompts: 10, answers: 20, trend: [-18, -19, -19, -20, -21, -21, -22, -22], shares: { foa: 16, longbridge: 38, aag: 24 }, byEngine: { aio: -20, chatgpt: -26, gemini: -20 } },
   ],
   engines: {
     // now: % of prompts named · named: those prompts · week / 30d: [won, lost] in that period
@@ -154,6 +161,7 @@ const DS = {
   share: { dermasuri: [63, 64, 65, 66, 68, 67, 70, 73], cerave: [23, 22, 22, 21, 20, 20, 19, 18], theordinary: [7, 7, 6, 6, 5, 6, 4, 4], paulaschoice: [6, 6, 5, 5, 4, 4, 4, 3] },
   rivals: [{ key: 'cerave', domain: 'cerave.com' }, { key: 'theordinary', domain: 'theordinary.com' }, { key: 'paulaschoice', domain: 'paulaschoice.com' }],
   flow: { week: { held: 102, won: 9, lost: 2, missing: 39 }, '30d': { held: 93, won: 18, lost: 4, missing: 37 }, quarter: { held: 88, won: 23, lost: 4, missing: 37 } },
+  wonSeries: [null, 4, 2, 6, 4, 5, 6, 9], lostSeries: [null, 2, 3, 2, 2, 3, 3, 2],
   moved: {
     week: [
       { ...P('Keratosis pilaris', ['best exfoliating gloves for keratosis pilaris', 'KP body routine', 'how to treat KP on arms', 'KP on legs treatment']), d: 4, engines: { aio: 3, chatgpt: 1 } },
@@ -170,8 +178,12 @@ const DS = {
     ],
   },
   topicLead: [
-    { theme: 'Keratosis pilaris', d: 34, prompts: 31 }, { theme: 'Exfoliation tools', d: 28, prompts: 27 }, { theme: 'Strawberry legs', d: 19, prompts: 22 }, { theme: 'Ingrown hairs', d: 8, prompts: 14 },
-    { theme: 'Body wash', d: -6, who: 'CeraVe', prompts: 18 }, { theme: 'Sensitive skin', d: -15, who: 'Paula’s Choice', prompts: 20 },
+    { theme: 'Keratosis pilaris', d: 34, prompts: 31, answers: 58, trend: [26, 27, 28, 29, 30, 31, 32, 34], shares: { dermasuri: 64, cerave: 30, theordinary: 4, paulaschoice: 2 }, byEngine: { aio: 38, chatgpt: 29 } },
+    { theme: 'Exfoliation tools', d: 28, prompts: 27, answers: 50, trend: [22, 23, 24, 24, 25, 26, 27, 28], shares: { dermasuri: 60, cerave: 32, theordinary: 5, paulaschoice: 3 }, byEngine: { aio: 31, chatgpt: 24 } },
+    { theme: 'Strawberry legs', d: 19, prompts: 22, answers: 40, trend: [14, 15, 15, 16, 17, 18, 18, 19], shares: { dermasuri: 52, cerave: 33, theordinary: 9, paulaschoice: 6 }, byEngine: { aio: 22, chatgpt: 15 } },
+    { theme: 'Ingrown hairs', d: 8, prompts: 14, answers: 24, trend: [9, 9, 8, 8, 9, 8, 8, 8], shares: { dermasuri: 40, cerave: 32, theordinary: 20, paulaschoice: 8 }, byEngine: { aio: 11, chatgpt: 4 } },
+    { theme: 'Body wash', d: -6, who: 'CeraVe', prompts: 18, answers: 32, trend: [-2, -3, -3, -4, -4, -5, -5, -6], shares: { dermasuri: 30, cerave: 36, theordinary: 22, paulaschoice: 12 }, byEngine: { aio: -4, chatgpt: -9 } },
+    { theme: 'Sensitive skin', d: -15, who: 'Paula’s Choice', prompts: 20, answers: 36, trend: [-10, -11, -11, -12, -13, -13, -14, -15], shares: { dermasuri: 22, cerave: 25, theordinary: 16, paulaschoice: 37 }, byEngine: { aio: -12, chatgpt: -19 } },
   ],
   engines: {
     aio: { now: 73, named: 111, series: [64, 65, 66, 67, 68, 69, 70, 73], week: [6, 0], '30d': [11, 1] },
@@ -577,8 +589,35 @@ const times = (n) => (n >= 2 && n <= 10 ? `${WORDS[n]} times` : `${n}×`)
 const rivalByName = (d, name) => d.rivals.find((r) => brandName(r.domain) === name) ?? null
 const offEngines = (d, asked) => asked.filter((e) => !d.ran.includes(e)).map((e) => ENGINE_NAMES[e])
 const sourceOf = (d, i0, asked) => ({ span: shortRange(DATES[i0], 'Oct 26'), syncs: DATES.length - i0, engines: asked.filter((e) => d.ran.includes(e)).map((e) => ENGINE_NAMES[e]), off: offEngines(d, asked) })
+// the won / lost columns per weekly sync (the first sync has no before)
+const wonLost = (d) => DATES.map((_, i) => ({ won: d.wonSeries[i], lost: d.lostSeries[i] }))
+// a 10×10 grid: the parts scaled to 100 cells by largest remainder
+const gridCells = (parts) => { const n = shares(parts.map((p) => p.n)); return parts.map((p, i) => ({ ...p, cells: n[i], share: n[i] })) }
 // the standard frame: header · KPI strip · two visuals (2/3 + 1/3) · a slim table · (pages)
 const frameOf = (o, d, prompt, x, parts) => ({ question: parts.question ?? titleFor(prompt, o), finding: parts.finding, read: parts.read ?? null, range: shortRange(DATES[x.i0], 'Oct 26'), frequency: scheduledKind(d, o.kind), you: d.name, ...parts })
+// the topic map: one tile per topic, sized by its prompts (or answers), coloured by who leads and by how much
+function topicMap(d, engines) {
+  const youKeyOf = youKey(d)
+  const nameOf = (k) => (k === youKeyOf ? d.name : brandName(d.rivals.find((r) => r.key === k)?.domain ?? k))
+  const domainOf = (k) => (k === youKeyOf ? d.domain : d.rivals.find((r) => r.key === k)?.domain ?? null)
+  const top = [...d.rivals].sort((a, b) => d.share[b.key].at(-1) - d.share[a.key].at(-1))[0]
+  const topName = brandName(top.domain)
+  const leaderOf = (lead, who) => (lead > 0 ? 'you' : who === topName ? 'rival' : 'other')
+  return {
+    kind: 'treemap', label: 'Topic map', engines: engines.filter((e) => d.ran.includes(e)), rival: topName,
+    legend: [{ key: 'you', label: `${d.name} leads`, tone: 'primary' }, { key: 'rival', label: `${topName} leads`, tone: 'rival' }, { key: 'other', label: 'Another brand leads', tone: 'neutral' }],
+    tiles: d.topicLead.map((t) => {
+      const shares = Object.entries(t.shares).map(([k, v]) => ({ key: k, name: nameOf(k), domain: domainOf(k), share: v }))
+      const rest = 100 - shares.reduce((a, x) => a + x.share, 0)
+      if (rest > 0) shares.push({ key: 'others', name: 'Others', domain: null, share: rest })
+      return {
+        id: t.theme, label: t.theme, prompts: t.prompts, answers: t.answers, lead: t.d, leader: leaderOf(t.d, t.who), leaderName: t.d > 0 ? d.name : t.who,
+        byEngine: Object.fromEntries(Object.entries(t.byEngine).map(([e, v]) => [e, { lead: v, leader: leaderOf(v, t.who), leaderName: v > 0 ? d.name : t.who }])),
+        shares,
+      }
+    }),
+  }
+}
 
 function competitorGap(o, d, x) {
   const { i0, since, acts, prompt, asked } = x
@@ -600,10 +639,10 @@ function competitorGap(o, d, x) {
   const frame = frameOf(o, d, prompt, x, {
     finding,
     kpis: [
-      { label: `Prompts ${rv} wins`, value: theirs, delta: h.theyWin.at(-1) - h.theyWin[i0], worseUp: true, since },
-      { label: 'We win', value: ours, delta: h.youWin.at(-1) - h.youWin[i0], since },
-      { label: 'Neither named', value: h.neither },
-      { label: 'Topics they lead', value: lead, of: h.byTopic.length },
+      { label: `Prompts ${rv} wins`, value: theirs, delta: h.theyWin.at(-1) - h.theyWin[i0], worseUp: true, since, spark: h.theyWin, sparkTone: 'rival' },
+      { label: 'We win', value: ours, delta: h.youWin.at(-1) - h.youWin[i0], since, spark: h.youWin },
+      { label: 'Neither named', value: h.neither, spark: DATES.map((_, i) => d.prompts - h.youWin[i] - h.theyWin[i]), sparkTone: 'neutral' },
+      { label: 'Topics they lead', value: lead, of: h.byTopic.length, segments: { n: lead, of: h.byTopic.length, tone: 'rival' } },
       { label: 'Our pages cited', value: h.citedYou.length, sub: `${h.citedYou.reduce((a, c) => a + c.n, 0)} answers` },
     ],
     left: {
@@ -612,9 +651,13 @@ function competitorGap(o, d, x) {
       bands: [...h.byTopic].sort((a, b) => (b.you - b.them) - (a.you - a.them)).map((t) => ({ label: t.theme, bars: [{ key: 'you', value: t.you, tone: 'primary' }, { key: 'them', value: t.them, tone: 'rival' }] })),
     },
     right: {
-      kind: 'stacked', label: 'Head to head',
-      bar: withShares([{ key: 'you', label: 'We win', n: ours, tone: 'primary' }, { key: 'them', label: `${rv} wins`, n: theirs, tone: 'rival' }, { key: 'neither', label: 'Neither', n: h.neither, tone: 'neutral' }]),
-      byEngine: { rows: engines.map((e) => ({ id: e, name: ENGINE_NAMES[e], segs: [{ key: 'you', n: h.engines[e].you, tone: 'primary' }, { key: 'them', n: h.engines[e].n, tone: 'rival' }, { key: 'neither', n: h.engines[e].neither, tone: 'neutral' }], note: `${h.engines[e].n} lost` })), off: offEngines(d, asked) },
+      kind: 'grid', label: 'Head to head', unit: 'prompts',
+      cells: gridCells([
+        { key: 'you', label: 'We win', n: ours, tone: 'primary', delta: h.youWin.at(-1) - h.youWin[i0], since },
+        { key: 'them', label: `${rv} wins`, n: theirs, tone: 'rival', delta: h.theyWin.at(-1) - h.theyWin[i0], worseUp: true, since },
+        { key: 'neither', label: 'Neither', n: h.neither, tone: 'neutral' },
+      ]),
+      byEngine: { cols: ['Won', 'Lost'], rows: engines.map((e) => ({ id: e, name: ENGINE_NAMES[e], won: h.engines[e].you, lost: h.engines[e].n })), off: offEngines(d, asked) },
     },
     table: {
       title: `Prompts ${rv} wins`, searchLabel: 'Search prompts', unit: 'prompts',
@@ -652,7 +695,7 @@ function weeklySummary(o, d, x) {
   const row = (theme, prompts, dlt, engines) => {
     const a = actOf(theme)
     return {
-      id: theme, text: theme, net: dlt, change: dlt > 0 ? 'gained' : dlt < 0 ? 'lost' : 'none', engines: Object.keys(engines ?? {}),
+      id: theme, text: theme, net: dlt, change: dlt > 0 ? 'gained' : dlt < 0 ? 'lost' : 'none', engines: Object.keys(engines ?? {}), trend: d.topicLead.find((t) => t.theme === theme)?.trend ?? null,
       step: a ? { label: client ? `We’ll ${a.short.charAt(0).toLowerCase()}${a.short.slice(1)}` : a.short, href: topicHref(theme) } : null, href: topicHref(theme),
       expand: { prompts, lines: Object.entries(engines ?? {}).map(([e, n]) => `${ENGINE_NAMES[e]} · ${n} ${dlt >= 0 ? 'won' : 'lost'}`) },
     }
@@ -661,11 +704,11 @@ function weeklySummary(o, d, x) {
     question: String(prompt ?? '').trim() ? titleFor(prompt, o) : (o.period === 'week' ? 'What moved this week?' : 'What moved this month?'),
     finding,
     kpis: [
-      { label: `Answers naming ${d.name}`, value: named.at(-1), delta: named.at(-1) - named[i0], since: vs },
-      { label: o.period === 'week' ? 'Won this week' : 'Won this month', value: flow.won },
-      { label: o.period === 'week' ? 'Lost this week' : 'Lost this month', value: flow.lost, bad: flow.lost > 0 },
-      { label: 'Visibility score', value: d.series.score.at(-1), delta: d.series.score.at(-1) - d.series.score[i0], since: vs },
-      { label: 'Share of voice', value: me.at(-1), unit: '%', delta: me.at(-1) - me[i0], since: vs },
+      { label: `Answers naming ${d.name}`, value: named.at(-1), delta: named.at(-1) - named[i0], since: vs, spark: named },
+      { label: o.period === 'week' ? 'Won this week' : 'Won this month', value: flow.won, columns: wonLost(d), columnsShow: 'won' },
+      { label: o.period === 'week' ? 'Lost this week' : 'Lost this month', value: flow.lost, bad: flow.lost > 0, columns: wonLost(d), columnsShow: 'lost' },
+      { label: 'Visibility score', value: d.series.score.at(-1), delta: d.series.score.at(-1) - d.series.score[i0], since: vs, spark: d.series.score },
+      { label: 'Share of voice', value: me.at(-1), unit: '%', delta: me.at(-1) - me[i0], since: vs, spark: me },
     ],
     left: {
       kind: 'columns', label: `Answers naming ${d.name}, last 8 weeks`, unit: 'answers',
@@ -675,11 +718,11 @@ function weeklySummary(o, d, x) {
     right: {
       kind: 'diverging', label: 'Net change by topic', unit: 'prompts',
       rows: [...moved.map((m) => ({ label: m.theme, d: m.d })), ...planOnly.map((a) => ({ label: a.theme, d: 0 }))],
-      byEngine: { rows: on.map((e) => ({ id: e, name: ENGINE_NAMES[e], text: engLine(e) })), off: offEngines(d, asked) },
+      byEngine: { cols: ['Won', 'Lost'], rows: on.map((e) => ({ id: e, name: ENGINE_NAMES[e], won: wl(e)[0], lost: wl(e)[1], text: engLine(e) })), off: offEngines(d, asked) },
     },
     table: {
       title: 'Topics', searchLabel: 'Search topics', unit: 'topics', expandable: true,
-      columns: [{ key: 'text', label: 'Topic', kind: 'text' }, { key: 'net', label: 'Change', kind: 'change', sort: true }, { key: 'engines', label: 'Engines', kind: 'engines' }, { key: 'step', label: client ? 'What we’re doing next' : 'Next step', kind: 'step' }],
+      columns: [{ key: 'text', label: 'Topic', kind: 'text' }, { key: 'net', label: 'Change', kind: 'change', sort: true }, { key: 'trend', label: 'Trend', kind: 'trend' }, { key: 'engines', label: 'Engines', kind: 'engines' }, { key: 'step', label: client ? 'What we’re doing next' : 'Next step', kind: 'step' }],
       rows: [...moved.map((m) => row(m.theme, m.prompts, m.d, m.engines)), ...planOnly.map((a) => row(a.theme, a.prompts, 0, null))],
       filters: [{ key: 'change', label: 'Change', all: 'All changes', options: [{ id: 'gained', label: 'Gained' }, { id: 'lost', label: 'Lost' }, { id: 'none', label: 'No change' }] }],
       pageSize: 10,
@@ -714,31 +757,31 @@ function ceoSummary(o, d, x) {
     const m = moved.find((z) => z.theme === t.theme)
     const leader = t.d > 0 ? { name: d.name, domain: d.domain } : { name: t.who, domain: rivalByName(d, t.who)?.domain ?? null }
     const prompts = m?.prompts ?? d.gaps.find((g) => g.theme === t.theme)?.prompts ?? []
-    return { id: t.theme, text: t.theme, prompts: t.prompts, leader, lead: t.d, net: m?.d ?? 0, change: m ? (m.d > 0 ? 'gained' : 'lost') : 'none', step: t.d < 0 ? { label: `Win back ${t.theme.toLowerCase()}`, href: topicHref(t.theme) } : null, href: topicHref(t.theme), expand: { prompts, lines: [] } }
+    return { id: t.theme, text: t.theme, prompts: t.prompts, leader, lead: t.d, trend: t.trend, net: m?.d ?? 0, change: m ? (m.d > 0 ? 'gained' : 'lost') : 'none', step: t.d < 0 ? { label: `Win back ${t.theme.toLowerCase()}`, href: topicHref(t.theme) } : null, href: topicHref(t.theme), expand: { prompts, lines: [] } }
   })
   const frame = frameOf(o, d, prompt, x, {
     question: String(prompt ?? '').trim() ? titleFor(prompt, o) : 'Are we winning in AI search?',
     finding: finding.replace(' .', '.'),
     kpis: [
-      { label: 'Share of voice', value: me.at(-1), unit: '%', delta: me.at(-1) - me[i0], since },
-      { label: `Lead over ${top.name}`, value: lead, unit: ' pts', signed: true, delta: lead - lead0, since },
-      { label: 'Topics you lead', value: youLead, of: d.topicLead.length },
-      { label: 'Answers won', value: flow.won },
-      { label: 'Answers lost', value: flow.lost, bad: flow.lost > 0 },
+      { label: 'Share of voice', value: me.at(-1), unit: '%', delta: me.at(-1) - me[i0], since, spark: me },
+      { label: `Lead over ${top.name}`, value: lead, unit: ' pts', signed: true, delta: lead - lead0, since, spark: me.map((v, i) => v - top.series[i]) },
+      { label: 'Topics you lead', value: youLead, of: d.topicLead.length, segments: { n: youLead, of: d.topicLead.length, tone: 'primary' } },
+      { label: 'Answers won', value: flow.won, columns: wonLost(d), columnsShow: 'won' },
+      { label: 'Answers lost', value: flow.lost, bad: flow.lost > 0, columns: wonLost(d), columnsShow: 'lost' },
     ],
-    left: {
-      kind: 'lines', label: 'Share of voice by week', unit: '%', max: 100, dates: DATES.slice(i0),
-      legend: [{ key: 'you', label: d.name, tone: 'primary' }, { key: 'top', label: top.name, tone: 'rival' }, { key: 'others', label: 'All other brands', tone: 'tint' }],
-      series: [{ key: 'you', label: d.name, tone: 'primary', width: 2.5, values: me.slice(i0) }, { key: 'top', label: top.name, tone: 'rival', width: 2, values: top.series.slice(i0) }, { key: 'others', label: 'All other brands', tone: 'tint', width: 1.5, values: others.slice(i0) }],
-    },
+    left: topicMap(d, asked),
     right: {
-      kind: 'standings', label: 'Where you stand', unit: '%',
-      rows: [{ key: youKey(d), name: d.name, domain: d.domain, from: me[i0], now: me.at(-1), tone: 'primary' }, ...rivals.map((r, i) => ({ key: r.key, name: r.name, domain: r.domain, from: r.series[i0], now: r.series.at(-1), tone: i === 0 ? 'rival' : 'tint' }))].sort((a, b) => b.now - a.now).slice(0, 5),
-      byEngine: { rows: on.map((e) => ({ id: e, name: ENGINE_NAMES[e], text: `${ENGINE_NAMES[e]} · ${wl(e)[0]} won · ${wl(e)[1]} lost` })), off: offEngines(d, asked) },
+      kind: 'grid', label: 'Where you stand', unit: '%', ranked: true,
+      cells: gridCells([
+        { key: youKey(d), label: d.name, domain: d.domain, n: me.at(-1), tone: 'primary', delta: me.at(-1) - me[i0], since },
+        ...rivals.map((r, i) => ({ key: r.key, label: r.name, domain: r.domain, n: r.series.at(-1), tone: i === 0 ? 'rival' : 'tint', delta: r.series.at(-1) - r.series[i0], worseUp: true, since })),
+        { key: 'others', label: 'Others', domain: null, n: Math.max(0, 100 - me.at(-1) - rivals.reduce((a, r) => a + r.series.at(-1), 0)), tone: 'neutral' },
+      ].filter((c) => c.n > 0)),
+      byEngine: { cols: ['Won', 'Lost'], rows: on.map((e) => ({ id: e, name: ENGINE_NAMES[e], won: wl(e)[0], lost: wl(e)[1] })), off: offEngines(d, asked) },
     },
     table: {
       title: 'Topics', searchLabel: 'Search topics', unit: 'topics', expandable: true,
-      columns: [{ key: 'text', label: 'Topic', kind: 'text' }, { key: 'prompts', label: 'Prompts', kind: 'num', sort: true }, { key: 'leader', label: 'Leader', kind: 'leader' }, { key: 'lead', label: 'Your lead', kind: 'lead', sort: true }, { key: 'net', label: 'Change', kind: 'change', unit: 'prompts', sort: true }, { key: 'step', label: 'Next step', kind: 'step' }],
+      columns: [{ key: 'text', label: 'Topic', kind: 'text' }, { key: 'prompts', label: 'Prompts', kind: 'num', sort: true }, { key: 'leader', label: 'Leader', kind: 'leader' }, { key: 'lead', label: 'Your lead', kind: 'lead', sort: true }, { key: 'trend', label: 'Trend', kind: 'trend' }, { key: 'net', label: 'Change', kind: 'change', unit: 'prompts', sort: true }, { key: 'step', label: 'Next step', kind: 'step' }],
       rows, filters: [], pageSize: 10,
     },
     pages: { label: 'Pages AI cites most', rows: d.cited.slice(0, 3).map((c) => ({ path: c.path, type: c.type, n: c.n })) },
@@ -766,10 +809,10 @@ function missingPrompts(o, d, x) {
     question: String(prompt ?? '').trim() ? titleFor(prompt, o) : 'Which prompts are we missing?',
     finding,
     kpis: [
-      { label: 'Prompts missing', value: missing, delta: missing - (d.prompts - d.series.named[i0]), worseUp: true, since },
-      { label: 'Competitor named instead', value: owned, delta: owned - d.ownedSeries[i0], worseUp: true, since },
-      { label: 'Nobody named', value: open },
-      { label: 'Topics with gaps', value: d.gaps.length },
+      { label: 'Prompts missing', value: missing, delta: missing - (d.prompts - d.series.named[i0]), worseUp: true, since, spark: d.series.named.map((n) => d.prompts - n), sparkTone: 'neutral' },
+      { label: 'Competitor named instead', value: owned, delta: owned - d.ownedSeries[i0], worseUp: true, since, spark: d.ownedSeries, sparkTone: 'rival' },
+      { label: 'Nobody named', value: open, spark: d.series.named.map((n, i) => d.prompts - n - d.ownedSeries[i]), sparkTone: 'neutral' },
+      { label: 'Topics with gaps', value: d.gaps.length, segments: { n: d.gaps.filter((g) => g.owned > 0).length, of: d.gaps.length, tone: 'rival' } },
       { label: 'Named instead most', text: first(mostName), sub: `${most[1]} prompts` },
     ],
     left: {
@@ -778,8 +821,12 @@ function missingPrompts(o, d, x) {
       bands: gaps.map((g) => ({ label: g.theme, bars: [{ key: 'owned', value: g.owned, tone: 'rival' }, { key: 'open', value: g.missing - g.owned, tone: 'neutral' }] })),
     },
     right: {
-      kind: 'stacked', label: 'Who’s named',
-      bar: withShares([{ key: 'you', label: 'You', n: d.prompts - missing, tone: 'primary' }, { key: 'owned', label: 'A competitor instead', n: owned, tone: 'rival' }, { key: 'open', label: 'Nobody', n: open, tone: 'neutral' }]),
+      kind: 'grid', label: 'Who’s named', unit: 'prompts',
+      cells: gridCells([
+        { key: 'you', label: 'You', n: d.prompts - missing, tone: 'primary', delta: d.series.named.at(-1) - d.series.named[i0], since },
+        { key: 'owned', label: 'A competitor instead', n: owned, tone: 'rival', delta: owned - d.ownedSeries[i0], worseUp: true, since },
+        { key: 'open', label: 'Nobody', n: open, tone: 'neutral' },
+      ]),
       list: { label: 'Named instead', rows: owners.slice(0, 4).map(([k, n]) => ({ key: k, name: ownerName(k), domain: ownerDomain(k), n })) },
     },
     table: {
@@ -944,17 +991,19 @@ export const savedReports = [
 export const reportById = (id) => savedReports.find((r) => r.id === id) ?? null
 
 export const schedules = [
-  { id: 's-foa-week', reportId: 'r-foa-week', title: 'Weekly summary', brand: 'foa', cadence: 'Mondays 9am', recipients: ['Dana Wells', 'Priya Shah'], next: 'Nov 2', when: 'next Monday 9am' },
-  { id: 's-foa-ceo', reportId: 'r-foa-ceo', title: 'CEO summary', brand: 'foa', cadence: '1st of the month 8am', recipients: ['Graham Fox'], next: 'Nov 1', when: 'Sunday, Nov 1, 8am' },
-  { id: 's-ds-week', reportId: 'r-ds-week', title: 'Weekly summary', brand: 'dermasuri', cadence: 'Mondays 9am', recipients: ['Mia Chen'], next: 'Nov 2', when: 'next Monday 9am' },
-  { id: 's-ds-client', reportId: 'r-ds-client', title: 'Client update', brand: 'dermasuri', cadence: 'Every other Friday 10am', recipients: ['Mia Chen', 'Leo Park', 'Ana Ruiz'], next: 'Nov 6', when: 'Friday, Nov 6, 10am' },
+  { id: 's-foa-week', reportId: 'r-foa-week', title: 'Weekly summary', brand: 'foa', cadence: 'Mondays 9am', runs: 'Every Monday, 9:00', recipients: ['Dana Wells', 'Priya Shah'], next: 'Nov 2', nextAt: 'Mon · Nov 2 · 9:00', when: 'next Monday 9am', delivery: 'Email · PDF', last: { date: 'Oct 26', status: 'delivered' }, on: true },
+  { id: 's-foa-ceo', reportId: 'r-foa-ceo', title: 'CEO summary', brand: 'foa', cadence: '1st of the month 8am', runs: 'Monthly on the 1st, 8:00', recipients: ['Graham Fox'], next: 'Nov 1', nextAt: 'Sun · Nov 1 · 8:00', when: 'Sunday, Nov 1, 8am', delivery: 'Email · PDF', last: { date: 'Oct 1', status: 'delivered' }, on: true },
+  { id: 's-ds-week', reportId: 'r-ds-week', title: 'Weekly summary', brand: 'dermasuri', cadence: 'Mondays 9am', runs: 'Every Monday, 9:00', recipients: ['Mia Chen'], next: 'Nov 2', nextAt: 'Mon · Nov 2 · 9:00', when: 'next Monday 9am', delivery: 'Email · PDF', last: { date: 'Oct 26', status: 'delivered' }, on: true },
+  { id: 's-ds-client', reportId: 'r-ds-client', title: 'Client update', brand: 'dermasuri', cadence: 'Every other Friday 10am', runs: 'Every other Friday, 10:00', recipients: ['Mia Chen', 'Leo Park', 'Ana Ruiz'], next: 'Nov 6', nextAt: 'Fri · Nov 6 · 10:00', when: 'Friday, Nov 6, 10am', delivery: 'Link', last: { date: 'Oct 23', status: 'failed' }, on: true },
+  { id: 's-ds-gap', reportId: 'r-ds-cerave', title: 'Competitor gap', brand: 'dermasuri', cadence: 'After each sync', runs: 'After each sync', recipients: ['Mia Chen', 'Leo Park'], next: 'Nov 2', nextAt: 'Mon · Nov 2 · after the sync', when: 'after the Nov 2 sync', delivery: 'Email · PDF', last: { date: 'Oct 26', status: 'delivered' }, on: false },
 ]
 
 // generating: the steps the page ticks off (counts from the data)
 export function stepsFor(o) {
   const d = dataFor(o.brand)
   const n = d ? 1 + (o.compare?.length ? o.compare.length : d.rivals.length) : 0
-  return [...(o.kind === 'custom' ? ['Reading your question'] : []), `Reading ${d?.prompts ?? 0} prompts`, `Comparing ${n} brands`, 'Writing the summary']
+  const syncs = DATES.length - startIdx(o.period)
+  return [...(o.kind === 'custom' ? ['Reading your question'] : []), `Reading ${syncs} syncs`, `Comparing ${n} brands`, 'Writing the summary']
 }
 
 // ---- the library (All reports) ----------------------------------------------------------------------------------

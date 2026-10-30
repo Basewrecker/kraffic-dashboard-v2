@@ -489,6 +489,14 @@ html[data-theme="dark"] {
   }
 }
 @keyframes rep-tip { from { opacity: 0; } to { opacity: 1; } }
+/* Reports motion (≤500ms, ease-out, once on first view): bars grow from the baseline, lines draw left to right, squares
+   and tiles fill in, bands fade up 8px when a report is ready. All off under prefers-reduced-motion. */
+@keyframes rep-grow { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes rep-grow-x { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes rep-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+@keyframes rep-fill { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rep-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { [class*="rep-"], .shimmer { animation: none !important; } }
 
 /* Reports thread: the question bubble (tint in light, the raised layer in dark) and the send / back motion */
 :root { --bubble: var(--tint); }

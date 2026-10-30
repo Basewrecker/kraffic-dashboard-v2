@@ -13,7 +13,7 @@ import { DotAssemble } from './DotField'
 import { Block, Thumb, blockName, explainFor } from './blocks'
 import { BetaTag, brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
 import { ContentsRail, FollowUps } from './library'
-import ReportFrame from './frame'
+import ReportFrame, { FrameSkeleton } from './frame'
 
 // Reports as a chat thread, ChatGPT-style. /reports is the empty state: a greeting and the box at the centre. Sending
 // turns the page into a thread in one motion: the greeting fades up and out, the box glides to the bottom and docks
@@ -372,7 +372,7 @@ function Thread({ rest, mock, greeting, inter }) {
           style={{ left: ghost.rect.left, top: ghost.rect.top, width: ghost.rect.width, animation: `greet-out 150ms ${EASE} both` }}
           onAnimationEnd={() => setGhost(null)}>{ghost.text}</h1>
       )}
-      {dotsFor && turns.find((t) => t.id === dotsFor)?.built?.ok && (
+      {dotsFor && turns.find((t) => t.id === dotsFor)?.built?.ok && !turns.find((t) => t.id === dotsFor).built.v3 && (
         <DotAssemble brandId={turns.find((t) => t.id === dotsFor).opts.brand} kind={turns.find((t) => t.id === dotsFor).built.kind} targetRef={heroRef} fromRef={dock}
           done={turns.find((t) => t.id === dotsFor).status !== 'steps'} />
       )}
@@ -423,6 +423,7 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
   if (t.status === 'cancelled') return <p className={`${col} text-[14px] ${t3}`}>Stopped. Nothing was saved; change the question below and send it again.</p>
   if (t.status === 'steps') {
     const steps = stepsFor(t.opts)
+    if (t.built.v3) return <div ref={heroRef} className="mx-auto w-full max-w-[1264px] px-2"><FrameSkeleton steps={steps} step={t.step} /></div>
     return (
       <div className="flex flex-col gap-5">
         <div className={`${col} flex items-start justify-between gap-3`}>
@@ -471,7 +472,7 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
             </div>
           )}
           {t.built.v3 ? (
-            <div className="mx-auto w-full max-w-[1264px] px-2"><ReportFrame built={t.built} onPeriod={isLatest ? frameActions.period : undefined} actions={actions} onSchedule={frameActions.schedule} /></div>
+            <div className="mx-auto w-full max-w-[1264px] px-2"><ReportFrame built={t.built} live={t.live} onPeriod={isLatest ? frameActions.period : undefined} actions={actions} onSchedule={frameActions.schedule} /></div>
           ) : (
           <article ref={article} aria-label={t.built.title} className={t.built.v2 ? ARTICLE2 : ARTICLE}>
             {t.built.v2

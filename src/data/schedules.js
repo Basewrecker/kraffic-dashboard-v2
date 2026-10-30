@@ -14,6 +14,7 @@ export const daysBetween = (a, b) => Math.round((dayOnly(b) - dayOnly(a)) / DAY)
 // "1st of the month 8am" → { every: 'month', monthDay: 1, time: '8am' }. null when it can't be read.
 export function parseCadence(cadence) {
   const s = String(cadence ?? '').trim()
+  if (/after each sync/i.test(s)) return { every: 'week', weekday: 1, time: null, sync: true } // syncs run on Mondays
   const time = s.match(/(\d{1,2}(?::\d{2})?\s?[ap]m)$/i)?.[1]?.replace(/\s/g, '').toLowerCase() ?? null
   const m = s.match(/^(\d{1,2})(?:st|nd|rd|th) of (?:the|each) month/i)
   if (m) return { every: 'month', monthDay: Number(m[1]), time }
@@ -26,6 +27,7 @@ export function parseCadence(cadence) {
 export function cadenceLabel(cadence) {
   const c = parseCadence(cadence)
   if (!c) return cadence
+  if (c.sync) return 'After each sync'
   const when = c.every === 'month' ? `${ordinal(c.monthDay)} of each month` : `${c.every === '2weeks' ? 'Every other' : 'Every'} ${WEEKDAYS[c.weekday]}`
   return c.time ? `${when} · ${c.time}` : when
 }
@@ -33,6 +35,7 @@ export function cadenceLabel(cadence) {
 export function cadenceSentence(cadence) {
   const c = parseCadence(cadence)
   if (!c) return cadence
+  if (c.sync) return 'after each sync'
   const when = c.every === 'month' ? `on the ${ordinal(c.monthDay)} of each month` : `${c.every === '2weeks' ? 'every other' : 'every'} ${WEEKDAYS[c.weekday]}`
   return c.time ? `${when} at ${c.time}` : when
 }

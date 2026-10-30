@@ -121,7 +121,7 @@ test('suggestions: four, the competitor one names the closest tracked rival; eac
 
 test('the thread: the options line, the follow-up chips (each one understood), and a new report kept with the saved ones', () => {
   assert.equal(optsLine({ period: 'week', audience: 'team', length: 'one' }), 'This week · Team · One page')
-  assert.deepEqual(stepsFor({ brand: 'foa', period: 'week' }), ['Reading 113 prompts', 'Comparing 7 brands', 'Writing the summary'])
+  assert.deepEqual(stepsFor({ brand: 'foa', period: 'week' }), ['Reading 2 syncs', 'Comparing 7 brands', 'Writing the summary'])
   const w = buildReport({ brand: 'dermasuri', kind: 'weekly', period: 'week', length: 'detailed' })
   assert.deepEqual(followUpsFor(w).map((c) => c.text), ['Make it shorter', 'Focus on CeraVe', 'Make a client version', 'Only AI Overview answers'])
   for (const c of followUpsFor(w)) assert.ok(refine(w.opts, c.text), c.text)
@@ -136,14 +136,14 @@ test('the thread: the options line, the follow-up chips (each one understood), a
 
 test('the library: brand-scoped series (with their runs) and one-off reports', () => {
   const ds = library('dermasuri')
-  assert.deepEqual(ds.series.map((x) => x.title), ['Weekly summary', 'Client update'])
-  assert.equal(ds.scheduled, 2)
+  assert.deepEqual(ds.series.map((x) => x.title), ['Weekly summary', 'Client update', 'Competitor gap'])
+  assert.equal(ds.scheduled, 3)
   assert.ok(ds.oneOffs.every((r) => r.brand === 'dermasuri'))
-  assert.ok(ds.oneOffs.some((r) => r.id === 'r-ds-cerave'))
-  assert.ok(!ds.oneOffs.some((r) => ['r-ds-week', 'r-ds-client'].includes(r.id)), 'a scheduled report is a series, not a one-off')
+  assert.ok(!ds.oneOffs.some((r) => ['r-ds-week', 'r-ds-client', 'r-ds-cerave'].includes(r.id)), 'a scheduled report is a series, not a one-off')
+  assert.ok(library('foa').oneOffs.some((r) => r.id === 'r-foa-longbridge'))
   const all = library()
-  assert.equal(all.series.length, 4)
-  assert.equal(all.scheduled, 4)
+  assert.equal(all.series.length, 5)
+  assert.equal(all.scheduled, 5)
   assert.deepEqual(new Set(all.oneOffs.map((r) => r.brand)), new Set(['foa', 'dermasuri']))
   assert.deepEqual(library('lumen').series, [])
 })
@@ -181,9 +181,11 @@ test('the standard frame: every kind is a header · KPI strip · two visuals · 
       assert.ok(f.question && f.finding, k)
       assert.ok(f.kpis.length >= 4 && f.kpis.length <= 5, k)
       for (const x of f.kpis) assert.ok(x.label && (x.value != null || x.text), `${k}: ${x.label}`)
-      assert.ok(['columns', 'lines'].includes(f.left.kind), k)
+      assert.ok(['columns', 'lines', 'treemap'].includes(f.left.kind), k)
       assert.ok(f.left.label && f.left.legend.length >= 1 && f.left.legend.length <= 3, k)
-      assert.ok(['stacked', 'diverging', 'standings'].includes(f.right.kind) && f.right.label, k)
+      assert.ok(['grid', 'diverging'].includes(f.right.kind) && f.right.label, k)
+      if (f.right.kind === 'grid') assert.equal(f.right.cells.reduce((a, c) => a + c.cells, 0), 100, `${k}: 100 squares`)
+      for (const x of f.kpis) if (x.spark) assert.equal(x.spark.length, 8, `${k}: ${x.label} spark`)
       if (f.right.byEngine) {
         assert.ok(f.right.byEngine.rows.every((e) => d.ran.includes(e.id)), `${k}: only engines that ran`)
         assert.deepEqual(f.right.byEngine.off, Object.keys(ENGINE_NAME).filter((e) => !d.ran.includes(e)).map((e) => ENGINE_NAME[e]), `${k}: the ones that didn’t`)
@@ -211,7 +213,10 @@ test('weekly summary (frame): the KPIs, the 8-week chart, the net change by topi
   assert.deepEqual(f.right.rows.filter((x) => x.d === 0).map((x) => x.label), ['Moisturising', 'Body wash'])
   assert.deepEqual(f.right.byEngine.rows.map((e) => e.text), ['AI Overview +6', 'ChatGPT +1 (3 won, 2 lost)'])
   assert.deepEqual(f.right.byEngine.off, ['Gemini', 'Claude'])
-  assert.deepEqual(f.table.columns.map((c) => c.key), ['text', 'net', 'engines', 'step'])
+  assert.deepEqual(f.table.columns.map((c) => c.key), ['text', 'net', 'trend', 'engines', 'step'])
+  assert.deepEqual(f.right.byEngine.rows.map((e) => [e.name, e.won, e.lost]), [['AI Overview', 6, 0], ['ChatGPT', 3, 2]])
+  assert.deepEqual(f.kpis[1].columns.map((c) => c.won), d.wonSeries)
+  for (let i = 1; i < 8; i++) assert.equal(d.wonSeries[i] - d.lostSeries[i], d.series.named[i] - d.series.named[i - 1], `week ${i}: won − lost is the change in prompts named`)
   assert.equal(f.table.expandable, true)
   const rows = Object.fromEntries(f.table.rows.map((x) => [x.text, x]))
   assert.equal(rows['Keratosis pilaris'].net, 4)
@@ -255,10 +260,11 @@ test('competitor gap (frame): the KPIs lead with the prompts they win; the chart
     const leads = f.left.bands.map((b) => b.bars[0].value - b.bars[1].value)
     assert.deepEqual(leads, [...leads].sort((a, b) => b - a), 'by our lead')
     assert.deepEqual(f.left.legend.map((l) => l.tone), ['primary', 'rival'])
-    assert.deepEqual(f.right.bar.map((x) => x.n), [ours, theirs, h.neither])
-    assert.equal(f.right.bar.reduce((a, x) => a + x.n, 0), d.prompts, 'every prompt once')
-    assert.equal(f.right.bar.reduce((a, x) => a + x.share, 0), 100)
-    for (const e of f.right.byEngine.rows) { assert.equal(e.segs.reduce((a, x) => a + x.n, 0), d.prompts, e.name); assert.equal(e.note, `${h.engines[e.id].n} lost`) }
+    assert.deepEqual(f.right.cells.map((x) => x.n), [ours, theirs, h.neither])
+    assert.equal(f.right.cells.reduce((a, x) => a + x.n, 0), d.prompts, 'every prompt once')
+    assert.equal(f.right.cells.reduce((a, x) => a + x.cells, 0), 100, 'scaled to 100 squares')
+    for (const e of f.right.byEngine.rows) { assert.equal(e.won, h.engines[e.id].you, e.name); assert.equal(e.lost, h.engines[e.id].n, e.name) }
+    assert.deepEqual(f.kpis[3].segments, { n: h.byTopic.filter((t) => t.them > t.you).length, of: h.byTopic.length, tone: 'rival' })
     assert.equal(f.table.rows.length, theirs)
     for (const x of f.table.rows) { assert.ok(x.topic && x.engineName && x.result && x.page?.n, x.text); assert.equal(x.strong, x.result.startsWith('Only ')) }
     for (const [e, c] of Object.entries(h.engines)) assert.equal(f.table.rows.filter((x) => x.engine === e).length, c.n, e)
@@ -276,16 +282,21 @@ test('CEO summary (frame): the finding, the KPIs, share of voice by week (3 line
   assert.deepEqual(f.kpis.map((x) => [x.label, x.value, x.delta ?? null]), [['Share of voice', 73, 7], ['Lead over CeraVe', 55, 10], ['Topics you lead', 4, null], ['Answers won', 18, null], ['Answers lost', 4, null]])
   assert.ok(f.kpis.filter((x) => x.delta != null).every((x) => x.since === 'Sep 28'))
   assert.equal(f.kpis[2].of, 6)
-  assert.equal(f.left.kind, 'lines')
-  assert.equal(f.left.max, 100)
-  assert.deepEqual(f.left.series.map((s) => [s.label, s.tone, s.width]), [['Dermasuri', 'primary', 2.5], ['CeraVe', 'rival', 2], ['All other brands', 'tint', 1.5]])
-  assert.equal(f.left.series[0].values.length, f.left.dates.length)
-  assert.deepEqual(f.left.series[2].values, d.share.theordinary.slice(3).map((v, i) => v + d.share.paulaschoice.slice(3)[i]))
-  assert.equal(f.right.kind, 'standings')
-  assert.deepEqual(f.right.rows.map((x) => x.tone), ['primary', 'rival', 'tint', 'tint'])
-  assert.deepEqual(f.right.rows.map((x) => x.now), [...f.right.rows.map((x) => x.now)].sort((a, b) => b - a))
-  assert.deepEqual(f.right.byEngine.rows.map((e) => e.text), ['AI Overview · 11 won · 1 lost', 'ChatGPT · 7 won · 3 lost'])
-  assert.deepEqual(f.table.columns.map((c) => c.key), ['text', 'prompts', 'leader', 'lead', 'net', 'step'])
+  // the topic map: a tile per topic sized by its prompts, coloured by who leads, per engine too; every brand's share in the tooltip
+  assert.equal(f.left.kind, 'treemap')
+  assert.deepEqual(f.left.engines, ['aio', 'chatgpt'])
+  assert.equal(f.left.tiles.length, d.topicLead.length)
+  for (const [i, t] of f.left.tiles.entries()) { const tl = d.topicLead[i]; assert.equal(t.prompts, tl.prompts); assert.equal(t.lead, tl.d); assert.equal(t.leader, tl.d > 0 ? 'you' : tl.who === 'CeraVe' ? 'rival' : 'other'); assert.ok(t.shares.length >= 4 && t.shares.reduce((a, x) => a + x.share, 0) === 100, t.label); assert.deepEqual(Object.keys(t.byEngine), ['aio', 'chatgpt']) }
+  // where you stand: the square grid by share of voice, ranked, with the change since the start
+  assert.equal(f.right.kind, 'grid')
+  assert.equal(f.right.ranked, true)
+  assert.deepEqual(f.right.cells.map((x) => [x.label, x.n, x.tone]), [['Dermasuri', 73, 'primary'], ['CeraVe', 18, 'rival'], ['The Ordinary', 4, 'tint'], ['Paula’s Choice', 3, 'tint'], ['Others', 2, 'neutral']])
+  assert.equal(f.right.cells[0].delta, 7)
+  assert.deepEqual(f.right.byEngine.rows.map((e) => [e.name, e.won, e.lost]), [['AI Overview', 11, 1], ['ChatGPT', 7, 3]])
+  assert.deepEqual(f.kpis[2].segments, { n: 4, of: 6, tone: 'primary' })
+  assert.deepEqual(f.kpis[3].columns.at(-1), { won: 9, lost: 2 })
+  assert.deepEqual(f.table.columns.map((c) => c.key), ['text', 'prompts', 'leader', 'lead', 'trend', 'net', 'step'])
+  assert.ok(f.table.rows.every((x) => x.trend.length === 8))
   assert.deepEqual(f.table.rows.map((x) => x.text), d.topicLead.map((t) => t.theme))
   for (const [i, x] of f.table.rows.entries()) {
     const t = d.topicLead[i]
@@ -314,7 +325,7 @@ test('missing prompts (frame): the KPIs add up; missing by topic; who’s named;
     assert.ok(f.kpis[4].text)
     assert.equal(f.left.bands.length, d.gaps.length)
     for (const b of f.left.bands) { const g = d.gaps.find((x) => x.theme === b.label); assert.equal(b.bars[0].value + b.bars[1].value, g.missing, b.label) }
-    assert.equal(f.right.bar.reduce((a, x) => a + x.n, 0), d.prompts)
+    assert.equal(f.right.cells.reduce((a, x) => a + x.n, 0), d.prompts)
     assert.ok(f.right.list.rows.length > 0)
     assert.equal(f.table.rows.length, d.gaps.length)
     for (const x of f.table.rows) { assert.ok(x.leader.name && x.step.label && words(x.step.label) <= 6, x.text); assert.ok(x.expand.prompts.length > 0) }
@@ -329,7 +340,7 @@ test('custom question (frame): the frame that answers it, one "How I read your q
   assert.match(c.frame.read, /^How I read your question: Prompts where AI names Longbridge Financial/)
   assert.match(c.frame.read, /vs Longbridge Financial · Sep 28 – Oct 26 · AI Overview, ChatGPT, Gemini$/)
   assert.equal(c.frame.question, 'Show the answers where Longbridge is named')
-  assert.equal(c.frame.right.kind, 'stacked')
+  assert.equal(c.frame.right.kind, 'grid')
   assert.equal(c.frame.frequency, 'once')
   assert.deepEqual(stepsFor(c.opts)[0], 'Reading your question')
   // a topic: that topic alone, and what the data doesn't hold
