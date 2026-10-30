@@ -86,7 +86,7 @@ export function HeadToHead({ v }) {
   const spans = segs.map((s) => { const from = at; at += s.n; return { ...s, mid: ((from + s.n / 2) / v.total) * 100 } })
   const tip = hi != null ? spans[hi] : null
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => ({ f, n: Math.round(v.total * f) }))
-  const fg = (s) => (s.tone === 'none' ? 'var(--color-stone-600)' : s.tone === 'both' ? 'var(--color-stone-900)' : s.tone === 'you' ? 'var(--on-ink)' : '#FFFFFF')
+  const fg = (s) => (s.tone === 'none' ? 'var(--color-stone-600)' : s.tone === 'both' ? 'var(--color-stone-900)' : s.tone === 'you' ? 'var(--on-ink)' : 'var(--pie-on-c1)')
   return (
     <figure className="w-full">
       <figcaption className={LABEL}>Every tracked prompt, once: who AI names on it</figcaption>

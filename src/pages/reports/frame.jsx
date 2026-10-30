@@ -11,8 +11,8 @@ import { menuItem } from './parts'
 // the source line and "Showing N of M" in its footer. Flat cards on a 1px hairline, 12px radius, 24px padding, 16px
 // apart, no shadow. Weights 400 / 600 (the main value 500), sentence case, tabular numbers. One matched family: the
 // primary and its tint (us), the rival and its tint, a neutral (nobody); green / red only in the change chips and
-// losing values. No motion on load; the tooltip fades in, rows tint on hover, dropdowns open.
-const TONE = { primary: 'var(--rep-primary)', tint: 'var(--rep-primary-tint)', rival: 'var(--rep-rival)', rivalTint: 'var(--rep-rival-tint)', neutral: 'var(--rep-neutral)', bad: 'var(--rep-down-fg)', good: 'var(--rep-up-fg)' }
+// losing values. Nothing below full opacity at rest: the 35% dim applies only to the other groups while one is hovered. No motion on load; the tooltip fades in, rows tint on hover, dropdowns open.
+const TONE = { primary: 'var(--rep-primary)', tint: 'var(--rep-primary-tint)', rival: 'var(--rep-rival)', neutral: 'var(--rep-neutral)', bad: 'var(--rep-down-fg)', good: 'var(--rep-up-fg)' }
 const CARD = 'rounded-xl border border-[var(--rep-line)] bg-surface'
 const OUTLINE = 'inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-[10px] border border-[var(--rep-line)] bg-surface px-4 text-[15px] leading-5 text-stone-900 outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus'
 const LABEL = 'text-[14px] leading-5 text-stone-600'

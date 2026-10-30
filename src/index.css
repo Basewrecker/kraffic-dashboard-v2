@@ -469,24 +469,23 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
   .thumb-live:is(:hover, :focus-visible) [data-a="pop"] { animation: thumb-pop 520ms cubic-bezier(.34,1.56,.64,1) calc(var(--i) * 80ms + 120ms) both; }
 }
 
-/* Reports (the frame): one matched family (equal lightness and saturation): the primary and its tint (us), the rival and
-   its tint, a neutral (nobody); the card hairline, the table header fill, the dark tooltip, the green / red change chips.
-   Every blue and teal in Reports routes through these (the composer's send button too). Light here, dark below. */
+/* Reports (the frame): the dashboard's own chart colours, nothing invented. Us = the brand's chart colour (--line-you,
+   ink); the competitor = the dashboard's first competitor line (--line-1); the tint and the neutral = the graphite data
+   steps (--data-c2, --data-c4). They flip with the theme where they're defined. The card hairline, the table header
+   fill, the dark tooltip and the green / red change chips are the frame's own (light here, dark below). */
 :root {
-  --rep-primary: #3E71E9; --rep-primary-tint: #C4D8FF; --rep-rival: #00B8A4; --rep-rival-tint: #BEEDE4; --rep-neutral: #D6D7DB;
+  --rep-primary: var(--line-you); --rep-primary-tint: var(--data-c2); --rep-rival: var(--line-1); --rep-neutral: var(--data-c4);
   --rep-line: #EAECF0; --rep-head: #F9FAFB; --rep-tip: #101828; --rep-tip-line: #101828; --rep-tip-fg: #FFFFFF; --rep-tip-meta: #98A2B3;
-  --rep-up-fg: #12A150; --rep-up-bg: #E6F6EC; --rep-down-fg: #E5363D; --rep-down-bg: #FDECEC;
+  --rep-up-fg: #12A150; --rep-up-bg: #E6F6EC; --rep-down-fg: var(--negative); --rep-down-bg: #FDECEC;
 }
 html[data-theme="dark"] {
-  --rep-primary: #588CFF; --rep-primary-tint: #294072; --rep-rival: #25CBB7; --rep-rival-tint: #19524A; --rep-neutral: #3C3D40;
   --rep-line: #232323; --rep-head: #161616; --rep-tip: #1B1B1B; --rep-tip-line: #333333; --rep-tip-fg: #ECECEC; --rep-tip-meta: #8E8E8E;
-  --rep-up-fg: #34D27B; --rep-up-bg: rgba(52,210,123,.14); --rep-down-fg: #FF5A5F; --rep-down-bg: rgba(255,90,95,.14);
+  --rep-up-fg: #34D27B; --rep-up-bg: rgba(52,210,123,.14); --rep-down-bg: rgba(255,90,95,.14);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --rep-primary: #588CFF; --rep-primary-tint: #294072; --rep-rival: #25CBB7; --rep-rival-tint: #19524A; --rep-neutral: #3C3D40;
     --rep-line: #232323; --rep-head: #161616; --rep-tip: #1B1B1B; --rep-tip-line: #333333; --rep-tip-fg: #ECECEC; --rep-tip-meta: #8E8E8E;
-    --rep-up-fg: #34D27B; --rep-up-bg: rgba(52,210,123,.14); --rep-down-fg: #FF5A5F; --rep-down-bg: rgba(255,90,95,.14);
+    --rep-up-fg: #34D27B; --rep-up-bg: rgba(52,210,123,.14); --rep-down-bg: rgba(255,90,95,.14);
   }
 }
 @keyframes rep-tip { from { opacity: 0; } to { opacity: 1; } }
@@ -503,7 +502,7 @@ html[data-theme="dark"] { --bubble: var(--color-raised); }
 @media (prefers-reduced-motion: reduce) { .thread-motion, .thread-motion * { animation-duration: 1ms !important; animation-delay: 0ms !important; } }
 /* The Reports composer's send button: ChatGPT's blue, the same in light and dark. The app's one accent colour, a
    deliberate exception to the no-accent rule, used for this button only. */
-:root { --send: var(--rep-primary); --send-hover: color-mix(in srgb, var(--rep-primary) 88%, #000); --send-active: color-mix(in srgb, var(--rep-primary) 78%, #000); --send-fg: #FFFFFF; } /* the report family's primary; --send-fg: the icon (not text-white, which dark mode remaps) */
+:root { --send: #3C65C0; --send-hover: #3558AA; --send-active: #2F4E97; --send-fg: #FFFFFF; } /* --send-fg: the icon (not text-white, which dark mode remaps) */
 
 /* Reports thread: a thin overlay-style scrollbar, hidden at rest. It shows while scrolling or hovering the scroll area
    (data-sb="on", set by the page) and fades out ~800ms after. Chrome / Safari: the thumb takes the element's border

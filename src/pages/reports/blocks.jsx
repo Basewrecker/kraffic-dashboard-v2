@@ -840,7 +840,7 @@ function Quadrant({ v }) {
           {block('onlyYou', v.onlyYou, 'Only you', null, { background: INK }, 'var(--color-on-ink)')}
         </div>
         <div className="flex min-w-0 flex-col gap-1.5" style={{ flexGrow: Math.max(not, named * 0.3), flexBasis: 0 }}>
-          {block('onlyThem', v.onlyThem, `Only ${v.them}`, null, { background: v.color }, '#FFFFFF')}
+          {block('onlyThem', v.onlyThem, `Only ${v.them}`, null, { background: v.color }, 'var(--pie-on-c1)')}
           {block('neither', v.neither, 'Neither', null, { boxShadow: 'inset 0 0 0 1px var(--color-stone-300)', backgroundImage: 'none' }, 'var(--color-stone-600)')}
         </div>
       </div>
