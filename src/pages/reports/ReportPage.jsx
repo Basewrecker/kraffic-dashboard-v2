@@ -6,12 +6,14 @@ import Switch from '../../components/ui/Switch'
 import ActionMenu from '../../components/audit/ActionMenu'
 import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate } from '../../router'
-import { addReport, buildReport, optsLine, refine, refineSuggestions, reportById, stepsFor, updateReport } from '../../data/reports'
+import { addReport, buildReport, dataFor, followUpsFor, inferOpts, optsLine, refine, reportById, stepsFor, updateReport } from '../../data/reports'
 import PillComposer from './PillComposer'
 import { pageFit } from '../../data/composer'
 import { DotAssemble } from './DotField'
 import { Block, Thumb, blockName, explainFor } from './blocks'
 import { BetaTag, brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
+import { ContentsRail, FollowUps } from './library'
+import ReportFrame, { FrameSkeleton } from './frame'
 
 // Reports as a chat thread, ChatGPT-style. /reports is the empty state: a greeting and the box at the centre. Sending
 // turns the page into a thread in one motion: the greeting fades up and out, the box glides to the bottom and docks
@@ -24,13 +26,14 @@ import { BetaTag, brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from '.
 
 const STEP_MS = 850
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
-const FIXED = new Set(['hero', 'sources']) // the fixed bands: explain only
+const FIXED = new Set(['hero', 'v2hero', 'v2read', 'sources']) // the fixed bands: explain only
 const FIRST_MOVABLE = 1 // after the hero band
 const GREETINGS = { 1: 'What would you like a report on?', 2: 'What should we look into today?', 3: 'What’s on your mind today?' }
 const REFINE_ICONS = [Minimize2, Plus, Crosshair, UserRound]
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 // 01 What moved · 02 Where you stand · … · the last number is What to do (the hero band isn't numbered)
 const numbers = (blocks) => { let n = 0; return blocks.map((b) => (['section', 'actions'].includes(b.type) ? ++n : null)) }
+const RAIL_FROM = 4 // a report with this many sections gets the contents rail
 const sameOpts = (a, b) => ['brand', 'period', 'audience', 'length'].every((k) => a[k] === b[k]) && ['engines', 'compare'].every((k) => (a[k] ?? []).join() === (b[k] ?? []).join())
 
 // a turn: the user's message (ask) and the reply — a report version (built from the report's question + options), or a
@@ -40,7 +43,6 @@ function makeTurn(ask, prompt, opts, { done = false, change = null } = {}) {
   const built = buildReport(opts, prompt)
   return { id: `t${++seq}`, ask, prompt, opts: built.opts ?? opts, built, blocks: built.ok ? built.blocks : [], status: !built.ok ? 'thin' : done ? 'done' : 'steps', step: 0, live: !done, change }
 }
-const noteTurn = (ask, note) => ({ id: `t${++seq}`, ask, note, status: 'note', live: true })
 
 function initFor(rest) {
   if (rest === '') return { mode: 'empty', turns: [], ownId: null }
@@ -257,21 +259,32 @@ function Thread({ rest, mock, greeting, inter }) {
       }
       return
     }
-    // in the thread: a change to the latest report (the box's dropdowns count as part of the change)
+    // in the thread: a follow-up chip, a change to the latest report (the box's dropdowns count as part of the change),
+    // or a new question, answered as a custom report
     setPrompt('')
     if (!latest) return
+    const chip = followUpsFor(latest.built).find((c) => c.text.toLowerCase() === text.toLowerCase())
+    if (chip) { ask(chip); return }
     const r = refine(opts, text)
     const next = r?.opts ?? (sameOpts(opts, latest.opts) ? null : opts)
-    if (!next) {
-      setTurns((ts) => [...ts, noteTurn(text, 'That isn’t a change a report can make yet. It can change the length, the audience, the engines, the period or the competitors: try “Make it shorter” or one of the suggestions.')])
-      return
-    }
-    const t = makeTurn(text, latest.prompt, next, { change: r?.change ?? 'Changed the options' })
+    if (next) { push(makeTurn(text, latest.prompt, next, { change: r?.change ?? 'Changed the options' })); return }
+    ask({ text, ask: true })
+  }
+  // a turn added to the thread: it becomes the latest version and is written
+  const push = (t) => {
     setTurns((ts) => [...ts, t])
     setOpts(t.opts)
     setOpen({})
-    if (own.current) updateReport(own.current, t.opts)
+    if (own.current) updateReport(own.current, t.opts, t.prompt)
     if (t.built.ok) run(t)
+  }
+  // a follow-up: a change the box understands (sets), or a new question (ask) read against the latest report's options
+  const ask = (c) => {
+    if (!latest) return
+    follow.current = true
+    if (!c.ask) { push(makeTurn(c.text, latest.prompt, { ...opts, ...c.sets }, { change: c.text })); return }
+    const inf = inferOpts(c.text, dataFor(opts.brand))
+    push(makeTurn(c.text, c.text, { ...latest.opts, kind: null, compare: inf.compare ?? latest.opts.compare, ...(c.sets ?? {}) }))
   }
 
   // block actions on a version: move, remove (with undo), explain
@@ -300,7 +313,7 @@ function Thread({ rest, mock, greeting, inter }) {
 
   const versions = turns.filter((t) => t.built?.ok)
   const thread = mode === 'thread'
-  const refineList = latest ? refineSuggestions(latest.opts.brand).map((text, i) => ({ id: `r${i}`, text, icon: REFINE_ICONS[i] })) : null
+  const refineList = latest ? followUpsFor(latest.built).map((c, i) => ({ id: c.id, text: c.text, icon: REFINE_ICONS[i] })) : null
   return (
     <div ref={pageRef} style={inter ? { fontFamily: "'Inter', var(--font-sans)" } : undefined}
       className={`thread-motion relative flex w-full flex-col ${thread ? '' : 'min-h-[calc(100dvh-88px)] lg:min-h-[calc(100dvh-72px)]'}`}>
@@ -318,7 +331,7 @@ function Thread({ rest, mock, greeting, inter }) {
       {thread && (
         <div key="scroll" className="relative -mx-4 min-h-0 flex-1 md:-mx-6">
           <div ref={scroller} data-scroll className="thread-scroll h-full overflow-y-auto overscroll-contain px-4 md:px-6">
-            <div ref={threadRef} className="mx-auto flex w-full max-w-[960px] flex-col gap-8 pb-12 pt-2">
+            <div ref={threadRef} className="mx-auto flex w-full max-w-[1264px] flex-col gap-8 pb-12 pt-2">
               {missing && (
                 <StateCard title="This report doesn’t exist any more">
                   It may have been deleted. <a href="/reports/all" onClick={linkClick('/reports/all')} className="font-medium text-stone-900 underline underline-offset-4">All reports</a>
@@ -331,7 +344,8 @@ function Thread({ rest, mock, greeting, inter }) {
                   <Turn key={t.id} t={t} n={n} isLatest={isLatest} many={versions.length > 1} heroRef={isLatest ? heroRef : null}
                     open={isLatest || !!open[t.id]} onToggle={() => setOpen((o) => ({ ...o, [t.id]: !o[t.id] }))}
                     onRetry={() => run(t)} onCancel={() => { clearTimeout(timers.current[t.id]); patch(t.id, { status: 'cancelled' }) }}
-                    explain={explain} setExplain={setExplain} move={(bid, d) => move(t, bid, d)} remove={(bid) => remove(t, bid)} actions={actionsFor(t)} />
+                    explain={explain} setExplain={setExplain} move={(bid, d) => move(t, bid, d)} remove={(bid) => remove(t, bid)} actions={actionsFor(t)} onFollowUp={ask}
+                    frameActions={{ period: (id, label) => ask({ text: label, sets: { period: id } }), schedule: () => setScheduling(true) }} />
                 )
               })}
             </div>
@@ -358,7 +372,7 @@ function Thread({ rest, mock, greeting, inter }) {
           style={{ left: ghost.rect.left, top: ghost.rect.top, width: ghost.rect.width, animation: `greet-out 150ms ${EASE} both` }}
           onAnimationEnd={() => setGhost(null)}>{ghost.text}</h1>
       )}
-      {dotsFor && turns.find((t) => t.id === dotsFor)?.built?.ok && (
+      {dotsFor && turns.find((t) => t.id === dotsFor)?.built?.ok && !turns.find((t) => t.id === dotsFor).built.v3 && (
         <DotAssemble brandId={turns.find((t) => t.id === dotsFor).opts.brand} kind={turns.find((t) => t.id === dotsFor).built.kind} targetRef={heroRef} fromRef={dock}
           done={turns.find((t) => t.id === dotsFor).status !== 'steps'} />
       )}
@@ -378,23 +392,23 @@ function useInterFont(on) {
 }
 
 // ---- one turn: the user's message on the right, then the reply
-function Turn({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCancel, explain, setExplain, move, remove, actions }) {
+function Turn({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCancel, explain, setExplain, move, remove, actions, onFollowUp, frameActions }) {
   const enter = (delay) => (t.live ? { animation: `bubble-in 200ms ${EASE} ${delay}ms both` } : undefined)
   return (
     <section aria-label={n ? `Version ${n}` : 'Message'} className="flex flex-col gap-5">
-      <div className="mx-auto flex w-full max-w-[760px] flex-col items-end gap-1.5" style={enter(100)}>
+      {!(t.built?.v3 && !t.change) && <div className="mx-auto flex w-full max-w-[760px] flex-col items-end gap-1.5" style={enter(100)}>
         <p className="max-w-[70%] rounded-[18px] px-4 py-2.5 text-[15px] leading-6 text-stone-900 [text-wrap:pretty]" style={{ background: 'var(--bubble)' }}>{t.ask}</p>
         {t.built?.ok && <span className={`px-1 text-[12px] leading-4 ${t3}`}>{optsLine(t.opts)}{many ? ` · v${n}` : ''}</span>}
-      </div>
+      </div>}
       <Reply t={t} n={n} isLatest={isLatest} many={many} heroRef={heroRef} open={open} onToggle={onToggle} onRetry={onRetry} onCancel={onCancel}
-        explain={explain} setExplain={setExplain} move={move} remove={remove} actions={actions} />
+        explain={explain} setExplain={setExplain} move={move} remove={remove} actions={actions} onFollowUp={onFollowUp} frameActions={frameActions} />
     </section>
   )
 }
 
-function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCancel, explain, setExplain, move, remove, actions }) {
+function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCancel, explain, setExplain, move, remove, actions, onFollowUp, frameActions }) {
   const col = 'mx-auto w-full max-w-[760px]'
-  if (t.status === 'note') return <p className={`${col} text-[15px] leading-6 ${t2}`} style={{ animation: `bubble-in 200ms ${EASE} 200ms both` }}>{t.note}</p>
+  const article = useRef(null)
   if (t.status === 'thin') return <div className={col}><NotEnough r={t.built} /></div>
   if (t.status === 'failed') {
     return (
@@ -409,6 +423,7 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
   if (t.status === 'cancelled') return <p className={`${col} text-[14px] ${t3}`}>Stopped. Nothing was saved; change the question below and send it again.</p>
   if (t.status === 'steps') {
     const steps = stepsFor(t.opts)
+    if (t.built.v3) return <div ref={heroRef} className="mx-auto w-full max-w-[1264px] px-2"><FrameSkeleton steps={steps} step={t.step} /></div>
     return (
       <div className="flex flex-col gap-5">
         <div className={`${col} flex items-start justify-between gap-3`}>
@@ -431,6 +446,14 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
     )
   }
   // a finished version: open, or (an earlier one) folded into a compact card
+  const rail = t.blocks.filter((b) => b.type === 'v2section').map((b) => ({ id: b.data.id, title: b.data.title }))
+  const bands = t.blocks.map((b, i) => (
+    <BlockFrame key={`${t.id}-${b.id}`} b={b} i={i} n={t.blocks.length} reveal={t.live} explainOpen={explain === `${t.id}|${b.id}`}
+      onExplain={() => setExplain((e) => (e === `${t.id}|${b.id}` ? null : `${t.id}|${b.id}`))} onUp={() => move(b.id, -1)} onDown={() => move(b.id, 1)} onRemove={() => remove(b.id)}
+      explainText={explainFor(b)}>
+      <Block block={b} title={t.built.title} n={numbers(t.blocks)[i]} />
+    </BlockFrame>
+  ))
   return (
     <div className="flex flex-col">
       {!open && (
@@ -448,16 +471,21 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
               <button type="button" onClick={onToggle} className="h-8 rounded-full px-3 text-[13px] font-medium text-stone-600 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Hide v{n}</button>
             </div>
           )}
-          <article aria-label={t.built.title} className={ARTICLE}>
-            {t.blocks.map((b, i) => (
-              <BlockFrame key={`${t.id}-${b.id}`} b={b} i={i} n={t.blocks.length} reveal={t.live} explainOpen={explain === `${t.id}|${b.id}`}
-                onExplain={() => setExplain((e) => (e === `${t.id}|${b.id}` ? null : `${t.id}|${b.id}`))} onUp={() => move(b.id, -1)} onDown={() => move(b.id, 1)} onRemove={() => remove(b.id)}
-                explainText={explainFor(b)}>
-                <Block block={b} title={t.built.title} n={numbers(t.blocks)[i]} />
-              </BlockFrame>
-            ))}
+          {t.built.v3 ? (
+            <div className="mx-auto w-full max-w-[1264px] px-2"><ReportFrame built={t.built} live={t.live} onPeriod={isLatest ? frameActions.period : undefined} actions={actions} onSchedule={frameActions.schedule} /></div>
+          ) : (
+          <article ref={article} aria-label={t.built.title} className={t.built.v2 ? ARTICLE2 : ARTICLE}>
+            {t.built.v2
+              ? <>{rail.length >= RAIL_FROM && <ContentsRail articleRef={article} items={rail} />}<div className="flex min-w-0 flex-col divide-y divide-[var(--div)]">{bands}</div></>
+              : bands}
           </article>
-          <div className="mx-auto mt-3 flex w-full max-w-[960px] flex-wrap items-center gap-x-1 gap-y-1" style={t.live ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
+          )}
+          {isLatest && (
+            <div className={`mx-auto w-full ${t.built.v3 ? 'mt-3 max-w-[1264px] px-2' : 'mt-4 max-w-[1200px]'}`} style={t.live && !t.built.v3 ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
+              <FollowUps items={followUpsFor(t.built)} onPick={onFollowUp} />
+            </div>
+          )}
+          {!t.built.v3 && <div className="mx-auto mt-3 flex w-full max-w-[1200px] flex-wrap items-center gap-x-1 gap-y-1" style={t.live ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
             {many && <span className={`mr-2 text-[13px] tabular-nums ${t3}`}>v{n}{t.change ? ` · ${t.change}` : ''}</span>}
             {actions.map((a) => (
               <button key={a.label} type="button" onClick={a.onClick}
@@ -465,7 +493,7 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
                 <a.icon size={15} aria-hidden />{a.label}
               </button>
             ))}
-          </div>
+          </div>}
         </div>
       </div>
     </div>
@@ -475,9 +503,11 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
 // the report card: the only container, at most 960 wide, 32px inside. Its bands (hero, sections, footer) are separated
 // by full-width hairlines with 40px above and below (each block's own padding)
 const ARTICLE = 'mx-auto flex w-full max-w-[960px] min-w-0 flex-col divide-y divide-[var(--div)] rounded-xl border border-line bg-surface px-8 py-2 max-md:px-4'
+// v2: up to 1100 wide; on large screens the contents rail (148px) sits left of the bands, which read at 760 and go wide for figures
+const ARTICLE2 = 'mx-auto w-full max-w-[1100px] min-w-0 rounded-xl border border-line bg-surface px-8 py-2 max-md:px-4 lg:grid lg:grid-cols-[148px_minmax(0,1fr)] lg:gap-x-10 lg:[&:not(:has(nav))]:block'
 
 // while it's written: only the hero's place, where the dots gather (short, so the question stays in view)
-const HERO_H = { weekly: 220, ceo: 240, rival: 280, content: 240 }
+const HERO_H = { weekly: 420, ceo: 420, rival: 420, content: 420, custom: 420 }
 function Skeleton({ kind, heroRef }) {
   return <div ref={heroRef} aria-hidden className="mx-auto w-full max-w-[960px]" style={{ height: HERO_H[kind] ?? 240 }} />
 }
@@ -619,8 +649,8 @@ function PrintView({ prompt, opts, title }) {
       </div>
       <div className="w-full overflow-x-auto">
         <div ref={sheet} className={`print-sheet mx-auto flex w-[210mm] flex-col gap-[6mm] bg-surface px-[14mm] py-[12mm] shadow-[0_1px_3px_rgba(0,0,0,0.08),0_12px_32px_-12px_rgba(0,0,0,0.18)] ${one ? 'h-[297mm] overflow-hidden' : 'min-h-[297mm]'}`}>
-          <div className="flex flex-col divide-y divide-[var(--div)]" style={{ zoom: 0.62, width: 960 }}>
-            {r.blocks.map((b, i) => <div key={b.id} className="py-8 [break-inside:avoid]"><Block block={b} title={title ?? r.title} n={numbers(r.blocks)[i]} /></div>)}
+          <div className="flex flex-col divide-y divide-[var(--div)]" style={{ zoom: r.v3 ? 0.56 : 0.62, width: r.v3 ? 1100 : 960 }}>
+            {r.v3 ? <ReportFrame built={r} print /> : r.blocks.map((b, i) => <div key={b.id} className="py-8 [break-inside:avoid]"><Block block={b} title={title ?? r.title} n={numbers(r.blocks)[i]} /></div>)}
           </div>
           <p className={`mt-auto text-[9px] ${t3}`}>Kraffic · {brandOf(r.opts.brand)?.name} · page 1 of 1</p>
         </div>

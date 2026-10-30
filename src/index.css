@@ -469,6 +469,35 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
   .thumb-live:is(:hover, :focus-visible) [data-a="pop"] { animation: thumb-pop 520ms cubic-bezier(.34,1.56,.64,1) calc(var(--i) * 80ms + 120ms) both; }
 }
 
+/* Reports (the frame): the dashboard's own chart colours, nothing invented. Us = the brand's chart colour (--line-you,
+   ink); the competitor = the dashboard's first competitor line (--line-1); the tint and the neutral = the graphite data
+   steps (--data-c2, --data-c4). They flip with the theme where they're defined. The card hairline, the table header
+   fill, the dark tooltip and the green / red change chips are the frame's own (light here, dark below). */
+:root {
+  --rep-primary: var(--line-you); --rep-primary-tint: var(--data-c2); --rep-rival: var(--line-1); --rep-neutral: var(--data-c4);
+  --rep-shadow: 0 1px 2px rgba(16,24,40,.05); --rep-line: #EAECF0; --rep-head: #F9FAFB; --rep-tip: #101828; --rep-tip-line: #101828; --rep-tip-fg: #FFFFFF; --rep-tip-meta: #98A2B3;
+  --rep-up-fg: #12A150; --rep-up-bg: #E6F6EC; --rep-down-fg: var(--negative); --rep-down-bg: #FDECEC;
+}
+html[data-theme="dark"] {
+  --rep-shadow: none; --rep-line: #232323; --rep-head: #161616; --rep-tip: #1B1B1B; --rep-tip-line: #333333; --rep-tip-fg: #ECECEC; --rep-tip-meta: #8E8E8E;
+  --rep-up-fg: #34D27B; --rep-up-bg: rgba(52,210,123,.14); --rep-down-bg: rgba(255,90,95,.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --rep-shadow: none; --rep-line: #232323; --rep-head: #161616; --rep-tip: #1B1B1B; --rep-tip-line: #333333; --rep-tip-fg: #ECECEC; --rep-tip-meta: #8E8E8E;
+    --rep-up-fg: #34D27B; --rep-up-bg: rgba(52,210,123,.14); --rep-down-bg: rgba(255,90,95,.14);
+  }
+}
+@keyframes rep-tip { from { opacity: 0; } to { opacity: 1; } }
+/* Reports motion (≤500ms, ease-out, once on first view): bars grow from the baseline, lines draw left to right, squares
+   and tiles fill in, bands fade up 8px when a report is ready. All off under prefers-reduced-motion. */
+@keyframes rep-grow { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes rep-grow-x { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes rep-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+@keyframes rep-fill { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rep-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { [class*="rep-"], .shimmer { animation: none !important; } }
+
 /* Reports thread: the question bubble (tint in light, the raised layer in dark) and the send / back motion */
 :root { --bubble: var(--tint); }
 html[data-theme="dark"] { --bubble: var(--color-raised); }
