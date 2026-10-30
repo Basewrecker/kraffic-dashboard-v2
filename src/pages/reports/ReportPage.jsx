@@ -506,7 +506,7 @@ const ARTICLE = 'mx-auto flex w-full max-w-[960px] min-w-0 flex-col divide-y div
 const ARTICLE2 = 'mx-auto w-full max-w-[1100px] min-w-0 rounded-xl border border-line bg-surface px-8 py-2 max-md:px-4 lg:grid lg:grid-cols-[148px_minmax(0,1fr)] lg:gap-x-10 lg:[&:not(:has(nav))]:block'
 
 // while it's written: only the hero's place, where the dots gather (short, so the question stays in view)
-const HERO_H = { weekly: 420, ceo: 240, rival: 420, content: 240, custom: 150 }
+const HERO_H = { weekly: 420, ceo: 420, rival: 420, content: 420, custom: 420 }
 function Skeleton({ kind, heroRef }) {
   return <div ref={heroRef} aria-hidden className="mx-auto w-full max-w-[960px]" style={{ height: HERO_H[kind] ?? 240 }} />
 }
