@@ -37,6 +37,8 @@ repo.
 - Nothing unpushed at session end; `git status` clean.
 
 ## 2. Design: this mock is the source of truth
+- **`DESIGN.md` is the design system** (tokens, type, colour rules, the Reports frame, the words and missing-data rules,
+  the design guides' order of authority). Read it before any UI change; when code and DESIGN.md disagree, fix one in the same change.
 - Every UI change is designed here first, with screenshots for the owner's review. Only after the owner approves is
   it ported to the app (by a session in the app repo, not from here).
 - **Port = copy this mock 1:1** into the app. The app may change only import paths, routing, the data source (through
