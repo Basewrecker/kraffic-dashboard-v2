@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import BetaTag from '../../components/ui/BetaTag'
 import { ArrowUpRight, Check, ChevronDown, RefreshCw, SearchX, Smile } from 'lucide-react'
 import SiteLogo from '../../components/ui/SiteLogo'
 import Modal from '../../components/ui/Modal'
@@ -14,14 +15,14 @@ import { EmptyState, ErrorCard, RunningLine } from '../../components/tool/ToolPa
 import { account, currentBrand, workspaceDirectory } from '../../data/mock'
 import { useIsMobile } from '../../hooks/useMedia'
 import {
-  TONES, TONE_LABEL, countTones, heroLine, runPages, scoreOf, sentimentFor, sentimentInsight, sortPages, tonePercents, withScores,
+  TONES, TONE_LABEL, countTones, heroLine, heroNote, runPages, scoreOf, sentimentFor, sentimentInsight, sortPages, tonePercents, withScores,
 } from '../../data/sentiment'
 import { alsoSaidOn, biggestChange, byReach, capStack, changeSummary, chartLayout, divergingStack, dotPlan, pageHref, ribbonsInto, groupThemes, layoutSwarm, lanesFor, leadQuote, matchIds, moveNote, neighbour, reachOf, scoreX, springEasing, staggerDelays, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen, toneChanges, topChange } from '../../utils/spectrum'
 import { fmtDay, lineBtn, t2, t3 } from './parts'
 
 // /sentiment: one visual page about how third-party pages talk about the brand.
 //   Header · the spectrum (every page a dot, placed by tone; hover for a quote, click for all of them; split by engine)
-//   · one insight · What AI reads about you (themes that hurt / work; a theme lights its pages, a dot opens its theme)
+//   · one insight · What AI says about you (themes that hurt / work; a theme lights its pages, a dot opens its theme)
 //   · Over time (each run's pages as dots + the score; a run swaps the spectrum to it) · All pages (collapsed, synced).
 // Production gives each page a tone only (no number), so dots sit in three bands. Data and logic: data/sentiment.js,
 // utils/spectrum.js. States: ?mock=never | running | nopages | error | one | calm (no negative pages).
@@ -77,7 +78,7 @@ export default function SentimentPage() {
   const pages = pagesOf(run)
   useEffect(() => { setRunId(null); setOpenKey(null); setTone(null) }, [domain])
 
-  // What AI reads about you: themes from the latest run (?mock=calm has nothing hurting)
+  // What AI says about you: themes from the latest run (?mock=calm has nothing hurting)
   const unlinked = q.get('themes') === 'unlinked'
   const swot = mock === 'calm' && data.swot ? { ...data.swot, weaknesses: [], threats: [] } : data.swot
   const groups = groupThemes(swot, latestPages)
@@ -159,8 +160,8 @@ function Header({ brand, domain, setDomain, engine, setEngine, running, onRun, h
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
       <div className="min-w-0">
-        <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Sentiment</h1>
-        <p className="mt-1 text-body text-stone-600">How third-party pages talk about {brand.name}.</p>
+        <div className="flex items-baseline gap-2.5"><h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Sentiment</h1><BetaTag tipAlign="left" className="-translate-y-[3px] lg:-translate-y-[6px]" /></div>
+        <p className="mt-1 text-body text-stone-600">How the pages AI cites describe {brand.name}.</p>
       </div>
       <div className="flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:gap-2.5">
         <Segmented label="Engine" value={engine} onChange={setEngine} options={options} className="max-lg:w-full" full={false} />
@@ -223,8 +224,8 @@ function Hero({ heroRef, prevDate, brand, run, isLatest, onLatest, pages, lit, e
               {run.delta == null ? 'First run' : run.delta === 0 ? `No change since ${fmtDay(prevDate)}` : `${run.delta < 0 ? '▼' : '▲'}${Math.abs(run.delta)} since ${fmtDay(prevDate)}`}
             </span>
           )}
-          <span className="mt-2 text-[15px] leading-[22px] text-stone-900 [text-wrap:pretty]">{heroLine(c)}</span>
-          <span className={`mt-3 text-[12px] leading-4 ${t3} [text-wrap:pretty]`}>Out of 100. 50 is even: as many pages speak well of you as badly.</span>
+          <span className="mt-2 text-[15px] leading-[22px] text-stone-900 [text-wrap:pretty]">{heroLine(score)}</span>
+          {c.positive + c.neutral + c.negative > 0 && <span className={`mt-3 text-[12px] leading-4 ${t3} [text-wrap:pretty]`}>{heroNote(c.positive + c.neutral + c.negative, brand.name)}</span>}
         </div>
         <div className="min-w-0">
           <div className="mb-2 flex items-center justify-between gap-3">
@@ -233,8 +234,7 @@ function Hero({ heroRef, prevDate, brand, run, isLatest, onLatest, pages, lit, e
             </span>
             <Switch checked={split} onChange={setSplit} spring>Split by engine</Switch>
           </div>
-          <Spectrum pages={pages} lit={lit} engine={engine} split={split} score={score} onDot={onDot} themeFor={themeFor} />
-          <Legend c={c} tone={tone} setTone={setTone} explain={explain} />
+          <Spectrum pages={pages} lit={lit} engine={engine} split={split} score={score} onDot={onDot} themeFor={themeFor} filter={{ c, tone, setTone, explain }} />
         </div>
       </div>
       {text && <div className="mt-6"><Insight explain={explain} text={text} evidence={{ keys: ['tones'], calc: `Pages per tone in the ${fmtDay(run.date)} run. Score = 50 + (positive − negative) ÷ pages × 50.` }} /></div>}
@@ -242,19 +242,25 @@ function Hero({ heroRef, prevDate, brand, run, isLatest, onLatest, pages, lit, e
   )
 }
 
-// "5 positive · 14 neutral · 2 negative": each one filters the dots (again: all)
-function Legend({ c, tone, setTone, explain }) {
+// the axis under the spectrum: three bands, "Negative 4 · Neutral 6 · Positive 4". With tone filtering (the hero), each
+// label filters the dots (again: all); elsewhere the labels are plain.
+const AXIS = [['negative', 'Negative', 1 / 6], ['neutral', 'Neutral', 1 / 2], ['positive', 'Positive', 5 / 6]]
+function Axis({ plotW, filter }) {
+  const { c, tone, setTone, explain } = filter || {}
   return (
-    <div {...hl(explain, 'tones')} className="mt-3 flex flex-wrap items-center gap-x-1 text-[14px] leading-5 tabular-nums" role="group" aria-label="Filter by tone">
-      {['positive', 'neutral', 'negative'].map((k, i) => (
-        <span key={k} className="inline-flex items-center gap-1">
-          {i > 0 && <span className={t3} aria-hidden>·</span>}
-          <button type="button" aria-pressed={tone === k} onClick={() => setTone(tone === k ? null : k)}
-            className={`rounded px-1 outline-none transition-opacity duration-200 focus-visible:ring-2 focus-visible:ring-focus ${c[k] || k !== 'negative' ? TONE_TEXT[k] : t3} ${k === 'positive' ? 'font-medium' : ''} ${tone && tone !== k ? 'opacity-40' : ''} ${tone === k ? 'underline decoration-2 underline-offset-4' : 'hover:underline underline-offset-4'}`}>
-            {c[k]} {k}
+    <div {...(filter ? hl(explain, 'tones') : {})} className="relative mt-2 h-7 border-t border-line text-[12px] leading-4 tabular-nums"
+      {...(filter ? { role: 'group', 'aria-label': 'Filter by tone' } : { 'aria-hidden': true })}>
+      {AXIS.map(([k, label, at]) => {
+        const pos = { left: plotW * at }
+        const text = <>{label}{filter && <> <span className="font-normal">{c[k]}</span></>}</>
+        if (!filter) return <span key={k} className={`absolute top-1.5 -translate-x-1/2 whitespace-nowrap font-medium ${TONE_TEXT[k]}`} style={pos}>{text}</span>
+        return (
+          <button key={k} type="button" aria-pressed={tone === k} onClick={() => setTone(tone === k ? null : k)} style={pos}
+            className={`absolute top-0.5 -translate-x-1/2 whitespace-nowrap rounded px-1 py-1 font-medium outline-none transition-opacity duration-200 focus-visible:ring-2 focus-visible:ring-focus ${TONE_TEXT[k]} ${tone && tone !== k ? 'opacity-40' : ''} ${tone === k ? 'underline decoration-2 underline-offset-4' : 'hover:underline underline-offset-4'}`}>
+            {text}
           </button>
-        </span>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -289,7 +295,7 @@ function moveTo(el, t, o, { delay = 0, dur = MOVE.dur, easing = ease(), first = 
   return (sameT ? 0 : delay) + d
 }
 
-function Spectrum({ pages, lit, engine, split, score, onDot = (p) => openDrawer('page', p.id), themeFor = () => null }) {
+function Spectrum({ pages, lit, engine, split, score, onDot = (p) => openDrawer('page', p.id), themeFor = () => null, filter = null }) {
   const box = useRef(null)
   const stage = useRef(null)
   const mobile = useIsMobile()
@@ -440,12 +446,7 @@ function Spectrum({ pages, lit, engine, split, score, onDot = (p) => openDrawer(
         ))}
         {hover && <HoverCard hover={hover} w={w} r={r} theme={themeFor(hover.page)} />}
       </div>
-      {/* the axis: three bands */}
-      <div className="relative mt-2 h-5 border-t border-line text-[12px] leading-4" aria-hidden>
-        <span className="absolute top-1.5 -translate-x-1/2 font-medium text-negative" style={{ left: plotW / 6 }}>Negative</span>
-        <span className={`absolute top-1.5 -translate-x-1/2 font-medium ${t3}`} style={{ left: plotW / 2 }}>Neutral</span>
-        <span className="absolute top-1.5 -translate-x-1/2 font-medium text-ink" style={{ left: (5 * plotW) / 6 }}>Positive</span>
-      </div>
+      <Axis plotW={plotW} filter={filter} />
     </div>
   )
 }
@@ -506,7 +507,7 @@ function RunningHero({ brand, pages, stuck, onDone }) {
   )
 }
 
-// ---- what AI reads about you: two columns, each led by its strongest quote, then every theme sorted by reach (the
+// ---- what AI says about you: two columns, each led by its strongest quote, then every theme sorted by reach (the
 // share of analysed pages that say it). Hover a row: a floating preview of its best quote, and its pages light up in
 // the spectrum. Click (or Enter) opens it in place to up to three quotes; one open at a time; Esc closes.
 // ?themes=unlinked: no theme → page links (themes as plain rows, the lead quotes from the side's own pages).
@@ -563,7 +564,7 @@ function AiReads({ groups, unlinked, pages, openKey, onToggle, onClose, lit, onH
   // desktop: the two heads, the two leads and the two lists line up in rows; phones: Hurting you (all of it) first
   return (
     <section aria-labelledby="reads-h">
-      <h2 id="reads-h" className={h2}>What AI reads about you</h2>
+      <h2 id="reads-h" className={h2}>What AI says about you</h2>
       {!isLatest && <p className={`mt-1 text-[13px] leading-[18px] ${t3}`}>Themes are from the latest run, {fmtDay(latest.date)}.</p>}
       <div className="mt-6 grid grid-cols-1 gap-x-12 md:grid-cols-2">
         <div className="order-1 md:order-none">{head(H)}</div>
