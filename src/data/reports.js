@@ -55,18 +55,18 @@ const FOA = {
   // topics that moved: d > 0 won, d < 0 lost (|d| = its prompts)
   moved: {
     week: [
-      { ...P('Lender comparisons', ['best reverse mortgage lenders 2026', 'is Finance of America a good lender', 'Finance of America vs AAG reviews']), d: 3 },
-      { ...P('HECM for purchase', ['how does a HECM for purchase work', 'HECM for purchase down payment']), d: 2 },
-      { ...P('Home equity alternatives', ['reverse mortgage vs home equity loan for retirees']), d: 1 },
-      { ...P('Calculators', ['HECM calculator']), d: -1 },
-      { ...P('Eligibility', ['reverse mortgage age requirement']), d: -1 },
+      { ...P('Lender comparisons', ['best reverse mortgage lenders 2026', 'is Finance of America a good lender', 'Finance of America vs AAG reviews']), d: 3, engines: { aio: 2, gemini: 1 } },
+      { ...P('HECM for purchase', ['how does a HECM for purchase work', 'HECM for purchase down payment']), d: 2, engines: { aio: 1, chatgpt: 1 } },
+      { ...P('Home equity alternatives', ['reverse mortgage vs home equity loan for retirees']), d: 1, engines: { gemini: 1 } },
+      { ...P('Calculators', ['HECM calculator']), d: -1, engines: { chatgpt: 1 } },
+      { ...P('Eligibility', ['reverse mortgage age requirement']), d: -1, engines: { chatgpt: 1 } },
     ],
     '30d': [
-      { ...P('Lender comparisons', ['best reverse mortgage lenders 2026', 'is Finance of America a good lender', 'Finance of America vs AAG reviews', 'top rated reverse mortgage companies', 'Finance of America complaints']), d: 5 },
-      { ...P('HECM for purchase', ['how does a HECM for purchase work', 'HECM for purchase down payment', 'buy a home with a reverse mortgage', 'HECM for purchase vs cash']), d: 4 },
-      { ...P('Home equity alternatives', ['reverse mortgage vs home equity loan for retirees', 'HELOC or reverse mortgage at 65', 'home equity investment vs reverse mortgage']), d: 3 },
-      { ...P('Calculators', ['HECM calculator', 'reverse mortgage payout calculator']), d: -2 },
-      { ...P('Eligibility', ['reverse mortgage age requirement']), d: -1 },
+      { ...P('Lender comparisons', ['best reverse mortgage lenders 2026', 'is Finance of America a good lender', 'Finance of America vs AAG reviews', 'top rated reverse mortgage companies', 'Finance of America complaints']), d: 5, engines: { aio: 3, chatgpt: 1, gemini: 1 } },
+      { ...P('HECM for purchase', ['how does a HECM for purchase work', 'HECM for purchase down payment', 'buy a home with a reverse mortgage', 'HECM for purchase vs cash']), d: 4, engines: { aio: 2, chatgpt: 1, gemini: 1 } },
+      { ...P('Home equity alternatives', ['reverse mortgage vs home equity loan for retirees', 'HELOC or reverse mortgage at 65', 'home equity investment vs reverse mortgage']), d: 3, engines: { aio: 1, chatgpt: 1, gemini: 1 } },
+      { ...P('Calculators', ['HECM calculator', 'reverse mortgage payout calculator']), d: -2, engines: { chatgpt: 2 } },
+      { ...P('Eligibility', ['reverse mortgage age requirement']), d: -1, engines: { chatgpt: 1 } },
     ],
   },
   // CEO: our lead in points of share, per topic (negative: a competitor leads it)
@@ -100,8 +100,8 @@ const FOA = {
       citedNote: 'Their calculator and jumbo pages are cited more than anything of yours on these prompts.',
       // per topic, the prompts that name each of you (you: 71 = onlyYou + youFirst + themFirst · them: 35)
       byTopic: [
-        { theme: 'Lender comparisons', you: 17, them: 4 }, { theme: 'HECM for purchase', you: 12, them: 2 }, { theme: 'Home equity alternatives', you: 11, them: 2 },
-        { theme: 'Retirement income', you: 9, them: 2 }, { theme: 'Eligibility', you: 9, them: 6 }, { theme: 'Property types', you: 7, them: 5 },
+        { theme: 'Lender comparisons', you: 20, them: 2 }, { theme: 'HECM for purchase', you: 12, them: 2 }, { theme: 'Home equity alternatives', you: 11, them: 2 },
+        { theme: 'Retirement income', you: 9, them: 1 }, { theme: 'Eligibility', you: 6, them: 9 }, { theme: 'Property types', you: 7, them: 5 },
         { theme: 'Jumbo loans', you: 4, them: 6 }, { theme: 'Calculators', you: 2, them: 8 },
       ],
       // per prompt they win: the engine that gave it to them (default AI Overview), and whether only they are named
@@ -156,17 +156,17 @@ const DS = {
   flow: { week: { held: 102, won: 9, lost: 2, missing: 39 }, '30d': { held: 93, won: 18, lost: 4, missing: 37 }, quarter: { held: 88, won: 23, lost: 4, missing: 37 } },
   moved: {
     week: [
-      { ...P('Keratosis pilaris', ['best exfoliating gloves for keratosis pilaris', 'KP body routine', 'how to treat KP on arms', 'KP on legs treatment']), d: 4 },
-      { ...P('Exfoliation tools', ['korean italy towel vs exfoliating mitt', 'best exfoliating mitt', 'are exfoliating gloves hygienic']), d: 3 },
-      { ...P('Strawberry legs', ['how to get rid of strawberry legs at home', 'strawberry legs after shaving']), d: 2 },
-      { ...P('Sensitive skin', ['gentle exfoliator for sensitive skin', 'exfoliating sensitive skin on the body']), d: -2 },
+      { ...P('Keratosis pilaris', ['best exfoliating gloves for keratosis pilaris', 'KP body routine', 'how to treat KP on arms', 'KP on legs treatment']), d: 4, engines: { aio: 3, chatgpt: 1 } },
+      { ...P('Exfoliation tools', ['korean italy towel vs exfoliating mitt', 'best exfoliating mitt', 'are exfoliating gloves hygienic']), d: 3, engines: { aio: 2, chatgpt: 1 } },
+      { ...P('Strawberry legs', ['how to get rid of strawberry legs at home', 'strawberry legs after shaving']), d: 2, engines: { aio: 1, chatgpt: 1 } },
+      { ...P('Sensitive skin', ['gentle exfoliator for sensitive skin', 'exfoliating sensitive skin on the body']), d: -2, engines: { chatgpt: 2 } },
     ],
     '30d': [
-      { ...P('Keratosis pilaris', ['best exfoliating gloves for keratosis pilaris', 'KP body routine', 'how to treat KP on arms', 'KP on legs treatment', 'does exfoliating help KP', 'KP in summer', 'KP scrub or acid']), d: 7 },
-      { ...P('Exfoliation tools', ['korean italy towel vs exfoliating mitt', 'best exfoliating mitt', 'are exfoliating gloves hygienic', 'how often to replace an exfoliating mitt', 'back scrubber for shower', 'silicone vs cloth body scrubber']), d: 6 },
-      { ...P('Strawberry legs', ['how to get rid of strawberry legs at home', 'strawberry legs after shaving', 'ingrown hairs on legs', 'dark pores on legs', 'exfoliate before shaving legs']), d: 5 },
-      { ...P('Sensitive skin', ['gentle exfoliator for sensitive skin', 'exfoliating sensitive skin on the body', 'exfoliating with eczema']), d: -3 },
-      { ...P('Body wash', ['best body wash for keratosis pilaris']), d: -1 },
+      { ...P('Keratosis pilaris', ['best exfoliating gloves for keratosis pilaris', 'KP body routine', 'how to treat KP on arms', 'KP on legs treatment', 'does exfoliating help KP', 'KP in summer', 'KP scrub or acid']), d: 7, engines: { aio: 5, chatgpt: 2 } },
+      { ...P('Exfoliation tools', ['korean italy towel vs exfoliating mitt', 'best exfoliating mitt', 'are exfoliating gloves hygienic', 'how often to replace an exfoliating mitt', 'back scrubber for shower', 'silicone vs cloth body scrubber']), d: 6, engines: { aio: 4, chatgpt: 2 } },
+      { ...P('Strawberry legs', ['how to get rid of strawberry legs at home', 'strawberry legs after shaving', 'ingrown hairs on legs', 'dark pores on legs', 'exfoliate before shaving legs']), d: 5, engines: { aio: 2, chatgpt: 3 } },
+      { ...P('Sensitive skin', ['gentle exfoliator for sensitive skin', 'exfoliating sensitive skin on the body', 'exfoliating with eczema']), d: -3, engines: { aio: 1, chatgpt: 2 } },
+      { ...P('Body wash', ['best body wash for keratosis pilaris']), d: -1, engines: { chatgpt: 1 } },
     ],
   },
   topicLead: [
@@ -384,12 +384,12 @@ export function buildReport(rawOpts, prompt = '') {
 
   // v2 (Competitor gap, Custom prompt): one question, one hero built for it, then sections of title · takeaway · visual ·
   // details (5 at a time). The one-page length keeps the first two sections and any section marked keep (next steps)
-  if (o.kind === 'rival' || o.kind === 'custom') {
+  if (o.kind === 'rival' || o.kind === 'custom' || o.kind === 'weekly') {
     const rKey = o.compare[0]
     const color = rKey && byShare.findIndex((x) => x.key === rKey) < 3 ? lineOf(rKey) : 'var(--line-1)'
     const actsFor = (kind, compare) => actionsFor({ ...o, kind, compare }, d, card, client)
-    if (o.kind === 'rival') {
-      const v3 = competitorGap(o, d, { i0, since, acts, prompt })
+    if (o.kind === 'rival' || o.kind === 'weekly') {
+      const v3 = o.kind === 'rival' ? competitorGap(o, d, { i0, since, acts, prompt }) : weeklySummary(o, d, { i0, since, acts, prompt, client, asked })
       if (!v3.ok) return { ...v3, opts: o }
       const span = shortRange(DATES[i0], 'Oct 26')
       return { ok: true, v3: true, kind: o.kind, verdict: v3.verdict.word, headline: v3.headline, title: titleFor(prompt, o), opts: o, frame: v3.frame,
@@ -575,6 +575,7 @@ const themesOf = (d) => [...new Set([...d.gaps.map((g) => g.theme), ...Object.va
 const winsOf = (h) => h.themes.flatMap((t) => t.prompts.map((p) => ({ text: p, theme: t.theme, engine: h.wins?.[p]?.engine ?? 'aio', only: !!h.wins?.[p]?.only })))
 const rowOf = (w, rv) => ({ text: w.text, engines: [w.engine], named: w.only ? [rv] : [rv, 'you'], note: w.only ? `Only ${rv}` : `${rv} first` })
 
+const scheduledKind = (d, kind) => (schedules.some((sc) => sc.brand === d.id && savedReports.find((r) => r.id === sc.reportId)?.opts.kind === kind) ? 'week' : 'once')
 function competitorGap(o, d, x) {
   const { i0, since, acts, prompt } = x
   const r = d.rivals.find((k) => k.key === o.compare[0])
@@ -587,36 +588,94 @@ function competitorGap(o, d, x) {
   const word = ours > theirs * 4 ? 'Winning' : ours > theirs ? 'Mixed' : 'Losing'
   const themes = [...h.themes].sort((a, b) => b.prompts.length - a.prompts.length)
   const wins = winsOf(h)
-  const youNamed = h.onlyYou + h.youFirst + h.themFirst
-  const themNamed = h.onlyThem + h.themFirst + h.youFirst
   const bare = h.why.filter((w) => !w.you).length
-  // the finding: one plain sentence, at most ~20 words
-  const finding = `${rv} wins ${theirs} of your ${d.prompts} prompts, mostly on ${list(themes.slice(0, 2).map((t) => t.theme.toLowerCase()))}${bare ? `, where AI cites no page of yours` : ''}.`
+  const finding = `${rv} wins ${theirs} of your ${d.prompts} prompts, mostly on ${list(themes.slice(0, 2).map((t) => t.theme.toLowerCase()))}${bare ? ', where AI cites no page of yours' : ''}.`
   const pageFor = (theme) => pageOf(h.why.find((w) => w.theme === theme)?.them, r.domain)
   const engines = Object.keys(h.engines).filter((e) => d.ran.includes(e))
+  const lead = h.byTopic.filter((t) => t.them > t.you).length
   return {
     ok: true, verdict: verdictOf(word), headline: finding,
     frame: {
-      question: titleFor(prompt, o), finding, range: shortRange(DATES[i0], 'Oct 26'), you: d.name, them: rn, themShort: rv,
+      question: titleFor(prompt, o), finding, range: shortRange(DATES[i0], 'Oct 26'), frequency: scheduledKind(d, o.kind), you: d.name, them: rn, themShort: rv,
       chart: {
-        title: 'Prompts named per topic', label: `Prompts naming ${d.name}`, value: youNamed, delta: d.series.named.at(-1) - d.series.named[i0], since,
-        unit: 'prompts', legend: [{ key: 'you', label: d.name, tone: 'primary' }, { key: 'them', label: rv, tone: 'teal' }],
-        bands: h.byTopic.map((t) => ({ topic: t.theme, you: t.you, them: t.them })),
+        title: 'Prompts named per topic', label: `Prompts ${rv} wins`, value: theirs, delta: h.theyWin.at(-1) - h.theyWin[i0], worseUp: true, since,
+        legend: [{ key: 'you', label: d.name, tone: 'primary' }, { key: 'them', label: rv, tone: 'teal' }],
+        bands: h.byTopic.map((t) => ({ label: t.theme, bars: [{ key: 'you', value: t.you, tone: 'primary' }, { key: 'them', value: t.them, tone: 'teal' }] })),
       },
       summary: {
         title: 'Head to head',
-        donut: [{ key: 'you', label: 'We win', n: ours, tone: 'primary' }, { key: 'them', label: `${rv} wins`, n: theirs, tone: 'teal' }, { key: 'neither', label: 'Neither', n: h.neither, tone: 'grey' }],
+        donut: [{ key: 'you', label: 'We win', n: ours, tone: 'primary' }, { key: 'them', label: `${rv} wins`, n: theirs, tone: 'teal' }, { key: 'neither', label: 'Neither', n: h.neither, tone: 'neutral' }],
         stats: [
-          { label: `Prompts ${rv} wins`, value: theirs, delta: h.theyWin.at(-1) - h.theyWin[i0], worseUp: true },
-          { label: 'Our pages cited on those', value: h.citedYou.length, sub: `${h.citedYou.reduce((a, c) => a + c.n, 0)} answers` },
+          { label: 'Topics they lead', value: lead, of: h.byTopic.length },
+          { label: 'Our pages cited', value: h.citedYou.length, sub: `${h.citedYou.reduce((a, c) => a + c.n, 0)} answers` },
         ],
       },
       table: {
-        title: `Prompts ${rv} wins`, searchLabel: 'Search prompts',
-        columns: [{ key: 'text', label: 'Prompt' }, { key: 'topic', label: 'Topic', sort: true }, { key: 'engine', label: 'Engine', sort: true }, { key: 'result', label: 'Result', sort: true }, { key: 'page', label: `${rv}’s cited page` }],
-        rows: themes.flatMap((t) => t.prompts.map((p) => { const w = wins.find((z) => z.text === p); return { id: p, text: p, topic: t.theme, engine: w.engine, engineName: ENGINE_NAMES[w.engine], result: w.only ? `Only ${rv}` : `${rv} first`, tone: w.only ? 'teal' : 'tint', page: pageFor(t.theme), href: topicHref(t.theme) } })),
-        filters: [{ key: 'topic', label: 'Topic', options: themes.map((t) => t.theme) }, { key: 'engine', label: 'Engine', options: engines.map((e) => ENGINE_NAMES[e]), by: 'engineName' }],
+        title: `Prompts ${rv} wins`, searchLabel: 'Search prompts', unit: 'prompts',
+        columns: [{ key: 'text', label: 'Prompt', kind: 'text' }, { key: 'topic', label: 'Topic', sort: true }, { key: 'engine', label: 'Engine', kind: 'engine', sort: true }, { key: 'result', label: 'Result', kind: 'strong', sort: true }, { key: 'page', label: `${rv}’s cited page`, kind: 'page' }],
+        rows: themes.flatMap((t) => t.prompts.map((p) => { const w = wins.find((z) => z.text === p); return { id: p, text: p, topic: t.theme, engine: w.engine, engineName: ENGINE_NAMES[w.engine], result: w.only ? `Only ${rv}` : `${rv} first`, marker: { tone: 'teal', solid: w.only }, page: pageFor(t.theme), href: topicHref(t.theme) } })),
+        filters: [{ key: 'topic', label: 'Topic', all: 'All topics', options: themes.map((t) => ({ id: t.theme, label: t.theme })) }, { key: 'engine', label: 'Engine', all: 'All engines', by: 'engineName', options: engines.map((e) => ({ id: ENGINE_NAMES[e], label: ENGINE_NAMES[e] })) }],
         pageSize: 10,
+      },
+      steps: acts.map(stepOf),
+    },
+  }
+}
+
+// the weekly summary in the frame: what moved since last week (or the period's start), the week's movement, the topics
+function weeklySummary(o, d, x) {
+  const { i0, since, acts, prompt, client, asked } = x
+  const flow = d.flow[o.period] ?? d.flow['30d']
+  const moved = d.moved[o.period] ?? d.moved['30d']
+  const net = flow.won - flow.lost
+  const span = o.period === 'week' ? 'week' : 'month'
+  const word = net > 0 && flow.lost * 2 <= flow.won ? `Good ${span}` : net >= 0 ? 'Mixed' : `Tough ${span}`
+  const best = moved.find((m) => m.d > 0)
+  const lost = moved.filter((m) => m.d < 0)
+  const ago = o.period === 'week' ? 'last week' : DATES[i0]
+  const who = client ? 'You’re' : `${d.name} is`
+  const finding = `${who} in ${Math.abs(net)} ${net >= 0 ? 'more' : 'fewer'} AI answers than ${ago}${best ? `, led by ${best.theme.toLowerCase()}` : ''}.${lost.length ? ` ${list(lost.map((m) => m.theme))} slipped.` : ''}`
+  const named = d.series.named
+  const me = d.share[youKey(d)]
+  const vs = o.period === 'week' ? 'last week' : DATES[i0]
+  const on = asked.filter((e) => d.ran.includes(e) && d.engines[e])
+  const wl = (e) => d.engines[e][o.period] ?? d.engines[e]['30d']
+  const off = asked.filter((e) => !on.includes(e)).map((e) => ENGINE_NAMES[e])
+  const byEngine = `By engine: ${on.map((e) => `${ENGINE_NAMES[e]} won ${wl(e)[0]}, lost ${wl(e)[1]}`).join(' · ')}${off.length ? ` · ${list(off)} didn’t run` : ''}.`
+  const actOf = (theme) => acts.find((a) => a.theme === theme)?.title ?? null
+  const planOnly = acts.filter((a) => !moved.some((m) => m.theme === a.theme))
+  const row = (theme, prompts, dlt, engines) => ({
+    id: theme, text: theme, topPrompt: prompts[0] ?? null, won: dlt > 0 ? dlt : 0, lost: dlt < 0 ? -dlt : 0, net: dlt, change: dlt > 0 ? 'gained' : dlt < 0 ? 'lost' : 'none',
+    marker: dlt > 0 ? { tone: 'primary', solid: true } : dlt < 0 ? { tone: 'bad', solid: true } : { tone: 'neutral', solid: false },
+    engines: Object.keys(engines ?? {}), next: actOf(theme), href: topicHref(theme),
+  })
+  return {
+    ok: true, verdict: verdictOf(word), headline: finding,
+    frame: {
+      question: String(prompt ?? '').trim() ? titleFor(prompt, o) : (o.period === 'week' ? 'What moved this week?' : 'What moved this month?'),
+      finding, range: shortRange(DATES[i0], 'Oct 26'), frequency: scheduledKind(d, o.kind), you: d.name,
+      chart: {
+        title: 'Answers naming you by week', label: `Answers naming ${d.name}`, value: named.at(-1), delta: named.at(-1) - named[i0], since: vs,
+        legend: [{ key: 'now', label: 'This week', tone: 'primary' }, { key: 'earlier', label: 'Earlier weeks', tone: 'tint' }],
+        bands: DATES.map((date, i) => ({ label: date, bars: [{ key: 'named', value: named[i], tone: i === DATES.length - 1 ? 'primary' : 'tint', label: 'Answers' }], delta: i ? named[i] - named[i - 1] : null })),
+      },
+      summary: {
+        title: o.period === 'week' ? 'This week’s movement' : 'This month’s movement',
+        donut: [{ key: 'won', label: 'Won', n: flow.won, tone: 'primary' }, { key: 'held', label: 'Held', n: flow.held, tone: 'tint' }, { key: 'lost', label: 'Lost', n: flow.lost, tone: 'bad' }, { key: 'missed', label: 'Missed', n: flow.missing, tone: 'neutral' }],
+        stats: [
+          { label: 'Visibility score', value: d.series.score.at(-1), delta: d.series.score.at(-1) - d.series.score[i0], since: vs },
+          { label: 'Share of voice', value: me.at(-1), unit: '%', delta: me.at(-1) - me[i0], since: vs },
+        ],
+      },
+      table: {
+        title: 'Topics', searchLabel: 'Search topics', unit: 'topics',
+        columns: [
+          { key: 'text', label: 'Topic', kind: 'text' }, { key: 'topPrompt', label: 'Top prompt', kind: 'muted' }, { key: 'won', label: 'Won', kind: 'num', sort: true }, { key: 'lost', label: 'Lost', kind: 'num', sort: true },
+          { key: 'net', label: 'Net', kind: 'net', sort: true }, { key: 'engines', label: 'Engines', kind: 'engines' }, { key: 'next', label: client ? 'What we’re doing next' : 'Next step', kind: 'muted' },
+        ],
+        rows: [...moved.map((m) => row(m.theme, m.prompts, m.d, m.engines)), ...planOnly.map((a) => row(a.theme, a.prompts, 0, null))],
+        filters: [{ key: 'change', label: 'Change', all: 'All changes', options: [{ id: 'gained', label: 'Gained' }, { id: 'lost', label: 'Lost' }, { id: 'none', label: 'No change' }] }],
+        pageSize: 10, note: byEngine,
       },
       steps: acts.map(stepOf),
     },

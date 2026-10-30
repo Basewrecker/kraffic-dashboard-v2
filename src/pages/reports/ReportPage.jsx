@@ -331,7 +331,7 @@ function Thread({ rest, mock, greeting, inter }) {
       {thread && (
         <div key="scroll" className="relative -mx-4 min-h-0 flex-1 md:-mx-6">
           <div ref={scroller} data-scroll className="thread-scroll h-full overflow-y-auto overscroll-contain px-4 md:px-6">
-            <div ref={threadRef} className="mx-auto flex w-full max-w-[1200px] flex-col gap-8 pb-12 pt-2">
+            <div ref={threadRef} className="mx-auto flex w-full max-w-[1264px] flex-col gap-8 pb-12 pt-2">
               {missing && (
                 <StateCard title="This report doesn’t exist any more">
                   It may have been deleted. <a href="/reports/all" onClick={linkClick('/reports/all')} className="font-medium text-stone-900 underline underline-offset-4">All reports</a>
@@ -471,7 +471,7 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
             </div>
           )}
           {t.built.v3 ? (
-            <div className="mx-auto w-full max-w-[1200px]"><ReportFrame built={t.built} onPeriod={isLatest ? frameActions.period : undefined} onExport={() => actions[0].onClick()} onSchedule={frameActions.schedule} /></div>
+            <div className="mx-auto w-full max-w-[1264px] px-2"><ReportFrame built={t.built} onPeriod={isLatest ? frameActions.period : undefined} onExport={() => actions[0].onClick()} onSchedule={frameActions.schedule} /></div>
           ) : (
           <article ref={article} aria-label={t.built.title} className={t.built.v2 ? ARTICLE2 : ARTICLE}>
             {t.built.v2
@@ -480,11 +480,11 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
           </article>
           )}
           {isLatest && (
-            <div className="mx-auto mt-4 w-full max-w-[1200px]" style={t.live && !t.built.v3 ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
+            <div className={`mx-auto mt-4 w-full ${t.built.v3 ? 'max-w-[1264px] px-2' : 'max-w-[1200px]'}`} style={t.live && !t.built.v3 ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
               <FollowUps items={followUpsFor(t.built)} onPick={onFollowUp} />
             </div>
           )}
-          <div className="mx-auto mt-3 flex w-full max-w-[1200px] flex-wrap items-center gap-x-1 gap-y-1" style={t.live && !t.built.v3 ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
+          <div className={`mx-auto mt-3 flex w-full flex-wrap items-center gap-x-1 gap-y-1 ${t.built.v3 ? 'max-w-[1264px] px-2' : 'max-w-[1200px]'}`} style={t.live && !t.built.v3 ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
             {many && <span className={`mr-2 text-[13px] tabular-nums ${t3}`}>v{n}{t.change ? ` · ${t.change}` : ''}</span>}
             {actions.map((a) => (
               <button key={a.label} type="button" onClick={a.onClick}
@@ -506,7 +506,7 @@ const ARTICLE = 'mx-auto flex w-full max-w-[960px] min-w-0 flex-col divide-y div
 const ARTICLE2 = 'mx-auto w-full max-w-[1100px] min-w-0 rounded-xl border border-line bg-surface px-8 py-2 max-md:px-4 lg:grid lg:grid-cols-[148px_minmax(0,1fr)] lg:gap-x-10 lg:[&:not(:has(nav))]:block'
 
 // while it's written: only the hero's place, where the dots gather (short, so the question stays in view)
-const HERO_H = { weekly: 220, ceo: 240, rival: 420, content: 240, custom: 150 }
+const HERO_H = { weekly: 420, ceo: 240, rival: 420, content: 240, custom: 150 }
 function Skeleton({ kind, heroRef }) {
   return <div ref={heroRef} aria-hidden className="mx-auto w-full max-w-[960px]" style={{ height: HERO_H[kind] ?? 240 }} />
 }

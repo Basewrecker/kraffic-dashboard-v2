@@ -10,9 +10,7 @@ const hero = (r) => block(r, 'hero')
 const v2sections = (r) => r.blocks.filter((b) => b.type === 'v2section').map((b) => b.data)
 
 const RIVAL = { foa: 'longbridge', dermasuri: 'cerave' }
-const ALL = () => [
-  { kind: 'weekly', period: 'week' }, { kind: 'weekly', period: '30d', audience: 'client' }, { kind: 'ceo', period: '30d' }, { kind: 'content' },
-]
+const ALL = () => [{ kind: 'ceo', period: '30d' }, { kind: 'content' }]
 const table = (r) => sections(r).find((s) => s.visual.kind === 'topicTable').visual
 const MOMENTUM = new Set(['momentum', 'leadLines'])
 const momentum = (r) => sections(r).find((s) => MOMENTUM.has(s.visual.kind)).visual
@@ -38,29 +36,32 @@ test('merge, don’t repeat: every report is a hero (the answer, no stat row) ·
   }
 })
 
-test('each kind has its own hero; the weekly is What moved, then Momentum', () => {
+test('each old-band kind has its own hero', () => {
   const visual = (o) => hero(buildReport({ brand: 'foa', ...o })).visual.kind
-  assert.deepEqual(ALL('foa').map(visual), ['promptStrip', 'scoreLine', 'lead', 'promptStrip'])
-  const w = buildReport({ brand: 'dermasuri', kind: 'weekly', period: 'week', length: 'detailed' })
-  assert.deepEqual(sections(w).map((s) => s.title), ['What moved', 'Momentum'])
+  assert.deepEqual(ALL('foa').map(visual), ['lead', 'promptStrip'])
 })
 
-test('the prompt strip holds every tracked prompt once; the weekly table’s dots are the prompts won and lost', () => {
+test('the prompt strip holds every tracked prompt once (content plan); the weekly frame: the donut holds every prompt once and the table’s won / lost add up to it', () => {
   for (const brand of ['foa', 'dermasuri']) {
     const d = dataFor(brand)
-    for (const o of ALL(brand).filter((x) => x.audience !== 'client' && x.kind !== 'ceo')) {
-      const hr = hero(buildReport({ brand, ...o }))
-      const v = hr.strip ?? hr.visual
-      assert.equal(v.segs.reduce((a, x) => a + x.n, 0), d.prompts, `${brand} ${o.kind}`)
-    }
+    const hr = hero(buildReport({ brand, kind: 'content' }))
+    assert.equal(hr.visual.segs.reduce((a, x) => a + x.n, 0), d.prompts, `${brand} content`)
     for (const period of ['week', '30d']) {
-      const r = buildReport({ brand, kind: 'weekly', period, length: 'detailed' })
-      const n = Object.fromEntries(hero(r).visual.segs.map((x) => [x.key, x.n]))
-      assert.deepEqual([n.won, n.held, n.lost, n.missing], [d.flow[period].won, d.flow[period].held, d.flow[period].lost, d.flow[period].missing])
-      assert.equal(dots(table(r), 'you'), n.won, `${brand} ${period}: won`)
-      assert.equal(dots(table(r), 'red'), n.lost, `${brand} ${period}: lost`)
-      // the plan's three actions, each on its topic's row
-      assert.equal(table(r).rows.filter((x) => x.action).length, 3)
+      const f = buildReport({ brand, kind: 'weekly', period, length: 'detailed' }).frame
+      const n = Object.fromEntries(f.summary.donut.map((x) => [x.key, x.n]))
+      assert.deepEqual([n.won, n.held, n.lost, n.missed], [d.flow[period].won, d.flow[period].held, d.flow[period].lost, d.flow[period].missing])
+      assert.equal(f.summary.donut.reduce((a, x) => a + x.n, 0), d.prompts, `${brand} ${period}: every prompt once`)
+      assert.equal(f.table.rows.reduce((a, x) => a + x.won, 0), n.won, `${brand} ${period}: won`)
+      assert.equal(f.table.rows.reduce((a, x) => a + x.lost, 0), n.lost, `${brand} ${period}: lost`)
+      for (const x of f.table.rows) assert.equal(x.net, x.won - x.lost)
+      // the plan's three actions, each on its topic's row; a topic with no change still has its row
+      assert.equal(f.table.rows.filter((x) => x.next).length, 3)
+      assert.ok(f.table.rows.filter((x) => x.change === 'none').every((x) => x.won === 0 && x.lost === 0 && x.engines.length === 0))
+      // the engines that moved a topic add up to the engine line
+      const won = {}
+      const lost = {}
+      for (const m of d.moved[period]) for (const [e, k] of Object.entries(m.engines)) { if (m.d > 0) won[e] = (won[e] ?? 0) + k; else lost[e] = (lost[e] ?? 0) + k }
+      for (const [e, x] of Object.entries(d.engines)) { assert.equal(won[e] ?? 0, x[period][0], `${brand} ${period} ${e} won`); assert.equal(lost[e] ?? 0, x[period][1], `${brand} ${period} ${e} lost`) }
     }
   }
 })
@@ -76,16 +77,18 @@ test('the score strip: 8 weeks from history; an unscanned week stays empty, neve
   assert.equal(scoreStrip([61, 62, 61, 64, 65, 64, 66, undefined]).delta, null)
 })
 
-test('momentum: one line, each number now with its change since the start; competitors outside the competitor report have no brand colour', () => {
+test('the weekly frame: the chart is the last 8 weeks of answers naming you (this week in the primary), the stats carry their change since the start; competitors outside the competitor report have no brand colour', () => {
   const r = buildReport({ brand: 'foa', kind: 'weekly', period: 'week', length: 'detailed' })
-  const m = momentum(r)
   const d = dataFor('foa')
-  assert.equal(m.since, 'last week')
-  assert.deepEqual(m.items[0], { label: 'Visibility score', value: d.series.score.at(-1), d: d.series.score.at(-1) - d.series.score[6] })
-  const rivals = m.items.filter((x) => x.them)
-  assert.equal(rivals.length, 3)
-  assert.deepEqual(rivals.map((x) => parseInt(x.value)), [...rivals.map((x) => parseInt(x.value))].sort((a, b) => b - a))
-  assert.ok(rivals.every((x) => !x.color))
+  const f = r.frame
+  assert.equal(f.question, 'What moved this week?')
+  assert.deepEqual(f.chart.bands.map((b) => b.bars[0].value), d.series.named)
+  assert.deepEqual(f.chart.bands.map((b) => b.bars[0].tone), [...Array(7).fill('tint'), 'primary'])
+  assert.equal(f.chart.bands.at(-1).delta, d.series.named.at(-1) - d.series.named.at(-2))
+  assert.equal(f.chart.value, d.series.named.at(-1))
+  assert.equal(f.chart.since, 'last week')
+  assert.deepEqual(f.summary.stats[0], { label: 'Visibility score', value: d.series.score.at(-1), delta: d.series.score.at(-1) - d.series.score[6], since: 'last week' })
+  assert.equal(f.summary.stats[1].unit, '%')
   assert.ok(table(buildReport({ brand: 'foa', kind: 'content' })).rows.every((x) => !x.cells.owner.color))
 })
 
@@ -116,7 +119,7 @@ test('engines: the prompts each engine names match its share; the table’s engi
   for (const brand of ['foa', 'dermasuri']) {
     const d = dataFor(brand)
     for (const [id, e] of Object.entries(d.engines)) assert.equal(Math.round((e.named / d.prompts) * 100), e.now, `${brand} ${id}`)
-    const note = table(buildReport({ brand, kind: 'weekly', period: 'week', length: 'detailed' })).notes[0]
+    const note = buildReport({ brand, kind: 'weekly', period: 'week', length: 'detailed' }).frame.table.note
     for (const e of Object.values(d.engines)) assert.ok(note.includes(`won ${e.week[0]}, lost ${e.week[1]}`), `${brand}: ${note}`)
   }
 })
@@ -129,20 +132,25 @@ test('competitor gap (frame): the question and one finding; the chart is us vs t
     assert.equal(r.v3, true)
     assert.ok(f.question)
     assert.ok(f.finding.split(' ').length <= 22, f.finding)
-    assert.equal(f.chart.bands.reduce((a, b) => a + b.you, 0), h.onlyYou + h.youFirst + h.themFirst, 'the prompts naming you')
-    assert.equal(f.chart.bands.reduce((a, b) => a + b.them, 0), h.onlyThem + h.themFirst + h.youFirst, 'the prompts naming them')
-    assert.equal(f.chart.value, h.onlyYou + h.youFirst + h.themFirst)
+    assert.equal(f.chart.bands.reduce((a, b) => a + b.bars[0].value, 0), h.onlyYou + h.youFirst + h.themFirst, 'the prompts naming you')
+    assert.equal(f.chart.bands.reduce((a, b) => a + b.bars[1].value, 0), h.onlyThem + h.themFirst + h.youFirst, 'the prompts naming them')
+    // the main card leads with the answer: the prompts they win, with its change against the start
+    assert.equal(f.chart.value, h.onlyThem + h.themFirst)
+    assert.equal(f.chart.delta, h.theyWin.at(-1) - h.theyWin[3])
+    assert.equal(f.chart.worseUp, true)
+    assert.equal(f.chart.since, DATES[3])
     assert.deepEqual(f.chart.legend.map((l) => l.tone), ['primary', 'teal'])
     assert.deepEqual(f.summary.donut.map((x) => x.n), [h.onlyYou + h.youFirst, h.onlyThem + h.themFirst, h.neither])
     assert.equal(f.summary.donut.reduce((a, x) => a + x.n, 0), dataFor(brand).prompts, 'every prompt once')
-    assert.equal(f.summary.stats.length, 2)
-    assert.equal(f.summary.stats[0].value, h.onlyThem + h.themFirst)
-    assert.equal(f.summary.stats[0].delta, h.theyWin.at(-1) - h.theyWin[3])
+    // the stats don't repeat the donut or the main card
+    assert.deepEqual(f.summary.stats[0], { label: 'Topics they lead', value: h.byTopic.filter((t) => t.them > t.you).length, of: h.byTopic.length })
+    assert.equal(f.summary.stats[1].value, h.citedYou.length)
+    for (const x of f.table.rows) assert.equal(x.marker.solid, x.result.startsWith('Only '), x.text)
     assert.equal(f.table.rows.length, h.onlyThem + h.themFirst)
     for (const x of f.table.rows) { assert.ok(x.topic && x.engineName && x.result, x.text); assert.ok(x.page?.n, `${x.text}: their cited page`) }
     for (const [e, c] of Object.entries(h.engines)) assert.equal(f.table.rows.filter((x) => x.engine === e).length, c.n, e)
     assert.deepEqual(f.table.filters.map((x) => x.key), ['topic', 'engine'])
-    assert.ok(!f.table.filters[1].options.some((o) => /Claude|Gemini/.test(o)) || brand === 'foa', 'no engine that didn’t run')
+    assert.ok(!f.table.filters[1].options.some((o) => /Claude|Gemini/.test(o.label)) || brand === 'foa', 'no engine that didn’t run')
     assert.equal(f.table.pageSize, 10)
     assert.ok(f.steps.every((st) => /^\/tracker\?topic=/.test(st.action.href)))
     assert.equal(block(r, 'sources').syncs, 5)
@@ -223,7 +231,7 @@ test('verdicts: Good week / Mixed / Tough week; Winning / Mixed / Losing', () =>
 
 test('an engine that didn’t run is said so and named in the footer, never estimated', () => {
   const r = buildReport({ brand: 'foa', kind: 'weekly', length: 'detailed' })
-  assert.match(table(r).notes[0], /Claude didn’t run/)
+  assert.match(r.frame.table.note, /Claude didn’t run/)
   assert.ok(block(r, 'sources').left.some((s) => /Claude/.test(s)))
 })
 
@@ -314,13 +322,13 @@ test('the report hero and footer: the engines that ran, a compact range, what di
   assert.equal(shortRange('Oct 19', 'Oct 26'), 'Oct 19–26')
   assert.equal(shortRange('Sep 28', 'Oct 26'), 'Sep 28 – Oct 26')
   const r = buildReport({ brand: 'dermasuri', kind: 'weekly', period: 'week', length: 'detailed' })
-  const h = r.blocks.find((b) => b.type === 'hero').data
-  assert.equal(h.span, 'Oct 19–26')
-  assert.deepEqual(h.counted, ['AI Overview', 'ChatGPT'])
-  assert.equal(h.since, 'last week')
+  assert.equal(r.frame.range, 'Oct 19–26')
+  assert.equal(r.frame.frequency, 'week', 'the weekly summary is scheduled weekly')
   const f = r.blocks.find((b) => b.type === 'sources').data
+  assert.deepEqual(f.engines, ['AI Overview', 'ChatGPT'])
   assert.deepEqual(f.off, ['Gemini', 'Claude'])
-  assert.equal(r.blocks.find((b) => b.type === 'section').data.title, 'What moved')
+  assert.match(r.frame.table.note, /Gemini and Claude didn’t run\.$/)
+  assert.equal(r.frame.table.title, 'Topics')
 })
 
 test('the library: brand-scoped series (with their runs) and one-off reports', () => {
@@ -371,17 +379,11 @@ test('v7: what to do follows the question: no two kinds of report suggest the sa
   for (let i = 0; i < sets.length; i++) for (let j = i + 1; j < sets.length; j++) assert.ok(!sets[i].some((t) => sets[j].includes(t)), `${i} and ${j} share an action`)
 })
 
-test('v7: the client update speaks to the client, with its own hero and no prompt lists to open', () => {
+test('v7: the client update speaks to the client in the same frame', () => {
   const r = buildReport({ brand: 'dermasuri', kind: 'weekly', period: '30d', audience: 'client', length: 'detailed' })
-  assert.equal(hero(r).client, true)
-  assert.equal(hero(r).visual.kind, 'scoreLine')
-  assert.equal(hero(r).visual.span, 'this month')
-  assert.equal(hero(r).visual.series.length, 5)
-  assert.match(r.headline, /^You’re in \d+ more AI answers than a month ago/)
-  assert.deepEqual(sections(r).map((x) => x.visual.kind), ['topicTable', 'momentum'])
-  assert.ok(sections(r).every((x) => x.client))
-  assert.equal(table(r).actionLabel, 'What we’re doing next')
-  assert.ok(table(r).rows.filter((x) => x.action).every((x) => x.action.startsWith('We’ll ')))
-  // the score is the hero's; the momentum line doesn't repeat it
-  assert.ok(!momentum(r).items.some((x) => x.label === 'Visibility score'))
+  assert.equal(r.frame.question, 'What moved this month?')
+  assert.match(r.frame.finding, /^You’re in \d+ more AI answers than Sep 28/)
+  assert.equal(r.frame.chart.since, 'Sep 28')
+  assert.equal(r.frame.table.columns.at(-1).label, 'What we’re doing next')
+  assert.ok(r.frame.table.rows.filter((x) => x.next).every((x) => x.next.startsWith('We’ll ')))
 })
