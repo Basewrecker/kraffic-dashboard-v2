@@ -3,6 +3,7 @@ import { ArrowRight, ChevronDown, FilePlus2, Megaphone, MessageCircleQuestion } 
 import SiteLogo from '../../components/ui/SiteLogo'
 import { EngineMark } from '../insights/parts'
 import { agency } from '../../store/workspace'
+import { Hero2, ReadStrip, Section as Section2, explainV2 } from './library'
 
 // The report's block library, on a 12-column grid. Same bands for every kind: a hero band (headline, stat chips, one big
 // visual answer) · numbered sections (7 + 5 side by side, or full width) · action cards · a one-line footer. Graphite;
@@ -1261,15 +1262,16 @@ function Sources({ data: d }) {
   )
 }
 
-const RENDER = { header: Header, scoreline: Scoreline, hero: HeroBand, section: Section, actions: Actions, sources: Sources }
+const RENDER = { header: Header, scoreline: Scoreline, hero: HeroBand, section: Section, actions: Actions, sources: Sources, v2hero: Hero2, v2section: Section2, v2read: ReadStrip }
 export function Block({ block, title, n }) {
   const C = RENDER[block.type]
   return C ? <C data={block.data} title={title} n={n} /> : null
 }
-export const blockName = (b) => (b.type === 'section' ? b.data.title : { header: 'Header', scoreline: 'Scoreline', hero: 'Summary', actions: b.data.title, sources: 'Sources' }[b.type])
+export const blockName = (b) => (b.type === 'section' || b.type === 'v2section' ? b.data.title : { header: 'Header', scoreline: 'Scoreline', hero: 'Summary', v2hero: 'Summary', v2read: 'How I read your question', actions: b.data.title, sources: 'Sources' }[b.type])
 // "Explain this": how a block was worked out, in a sentence or two
 export function explainFor(block) {
   const d = block.data
+  if (block.type.startsWith('v2')) return explainV2(block)
   switch (block.type) {
     case 'hero': return {
       strip: 'The visibility score at each of the last 8 weekly syncs; this week’s is compared with the last week that was scanned. A week without a scan is left empty, not counted as 0. Good week: you won at least twice as many prompts as you lost.',
@@ -1344,6 +1346,14 @@ export function Thumb({ kind, net = null, className = 'h-16 w-28' }) {
             <g key={qi}>{Array.from({ length: n }, (_, i) => <rect key={i} x={x + (i % 6) * 7} y={y + Math.floor(i / 6) * 7} width="5" height="5" rx="1" fill={c} data-a="settle" style={at(qi * 3 + (i % 6) * 0.6 + Math.floor(i / 6))} />)}</g>
           ))}
           <line x1="54" x2="54" y1="2" y2="62" stroke="var(--div)" /><line x1="4" x2="108" y1="32" y2="32" stroke="var(--div)" />
+        </g>
+      )}
+      {kind === 'custom' && (
+        <g strokeLinecap="round">
+          <line x1="12" x2="62" y1="12" y2="12" stroke={grey} strokeWidth="3" pathLength="1" data-a="draw" style={at(0)} />
+          <line x1="12" x2="48" y1="22" y2="22" stroke={grey} strokeWidth="3" pathLength="1" data-a="draw" style={at(1)} />
+          <rect x="12" y="34" width="62" height="8" rx="2" fill={ink} data-a="sweep" style={at(2)} /><rect x="12" y="46" width="38" height="8" rx="2" fill={soft(ink, 38)} data-a="sweep" style={at(3)} />
+          <circle cx="94" cy="18" r="9" fill="none" stroke={ink} strokeWidth="1.5" data-a="pop" style={at(4)} /><path d="M91 16.5a3 3 0 1 1 3 3v1.5" fill="none" stroke={ink} strokeWidth="1.5" data-a="pop" style={at(5)} /><circle cx="94" cy="23.5" r="0.8" fill={ink} data-a="pop" style={at(5)} />
         </g>
       )}
       {kind === 'content' && (

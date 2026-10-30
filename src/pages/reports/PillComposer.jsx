@@ -147,15 +147,17 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
             <ChipMenu ghost label="Audience" icon={UserRound} value={label(AUDIENCES, 'audience')} width={280}>{(close) => radio(AUDIENCES, 'audience', close)}</ChipMenu>
             <ChipMenu ghost label="Length" icon={AlignLeft} value={label(LENGTHS, 'length')} width={240}>{(close) => radio(LENGTHS, 'length', close)}</ChipMenu>
           </div>
-          {/* send: the --send blue (40% and inactive while the box is empty); while a report is written, stop */}
+          {/* send: a grey disc while the box is empty, the --send blue once there's a question; while a report is written, stop */}
           {busy && onStop ? (
             <button type="button" onClick={onStop} aria-label="Stop writing the report" title="Stop"
               className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--send)] text-[var(--send-fg)] outline-none transition-[background-color,transform] duration-100 hover:bg-[var(--send-hover)] active:scale-[0.96] active:bg-[var(--send-active)] focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2">
               <Square size={12} fill="currentColor" strokeWidth={0} aria-hidden />
             </button>
           ) : (
-            <button type="button" onClick={send} disabled={!canSend} aria-label="Write the report"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--send)] text-[var(--send-fg)] outline-none transition-[background-color,opacity,transform] duration-150 hover:bg-[var(--send-hover)] active:scale-[0.96] active:bg-[var(--send-active)] active:duration-100 focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40">
+            <button type="button" onClick={send} disabled={!canSend} aria-label="Write the report" title={canSend ? 'Send' : 'Type a question to send'}
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-full outline-none transition-[background-color,color,transform] duration-150 focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${canSend
+                ? 'bg-[var(--send)] text-[var(--send-fg)] hover:bg-[var(--send-hover)] active:scale-[0.96] active:bg-[var(--send-active)] active:duration-100'
+                : 'cursor-not-allowed bg-tint text-stone-400'}`}>
               <ArrowUp size={18} strokeWidth={2.25} aria-hidden />
             </button>
           )}

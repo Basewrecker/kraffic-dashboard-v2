@@ -170,7 +170,7 @@ export const SHAPE_KINDS = Object.keys(SHAPES)
 // → one point per prompt (named first), inside 0..w × 0..h; null when the brand has no data or the kind is unknown
 export function shapeFor(kind, brandId, w, h) {
   const d = dataFor(brandId)
-  const make = SHAPES[kind]
+  const make = SHAPES[kind] ?? SHAPES.weekly
   if (!d || !make) return null
   return make(d, w, h, rng(kind.length * 97 + d.prompts))
 }

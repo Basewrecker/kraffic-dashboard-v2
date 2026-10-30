@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Briefcase, CalendarDays, Check, ChevronRight, PenLine, Repeat, Search, Sparkles, Star, Swords } from 'lucide-react'
+import { ArrowRight, Briefcase, CalendarDays, Check, ChevronRight, MessageCircleQuestion, PenLine, Repeat, Search, Sparkles, Star, Swords } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import Segmented from '../../components/dashboard/Segmented'
 import { useToast } from '../../components/dashboard/overlays'
@@ -38,8 +38,8 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 // headline; click to see its past runs) · One-off reports by month. Search, Type and Audience; one quiet line for the
 // schedules
 const TYPES = Object.entries(KINDS).map(([id, k]) => ({ id, label: k.name }))
-const KIND_ICON = { weekly: CalendarDays, ceo: Briefcase, rival: Swords, content: PenLine }
-const KIND_WORD = { weekly: 'Summary', ceo: 'CEO summary', rival: 'Competitor', content: 'Content plan' }
+const KIND_ICON = { weekly: CalendarDays, ceo: Briefcase, rival: Swords, content: PenLine, custom: MessageCircleQuestion }
+const KIND_WORD = { weekly: 'Summary', ceo: 'CEO summary', rival: 'Competitor gap', content: 'Content plan', custom: 'Custom' }
 const TONE_DOT = { up: 'var(--ink)', mid: 'var(--color-stone-400)', down: 'var(--negative)' }
 const toneOf = (v) => VERDICT_TONE[v] ?? 'mid'
 // the brand in scope: the one the brand switcher is on (when it has reports at all), else the default
