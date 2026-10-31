@@ -89,13 +89,14 @@ export function writeReport(opts, prompt) {
   const r = readQuestion(prompt, facts, opts)
   if (typed && !r.matched) return { ok: false, reason: 'pick', opts, notTracked: r.notTracked }
   const kind = opts.kind ?? r.kind
-  const built = buildLiveReport(facts, prompt, { ...opts, period: opts.period ?? 'quarter', kind, compare: r.compare })
+  const built = buildLiveReport(facts, prompt, { ...opts, period: opts.period ?? '30d', kind, compare: r.compare })
   // the adapter won't write a content list when nothing is missing; v4 shows that as a finished report
   const nothingMissing = !built.ok && built.reason === 'outside' && kind === 'content' && facts.missed === 0
   if (!built.ok && !nothingMissing) return built
   const b = built.ok ? built : { ok: true, kind: 'content', opts: { ...built.opts, kind: 'content' } }
   const points = pointsIn(facts.points || [], b.opts.period)
-  const view = buildReport5({ facts, built: b, points, prompt: typed ? prompt : '', read: typed ? { kind, line: r.read } : null })
+  const prev = (facts.points || []).filter((p) => p.iso < (points[0]?.iso ?? ''))
+  const view = buildReport5({ facts, built: b, points, prev, prompt: typed ? prompt : '', read: typed ? { kind, line: r.read } : null })
   return { ...b, v4: true, v5: true, view, isos: points.map((p) => p.iso), headline: view.answer, title: view.question, blocks: [] }
 }
 let seq = 0

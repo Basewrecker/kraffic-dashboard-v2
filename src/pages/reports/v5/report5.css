@@ -56,7 +56,6 @@ html[data-theme="dark"] .r5{
 .r5 .d{font-size:11px;font-weight:600;padding:3px 7px;border-radius:5px;background:var(--chip);color:var(--ink2)}
 .r5 .d.good{background:var(--good-bg);color:var(--good)} .r5 .d.bad{background:var(--bad-bg);color:var(--bad)}
 .r5 .plot{position:relative;padding:18px 20px 12px}
-.r5 .plot svg{display:block;width:100%;height:300px;overflow:visible}
 .r5 .plot text{font-family:inherit;font-size:11px;fill:var(--ink3)}
 .r5 .plot .line,.r5 .plot .tail{fill:none;stroke:var(--plot);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
 .r5 .plot .tail{stroke-dasharray:3 3}
@@ -115,3 +114,60 @@ html[data-theme="dark"] .r5{
 @media (max-width:720px){.r5 .picker{grid-template-columns:1fr 1fr}}
 @media (max-width:560px){.r5 .head h1{font-size:24px}.r5 .kpi{min-width:160px}.r5 .kpi .v b{font-size:22px}}
 @media (prefers-reduced-motion:reduce){.r5 .draw,.r5 .area.fade,.r5 .row.grow .fill{animation:none}.r5 .tip{transition:none}}
+
+/* round 2: the main chart (Chart5.jsx) */
+.r5 .chart5{position:relative}
+.r5 .chart5 svg{display:block;width:100%;height:300px;overflow:visible;outline:none}
+.r5 .chart5 svg:focus-visible{outline:2px solid var(--ink2);outline-offset:4px;border-radius:6px}
+.r5 .chart5 .line{fill:none;stroke:var(--plot);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.r5 .chart5 .cmp{fill:none;stroke:var(--ink3);stroke-width:1.5;stroke-dasharray:4 4;stroke-linejoin:round}
+.r5 .chart5 .sdot{fill:var(--plot)}
+.r5 .chart5 .cdot{fill:var(--ink3)}
+.r5 .chart5 .end{font-size:11px;fill:var(--ink3)}
+.r5 .chart5 .end.main{fill:var(--ink);font-weight:600}
+.r5 .chart5 .ring{fill:none;stroke:var(--plot);stroke-width:1.5;animation:r5ring .3s ease-out forwards}
+@keyframes r5ring{from{r:5px;opacity:.6}to{r:13px;opacity:0}}
+.r5 .chart5 .tip{left:0;top:0}
+.r5 .chart5 .tip .trow{display:flex;align-items:center;gap:6px;margin-top:4px}
+.r5 .chart5 .tip .trow em{font-style:normal;color:#8F8F8F;flex:1}
+.r5 .chart5 .tip .trow b{display:inline;font-size:13px;margin-left:12px}
+.r5 .chart5 .tip .sw{width:10px;height:2px;border-radius:1px;background:var(--plot);display:inline-block}
+.r5 .chart5 .tip .sw.dash{background:repeating-linear-gradient(90deg,#8F8F8F 0 3px,transparent 3px 5px)}
+.r5 .chart5 .tip .tchg{margin-top:4px;font-size:11px;font-weight:600;color:#8F8F8F}
+.r5 .chart5 .tip .tchg.good{color:var(--good)} .r5 .chart5 .tip .tchg.bad{color:var(--bad)}
+.r5 .legend{display:flex;justify-content:flex-end;gap:16px;margin:-4px 0 6px;font-size:12px;color:var(--ink2)}
+.r5 .legend span{display:inline-flex;align-items:center;gap:6px}
+.r5 .legend i{width:8px;height:8px;border-radius:50%;background:var(--plot);display:inline-block}
+.r5 .legend i.dash{width:14px;height:0;border-radius:0;border-top:1.5px dashed var(--ink3);background:none}
+.r5 .plot .insight{margin:6px 0 2px}
+@media (prefers-reduced-motion:reduce){.r5 .chart5 .ring{animation:none;opacity:0}}
+
+/* round 2: split bars, several value columns, rows that fill the card, Close the gap columns */
+.r5{--split-you:color-mix(in srgb,var(--ink) 16%,transparent);--split-them:color-mix(in srgb,var(--ink) 7%,transparent)}
+.r5 .row .fill.split{display:flex;background:none;overflow:hidden}
+.r5 .row .fill.split i{display:block;height:100%}
+.r5 .row .fill.split i.you{background:var(--split-you)}
+.r5 .row .fill.split i.them{background:var(--split-them)}
+.r5 .row .fill.split i.rest{background:var(--bar)}
+.r5 .row:hover .fill.split{filter:brightness(.97)}
+.r5 .row .vals{position:relative;display:flex;align-items:center;gap:0;flex:none}
+.r5 .row .vals .n{width:60px;text-align:right}
+.r5 .row .vals .vt{width:108px;padding-left:12px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.r5 .row.muted{color:var(--ink3);cursor:default}
+.r5 .row .note{position:relative;margin-left:auto;font-size:12px;color:var(--ink3)}
+.r5 .ptabs .cols{margin-left:auto;display:flex;padding-right:8px}
+.r5 .ptabs .cols .col{margin-left:0;padding-right:0;width:60px;text-align:right}
+.r5 .ptabs .cols .col.ct{width:108px;text-align:left;padding-left:12px}
+.r5 .rows.fillrows .row{flex:1 1 32px;max-height:40px}
+.r5 .row.step{display:grid;align-items:center;gap:12px}
+.r5 .row.step > *:not(.fill){position:relative;min-width:0}
+.r5 .row.step .act{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r5 .row.step .chip{display:inline-block;max-width:100%;padding:1px 8px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.r5 .row.step .favs{display:flex}
+.r5 .row.step .favs .fav{box-shadow:0 0 0 2px var(--card);border-radius:50%}
+.r5 .row.step .favs .fav + .fav{margin-left:-5px}
+.r5 .row.step .page{display:flex;align-items:center;gap:7px;color:var(--ink2);min-width:0}
+.r5 .row.step .page .x{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r5 .row.step .cited,.r5 .row.step .effort{color:var(--ink3);font-size:12px;white-space:nowrap}
+.r5 .row.step .n{text-align:right;font-weight:600}
+.r5 .row.step:hover .fill{background:var(--bar-hi)}

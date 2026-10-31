@@ -53,7 +53,8 @@ export function proposedFacts(brandId, scans, { all = true } = {}) {
 
   // PROPOSED lostRows[]: the prompts lost since the sync before, with their topic (ADDING: topic)
   const lostRows = (facts.lost || []).map((prompt) => ({ prompt, topic: topicOf.get(prompt) ?? null }))
-  if (!all) return { ...facts, missedRows, lostRows, adding: true }
+  const gainedRows = (facts.gained || []).map((prompt) => ({ prompt, topic: topicOf.get(prompt) ?? null }))
+  if (!all) return { ...facts, missedRows, lostRows, gainedRows, adding: true }
 
   // PROPOSED headToHead[]: per competitor, the prompts where both are named and who's named first, and the prompts
   // they win (only them, or named first) with topic and engine; a brand named everywhere keeps only the ones where
@@ -66,7 +67,9 @@ export function proposedFacts(brandId, scans, { all = true } = {}) {
     const ownOnly = new Set(missedRows.filter((r) => r.competitors.includes(dom)).map((r) => r.prompt))
     const wins = h.themes.flatMap((t) => t.prompts.map((prompt) => ({ prompt, topic: t.theme, engine: winsBy.get(prompt) ?? 'aio' })))
       .filter((w) => ownOnly.has(w.prompt) || !baseOnly.has(w.prompt))
-    return { domain: dom, themFirst, youFirst, theyWin: h.theyWin.slice(from), youWin: h.youWin.slice(from), wins }
+    // per engine: prompts they win, you win, neither (the dataset's head-to-head per engine; they add up to the prompts)
+    const engines = Object.entries(h.engines || {}).map(([id, e]) => ({ id, them: e.n, you: e.you, neither: e.neither }))
+    return { domain: dom, themFirst, youFirst, theyWin: h.theyWin.slice(from), youWin: h.youWin.slice(from), wins, engines }
   })
 
   // PROPOSED topics[]: per topic, the prompts that name you and each competitor. The dataset's counts, moved by the
@@ -100,5 +103,5 @@ export function proposedFacts(brandId, scans, { all = true } = {}) {
   const points = facts.points.map((p, i) => ({ ...p, share: d.share[youKey]?.[from + i] ?? null, gained: d.wonSeries?.[from + i] ?? null, lost: d.lostSeries?.[from + i] ?? null }))
   if (points[0]) { points[0].gained = null; points[0].lost = null } // the first sync in view has nothing before it
 
-  return { ...facts, lostRows, missedRows, headToHead, topics, topicShare, competitors, points, proposed: true }
+  return { ...facts, lostRows, gainedRows, missedRows, headToHead, topics, topicShare, competitors, points, proposed: true }
 }
