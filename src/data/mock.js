@@ -107,9 +107,9 @@ export const historyRanges = {
 export const defaultRange = { weekly: 'last-30d', monthly: 'last-6m' }
 
 // Nice auto-fit domain for "your share only": [floor(min − 5) to 5, ceil(max + 5) to 5], 4 evenly spaced ticks.
-function fitDomain(values) {
+function fitDomain(values, cap = 100) {
   const lo = Math.max(0, Math.floor((Math.min(...values) - 5) / 5) * 5)
-  let hi = Math.min(100, Math.ceil((Math.max(...values) + 5) / 5) * 5)
+  let hi = Math.min(cap, Math.ceil((Math.max(...values) + 5) / 5) * 5)
   const step = Math.max(5, Math.ceil((hi - lo) / 3 / 5) * 5)
   hi = lo + step * 3
   return { domain: [lo, hi], ticks: [0, 1, 2, 3].map((i) => lo + step * i) }
@@ -175,8 +175,11 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
   const best = valued.reduce((a, p) => (p[focal] > a[focal] ? p : a), valued[0] || null)
   const unit = gran === 'monthly' ? 'month' : 'week'
   // competitors alone sit at 3–21%: on 0–100 they'd be flat lines along the floor, so fit them
-  const axis = !compare ? fitDomain(you.length ? you : [0])
-    : youHidden ? fitDomain(points.flatMap((p) => series.map((s) => p[s.key])).filter((v) => v != null).concat(points.length ? [] : [0]))
+  // a dataset of counts (Reports: prompts named, prompts they win) has no 100% ceiling
+  const counts = ds.unit === 'count'
+  const all0 = points.flatMap((p) => series.map((s) => p[s.key])).filter((v) => v != null)
+  const axis = !compare ? fitDomain(you.length ? you : [0], counts ? Infinity : 100)
+    : youHidden || counts ? fitDomain(all0.length ? all0 : [0], counts ? Infinity : 100)
     : shareAxis(Math.max(0, ...points.flatMap((p) => series.map((s) => p[s.key] ?? 0))))
   return {
     granularity: gran,

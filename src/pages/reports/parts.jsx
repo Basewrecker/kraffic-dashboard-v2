@@ -25,7 +25,7 @@ export function fromQuery(search = window.location.search) {
   const list = (k) => (q.get(k) ? q.get(k).split(',').filter(Boolean) : [])
   return {
     prompt: q.get('q') ?? '',
-    opts: { ...DEFAULT_OPTS, brand: q.get('brand') ?? defaultBrand(), period: q.get('period'), audience: q.get('audience'), length: q.get('length'), engines: list('engines'), compare: list('compare'), from: q.get('from'), to: q.get('to') },
+    opts: { ...DEFAULT_OPTS, brand: q.get('brand') ?? defaultBrand(), period: q.get('period'), audience: q.get('audience'), length: q.get('length'), engines: list('engines'), compare: list('compare'), from: q.get('from'), to: q.get('to'), kind: q.get('kind') },
   }
 }
 // the brand chip starts on the brand you're viewing

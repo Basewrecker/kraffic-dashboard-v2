@@ -14,6 +14,7 @@ import SchemaDrawer, { setSchemaSection } from './SchemaDrawer'
 import SettingsTab, { crawlSettings } from './SettingsTab'
 import DrawerShell, { useDrawer } from '../audit/DrawerShell'
 import SchemaRing, { RING_COLORS } from './SchemaRing'
+import Marker from '../ui/Marker'
 import { saveSettings, useSettings } from './settings'
 import { PendingCheck, StatusIcon, StatusLabel, pagesLine, usePending } from './parts'
 import { SD, crawlActions } from '../../data/structuredData'
@@ -376,29 +377,7 @@ function ActionPlan({ r, setTab }) {
 // ---- Coverage map: the crawl's page types × the schemas found on the site or recommended for those page types
 const lower = (name) => name.charAt(0).toLowerCase() + name.slice(1)
 
-// coverage marker: ● all pages (ink + check) · ◔ some (ring, ink arc = share, from 12 o'clock) · ◌ none (dashed ring)
-function Marker({ found, applies, size = 20 }) {
-  const sw = 2.5
-  const r = (size - sw) / 2
-  const len = 2 * Math.PI * r
-  if (applies && found === applies) {
-    return <span className="grid shrink-0 place-items-center rounded-full bg-ink" style={{ width: size, height: size }} aria-hidden><Check size={size * 0.6} strokeWidth={2.5} className="text-[var(--color-surface)]" /></span>
-  }
-  if (!found) {
-    return (
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" aria-hidden>
-        <circle cx={size / 2} cy={size / 2} r={(size - 1.5) / 2} fill="none" stroke="var(--color-line-strong)" strokeWidth={1.5} strokeDasharray="3 2.5" />
-      </svg>
-    )
-  }
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0 -rotate-90" aria-hidden>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--data-track)" strokeWidth={sw} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ink)" strokeWidth={sw} strokeLinecap="round"
-        strokeDasharray={len} strokeDashoffset={len * (1 - found / applies)} />
-    </svg>
-  )
-}
+// coverage marker: components/ui/Marker (shared with Reports)
 
 function MapCell({ c, short, group }) {
   if (!c.applies) return <span className="block text-center text-[13px] leading-[18px] text-[var(--data-c3)]" aria-label={`${short} doesn't apply to ${lower(group.name)}`}>—</span>

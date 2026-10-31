@@ -681,9 +681,10 @@ export default function ReportFrame({ built, onPeriod, onSchedule, actions = [],
         )}
       </header>
       <div style={band(1)}><KpiStrip kpis={f.kpis} /></div>
-      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" style={band(2)}>
-        <LeftCard c={f.left} picked={picked} onPick={setPicked} />
-        <RightCard r={f.right} />
+      {/* with no chart on one side (one scan, no history) the other takes the row, as in the app's frame */}
+      <div className={`grid items-stretch gap-4 ${f.left && f.right ? 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''}`} style={band(2)}>
+        {f.left && <LeftCard c={f.left} picked={picked} onPick={setPicked} />}
+        {f.right && <RightCard r={f.right} />}
       </div>
       <div style={band(3)}><TableCard t={f.table} source={source} notes={f.notInData ?? []} picked={picked} /></div>
       {f.pages && <div style={band(4)}><PagesCard p={f.pages} /></div>}

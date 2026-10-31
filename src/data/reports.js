@@ -5,6 +5,7 @@
 // Every number comes from these datasets; anything they don't hold is left out and named in the footer, never estimated.
 import { historyMany } from './historyMany.js'
 import { brandName } from '../utils/brand.js'
+import { liveFacts } from './live-facts.js'
 
 export const ENGINE_NAMES = { aio: 'AI Overview', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
 export const ENGINE_IDS = Object.keys(ENGINE_NAMES)
@@ -1000,6 +1001,11 @@ export const schedules = [
 
 // generating: the steps the page ticks off (counts from the data)
 export function stepsFor(o) {
+  const live = liveFacts()
+  if (live && live.brandId === o.brand) {
+    const n = 1 + (o.compare?.length ? o.compare.length : live.competitors.length)
+    return [...(o.kind === 'custom' ? ['Reading your question'] : []), `Reading ${live.scans} ${live.scans === 1 ? 'sync' : 'syncs'}`, `Comparing ${n} brands`, 'Writing the summary']
+  }
   const d = dataFor(o.brand)
   const n = d ? 1 + (o.compare?.length ? o.compare.length : d.rivals.length) : 0
   const syncs = DATES.length - startIdx(o.period)
