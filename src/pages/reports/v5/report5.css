@@ -3,7 +3,7 @@
    rules (DESIGN.md, Reports): the blue chart line and fade, 11px uppercase panel column labels, coloured favicons in
    panel rows. */
 .r5{
-  --page:#FAFAFA; --card:#FFFFFF; --tabs:#F5F5F5; --line:#EAEAEA; --bar:#F1F1F1; --bar-hi:#E8E8E8; --pill:#EBEBEB;
+  --page:#FAFAFA; --card:#FFFFFF; --tabs:#F5F5F5; --line:#EAEAEA; --bar:#F6F6F6; --bar-hi:#EFEFEF; --pill:#EBEBEB;
   --ink:#171717; --ink2:#666666; --ink3:#8F8F8F; --chip:#EDEDED;
   --plot:#0068D6; --plot-a:.16; --grid:#EFEFEF;
   --good:#1A7F4B; --good-bg:#E6F4EC; --bad:#D93036; --bad-bg:#FCEBEC;
@@ -11,14 +11,14 @@
   color:var(--ink);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;
 }
 html[data-theme="dark"] .r5{
-  --page:#000000; --card:#0A0A0A; --tabs:#111111; --line:#1F1F1F; --bar:#151515; --bar-hi:#1D1D1D; --pill:#1F1F1F;
+  --page:#000000; --card:#0A0A0A; --tabs:#111111; --line:#1F1F1F; --bar:#111111; --bar-hi:#171717; --pill:#1F1F1F;
   --ink:#EDEDED; --ink2:#A1A1A1; --ink3:#707070; --chip:#1F1F1F;
   --plot:#3291FF; --plot-a:.22; --grid:#1A1A1A;
   --good:#4CC38A; --good-bg:rgba(76,195,138,.12); --bad:#FF6166; --bad-bg:rgba(255,97,102,.12);
   --tip:#1A1A1A; --tip-fg:#EDEDED;
 }
 @media (prefers-color-scheme:dark){html:not([data-theme="light"]) .r5{
-  --page:#000000; --card:#0A0A0A; --tabs:#111111; --line:#1F1F1F; --bar:#151515; --bar-hi:#1D1D1D; --pill:#1F1F1F;
+  --page:#000000; --card:#0A0A0A; --tabs:#111111; --line:#1F1F1F; --bar:#111111; --bar-hi:#171717; --pill:#1F1F1F;
   --ink:#EDEDED; --ink2:#A1A1A1; --ink3:#707070; --chip:#1F1F1F;
   --plot:#3291FF; --plot-a:.22; --grid:#1A1A1A;
   --good:#4CC38A; --good-bg:rgba(76,195,138,.12); --bad:#FF6166; --bad-bg:rgba(255,97,102,.12);
@@ -44,10 +44,11 @@ html[data-theme="dark"] .r5{
 .r5 .menu li button:hover,.r5 .menu li button[aria-current="true"]{background:var(--tabs)}
 
 .r5 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.r5 .kpis{display:flex;background:var(--tabs);border-bottom:1px solid var(--line);overflow-x:auto}
+.r5 .kpis{display:flex;background:var(--tabs);border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.r5 .kpis::-webkit-scrollbar{display:none}
 .r5 .kpi{flex:0 0 auto;min-width:200px;text-align:left;padding:14px 18px 15px;border-right:1px solid var(--line);position:relative;background:var(--tabs)}
 .r5 .kpi[aria-selected="true"]{background:var(--card)}
-.r5 .kpi[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink)}
+.r5 .kpi[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--ink)}
 .r5 .kpi .l{font-size:13px;color:var(--ink2);font-weight:500}
 .r5 .kpi[aria-selected="true"] .l{color:var(--ink)}
 .r5 .kpi .v{display:flex;align-items:center;gap:10px;margin-top:4px}
@@ -143,13 +144,15 @@ html[data-theme="dark"] .r5{
 @media (prefers-reduced-motion:reduce){.r5 .chart5 .ring{animation:none;opacity:0}}
 
 /* round 2: split bars, several value columns, rows that fill the card, Close the gap columns */
-.r5{--split-you:color-mix(in srgb,var(--ink) 16%,transparent);--split-them:color-mix(in srgb,var(--ink) 7%,transparent)}
+.r5{--split-you:#EFEFEF;--split-them:var(--bar)}
+html[data-theme="dark"] .r5{--split-you:#171717}
+@media (prefers-color-scheme:dark){html:not([data-theme="light"]) .r5{--split-you:#171717}}
 .r5 .row .fill.split{display:flex;background:none;overflow:hidden}
 .r5 .row .fill.split i{display:block;height:100%}
 .r5 .row .fill.split i.you{background:var(--split-you)}
 .r5 .row .fill.split i.them{background:var(--split-them)}
 .r5 .row .fill.split i.rest{background:var(--bar)}
-.r5 .row:hover .fill.split{filter:brightness(.97)}
+.r5 .row:hover .fill.split i{background:var(--bar-hi)}
 .r5 .row .vals{position:relative;display:flex;align-items:center;gap:0;flex:none}
 .r5 .row .vals .n{width:60px;text-align:right}
 .r5 .row .vals .vt{width:108px;padding-left:12px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
@@ -171,3 +174,35 @@ html[data-theme="dark"] .r5{
 .r5 .row.step .cited,.r5 .row.step .effort{color:var(--ink3);font-size:12px;white-space:nowrap}
 .r5 .row.step .n{text-align:right;font-weight:600}
 .r5 .row.step:hover .fill{background:var(--bar-hi)}
+
+/* round 3: plain rows (no bar, hairline dividers) for panels whose rows carry several value columns (Engines) */
+.r5 .rows.plain{gap:0}
+.r5 .rows.plain .row{border-radius:0;border-bottom:1px solid var(--line)}
+.r5 .rows.plain .row:last-child{border-bottom:0}
+.r5 .rows.plain .row:hover{background:var(--bar)}
+/* rows whose text may wrap to two lines (Gained / Lost) */
+.r5 .row.wrap2 .t .x{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35;padding:6px 0}
+/* phones: Close the gap keeps the action and +N; the other columns are in the brief */
+@media (max-width:720px){.r5 .row.step{grid-template-columns:minmax(0,1fr) 48px !important}.r5 .row.step > :not(.fill):not(.act):not(.n){display:none}}
+
+/* the gap ribbon (Competitor gap, Prompts they win) */
+.r5{--rep-you-line:#0068D6;--rep-rival-line:#8F8F8F;--rep-lead-fill:rgba(22,163,74,.14);--rep-behind-fill:rgba(220,38,38,.12)}
+html[data-theme="dark"] .r5{--rep-you-line:#3291FF;--rep-lead-fill:rgba(76,195,138,.18);--rep-behind-fill:rgba(255,97,102,.18)}
+@media (prefers-color-scheme:dark){html:not([data-theme="light"]) .r5{--rep-you-line:#3291FF;--rep-lead-fill:rgba(76,195,138,.18);--rep-behind-fill:rgba(255,97,102,.18)}}
+.r5 .chart5 .rline{fill:none;stroke-linejoin:round;stroke-linecap:round}
+.r5 .chart5 .rline.you{stroke:var(--rep-you-line);stroke-width:2}
+.r5 .chart5 .rline.them{stroke:var(--rep-rival-line);stroke-width:1.6;stroke-dasharray:4 3}
+.r5 .chart5 .bands .lead{fill:var(--rep-lead-fill)}
+.r5 .chart5 .bands .behind{fill:var(--rep-behind-fill)}
+.r5 .chart5 .bands.in{animation:r5fade .3s ease-out .6s both}
+.r5 .chart5 .reveal{transform-box:fill-box;transform-origin:left;animation:r5reveal .6s cubic-bezier(.3,.7,.2,1) both}
+@keyframes r5reveal{from{transform:scaleX(0)}}
+/* legend pills */
+.r5 .legend{gap:6px;margin:-6px 0 6px}
+.r5 .legend span{height:24px;padding:0 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--ink2);background:var(--card)}
+.r5 .legend i{width:12px;height:0;border-radius:0;background:none;border-top:2px solid var(--plot)}
+.r5 .legend i.dash{width:12px;border-top:1.5px dashed var(--ink3)}
+.r5 .legend i.sq{width:9px;height:9px;border:0;border-radius:2px}
+.r5 .legend i.sq.lead{background:var(--rep-lead-fill);box-shadow:inset 0 0 0 1px rgba(22,163,74,.35)}
+.r5 .legend i.sq.behind{background:var(--rep-behind-fill);box-shadow:inset 0 0 0 1px rgba(220,38,38,.3)}
+@media (prefers-reduced-motion:reduce){.r5 .chart5 .bands.in,.r5 .chart5 .reveal{animation:none}}

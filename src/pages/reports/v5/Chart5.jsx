@@ -7,7 +7,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 const reduce = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
-const H = 300, PT = 14, PB = 26, PL = 44, PR = 104
+const H = 300, PT = 18, PB = 26, PL = 44, PR = 12
 
 // round ticks fitted to the data: ~15% headroom, from 0 when the data is near it
 export function fitAxis(values) {
@@ -45,7 +45,10 @@ export default function Chart5({ kpi, dates, isos, anim }) {
   const [W, setW] = useState(900)
   const [idx, setIdx] = useState(null)
   const [ring, setRing] = useState(0)
-  const s = kpi.series, c = kpi.compare
+  const rb = kpi.ribbon
+  // the ribbon draws you (solid) and them (dashed); otherwise the metric (solid) and its comparison (dashed)
+  const s = rb ? rb.you.values : kpi.series
+  const c = rb ? { values: rb.them.values, short: rb.them.short, label: rb.them.label } : kpi.compare
   const N = s.length
   useLayoutEffect(() => {
     const el = wrap.current
@@ -67,6 +70,22 @@ export default function Chart5({ kpi, dates, isos, anim }) {
   let cmpD = null
   if (cmp) { cmpD = ''; let pen = false; cmp.forEach((p) => { if (!p) { pen = false; return } cmpD += `${pen ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`; pen = true }) }
   const show = labelled(isos)
+  // the area between the two lines, split exactly where they cross: lead (you above) and behind
+  const bands = []
+  if (rb) {
+    const P = (i, v) => [x(i), y(v)]
+    for (let i = 0; i < N - 1; i++) {
+      const a0 = s[i] - c.values[i], a1 = s[i + 1] - c.values[i + 1]
+      if (a0 * a1 < 0) {
+        const t = a0 / (a0 - a1)
+        const xc = x(i) + t * (x(i + 1) - x(i)), yc = y(s[i] + t * (s[i + 1] - s[i]))
+        bands.push({ cls: a0 > 0 ? 'lead' : 'behind', pts: [P(i, s[i]), [xc, yc], P(i, c.values[i])] })
+        bands.push({ cls: a1 > 0 ? 'lead' : 'behind', pts: [[xc, yc], P(i + 1, s[i + 1]), P(i + 1, c.values[i + 1])] })
+      } else {
+        bands.push({ cls: a0 + a1 >= 0 ? 'lead' : 'behind', pts: [P(i, s[i]), P(i + 1, s[i + 1]), P(i + 1, c.values[i + 1]), P(i, c.values[i])] })
+      }
+    }
+  }
   const motion = !reduce()
 
   // the line draws in (first view and tab switch)
@@ -99,8 +118,10 @@ export default function Chart5({ kpi, dates, isos, anim }) {
   const prevTone = prev == null || prev === 0 ? '' : (prev > 0) !== !!kpi.lowerIsBetter ? 'good' : 'bad'
 
   // end labels: the latest value of each series at the right edge (moved apart when they'd overlap)
-  const ends = [{ v: s[N - 1], label: kpi.short, main: true }, ...(c && c.values[N - 1] != null ? [{ v: c.values[N - 1], label: c.short }] : [])].map((e) => ({ ...e, y: y(e.v) }))
-  if (ends.length === 2 && Math.abs(ends[0].y - ends[1].y) < 14) { const [a, b] = ends[0].y <= ends[1].y ? [ends[0], ends[1]] : [ends[1], ends[0]]; const mid = (a.y + b.y) / 2; a.y = mid - 7; b.y = mid + 7 }
+  // end labels: the latest value of each series, right-aligned at the plot's right edge, just above its last point
+  // (the lower of two goes below it), so they never shrink the plot
+  const ends = [{ v: s[N - 1], label: rb ? 'you' : kpi.short, main: true }, ...(c && c.values[N - 1] != null ? [{ v: c.values[N - 1], label: c.short }] : [])].map((e) => ({ ...e, y: y(e.v) - 9 }))
+  if (ends.length === 2) { const lo = ends[0].y > ends[1].y ? ends[0] : ends[1]; if (Math.abs(ends[0].y - ends[1].y) < 22) lo.y += 26 }
 
   return (
     <div ref={wrap} className="chart5" onMouseMove={onMove} onMouseLeave={() => setIdx(null)}>
@@ -115,9 +136,22 @@ export default function Chart5({ kpi, dates, isos, anim }) {
         <g style={{ opacity: on ? 1 : 0, transition: motion ? 'opacity 150ms ease-out' : 'none' }} pointerEvents="none">
           <rect x={-step / 2} y={PT} width={step} height={ih} fill="var(--plot)" fillOpacity=".06" style={{ transform: `translateX(${hx}px)`, transition: glide }} />
         </g>
-        <path className={`area ${anim && motion ? 'fade' : ''}`} fill="url(#r5gf)" d={`${d}L${x(N - 1)},${PT + ih}L${x(0)},${PT + ih}Z`} />
-        {cmpD && <path className={`cmp ${anim && motion ? 'fade' : ''}`} d={cmpD} />}
-        <path ref={lineRef} className="line" d={d} />
+        {rb ? (
+          <>
+            <defs><clipPath id={`r5clip-${kpi.id}`}><rect x={PL - 6} y={0} width={iw + 12} height={H} className={anim && motion ? 'reveal' : ''} /></clipPath></defs>
+            <g className={anim && motion ? 'bands in' : 'bands'}>{bands.map((b, i) => <polygon key={i} className={b.cls} points={b.pts.map((p) => p.map((n) => n.toFixed(1)).join(',')).join(' ')} />)}</g>
+            <g clipPath={`url(#r5clip-${kpi.id})`}>
+              <path className="rline them" d={cmpD} />
+              <path className="rline you" d={d} />
+            </g>
+          </>
+        ) : (
+          <>
+            <path className={`area ${anim && motion ? 'fade' : ''}`} fill="url(#r5gf)" d={`${d}L${x(N - 1)},${PT + ih}L${x(0)},${PT + ih}Z`} />
+            {cmpD && <path className={`cmp ${anim && motion ? 'fade' : ''}`} d={cmpD} />}
+            <path ref={lineRef} className="line" d={d} />
+          </>
+        )}
         {cmp && cmp.map((p, i) => p && <circle key={`c${i}`} cx={p[0]} cy={p[1]} r="2.5" className="cdot" />)}
         {pts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="3" className="sdot" />)}
         <g pointerEvents="none" style={{ opacity: on ? 1 : 0, transition: motion ? 'opacity 150ms ease-out' : 'none' }}>
@@ -130,16 +164,18 @@ export default function Chart5({ kpi, dates, isos, anim }) {
           </g>
         </g>
         {ends.map((e) => (
-          <text key={e.label} x={W - PR + 10} y={e.y + 4} className={e.main ? 'end main' : 'end'}><tspan className="num">{fmt(e.v, kpi.unit)}</tspan> {e.label}</text>
+          <text key={e.label} x={W - PR - 2} y={e.y + 4} textAnchor="end" className={e.main ? 'end main' : 'end'}><tspan className="num">{fmt(e.v, kpi.unit)}</tspan> {e.label}</text>
         ))}
       </svg>
       <div className="tip" role="status" style={{ opacity: on ? 1 : 0, transform: `translate(${tipLeft}px, ${hy + 10}px) translateY(-100%)`, transition: motion ? 'transform 150ms ease-out, opacity 100ms' : 'none' }}>
         {on && (
           <>
             <span>{dates[idx]}</span>
-            <div className="trow"><i className="sw" /><em>{kpi.short}</em><b className="num">{fmt(s[idx], kpi.unit)}</b></div>
+            <div className="trow"><i className="sw" /><em>{rb ? rb.you.label : kpi.short}</em><b className="num">{fmt(s[idx], kpi.unit)}</b></div>
             {c && c.values[idx] != null && <div className="trow"><i className="sw dash" /><em>{c.short}</em><b className="num">{fmt(c.values[idx], kpi.unit)}</b></div>}
-            {prev != null && <div className={`tchg ${prevTone}`}>{signed(prev, kpi.unit)} vs {dates[idx - 1]}</div>}
+            {rb && (() => { const g = s[idx] - c.values[idx]; return <div className={`tchg ${g > 0 ? 'good' : g < 0 ? 'bad' : ''}`}>{g > 0 ? `You lead by ${g}` : g < 0 ? `${rb.them.label} leads by ${-g}` : 'Level'}</div> })()}
+            {rb && idx > 0 && (() => { const g = s[idx] - c.values[idx], g0 = s[idx - 1] - c.values[idx - 1]; return <div className="tchg">Gap {signed(g - g0, '')} vs {dates[idx - 1]}</div> })()}
+            {!rb && prev != null && <div className={`tchg ${prevTone}`}>{signed(prev, kpi.unit)} vs {dates[idx - 1]}</div>}
           </>
         )}
       </div>

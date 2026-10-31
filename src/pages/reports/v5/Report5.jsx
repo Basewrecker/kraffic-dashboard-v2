@@ -55,11 +55,20 @@ function KpiCard({ kpis, selected, onSelect, dates, isos, history }) {
         {k.series ? (
           <>
             <div className="legend">
-              <span><i />{k.short === 'you' ? k.brand : k.short}</span>
-              {k.compare && <span><i className="dash" />{k.compare.short === 'you' ? k.brand : k.compare.kind === 'previous' ? 'Previous period' : k.compare.label}</span>}
+              {k.ribbon ? (
+                <>
+                  <span><i />{k.brand}</span><span><i className="dash" />{k.ribbon.them.label}</span>
+                  <span><i className="sq lead" />you lead</span><span><i className="sq behind" />they lead</span>
+                </>
+              ) : (
+                <>
+                  <span><i />{k.short === 'you' ? k.brand : k.short}</span>
+                  {k.compare && <span><i className="dash" />{k.compare.short === 'you' ? k.brand : k.compare.kind === 'previous' ? 'Previous period' : k.compare.label}</span>}
+                </>
+              )}
             </div>
-            <Chart5 key={k.id} kpi={k} dates={dates} isos={isos} anim={anim} />
-            {k.insight && <div className="insight"><Insight explain={explain} text={k.insight.text} evidence={{ keys: [], calc: k.insight.why }} /></div>}
+            <Chart5 key={k.id} kpi={k} dates={k.offset ? dates.slice(k.offset) : dates} isos={k.offset ? isos.slice(k.offset) : isos} anim={anim} />
+            {(k.ribbon?.insight ?? k.insight) && <div className="insight"><Insight explain={explain} text={(k.ribbon?.insight ?? k.insight).text} evidence={{ keys: [], calc: (k.ribbon?.insight ?? k.insight).why }} /></div>}
           </>
         ) : <div className="state">{history ? `Not in your data: ${lowerFirst(k.label)} by sync` : NO_HISTORY}</div>}
       </div>
@@ -77,16 +86,16 @@ function Fav({ icon }) {
   return <span className="fav"><img src={favicon(icon.domain)} alt="" onError={() => setBad(true)} onLoad={(e) => e.currentTarget.naturalWidth <= 16 && setBad(true)} /></span>
 }
 
-function Rows({ rows, grow = true, onRow, extra }) {
+function Rows({ rows, grow = true, onRow, extra, widths }) {
   const max = Math.max(...rows.map((r) => r.n ?? 0), 1)
   const maxSplit = Math.max(...rows.map((r) => (r.split ? r.split.reduce((a, x) => a + x.v, 0) : 0)), 1)
-  return rows.map((r, i) => <RowFragment key={`${r.t}-${i}`} r={r} i={i} max={max} maxSplit={maxSplit} grow={grow} onRow={onRow} extra={extra} />)
+  return rows.map((r, i) => <RowFragment key={`${r.t}-${i}`} r={r} i={i} max={max} maxSplit={maxSplit} grow={grow} onRow={onRow} extra={extra} widths={widths} />)
 }
-function RowFragment({ r, i, max, maxSplit, grow, onRow, extra }) {
+function RowFragment({ r, i, max, maxSplit, grow, onRow, extra, widths }) {
   const click = onRow && (r.click !== null) ? () => onRow(r, i) : undefined
   return (
     <>
-      <button type="button" className={`row ${grow ? 'grow' : ''} ${r.muted ? 'muted' : ''}`} style={{ '--i': i }} onClick={click} aria-expanded={extra ? !!extra(r, i) : undefined} disabled={!click && !extra ? undefined : undefined}>
+      <button type="button" className={`row ${grow ? 'grow' : ''} ${r.muted ? 'muted' : ''} ${r.wrap ? 'wrap2' : ''}`} title={r.topic && r.wrap ? `Topic: ${r.topic}` : undefined} style={{ '--i': i }} onClick={click} aria-expanded={extra ? !!extra(r, i) : undefined} disabled={!click && !extra ? undefined : undefined}>
         {r.split
           ? <span className="fill split" style={{ width: `${Math.max(5, (r.split.reduce((a, x) => a + x.v, 0) / maxSplit) * 100)}%` }}>{r.split.map((x, k) => <i key={k} className={x.tone} style={{ flex: `${x.v} 1 0` }} />)}</span>
           : r.n != null && <span className="fill" style={{ width: `${Math.max(5, (r.n / (r.max ?? max)) * 100)}%` }} />}
@@ -94,8 +103,8 @@ function RowFragment({ r, i, max, maxSplit, grow, onRow, extra }) {
         {r.note && <span className="note">{r.note}</span>}
         {r.vals
           ? <span className="vals">{r.vals.map((v, k) => (v.text != null
-            ? <span key={k} className="vt">{v.text}</span>
-            : <span key={k} className={`n num ${v.tone ?? ''}`}>{v.pre ?? ''}{v.v.toLocaleString()}{v.suf ?? ''}</span>))}</span>
+            ? <span key={k} className="vt" style={widths ? { width: widths[k] } : undefined}>{v.text}</span>
+            : <span key={k} className={`n num ${v.tone ?? ''}`} style={widths ? { width: widths[k] } : undefined}>{v.pre ?? ''}{v.v.toLocaleString()}{v.suf ?? ''}</span>))}</span>
           : r.n != null && <span className={`n num ${r.sign ?? ''}`}>{r.pre ?? ''}{r.n.toLocaleString()}{r.suf ?? ''}</span>}
       </button>
       {extra?.(r, i)}
@@ -103,12 +112,15 @@ function RowFragment({ r, i, max, maxSplit, grow, onRow, extra }) {
   )
 }
 
+// a value column is as wide as its label (at least 60px; text columns 108px), shared by the header and the rows
+const colWidths = (d) => (Array.isArray(d.col) ? d.col.map((c, i) => (d.rows.some((r) => r.vals?.[i]?.text != null) ? 108 : Math.max(60, Math.ceil(c.length * 7.4) + 14))) : null)
 export function Panel({ def }) {
   const [st, setSt] = useState({ tab: def.tabs[0].key, filter: null, all: false })
   const d = def.tabs.find((t) => t.key === st.tab) ?? def.tabs[0]
   const rows = st.filter ? d.rows.filter((r) => r.topic === st.filter) : d.rows
   const clip = !st.all && rows.length > 7
   const prompts = def.tabs.some((t) => t.key === 'prompts')
+  const widths = colWidths(d)
   return (
     <section className="panel" aria-label={d.label}>
       <div className="ptabs" role="tablist">
@@ -116,11 +128,11 @@ export function Panel({ def }) {
           <button key={t.key} type="button" className={`ptab ${def.solo ? 'solo' : ''}`} role="tab" aria-selected={t.key === d.key}
             onClick={def.solo ? undefined : () => setSt({ tab: t.key, filter: null, all: false })}>{t.label}</button>
         ))}
-        {Array.isArray(d.col) ? <span className="cols">{d.col.map((c) => <span key={c} className={d.rows.some((r) => r.vals?.[d.col.indexOf(c)]?.text != null) ? 'col ct' : 'col'}>{c}</span>)}</span> : d.col && <span className="col">{d.col}</span>}
+        {Array.isArray(d.col) ? <span className="cols">{d.col.map((c, i) => <span key={c} className={d.rows.some((r) => r.vals?.[i]?.text != null) ? 'col ct' : 'col'} style={{ width: widths[i] }}>{c}</span>)}</span> : d.col && <span className="col">{d.col}</span>}
       </div>
       {st.filter && <div className="filter">Filtered to <button type="button" onClick={() => setSt((s) => ({ ...s, filter: null }))}>{st.filter} <span aria-hidden="true">×</span></button></div>}
-      <div className={`rows ${clip ? 'clip' : ''} ${rows.length < 7 ? 'fillrows' : ''}`}>
-        <Rows key={`${d.key}-${st.filter}`} rows={rows} onRow={prompts ? (r) => r.click && setSt({ tab: 'prompts', filter: r.click, all: true }) : undefined} />
+      <div className={`rows ${clip ? 'clip' : ''} ${rows.length < 7 && !def.plain ? 'fillrows' : ''} ${def.plain ? 'plain' : ''}`}>
+        <Rows key={`${d.key}-${st.filter}`} rows={rows} widths={widths} onRow={prompts ? (r) => r.click && setSt({ tab: 'prompts', filter: r.click, all: true }) : undefined} />
       </div>
       {clip && <div className="viewall"><button type="button" onClick={() => setSt((s) => ({ ...s, all: true }))}>View all {ICON_EXP}</button><button type="button" aria-label="More options">···</button></div>}
       {st.all && rows.length > 7 && <div className="less"><button type="button" onClick={() => setSt((s) => ({ ...s, all: false }))}>Show fewer</button></div>}
