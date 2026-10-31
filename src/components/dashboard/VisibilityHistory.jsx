@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Bar, BarChart as RBarChart, CartesianGrid, Cell, LabelList, Line, LineChart as RLineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, usePlotArea, useXAxisScale } from 'recharts'
+import { Bar, BarChart as RBarChart, CartesianGrid, Cell, LabelList, Line, LineChart as RLineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, usePlotArea, useXAxisScale, useYAxisScale } from 'recharts'
 import { useIsMobile } from '../../hooks/useMedia'
 import { BarChart3, Check, ChevronDown, LineChart, TrendingUp } from 'lucide-react'
 import Card from './Card'
@@ -374,6 +374,24 @@ function ScoringMarker({ at, dates, label, gradients = [] }) {
   )
 }
 
+// compact (Reports): the labels at the right of the plot (each line's latest value, Avg, Best), placed with the chart's
+// own y scale, so they sit exactly on their line; labels that would overlap are stacked 4px apart
+function GutterLabels({ items }) {
+  const y = useYAxisScale()
+  const plot = usePlotArea()
+  if (!y || !plot) return null
+  const LH = 12, GAP = 4
+  const placed = items.filter((i) => i.v != null).map((i) => ({ ...i, y: y(i.v) })).sort((a, b) => a.y - b.y)
+  for (let k = 1; k < placed.length; k++) if (placed[k].y - placed[k - 1].y < LH + GAP) placed[k].y = placed[k - 1].y + LH + GAP
+  const over = placed.length ? placed.at(-1).y - (plot.y + plot.height + 4) : 0
+  if (over > 0) placed.forEach((p) => { p.y -= over })
+  return (
+    <g className="pointer-events-none">
+      {placed.map((p) => <text key={p.key} x={plot.x + plot.width + 8} y={p.y + 4} fontSize={12} fontWeight={p.weight ?? 400} fill={p.color ?? 'var(--color-stone-600)'} className="num">{p.text}</text>)}
+    </g>
+  )
+}
+
 // the plot's width in px, for the bar sizes (groupedBarSize)
 function useWidth() {
   const ref = useRef(null)
@@ -393,7 +411,23 @@ function useWidth() {
 //   initial   the view it opens on ({ compare, chart, granularity, range, picks })
 //   bare      no card chrome (it sits under the report's KPI tabs); title / subtitle: the heading
 //   plotClass the plot's height; note: the line under a single sync
-export default function VisibilityHistory({ dataset: given = null, syncUrl = true, initial = null, bare = false, title = 'Visibility history', subtitle = null, plotClass = null, note = null } = {}) {
+// compact (Reports): no title / subtitle and no Current / Change / Best strip (the KPI tab above says them); the
+// toggle, chips and controls on one row; the best value as a dashed line; 4 round y ticks fitted to the data
+// 4 round ticks fitted to the values with ~15% headroom (compact; the Overview keeps its own axis)
+function fit4(values) {
+  const lo0 = Math.min(...values), hi0 = Math.max(...values)
+  const pad = Math.max((hi0 - lo0) * 0.15, 1)
+  const lo = Math.max(0, lo0 - pad), hi = hi0 + pad
+  const p = 10 ** Math.floor(Math.log10(Math.max((hi - lo) / 3, 0.1)))
+  for (const m of [1, 2, 2.5, 5, 10, 20]) {
+    const step = m * p
+    const bottom = Math.floor(lo / step) * step
+    if (bottom + 3 * step >= hi) return { domain: [bottom, bottom + 3 * step], ticks: [0, 1, 2, 3].map((i) => Math.round((bottom + i * step) * 100) / 100) }
+  }
+  return { domain: [0, hi], ticks: [0, hi / 3, (2 * hi) / 3, hi].map(Math.round) }
+}
+
+export default function VisibilityHistory({ dataset: given = null, syncUrl = true, initial = null, bare = false, title = 'Visibility history', subtitle = null, plotClass = null, note = null, compact = false } = {}) {
   const mobile = useIsMobile()
   const view0 = useBrandView()
   // ?history=many: the 6-competitor preview brand (data/historyMany.js) in place of the dashboard's brand, this card only
@@ -430,7 +464,10 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
       return hidden.length === v.hidden.length ? v : { ...v, hidden }
     })
   }, [YOU]) // eslint-disable-line react-hooks/exhaustive-deps
-  const { points, series, stats, domain, ticks, youHidden, scoring } = h
+  const { points, series, stats, youHidden, scoring } = h
+  const vals = points.flatMap((p) => series.map((x) => p[x.key])).filter((v) => v != null)
+  // compact (Reports): a share is always 0–100%; a count is fitted to its values, its top a round number just above the largest
+  const { domain, ticks } = compact && vals.length ? (UNIT.pct ? { domain: [0, 100], ticks: [0, 25, 50, 75, 100] } : fit4(vals)) : h
   // one sync date in range: nothing to draw a line between, so bars (one group, a value on every bar, the brands in
   // their line colours); Trend and Growth come back from the second date
   const single = points.length === 1
@@ -491,13 +528,22 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   // so the label sits just outside the plot at the end of the line (a right gutter is reserved for it).
   const avgLine = (y, text, outside = false) => (
     <ReferenceLine key="avg" y={y} stroke={chart.c3} strokeWidth={1} strokeDasharray="4 4"
-      label={{ value: text, position: outside ? 'right' : 'insideBottomRight', offset: outside ? 8 : 6, fontSize: 12, fill: 'var(--color-stone-600)', className: 'num' }} />
+      label={compact ? undefined : { value: text, position: outside ? 'right' : 'insideBottomRight', offset: outside ? 8 : 6, fontSize: 12, fill: 'var(--color-stone-600)', className: 'num' }} />
   )
-  const AVG_GUTTER = 84
+  // compact: the best value as a dashed reference line, like Avg ("Best 111 · this week")
+  // only when the best was in an earlier week; when the latest is the best, its end label says "· best" instead
+  const bestNow = stats.best != null && (stats.best === stats.current || stats.bestLabel?.startsWith('this'))
+  const bestLine = (y) => (y == null || bestNow ? null : <ReferenceLine key="best" y={y} stroke={chart.c2} strokeWidth={1} strokeDasharray="2 4" />)
+  const bestText = stats.best == null || bestNow ? null : `Best ${val(stats.best)} · ${stats.bestLabel?.replace(/^\(|\)$/g, '').replace(/, 2026$/, '')}`
+  const refLabels = () => [
+    ...(!compare ? [{ key: 'avg', v: stats.average, text: `Avg ${val(stats.average)}` }] : []),
+    ...(!compare && bestText ? [{ key: 'best', v: stats.best, text: bestText }] : []),
+  ]
+  const AVG_GUTTER = compact ? 112 : 84
   const shareTooltip = <HistoryTooltip series={series} compare={compare} unit={stats.unit} line={isLine} />
   // the same margins in every view, so Trend, Share and Growth draw the same plot height; the top margin holds the
   // value labels above a first sync's bars / growth bars and the scoring marker's label
-  const margin = { top: 24, right: 8, bottom: 0, left: 0 }
+  const margin = { top: 24, right: compact ? 112 : 8, bottom: 0, left: 0 }
 
   // insight: the focal brand's move over the last period of the range, and who leads at its end
   // ("Lumen Skincare rose 1 point this week. Aurelia Labs still leads.")
@@ -505,12 +551,15 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   const insight = (() => {
     const end = points[points.length - 1]
     if (!end || end[YOU] == null) return null
-    const name = focal.name
+    // a Reports number with one line (prompts missing, prompts they win): the sentence names the number, not the brand,
+    // and says nothing about who leads
+    const single = !!dataset && historySeries.length < 2
+    const name = single && title ? title : focal.name
     const d = end.deltas?.[YOU]
     const move = d == null ? `is at ${val(end[YOU])}` : d > 0 ? `rose ${units(d)}` : d < 0 ? `fell ${units(-d)}` : 'held steady'
     const when = d == null ? '' : ` this ${stats.unit}`
     const top = (p, val) => historySeries.filter((x) => val(p, x) != null).sort((a, b) => val(p, b) - val(p, a))[0]
-    const leader = top(end, (p, x) => p[x.key])
+    const leader = single ? null : top(end, (p, x) => p[x.key])
     const before = end.prevs ? top(end, (p, x) => p.prevs[x.key]) : null
     const leads = leader && (before && before.key === leader.key ? 'still leads' : before ? 'now leads' : 'leads')
     const text = !leader ? `${name} ${move}${when}.`
@@ -537,14 +586,29 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
           {furniture({ yDomain: domain, yTicks: ticks, tooltip: shareTooltip, cursor: { stroke: chart.c3, strokeWidth: 1 }, xPadding: { left: 16, right: 16 },
             gradients: series.map((s) => ({ id: `${gid}-${s.key}`, color: lineColor(s) })) })}
           {!compare && avgLine(stats.average, `Avg ${val(stats.average)}`)}
+          {compact && !compare && bestLine(stats.best)}
+          {compact && (
+            <GutterLabels items={[
+              ...series.map((s) => {
+                const lastV = [...points].reverse().find((p) => p[s.key] != null)?.[s.key]
+                return { key: `end-${s.key}`, v: lastV, text: `${val(lastV)}${s.key === YOU && bestNow && !compare ? ' · best' : ''}`, color: lineColor(s), weight: s.key === YOU ? 600 : 500 }
+              }),
+              ...refLabels(),
+            ]} />
+          )}
           {[...series].reverse().map((s) => {
             const you = s.key === YOU
             const c = lineColor(s)
-            const dot = (p) => (p.index === last
-              ? <circle key={`d${p.index}`} cx={p.cx} cy={p.cy} r={4} fill={c} stroke="var(--color-surface)" strokeWidth={2} opacity={dim(s.key)} />
-              : <g key={`d${p.index}`} />)
+            // compact (Reports): a 3px dot on every sync; the Overview: a dot on the last point only
+            const dot = (p) => (compact
+              ? <circle key={`d${p.index}`} cx={p.cx} cy={p.cy} r={3} fill={c} opacity={dim(s.key)} />
+              : p.index === last
+                ? <circle key={`d${p.index}`} cx={p.cx} cy={p.cy} r={4} fill={c} stroke="var(--color-surface)" strokeWidth={2} opacity={dim(s.key)} />
+                : <g key={`d${p.index}`} />)
+            // compact: weekly syncs are straight segments; monthly a monotone curve through every point
+            const curve = compact ? (view.granularity === 'monthly' ? 'monotoneX' : 'linear') : 'monotone'
             return (
-              <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={stroke(s)} strokeOpacity={dim(s.key)} strokeWidth={2.5} strokeLinecap="round"
+              <Line key={s.key} type={curve} dataKey={s.key} name={s.label} stroke={stroke(s)} strokeOpacity={dim(s.key)} strokeWidth={2.5} strokeLinecap="round"
                 dot={dot} activeDot={{ r: 5, fill: c, stroke: 'var(--color-surface)', strokeWidth: 2 }} {...ANIM}>
                 {you && showGrowthLabels && <LabelList dataKey="delta" content={GrowthLabel} />}
               </Line>
@@ -563,6 +627,8 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
         <RBarChart data={points} barSize={barSize} barGap={2} margin={{ ...margin, right: compare ? margin.right : AVG_GUTTER }}>
           {furniture({ yDomain: domain, yTicks: ticks, tooltip: shareTooltip, cursor: { fill: chart.track, fillOpacity: 0.6, radius: 6 } })}
           {!compare && !single && avgLine(stats.average, `Avg ${val(stats.average)}`, true)}
+          {compact && !compare && !single && bestLine(stats.best)}
+          {compact && !single && <GutterLabels items={refLabels()} />}
           {series.map((s) => {
             const c = barFill(s)
             return (
@@ -585,6 +651,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
         {furniture({ yDomain: g.domain, yTicks: g.ticks, yFormat: fmtDelta, tooltip: <GrowthTooltip series={series} compare={compare} />, cursor: { fill: chart.track, fillOpacity: 0.6, radius: 6 } })}
         <ReferenceLine key="zero" y={0} stroke="var(--color-stone-600)" strokeOpacity={0.4} strokeWidth={1} />
         {!youHidden && avgLine(g.average, avgText, true)}
+        {compact && !youHidden && <GutterLabels items={[{ key: 'avg', v: g.average, text: avgText }]} />}
         {series.map((s) => {
           const you = s.key === YOU
           return (
@@ -635,16 +702,37 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
     )
   }
 
+  // legend = filter: the Compare toggle and the brand chips (compact: on the controls' row)
+  const legend = (
+    <div className={`flex min-h-9 min-w-0 items-center ${compact ? 'flex-1' : 'mt-3'}`}>
+        <span className="flex h-8 shrink-0 items-center"><Switch checked={compare} onChange={setCompare} className="shrink-0">Compare</Switch></span>
+        <span className="mx-3 h-5 w-px shrink-0 bg-stone-200" aria-hidden />
+        {compare ? (
+          <ChipRow mobile={mobile} measureKey={`${chartType}|${drawn.join(',')}|${view.hidden.join(',')}`}>
+            {[byKey(YOU), ...COMPETITORS].map((s) => chip(s))}
+          </ChipRow>
+        ) : isLine ? (
+          <span className="inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap px-1 text-[14px] leading-5 font-medium text-stone-900">
+            <LegendBox color={chart.lineYou} checked /> {focal.name}
+          </span>
+        ) : (
+          <span className="inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap px-1 text-small font-medium text-stone-900">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: chart.you }} /> {focal.name}
+          </span>
+        )}
+      </div>
+  )
+
   return (
     <Card ref={explain.cardRef} id={bare ? undefined : 'history'} bare={bare} className={bare ? 'flex min-w-0 flex-col' : 'flex h-full min-w-0 scroll-mt-6 flex-col px-5 pt-5'}>
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0">
+      <div className={`flex flex-wrap justify-between gap-x-6 gap-y-3 ${compact ? 'items-center' : 'items-start'}`}>
+        {compact ? legend : <div className="min-w-0">
           <h2 className="whitespace-nowrap text-title font-semibold text-stone-900">{title}</h2>
           <p className="mt-0.5 text-[13px] leading-[18px] font-normal text-stone-600">{subtitle ?? <>{isOwnBrand
             ? (!compare ? 'Your share of prompts over time' : youHidden ? 'Competitors’ share of prompts' : 'Your share of prompts vs competitors')
             : (!compare ? `${focal.name}’s share over time` : youHidden ? 'Other brands’ share of prompts' : `${focal.name} vs other brands`)}
             {engine !== 'all' && ` · ${engineName(engine)}`}</>}</p>
-        </div>
+        </div>}
         <div className="flex flex-wrap items-center gap-2">
           <Segmented label="Period" value={view.granularity} onChange={setGranularity} options={[{ value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }]} />
           <Segmented
@@ -664,26 +752,10 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
 
       {/* legend = filter: one line, never wrapped. At most 4 brands: the brand + 3 competitors; "Brands" in the header
           picks which (checking a 4th competitor swaps out the last one) */}
-      <div className="mt-3 flex min-h-9 min-w-0 items-center">
-        <span className="flex h-8 shrink-0 items-center"><Switch checked={compare} onChange={setCompare} className="shrink-0">Compare</Switch></span>
-        <span className="mx-3 h-5 w-px shrink-0 bg-stone-200" aria-hidden />
-        {compare ? (
-          <ChipRow mobile={mobile} measureKey={`${chartType}|${drawn.join(',')}|${view.hidden.join(',')}`}>
-            {[byKey(YOU), ...COMPETITORS].map((s) => chip(s))}
-          </ChipRow>
-        ) : isLine ? (
-          <span className="inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap px-1 text-[14px] leading-5 font-medium text-stone-900">
-            <LegendBox color={chart.lineYou} checked /> {focal.name}
-          </span>
-        ) : (
-          <span className="inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap px-1 text-small font-medium text-stone-900">
-            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: chart.you }} /> {focal.name}
-          </span>
-        )}
-      </div>
+      {!compact && legend}
 
-      {/* summary strip slides in when Compare is off */}
-      <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${compare ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`} aria-hidden={compare}>
+      {/* summary strip slides in when Compare is off (compact: the KPI tab above has these) */}
+      {!compact && <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${compare ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`} aria-hidden={compare}>
         <div className="overflow-hidden">
           <div className="flex flex-wrap gap-x-8 gap-y-2 pt-3">
             <Stat label="Current">{stats.current == null ? '—' : val(stats.current)}</Stat>
@@ -708,7 +780,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
             )}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* phones / tablets: 180px. Desktop: fills whatever the row leaves (at least 200px), so there's no empty band
           between the axis and the insight; the same box in every chart type, so switching type never moves anything */}

@@ -28,6 +28,8 @@ const groupBy = (rows, key) => {
 const nameOf = (facts, domain) => (facts.competitors || []).find((c) => c.domain === domain)?.name ?? domain
 // lowercase the first letter, unless the word is an acronym (HECM, KP)
 const lower = (t) => (/^[A-Z]{2}/.test(t) ? t : t.charAt(0).toLowerCase() + t.slice(1))
+// "a calculators page", "an eligibility page"
+const aPage = (topic) => `${/^[aeiou]/i.test(topic) ? 'an' : 'a'} ${lower(topic)} page`
 const engine = (id) => ({ domain: ENGINE_DOMAIN[id], name: ENGINE_NAMES[id] })
 const brandIcon = (domain, name) => ({ domain, name })
 
@@ -71,11 +73,18 @@ export function buildReport5({ facts, built, points, prev = [], prompt = '', rea
   const off = ALL_ENGINES.filter((e) => !ran.includes(e))
   const range = ctx.start ? (ctx.start.date === ctx.latest.date ? ctx.latest.date : `${ctx.start.date} – ${ctx.latest.date}`) : periodLabel(opts.period)
   const footer = [history ? `Weekly syncs, ${range}` : `One sync, ${range}`, ran.map((e) => ENGINE_NAMES[e]).join(', '), off.length ? `${list(off.map((e) => ENGINE_NAMES[e]))} didn’t run` : null].filter(Boolean).join(' · ')
-  return { ...body, kind, brand: facts.name, question: String(prompt || '').trim() || body.question, read: read?.line ?? null, range, period: opts.period, history, footer }
+  return { ...body, syncs: ctx.all.length, kind, brand: facts.name, question: String(prompt || '').trim() || body.question, read: read?.line ?? null, range, period: opts.period, history, footer }
 }
 
 // ---- shared pieces ---------------------------------------------------------------------------------------------------
 const col = (label, w = 56, extra = {}) => ({ label, w, ...extra })
+// indicator cells (the shared coverage marker): ring "x/y", tick (all), dashed ring (none), cross (lost); a pie for a share
+const ring = (found, applies, tone = 'ink', text = `${found}/${applies}`) => ({ mk: { found, applies, tone }, text })
+const tick = (tone = 'ink', text = '') => ({ mk: { found: 1, applies: 1, tone }, text })
+const none = (text = '') => ({ mk: { found: 0, applies: 1 }, text })
+const cross = (text = '') => ({ mk: { cross: true }, text })
+const pie = (v) => ({ pie: v, v, suf: '%' })
+const missedIn = (facts, topic) => (facts.missedRows || []).filter((x) => x.topic === topic).length
 const tab = (key, label, cols, rows, extra = {}) => ({ key, label, cols, rows, ...extra })
 // plain: rows without bars, hairline dividers; a panel keeps the tabs that have rows, and with none it's dropped
 function panel(id, tabs, { solo = false, plain = false, full = false } = {}) {
@@ -99,7 +108,7 @@ function changeTab(key, label, prompts, rowsOf, sign, facts) {
   const engineOf = (p) => (facts.missedRows || []).find((r) => r.prompt === p)?.engines?.[0]
   const rows = groups.flatMap((g) => [
     { t: g.key, group: true, vals: [{ v: g.items.length, pre: sign === 'up' ? '+' : '−', tone: sign }] },
-    ...g.items.map((x) => ({ t: x.p, sub: true, icon: engineOf(x.p) ? engine(engineOf(x.p)) : null, topic: g.key })),
+    ...g.items.map((x) => ({ t: x.p, sub: true, icon: engineOf(x.p) ? engine(engineOf(x.p)) : null, topic: g.key, vals: [sign === 'up' ? tick('good') : cross()] })),
   ])
   return tab(key, label, [col('Since last sync', 104)], rows, { bar: false, summary: `${plural(prompts.length, 'prompt')} in ${plural(groups.length, 'topic')}` })
 }
@@ -107,8 +116,8 @@ function changeTab(key, label, prompts, rowsOf, sign, facts) {
 // share of answers: you and every competitor, latest scan
 function shareTab(facts, brand, label = 'Share of answers') {
   const rows = [{ t: brand, n: facts.youShare, domain: facts.domain }, ...(facts.competitors || []).map((c) => ({ t: c.name, n: c.share, domain: c.domain }))]
-    .filter((x) => x.n != null).sort((a, b) => b.n - a.n).map((x) => ({ t: x.t, icon: brandIcon(x.domain, x.t), bar: x.n, barMax: 100, vals: [{ v: x.n, suf: '%' }] }))
-  return tab('brands', label, [col('Share')], rows, { summary: `${plural(rows.length, 'brand')} named in the latest scan` })
+    .filter((x) => x.n != null).sort((a, b) => b.n - a.n).map((x) => ({ t: x.t, icon: brandIcon(x.domain, x.t), vals: [pie(x.n)] }))
+  return tab('brands', label, [col('Share', 84)], rows, { bar: false, summary: `${plural(rows.length, 'brand')} named in the latest scan` })
 }
 
 // Engines: named · not named · share · change since start · sparkline of share (the last two need engines[].points);
@@ -125,20 +134,111 @@ function enginesTab(ctx, { label = 'Engines', named = 'Named', notNamed = 'Not n
     const w = them ? them(id) : N - v
     const share = them ? (v + w ? Math.round((v / (v + w)) * 100) : 0) : Math.round((v / N) * 100)
     const hist = inPeriod(e?.points?.map((p) => p.share))
-    return { t: ENGINE_NAMES[id], icon: engine(id), vals: [{ v }, { v: w, tone: them && w > v ? 'dn' : '' }, { v: share, suf: '%' }, ...(hasHist ? [hist ? change(hist.at(-1) - hist[0], ' pts') : { text: '' }] : [])], spark: hasHist && hist ? { values: hist, color: 'var(--plot)' } : null }
+    // the 48×16 sparkline: prompts named per sync (the engine's share × prompts)
+    return { t: ENGINE_NAMES[id], icon: engine(id), vals: [{ v }, ...(notNamed ? [{ v: w, tone: them && w > v ? 'dn' : '' }] : []), pie(share)], spark: hasHist && hist ? { values: hist.map((x) => Math.round((x / 100) * N)), color: 'var(--plot)', w: 48, h: 16 } : null }
   })
-  const cols = [col(named, 64), col(notNamed, them ? 56 : 76), col('Share'), ...(hasHist ? [col('Change', 72)] : [])]
-  return tab('engines', label, cols, rows, { bar: false, spark: hasHist, summary: `${plural(ran.length, 'engine')} ran${off.length ? ` · ${list(off.map((id) => ENGINE_NAMES[id]))} didn’t` : ''}` })
+  // an engine with no data: a dashed ring and "didn't run"
+  // an engine that didn't run: the dashed ring and "didn't run" across the number columns
+  const offRows = off.map((id) => ({ t: ENGINE_NAMES[id], icon: engine(id), muted: true, span: none('didn’t run') }))
+  // no 'Not named' column when it isn't asked for (it follows from Named and Share)
+  const cols = [col(named, 72), ...(notNamed ? [col(notNamed, 72)] : []), col('Share', 120, { gap: 32 })]
+  // with them (Competitor gap) and a sparkline it needs a full row; otherwise it fits a third
+  return tab('engines', label, cols, [...rows, ...offRows], { bar: false, spark: hasHist, sparkW: 56, wide: hasHist && !!notNamed, summary: `${plural(ran.length, 'engine')} ran` })
 }
 
-const yourPagesTab = (facts, brand, label = 'Your pages') => tab('yours', label, [col('Answers citing', 104)], (facts.cited || []).map((p) => ({ t: p.path, icon: brandIcon(facts.domain, brand), bar: p.n, vals: [{ v: p.n }] })), { summary: `${plural((facts.cited || []).length, 'page')} cited in the latest scan` })
+const yourPagesTab = (facts, brand, label = 'Your pages') => tab('yours', label, [col('Cited')], (facts.cited || []).map((p) => ({ t: p.path, mid: true, title: `${facts.domain}${p.path}`, icon: brandIcon(facts.domain, brand), bar: p.n, vals: [{ v: p.n }] })), { summary: `${plural((facts.cited || []).length, 'page')} cited in the latest scan` })
 
-// a next step: the action, its topic, the engines, your page that would carry it (or "New page"), +N
-function step({ t, topic, n, prompts, engines = [], why, page = undefined }) {
-  return { t, topic, n, prompts, engines, page, why }
+// a next step: the action, its topic, the engines, your page that would carry it (or "New page"), +N, and a ring for how
+// much of the topic it would win back (of: the topic's prompts)
+// (now: your prompts in the topic today, when known; rival: whose page AI cites for it; update: you have a page for it)
+function step({ t, topic, n, prompts, engines = [], why, page = undefined, of = null, now = null, rival = null, theirPage = null, yourPage = null, items = null }) {
+  return { t, topic, n, prompts, engines, page, why, of, now, rival, theirPage, yourPage, update: !!yourPage, items }
 }
+const youIn = (facts, topic) => facts.topics?.find((x) => x.topic === topic)?.visible ?? null
+// a step's prompts, for its card and brief: the engines it's lost on, the brands named on it, and whether you are
+// (a prompt you're missing names its missed row's competitors; one you're named on but they win names you both)
+function stepItems(facts, prompts, { engineOf = () => null, rival = null } = {}) {
+  const you = { domain: facts.domain, name: facts.name, you: true }
+  return prompts.map((prompt) => {
+    const row = (facts.missedRows || []).find((r) => r.prompt === prompt)
+    const engines = [...new Set([engineOf(prompt), ...(row?.engines || [])].filter(Boolean))]
+    const named = row ? row.competitors.map((d) => ({ domain: d, name: nameOf(facts, d) })) : [you, ...(rival ? [{ domain: rival.domain, name: rival.name }] : [])]
+    return { prompt, engines, named, you: !row }
+  })
+}
+// the prompts in a topic: named (proposed topics[].visible) + missed; live, the missed ones
+const topicTotal = (facts, topic, atLeast = 0) => Math.max(atLeast, (facts.topics?.find((x) => x.topic === topic)?.visible ?? 0) + missedIn(facts, topic))
 // the page AI cites for a competitor on a topic, and yours (proposed competitors[].why)
+// the rival page / your page fields of a step, from whyFor
+const stepCites = (facts, topic) => { const w = whyFor(facts, topic); return w ? { rival: { name: shortName(w.c.name), domain: w.c.domain, icon: brandIcon(w.c.domain, w.c.name) }, theirPage: w.w.them, yourPage: w.w.you ?? null } : {} }
 const whyFor = (facts, topic) => (facts.competitors || []).map((c) => ({ c, w: c.why?.find((w) => w.theme === topic) })).find((x) => x.w?.them) ?? null
+
+// each brand's chart colour, as its chip in the Visibility history card: you ink; the competitors in the card's slot
+// order (by share, or the named rival first in Competitor gap), the rest grey
+function colorsOf(facts, first = null) {
+  const ranked = [...(facts.competitors || [])].filter((c) => c.share != null).sort((a, b) => b.share - a.share)
+  const order = first ? [first, ...ranked.filter((c) => c.domain !== first.domain)] : ranked
+  const m = new Map([[facts.domain, 'var(--line-you)']])
+  order.forEach((c, i) => m.set(c.domain, LINE[i] ?? 'var(--data-c2)'))
+  return (domain) => m.get(domain) ?? 'var(--data-c2)'
+}
+// a topic's prompts: you (proposed per-topic count), the competitors named on the ones you're missing (logos, most
+// often first), nobody, the engines you're missing them on
+function topicFacts(facts, topic, colorOf) {
+  const rows = (facts.missedRows || []).filter((r) => r.topic === topic)
+  const named = new Map()
+  rows.forEach((r) => r.competitors.forEach((d) => named.set(d, (named.get(d) ?? 0) + 1)))
+  const comp = rows.filter((r) => r.competitors.length).length
+  const you = youIn(facts, topic)
+  const logos = [...named].sort((a, b) => b[1] - a[1]).map(([d]) => ({ domain: d, name: nameOf(facts, d) }))
+  return {
+    you, comp, nobody: rows.length - comp, missing: rows.length,
+    logos: { list: logos.slice(0, 3), more: Math.max(0, logos.length - 3) },
+    engines: [...new Set(rows.flatMap((r) => r.engines || []))],
+    split: { parts: [...(you != null ? [{ v: you, color: 'var(--line-you)', label: 'you' }] : []), { v: comp, color: 'var(--rep-bad)', label: 'a competitor', alpha: 0.7 }, { v: rows.length - comp, label: 'nobody', hatched: true }] },
+  }
+}
+
+// What moved (every report): a row per topic (gained · lost · net, a diverging bar, the engines it moved on); a row
+// opens to its prompts. Losses first, then gains by size
+function movedOf(ctx, labels = { title: 'What moved', gained: 'Gained', lost: 'Lost' }) {
+  const { facts, history } = ctx
+  const engineOf = (p) => (facts.missedRows || []).find((r) => r.prompt === p)?.engines ?? []
+  const byTopic = new Map()
+  const add = (p, rowsOf, kind) => {
+    const t = topicOfRow(rowsOf, p) ?? 'Other'
+    const m = byTopic.get(t) ?? { topic: t, gained: [], lost: [] }
+    m[kind].push({ prompt: p, engines: engineOf(p), kind }); byTopic.set(t, m)
+  }
+  ;(history ? facts.gained || [] : []).forEach((p) => add(p, facts.gainedRows, 'gained'))
+  ;(history ? facts.lost || [] : []).forEach((p) => add(p, facts.lostRows, 'lost'))
+  const rows = [...byTopic.values()].map((m) => ({ ...m, net: m.gained.length - m.lost.length, engines: [...new Set([...m.gained, ...m.lost].flatMap((x) => x.engines))] }))
+    .sort((a, b) => (a.lost.length > 0) !== (b.lost.length > 0) ? (a.lost.length > 0 ? -1 : 1) : a.lost.length ? b.lost.length - a.lost.length : b.net - a.net)
+  return rows.length ? { ...labels, col: 'Since last sync', rows } : null
+}
+
+// fewer than 3 syncs: no time chart. The snapshot: each brand's share this sync (in its chart colour), and a brand ×
+// engine grid where the data has it (you; the rival with the proposed head-to-head)
+function snapshotOf(ctx, rival = null) {
+  const { facts, N } = ctx
+  const ranked = [...(facts.competitors || [])].filter((c) => c.share != null).sort((a, b) => b.share - a.share)
+  const shares = [{ name: facts.name, domain: facts.domain, share: facts.youShare, color: 'var(--line-you)', you: true }, ...ranked.map((c, i) => ({ name: c.name, domain: c.domain, share: c.share, color: LINE[i] ?? 'var(--data-c2)' }))]
+    .filter((x) => x.share != null).sort((a, b) => b.share - a.share)
+  const ran = ALL_ENGINES.filter((id) => (facts.ran || []).includes(id))
+  const h = rival ? (facts.headToHead || []).find((x) => x.domain === rival.domain) : null
+  // By engine: a row per engine, a bar per brand that has per-engine data (you; the rival with the head-to-head)
+  const colorOf = colorsOf(facts, rival)
+  const engines = ran.map((id) => {
+    const v = facts.engines?.find((e) => e.id === id)?.visible
+    const e = h?.engines?.find((x) => x.id === id)
+    const bars = [
+      ...(v != null ? [{ name: facts.name, domain: facts.domain, share: Math.round((v / N) * 100), named: v, color: colorOf(facts.domain) }] : []),
+      ...(e && rival ? [{ name: rival.name, domain: rival.domain, share: Math.round((e.them / N) * 100), named: e.them, color: colorOf(rival.domain) }] : []),
+    ]
+    return { id, bars }
+  }).filter((x) => x.bars.length)
+  return { shares, engines: engines.length ? engines : null }
+}
 
 // ---- Competitor gap ------------------------------------------------------------------------------------------------
 function competitor(ctx) {
@@ -150,6 +250,7 @@ function competitor(ctx) {
   const r = rivals.find((c) => c.key === opts.compare?.[0]) ?? rivals.find((c) => h2h.some((h) => h.domain === c.domain)) ?? [...rivals].sort((a, b) => onMissed(b) - onMissed(a))[0]
   const R = shortName(r.name)
   const h = h2h.find((x) => x.domain === r.domain)
+  const colorOf = colorsOf(facts, r)
   const wins = h ? h.wins : missedRows.filter((x) => x.competitors.includes(r.domain)).map((x) => ({ prompt: x.prompt, topic: x.topic, engine: x.engines?.[0] ?? null }))
   const winTopics = groupBy(wins, (w) => w.topic)
   const inPeriod = inPeriodOf(ctx)
@@ -178,16 +279,17 @@ function competitor(ctx) {
   const topicRows = proposed && facts.topics?.length
     ? facts.topics.map((t) => ({ t: t.topic, you: t.visible, them: t.competitors.find((c) => c.domain === r.domain)?.n ?? 0 }))
       .sort((a, b) => (b.them - b.you) - (a.them - a.you))
-      .map((t) => ({ t: t.t, click: winTopics.some((g) => g.key === t.t) ? t.t : null, split: [{ v: t.you, tone: 'you' }, { v: t.them, tone: 'them' }], vals: [{ v: t.you }, { v: t.them, tone: t.them > t.you ? 'dn' : '' }] }))
+      .map((t) => { const total = t.you + missedIn(facts, t.t); const f = topicFacts(facts, t.t, colorOf); return { t: t.t, click: winTopics.some((g) => g.key === t.t) ? t.t : null, vals: [{ logos: f.logos, engines: f.engines }, { split: f.split }, ring(t.you, Math.max(total, t.you), t.them > t.you ? 'bad' : 'ink'), { v: t.them, tone: t.them > t.you ? 'dn' : '' }] } })
     : groupBy(missedRows, (x) => x.topic).map((g) => {
       const them = g.items.filter((x) => x.competitors.includes(r.domain)).length
-      return { t: g.key, click: them ? g.key : null, split: [{ v: them, tone: 'them' }, { v: g.items.length - them, tone: 'rest' }], vals: [{ v: them, tone: them ? 'dn' : '' }, { v: g.items.length }] }
-    }).sort((a, b) => b.vals[0].v - a.vals[0].v || b.vals[1].v - a.vals[1].v)
+      const f = topicFacts(facts, g.key, colorOf)
+      return { t: g.key, click: them ? g.key : null, them, vals: [{ logos: f.logos, engines: f.engines }, { split: f.split }, ring(them, g.items.length, them ? 'bad' : 'ink'), { v: g.items.length }] }
+    }).sort((a, b) => b.them - a.them || b.vals[1].v - a.vals[1].v)
   const lostSet = new Set(history ? facts.lost || [] : [])
   const missedSet = new Set(missedRows.map((x) => x.prompt))
   // Prompts: engine · prompt · topic · status (named / not named / lost); "weeks named" needs missedRows[].streak
   const promptRows = wins.map((w) => {
-    const status = lostSet.has(w.prompt) ? { text: 'lost', tone: 'dn' } : missedSet.has(w.prompt) ? { text: 'not named', tone: 'muted' } : { text: 'named', tone: '' }
+    const status = lostSet.has(w.prompt) ? cross('lost') : missedSet.has(w.prompt) ? none('not named') : tick('ink', 'named')
     return { t: w.prompt, icon: w.engine ? engine(w.engine) : null, topic: w.topic, vals: [{ text: w.topic ?? '', tone: 'muted' }, status] }
   })
   const theirs = (r.cited || []).map((p) => ({ t: p.path, icon: brandIcon(r.domain, r.name), bar: p.n, vals: [{ text: (p.topics || []).join(', '), tone: 'muted' }, { v: p.n }] }))
@@ -196,22 +298,26 @@ function competitor(ctx) {
   const lost = changeTab('lost', 'Lost', history ? facts.lost || [] : [], facts.lostRows, 'dn', facts)
 
   const row2 = [
-    panel('topics', [tab('topics', 'Topics', proposed && facts.topics?.length ? [col('You'), col('Them')] : [col('Them'), col('Missing', 64)], topicRows, { summary: `${plural(topicRows.length, 'topic')} · ${winTopics.length} where ${R} wins` }),
-      tab('prompts', 'Prompts', [col('Topic', 160, { text: true }), col('Status', 76, { text: true })], promptRows, { bar: false, summary: `${plural(promptRows.length, 'prompt')} ${R} wins` })]),
+    panel('topics', [tab('topics', 'Topics', [col('Named instead', 150, { text: true }), col('Split', 184, { text: true }), ...(proposed && facts.topics?.length ? [col('You', 96), col('Them')] : [col('Them', 96), col('Missing', 72)])], topicRows, { bar: false, summary: `${plural(topicRows.length, 'topic')} · ${winTopics.length} where ${R} wins` }),
+      tab('prompts', 'Prompts', [col('Topic', 160, { text: true }), col('Status', 120)], promptRows, { bar: false, summary: `${plural(promptRows.length, 'prompt')} ${R} wins` })]),
     panel('pages', [tab('theirs', 'Their pages', [col('Topic', 160, { text: true }), col('Cited')], theirs, { summary: `${plural(theirs.length, 'page')} of ${R}’s cited on these topics` }), yourPagesTab(facts, brand)]),
   ].filter(Boolean)
-  const row3 = [
-    panel('engines', [engTab], { solo: true, plain: true }),
-    panel('brands', [shareTab(facts, brand)], { solo: true }),
-    panel('change', [gained, lost]),
-  ].filter(Boolean)
+  // layout: the expandable lists full width (Topics / Prompts, What moved); the short panels together
+  const blocks = [
+    { panel: row2[0] }, { moved: movedOf(ctx) },
+    { panel: row2[1] }, { panel: panel('engines', [engTab], { solo: true, plain: true }) }, { panel: panel('brands', [shareTab(facts, brand)], { solo: true }) },
+  ].filter((b) => b.panel || b.moved)
+  const row3 = []
 
   const steps = winTopics.length ? {
     title: 'Close the gap', col: 'Prompts it could win',
     rows: winTopics.slice(0, 3).map((g) => {
       const w = r.why?.find((x) => x.theme === g.key)
       return step({
-        t: w?.you ? `Add ${lower(g.key)} answers to ${w.you.path}` : `Write a ${lower(g.key)} page`, topic: g.key, n: g.items.length, prompts: g.items.map((x) => x.prompt),
+        t: w?.you ? `Add ${lower(g.key)} answers to ${w.you.path}` : `Write ${aPage(g.key)}`, topic: g.key, n: g.items.length, prompts: g.items.map((x) => x.prompt),
+        of: topicTotal(facts, g.key, g.items.length), now: youIn(facts, g.key),
+        rival: { name: R, domain: r.domain, icon: brandIcon(r.domain, r.name) }, theirPage: w?.them ?? null, yourPage: w?.you ?? null,
+        items: stepItems(facts, g.items.map((x) => x.prompt), { engineOf: (p) => g.items.find((x) => x.prompt === p)?.engine, rival: r }),
         engines: [...new Set(g.items.map((x) => x.engine).filter(Boolean))].map(engine),
         page: w ? (w.you ? w.you.path : 'New page') : undefined,
         why: w?.them ? `${R}’s ${w.them.path} is cited in ${plural(w.them.n, 'answer')}. ${w.you ? `Yours, ${w.you.path}, in ${w.you.n}.` : 'You have no page for this.'}` : `${R} is named on ${g.items.length} of these prompts and you aren’t.`,
@@ -222,7 +328,7 @@ function competitor(ctx) {
   const top2 = winTopics.slice(0, 2).map((g) => lower(g.key))
   const mostly = top2.length ? `, mostly ${top2.join(' and ')}` : ''
   const answer = wins.length ? (h ? `${R} wins ${wins.length} of your ${N} prompts${mostly}.` : `${R} is named on ${wins.length} of your ${N} prompts where you aren’t${mostly}.`) : `${R} isn’t named on any prompt without you.`
-  return { question: `Where is ${R} beating us?`, answer, kpis, defaultKpi: kpis.find((k) => k.id === 'wins' && k.ds) ? 'wins' : 'named', row2, row3, steps }
+  return { question: `Where is ${R} beating us?`, answer, kpis, defaultKpi: kpis.find((k) => k.id === 'wins' && k.ds) ? 'wins' : 'named', blocks, snapshot: snapshotOf(ctx, r), steps }
 }
 
 // ---- Weekly summary / Client update --------------------------------------------------------------------------------
@@ -245,25 +351,38 @@ function weekly(ctx) {
     ] : []),
   ]
 
-  const moved = new Map()
-  gainedList.forEach((p) => { const t = topicOfRow(facts.gainedRows, p); if (t) moved.set(t, { g: (moved.get(t)?.g ?? 0) + 1, l: moved.get(t)?.l ?? 0 }) })
-  lostList.forEach((p) => { const t = topicOfRow(facts.lostRows, p); if (t) moved.set(t, { g: moved.get(t)?.g ?? 0, l: (moved.get(t)?.l ?? 0) + 1 }) })
-  const topicRows = [...moved].sort((a, b) => (b[1].g - b[1].l) - (a[1].g - a[1].l)).map(([t, m]) => ({ t, vals: [{ v: m.g, tone: m.g ? 'up' : '', pre: m.g ? '+' : '' }, { v: m.l, tone: m.l ? 'dn' : '', pre: m.l ? '−' : '' }, change(m.g - m.l)] }))
-  const row2 = [
-    panel('change', [changeTab('gained', W.gained, gainedList, facts.gainedRows, 'up', facts), changeTab('lost', W.lost, lostList, facts.lostRows, 'dn', facts)]),
-    panel('topics', [tab('topics', W.topics, [col(W.gained, 64), col(W.lost, 56), col('Net', 52)], topicRows, { bar: false, summary: `${plural(topicRows.length, 'topic')} moved since the sync before` })], { solo: true, plain: true }),
-  ].filter(Boolean)
-  const row3 = [
-    panel('engines', [enginesTab(ctx, { label: W.engines, named: W.shown, notNamed: W.not })], { solo: true, plain: true }),
-    panel('brands', [shareTab(facts, brand, client ? 'Share of AI answers' : 'Share of answers')], { solo: true }),
-    panel('pages', [yourPagesTab(facts, brand, W.pages)], { solo: true }),
-  ].filter(Boolean)
+  const moved = movedOf(ctx, { title: client ? 'What changed' : 'What moved', gained: W.gained, lost: W.lost })
+  const movedRows = moved?.rows ?? []
+  const eng = enginesTab(ctx, { label: W.engines, named: W.shown, notNamed: null })
+  const blocks = [
+    { moved },
+    { panel: panel('engines', [eng], { solo: true, plain: true }) },
+    { panel: panel('brands', [shareTab(facts, brand, client ? 'Share of AI answers' : 'Share of answers')], { solo: true }) },
+    { panel: panel('pages', [yourPagesTab(facts, brand, W.pages)], { solo: true }) },
+  ].filter((b) => b.panel || b.moved)
 
-  const lostTopics = groupBy(lostList.map((p) => ({ prompt: p, topic: topicOfRow(facts.lostRows, p) })), (x) => x.topic || null)
-  const steps = lostTopics.length ? {
-    title: W.steps, col: client ? 'Questions to win back' : 'Prompts to win back',
-    rows: lostTopics.slice(0, 4).map((g) => { const w = whyFor(facts, g.key); return step({ t: `Win back ${lower(g.key)}`, topic: g.key, n: g.items.length, prompts: g.items.map((x) => x.prompt), page: w ? (w.w.you ? w.w.you.path : 'New page') : undefined, why: w ? `${shortName(w.c.name)}’s ${w.w.them.path} is cited in ${plural(w.w.them.n, 'answer')}.` : `You were named on ${plural(g.items.length, 'of these prompts', 'of these prompts')} at the sync before and aren’t now.` }) }),
-  } : null
+  // Next moves: win back each topic you lost prompts in, then build on the biggest gains (up to 3 cards). "was → now":
+  // your prompts in the topic before and after (needs the per-topic counts; proposed topics[])
+  const total = (t) => topicTotal(facts, t)
+  const items = (list, kind) => list.map((x) => ({ prompt: x.prompt, engines: x.engines, won: kind === 'gained' }))
+  const winBack = movedRows.filter((m) => m.lost.length).map((m) => {
+    const now = youIn(facts, m.topic)
+    return { kind: 'back', t: `Win back ${lower(m.topic)}`, topic: m.topic, n: m.lost.length, engines: m.engines,
+      now, was: now != null ? now + m.lost.length - m.gained.length : null, of: now != null ? total(m.topic) : null,
+      // the brands named on the lost prompts now
+      naming: [...new Map(m.lost.flatMap((x) => (facts.missedRows || []).find((r) => r.prompt === x.prompt)?.competitors ?? []).map((d) => [d, { domain: d, name: nameOf(facts, d) }])).values()].slice(0, 3),
+      rows: items(m.lost, 'lost'), prompts: m.lost.map((x) => x.prompt), why: `You were named on ${plural(m.lost.length, 'of these prompts', 'of these prompts')} at the sync before and aren’t now.` }
+  })
+  const buildOn = movedRows.filter((m) => !m.lost.length && m.gained.length).sort((a, b) => b.gained.length - a.gained.length).map((m) => {
+    const now = youIn(facts, m.topic)
+    const still = (facts.missedRows || []).filter((r) => r.topic === m.topic).map((r) => ({ prompt: r.prompt, engines: r.engines || [], won: false }))
+    return { kind: 'build', t: `Build on ${lower(m.topic)}`, topic: m.topic, n: m.gained.length, engines: m.engines,
+      now, was: now != null ? now - m.gained.length : null, of: now != null ? total(m.topic) : null,
+      rows: still.length ? still : items(m.gained, 'gained'), defend: !still.length, prompts: (still.length ? still : m.gained).map((x) => x.prompt),
+      why: still.length ? `You gained ${plural(m.gained.length, 'prompt')} here; ${plural(still.length, 'prompt')} in the topic still don’t name you.` : `You gained ${plural(m.gained.length, 'prompt')} here and are named on every prompt in the topic.` }
+  })
+  const moves = [...winBack, ...buildOn].slice(0, 3)
+  const steps = moves.length ? { title: 'Next moves', moves } : null
 
   const d = history ? visible - points[0].visible : null
   const start = points[0]?.date
@@ -271,7 +390,7 @@ function weekly(ctx) {
     ? (history ? `You showed up in AI answers for ${visible} of ${N} questions, ${d >= 0 ? `${d} more` : `${-d} fewer`} than ${start}.` : `You showed up in AI answers for ${visible} of ${N} questions in the first scan.`)
     : (history ? `${brand} is named on ${visible === N ? `all ${N}` : `${visible} of ${N}`} prompts, ${d > 0 ? `up ${d}` : d < 0 ? `down ${-d}` : 'unchanged'} since ${start}.` : `${brand} is named on ${visible} of ${N} prompts in its first scan.`)
   const when = { week: 'this week', '30d': 'this month', quarter: 'this quarter' }[ctx.opts.period] ?? 'lately'
-  return { question: client ? `Client update: ${MONTH[ctx.latest?.date?.split(' ')[0]] ?? 'latest scan'}` : `What moved ${when}?`, answer, kpis, defaultKpi: 'named', row2, row3, steps }
+  return { question: client ? `Client update: ${MONTH[ctx.latest?.date?.split(' ')[0]] ?? 'latest scan'}` : `What moved ${when}?`, answer, kpis, defaultKpi: 'named', blocks, snapshot: snapshotOf(ctx), steps }
 }
 
 // ---- CEO summary ---------------------------------------------------------------------------------------------------
@@ -298,43 +417,46 @@ function ceo(ctx) {
     ...(ts.length ? [kpi({ id: 'topics', label: 'Topics you lead', value: `${led}/${ts.length}`, series: ledAll && history ? ledAll.slice(-points.length) : null, unit: 'topics', ds: one(ledAll, 'topic', 'topics'), title: 'Topics you lead', subtitle: `Of ${ts.length} topics, by sync`, compare: false })] : []),
   ]
 
-  const leadRows = ts.map((t) => ({ t: t.topic, split: t.lead >= 0 ? [{ v: t.lead, tone: 'you' }] : [{ v: -t.lead, tone: 'them' }], vals: [{ text: t.leader ?? 'you', tone: 'muted' }, { v: Math.abs(t.lead), pre: t.lead > 0 ? '+' : t.lead < 0 ? '−' : '', suf: ' pts', tone: t.lead < 0 ? 'dn' : '' }] }))
-  // Competitors, full width: share now · change since start · topics they lead · 8-week share sparkline (the brand's
-  // Visibility history colour); prompts named per competitor isn't in the data (proposals)
-  const brands = [{ key: 'you', name: brand, domain: facts.domain, share: facts.youShare, points: shareAll ? ctx.all.map((p) => ({ share: p.share })) : null }, ...ranked]
-  const sparkColor = (b) => (b.key === 'you' ? 'var(--line-you)' : LINE[ranked.indexOf(b)] ?? 'var(--data-c2)')
-  const leadsOf = (b) => ts.filter((t) => (b.key === 'you' ? t.lead > 0 : t.leader && shortName(b.name).startsWith(t.leader.split(' ')[0]))).length
-  const hasHist = shareAll
-  const compRows = brands.map((b) => {
-    const h = hasHist ? (b.key === 'you' ? b.points.map((p) => p.share) : b.points.slice(-ctx.all.length).map((p) => p.share)) : null
-    const hp = h ? h.slice(-points.length) : null
-    return { t: b.key === 'you' ? `${b.name} (you)` : b.name, icon: brandIcon(b.domain, b.name), vals: [{ v: b.share, suf: '%' }, ...(hasHist ? [hp ? { ...change(hp.at(-1) - hp[0], ' pts'), tone: b.key === 'you' ? (hp.at(-1) >= hp[0] ? 'up' : 'dn') : (hp.at(-1) > hp[0] ? 'dn' : hp.at(-1) < hp[0] ? 'up' : '') } : { text: '' }] : []), ...(ts.length ? [{ v: leadsOf(b) }] : [])], spark: h ? { values: h, color: sparkColor(b) } : null }
-  })
-  const compCols = [col('Share'), ...(hasHist ? [col('Change', 76)] : []), ...(ts.length ? [col('Topics led', 84)] : [])]
-  const row2 = [
-    panel('competitors', [tab('competitors', 'Competitors', compCols, compRows, { bar: false, spark: hasHist, summary: `${plural(ranked.length, 'competitor')} tracked` })], { solo: true, plain: true, full: true }),
-  ].filter(Boolean)
-  const row3 = [
-    ...(leadRows.length ? [panel('topics', [tab('topics', 'Topics by your lead', [col('Leader', 120, { text: true }), col('Lead', 72)], leadRows, { summary: `You lead ${led} of ${ts.length} topics` })], { solo: true })] : []),
-    panel('engines', [enginesTab(ctx)], { solo: true, plain: true }),
-    panel('pages', [yourPagesTab(facts, brand)], { solo: true }),
-    panel('change', [changeTab('gained', 'Gained', history ? facts.gained || [] : [], facts.gainedRows, 'up', facts), changeTab('lost', 'Lost', history ? facts.lost || [] : [], facts.lostRows, 'dn', facts)]),
-  ].filter(Boolean).slice(0, 3)
+  const leadRows = ts.map((t) => ({ t: t.topic, vals: [{ text: t.leader ?? 'you', tone: 'muted' }, { v: Math.abs(t.lead), pre: t.lead > 0 ? '+' : t.lead < 0 ? '−' : '', suf: ' pts', tone: t.lead < 0 ? 'dn' : '' }] }))
+  // Competitors: a table across the width. Brand · named on · share (a bar in the brand's chart colour) · change since
+  // the last sync · an 8-week trend · the topic where the brand has its highest share. A column with no data is hidden
+  const inP = (arr) => (arr && arr.length >= points.length ? arr.slice(-points.length) : null)
+  const youSeries = proposed ? inP(ctx.all.map((p) => p.share)) : null
+  const leadsOn = (domain) => {
+    const best = (facts.topicShare || []).map((t) => ({ t: t.topic, v: t.shares?.[domain] })).filter((x) => x.v != null).sort((a, b) => b.v - a.v)[0]
+    return best?.t ?? null
+  }
+  const brands = [{ you: true, name: brand, domain: facts.domain, share: facts.youShare, named: points.at(-1)?.visible ?? facts.visible, series: youSeries, color: 'var(--line-you)' },
+    ...ranked.map((c, i) => ({ name: c.name, domain: c.domain, share: c.share, named: null, series: inP(c.points?.map((p) => p.share)), color: LINE[i] ?? 'var(--data-c2)' }))]
+    .sort((a, b) => b.share - a.share)
+    .map((b) => ({ ...b, change: b.series && history ? b.series.at(-1) - b.series.at(-2) : null, leads: proposed ? leadsOn(b.domain) : null }))
+  const table = { title: 'Competitors', count: ranked.length, rows: brands,
+    has: { named: brands.some((b) => b.named != null), change: brands.some((b) => b.change != null), trend: history && brands.some((b) => b.series?.length >= 2), leads: brands.some((b) => b.leads) } }
+  const blocks = [
+    { table },
+    { moved: movedOf(ctx) },
+    ...(leadRows.length ? [{ panel: panel('topics', [tab('topics', 'Topics by your lead', [col('Leader', 120, { text: true }), col('Lead', 72)], leadRows, { bar: false, summary: `You lead ${led} of ${ts.length} topics` })], { solo: true }) }] : []),
+    { panel: panel('engines', [enginesTab(ctx, { notNamed: null })], { solo: true, plain: true }) },
+    { panel: panel('pages', [yourPagesTab(facts, brand)], { solo: true }) },
+  ].filter((b) => b.panel || b.moved || b.table)
 
-  const wins = ts.length && history ? ts.map((t) => ({ ...t, gain: t.trend.slice(-points.length).at(-1) - t.trend.slice(-points.length)[0] })).filter((t) => t.gain > 0).sort((a, b) => b.gain - a.gain).slice(0, 3) : []
-  const gainedTopics = groupBy((history ? facts.gained || [] : []).map((p) => ({ prompt: p, topic: topicOfRow(facts.gainedRows, p) })), (x) => x.topic || null)
-  const start = points[0]?.date
-  const steps = wins.length
-    ? { title: 'Biggest wins', col: 'Points of lead gained', rows: wins.map((w) => { const why = whyFor(facts, w.topic); return step({ t: `Build on ${lower(w.topic)}`, topic: w.topic, n: w.gain, prompts: gainedTopics.find((g) => g.key === w.topic)?.items.map((i) => i.prompt) ?? [], page: why?.w.you ? why.w.you.path : undefined, why: `Your lead in ${lower(w.topic)} grew ${w.gain} points since ${start}; it’s now ${w.lead > 0 ? '+' : ''}${w.lead}.` }) }) }
-    : gainedTopics.length ? { title: 'Biggest wins', col: 'Prompts gained', rows: gainedTopics.slice(0, 3).map((x) => step({ t: `Build on ${lower(x.key)}`, topic: x.key, n: x.items.length, prompts: x.items.map((i) => i.prompt), why: `You’re newly named on ${plural(x.items.length, 'of these prompts', 'of these prompts')}.` })) } : null
+  // Biggest wins: the topics where you won the most prompts (+N prompts won), "now x/y" for the topic, the prompts won
+  const won = (movedOf(ctx)?.rows ?? []).filter((m) => m.gained.length).sort((a, b) => b.gained.length - a.gained.length).slice(0, 3)
+  const steps = won.length ? { title: 'Biggest wins', moves: won.map((m) => {
+    const now = youIn(facts, m.topic)
+    return { kind: 'won', t: `Build on ${lower(m.topic)}`, topic: m.topic, n: m.gained.length, engines: m.engines, now, of: now != null ? topicTotal(facts, m.topic) : null,
+      rows: m.gained.map((x) => ({ prompt: x.prompt, engines: x.engines, won: true })), prompts: m.gained.map((x) => x.prompt),
+      why: `You’re newly named on ${plural(m.gained.length, 'prompt')} in ${lower(m.topic)}.` }
+  }) } : null
 
   const answer = lead >= 0 ? `Yes. ${brand} has ${facts.youShare}% of AI answers, ${lead} points ahead of ${T}.` : `Not yet. ${T} has ${top.share}% of AI answers; ${brand} has ${facts.youShare}%.`
-  return { question: 'Are we winning in AI search?', answer, kpis, defaultKpi: 'share', row2, row3, steps }
+  return { question: 'Are we winning in AI search?', answer, kpis, defaultKpi: 'share', blocks, snapshot: snapshotOf(ctx), steps }
 }
 
 // ---- Missing prompts -----------------------------------------------------------------------------------------------
 function missing(ctx) {
   const { facts, points, brand, N } = ctx
+  const colorOf = colorsOf(facts)
   const rows = facts.missedRows || []
   const nobody = rows.filter((x) => !x.competitors.length)
   const owners = groupBy(rows.filter((x) => x.competitors.length), (x) => x.competitors[0])
@@ -351,31 +473,42 @@ function missing(ctx) {
 
   const byTopic = groupBy(rows, (x) => x.topic).map((g) => {
     const comp = g.items.filter((x) => x.competitors.length).length
-    return { t: g.key, click: g.key, split: [{ v: comp, tone: 'them' }, { v: g.items.length - comp, tone: 'rest' }], vals: [{ v: comp }, { v: g.items.length - comp }] }
+    const f = topicFacts(facts, g.key, colorOf)
+    return { t: g.key, click: g.key, vals: [{ logos: f.logos, engines: f.engines }, { split: f.split }, ring(comp, g.items.length, comp ? 'bad' : 'ink'), { v: g.items.length - comp }] }
   })
   const lostSet = new Set(ctx.history ? facts.lost || [] : [])
   const promptRows = rows.map((x) => ({ t: x.prompt, icon: x.engines?.[0] ? engine(x.engines[0]) : null, topic: x.topic, vals: [{ text: x.topic ?? '', tone: 'muted' }, lostSet.has(x.prompt) ? { text: 'lost', tone: 'dn' } : { text: x.competitors.length ? shortName(nameOf(facts, x.competitors[0])) : 'nobody', tone: 'muted' }] }))
   const who = [...owners.map((g) => ({ t: nameOf(facts, g.key), icon: brandIcon(g.key, nameOf(facts, g.key)), n: g.items.length, topics: new Set(g.items.map((x) => x.topic).filter(Boolean)).size })), ...(nobody.length ? [{ t: 'Nobody', n: nobody.length, topics: new Set(nobody.map((x) => x.topic).filter(Boolean)).size }] : [])]
-    .sort((a, b) => b.n - a.n).map((w) => ({ t: w.t, icon: w.icon, bar: w.n, vals: [{ v: w.topics }, { v: w.n }] }))
+    .sort((a, b) => b.n - a.n)
+  const whoMax = Math.max(1, ...who.map((w) => w.n))
+  const whoRows = who.map((w) => ({ t: w.t, icon: w.icon, glyph: w.icon ? null : 'none', vals: [{ v: w.topics, tone: 'muted' }, { v: w.n, mini: { w: (w.n / whoMax) * 96, color: w.icon ? colorOf(w.icon.domain) : null, hatched: !w.icon } }] }))
   const theirPages = (facts.competitors || []).flatMap((c) => (c.cited || []).map((p) => ({ t: p.path, icon: brandIcon(c.domain, c.name), bar: p.n, vals: [{ text: shortName(c.name), tone: 'muted' }, { v: p.n }] })))
   const openRows = nobody.map((x) => ({ t: x.prompt, topic: x.topic, vals: [{ text: x.topic ?? '', tone: 'muted' }] }))
   const row2 = [
-    panel('topics', [tab('topics', 'Missing by topic', [col('Competitor', 84), col('Nobody', 64)], byTopic, { summary: `${plural(byTopic.length, 'topic')} with prompts you’re missing` }),
+    panel('topics', [tab('topics', 'Missing by topic', [col('Named instead', 150, { text: true }), col('Split', 184, { text: true }), col('Competitor', 104), col('Nobody', 72)], byTopic, { bar: false, summary: `${plural(byTopic.length, 'topic')} with prompts you’re missing` }),
       tab('prompts', 'Prompts', [col('Topic', 160, { text: true }), col('Named instead', 104, { text: true })], promptRows, { bar: false, summary: `${plural(promptRows.length, 'prompt')} missing` })]),
-    panel('who', [tab('who', 'Who’s named instead', [col('Topics', 64), col('Prompts', 64)], who, { summary: `${plural(owners.length, 'competitor')} named on prompts you’re missing` })], { solo: true }),
+    panel('who', [tab('who', 'Who’s named instead', [col('Topics', 64), col('Prompts', 148, { divider: true })], whoRows, { bar: false, summary: `${plural(owners.length, 'competitor')} named on prompts you’re missing` })], { solo: true }),
   ].filter(Boolean)
-  const row3 = [
-    panel('engines', [enginesTab(ctx, { named: 'Named', notNamed: 'Missing' })], { solo: true, plain: true }),
-    panel('pages', [tab('theirs', 'Their pages', [col('Brand', 104, { text: true }), col('Cited')], theirPages, { summary: `${plural(theirPages.length, 'page')} cited for competitors` })], { solo: true }),
-    panel('open', [tab('open', 'Open prompts', [col('Topic', 160, { text: true })], openRows, { bar: false, summary: `${plural(openRows.length, 'prompt')} no brand is named on` })], { solo: true }),
-  ].filter(Boolean)
+  // Open prompts: full width, grouped by topic (most open first), each with "you x/y" for the topic and its prompts
+  const openGroups = groupBy(nobody, (x) => x.topic ?? 'Other').map((g) => {
+    const you = youIn(facts, g.key)
+    return { topic: g.key, you, of: you != null ? topicTotal(facts, g.key) : null, prompts: g.items.map((x) => ({ prompt: x.prompt, engines: x.engines || [] })) }
+  })
+  const blocks = [
+    { panel: row2[0] },
+    ...(openGroups.length ? [{ open: { title: 'Open prompts', count: nobody.length, groups: openGroups } }] : []),
+    { panel: row2[1] },
+    { panel: panel('engines', [enginesTab(ctx, { named: 'Named', notNamed: null })], { solo: true, plain: true }) },
+    { panel: panel('pages', [tab('theirs', 'Their pages', [col('Brand', 104, { text: true }), col('Cited')], theirPages, { summary: `${plural(theirPages.length, 'page')} cited for competitors` })], { solo: true }) },
+  ].filter((b) => b.panel || b.open)
 
   const qt = groupBy(rows, (x) => x.topic).map((g) => ({ ...g, open: g.items.filter((x) => !x.competitors.length).length })).sort((a, b) => b.open - a.open || b.items.length - a.items.length).slice(0, 4)
   const steps = qt.length ? {
     title: 'Quick wins', col: 'Prompts it could win',
-    rows: qt.map((g) => { const w = whyFor(facts, g.key); return step({ t: `Write a ${lower(g.key)} page`, topic: g.key, n: g.items.length, prompts: g.items.map((x) => x.prompt), engines: [...new Set(g.items.flatMap((x) => x.engines || []))].map(engine), page: w ? (w.w.you ? w.w.you.path : 'New page') : undefined, why: `${g.open} of these name no brand at all; ${g.items.length - g.open} name a competitor.` }) }),
+    rich: true,
+    rows: qt.map((g) => { const w = whyFor(facts, g.key); return step({ ...stepCites(facts, g.key), of: topicTotal(facts, g.key, g.items.length), now: youIn(facts, g.key), t: `Write ${aPage(g.key)}`, topic: g.key, n: g.items.length, prompts: g.items.map((x) => x.prompt), items: stepItems(facts, g.items.map((x) => x.prompt)), engines: [...new Set(g.items.flatMap((x) => x.engines || []))].map(engine), page: w ? (w.w.you ? w.w.you.path : 'New page') : undefined, why: `${g.open} of these name no brand at all; ${g.items.length - g.open} name a competitor.` }) }),
   } : null
 
   const answer = rows.length ? `${brand} is missing ${rows.length} of ${N} prompts; ${nobody.length} of them name no brand at all.` : `${brand} is named on all ${N} prompts.`
-  return { question: 'Which prompts are we missing?', answer, kpis, defaultKpi: 'missing', row2, row3, steps }
+  return { question: 'Which prompts are we missing?', answer, kpis, defaultKpi: 'missing', blocks, snapshot: snapshotOf(ctx), steps }
 }

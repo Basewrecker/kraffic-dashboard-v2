@@ -25,7 +25,7 @@ test('3–4 KPI tabs (2 with one scan, where gained and lost have no meaning); e
 })
 
 test('no empty panel: a panel without rows is dropped', () => {
-  for (const { at, v } of cases) for (const p of [...v.row2, ...v.row3]) for (const t of p.tabs) assert.ok(t.rows.length > 0, `${at}: ${p.id}/${t.key}`)
+  for (const { at, v } of cases) for (const p of v.blocks.filter((b) => b.panel).map((b) => b.panel)) for (const t of p.tabs) assert.ok(t.rows.length > 0, `${at}: ${p.id}/${t.key}`)
 })
 
 test('one scan: no deltas, no charts', () => {
@@ -39,6 +39,13 @@ test('the comparison series lines up with the main one', () => {
 test('the prototype numbers: FoA vs Longbridge with the proposed fields', () => {
   const { v } = cases.find((c) => c.at === 'foa rival proposed')
   assert.equal(v.kpis.find((k) => k.id === 'wins').value, '23')
-  assert.deepEqual(v.row3.find((p) => p.id === 'engines').tabs[0].rows.filter((r) => !r.muted).map((r) => r.vals[1].v), [13, 7, 3])
+  assert.deepEqual(v.blocks.find((b) => b.panel?.id === 'engines').panel.tabs[0].rows.filter((r) => !r.muted).map((r) => r.vals[1].v), [13, 7, 3])
   assert.deepEqual(v.steps.rows.map((r) => r.n), [8, 6, 5])
+})
+
+test('layout: an expandable list (more than 7 rows, What moved, Open prompts) never shares a row', () => {
+  for (const { at, v } of cases) {
+    for (const b of v.blocks) if (b.panel) assert.ok(b.panel.tabs.length, at)
+    assert.ok(v.blocks.every((b) => b.panel || b.moved || b.open || b.table), at)
+  }
 })

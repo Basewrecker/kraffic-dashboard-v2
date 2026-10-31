@@ -89,7 +89,8 @@ export function proposedFacts(brandId, scans, { all = true } = {}) {
   })
 
   // PROPOSED topicShare[]: share-of-voice lead per topic (points), its leader and its weekly trend
-  const topicShare = (d.topicLead || []).map((t) => ({ topic: t.theme, lead: t.d, leader: t.who ?? null, trend: t.trend.slice(from) }))
+  // (shares: each brand's share of voice in the topic, by domain)
+  const topicShare = (d.topicLead || []).map((t) => ({ topic: t.theme, lead: t.d, leader: t.who ?? null, trend: t.trend.slice(from), shares: Object.fromEntries(Object.entries(t.shares || {}).map(([k, v]) => [k === youKey ? facts.domain : domainOf(k), v])) }))
 
   // PROPOSED competitors[].points (share per sync) and .cited (the page AI cites for them, per topic)
   const competitors = facts.competitors.map((c) => {

@@ -120,33 +120,6 @@ html[data-theme="dark"] .r5{
 @media (max-width:560px){.r5 .head h1{font-size:24px}.r5 .kpi{min-width:160px}.r5 .kpi .v b{font-size:22px}}
 @media (prefers-reduced-motion:reduce){.r5 .draw,.r5 .area.fade,.r5 .row.grow .fill{animation:none}.r5 .tip{transition:none}}
 
-/* round 2: the main chart (Chart5.jsx) */
-.r5 .chart5{position:relative}
-.r5 .chart5 svg{display:block;width:100%;height:300px;overflow:visible;outline:none}
-.r5 .chart5 svg:focus-visible{outline:2px solid var(--ink2);outline-offset:4px;border-radius:6px}
-.r5 .chart5 .line{fill:none;stroke:var(--plot);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
-.r5 .chart5 .cmp{fill:none;stroke:var(--ink3);stroke-width:1.5;stroke-dasharray:4 4;stroke-linejoin:round}
-.r5 .chart5 .sdot{fill:var(--plot)}
-.r5 .chart5 .cdot{fill:var(--ink3)}
-.r5 .chart5 .end{font-size:11px;fill:var(--ink3)}
-.r5 .chart5 .end.main{fill:var(--ink);font-weight:600}
-.r5 .chart5 .ring{fill:none;stroke:var(--plot);stroke-width:1.5;animation:r5ring .3s ease-out forwards}
-@keyframes r5ring{from{r:5px;opacity:.6}to{r:13px;opacity:0}}
-.r5 .chart5 .tip{left:0;top:0}
-.r5 .chart5 .tip .trow{display:flex;align-items:center;gap:6px;margin-top:4px}
-.r5 .chart5 .tip .trow em{font-style:normal;color:#8F8F8F;flex:1}
-.r5 .chart5 .tip .trow b{display:inline;font-size:13px;margin-left:12px}
-.r5 .chart5 .tip .sw{width:10px;height:2px;border-radius:1px;background:var(--plot);display:inline-block}
-.r5 .chart5 .tip .sw.dash{background:repeating-linear-gradient(90deg,#8F8F8F 0 3px,transparent 3px 5px)}
-.r5 .chart5 .tip .tchg{margin-top:4px;font-size:11px;font-weight:600;color:#8F8F8F}
-.r5 .chart5 .tip .tchg.good{color:var(--good)} .r5 .chart5 .tip .tchg.bad{color:var(--bad)}
-.r5 .legend{display:flex;justify-content:flex-end;gap:16px;margin:-4px 0 6px;font-size:12px;color:var(--ink2)}
-.r5 .legend span{display:inline-flex;align-items:center;gap:6px}
-.r5 .legend i{width:8px;height:8px;border-radius:50%;background:var(--plot);display:inline-block}
-.r5 .legend i.dash{width:14px;height:0;border-radius:0;border-top:1.5px dashed var(--ink3);background:none}
-.r5 .plot .insight{margin:6px 0 2px}
-@media (prefers-reduced-motion:reduce){.r5 .chart5 .ring{animation:none;opacity:0}}
-
 /* round 2: split bars, several value columns, rows that fill the card, Close the gap columns */
 .r5{--split-you:#EFEFEF;--split-them:var(--bar)}
 html[data-theme="dark"] .r5{--split-you:#171717}
@@ -188,28 +161,6 @@ html[data-theme="dark"] .r5{--split-you:#171717}
 .r5 .row.wrap2 .t .x{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35;padding:6px 0}
 /* phones: Close the gap keeps the action and +N; the other columns are in the brief */
 @media (max-width:720px){.r5 .row.step{grid-template-columns:minmax(0,1fr) 48px !important}.r5 .row.step > :not(.fill):not(.act):not(.n){display:none}}
-
-/* the gap ribbon (Competitor gap, Prompts they win) */
-.r5{--rep-you-line:#0068D6;--rep-rival-line:#8F8F8F;--rep-lead-fill:rgba(22,163,74,.14);--rep-behind-fill:rgba(220,38,38,.12)}
-html[data-theme="dark"] .r5{--rep-you-line:#3291FF;--rep-lead-fill:rgba(76,195,138,.18);--rep-behind-fill:rgba(255,97,102,.18)}
-@media (prefers-color-scheme:dark){html:not([data-theme="light"]) .r5{--rep-you-line:#3291FF;--rep-lead-fill:rgba(76,195,138,.18);--rep-behind-fill:rgba(255,97,102,.18)}}
-.r5 .chart5 .rline{fill:none;stroke-linejoin:round;stroke-linecap:round}
-.r5 .chart5 .rline.you{stroke:var(--rep-you-line);stroke-width:2}
-.r5 .chart5 .rline.them{stroke:var(--rep-rival-line);stroke-width:1.6;stroke-dasharray:4 3}
-.r5 .chart5 .bands .lead{fill:var(--rep-lead-fill)}
-.r5 .chart5 .bands .behind{fill:var(--rep-behind-fill)}
-.r5 .chart5 .bands.in{animation:r5fade .3s ease-out .6s both}
-.r5 .chart5 .reveal{transform-box:fill-box;transform-origin:left;animation:r5reveal .6s cubic-bezier(.3,.7,.2,1) both}
-@keyframes r5reveal{from{transform:scaleX(0)}}
-/* legend pills */
-.r5 .legend{gap:6px;margin:-6px 0 6px}
-.r5 .legend span{height:24px;padding:0 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--ink2);background:var(--card)}
-.r5 .legend i{width:12px;height:0;border-radius:0;background:none;border-top:2px solid var(--plot)}
-.r5 .legend i.dash{width:12px;border-top:1.5px dashed var(--ink3)}
-.r5 .legend i.sq{width:9px;height:9px;border:0;border-radius:2px}
-.r5 .legend i.sq.lead{background:var(--rep-lead-fill);box-shadow:inset 0 0 0 1px rgba(22,163,74,.35)}
-.r5 .legend i.sq.behind{background:var(--rep-behind-fill);box-shadow:inset 0 0 0 1px rgba(220,38,38,.3)}
-@media (prefers-reduced-motion:reduce){.r5 .chart5 .bands.in,.r5 .chart5 .reveal{animation:none}}
 
 /* round 4 ---------------------------------------------------------------------------------------------------------- */
 /* the main card: KPI tabs over the Visibility history card (bare) */
@@ -264,3 +215,349 @@ html[data-theme="dark"] .r5{--rep-you-line:#3291FF;--rep-lead-fill:rgba(76,195,1
 .r5 .g3.wide{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)}
 @media (max-width:980px){.r5 .g3.wide{grid-template-columns:1fr 1fr}}
 @media (max-width:720px){.r5 .g3.wide{grid-template-columns:1fr}}
+
+/* round 5: the Reports type scale (Reports-only tokens; the rest of the app keeps its own) ------------------------- */
+.r5{
+  --rep-text-h1:32px; --rep-text-answer:16px; --rep-text-read:14px;
+  --rep-text-kpi-label:14px; --rep-text-kpi-value:32px; --rep-text-chip:12px;
+  --rep-text-card-title:17px; --rep-text-card-sub:14px; --rep-text-axis:12px; --rep-text-tip:13px;
+  --rep-text-tab:15px; --rep-text-row:15px; --rep-row-h:40px; --rep-text-col:12px;
+  --rep-text-step:15px; --rep-text-step-chip:13px; --rep-text-foot:13px; --rep-icon:18px;
+  --rep-good:#1A7F4B; --rep-bad:#D93036;
+}
+html[data-theme="dark"] .r5{--rep-good:#4CC38A;--rep-bad:#FF6166}
+@media (prefers-color-scheme:dark){html:not([data-theme="light"]) .r5{--rep-good:#4CC38A;--rep-bad:#FF6166}}
+.r5 .head h1{font-size:var(--rep-text-h1)}
+.r5 .head p{font-size:var(--rep-text-answer)}
+.r5 .head .read{font-size:var(--rep-text-read)}
+.r5 .btn{font-size:14px;height:36px}
+.r5 .btn svg{width:16px;height:16px}
+.r5 .kpi .l{font-size:var(--rep-text-kpi-label)}
+.r5 .kpi .v b{font-size:var(--rep-text-kpi-value)}
+.r5 .d{font-size:var(--rep-text-chip);padding:3px 8px}
+.r5 .vh h2{font-size:var(--rep-text-card-title);line-height:24px}
+.r5 .vh h2 + p{font-size:var(--rep-text-card-sub);line-height:20px}
+.r5 .vh .recharts-cartesian-axis-tick text{font-size:max(var(--rep-text-axis), 13px)}
+.r5 .ptabs{height:56px}
+.r5 .ptab{font-size:var(--rep-text-tab);padding:5px 11px}
+.r5 .ptabs .col,.r5 .ptabs .cols .col,.r5 .sheet .sh-cols{font-size:var(--rep-text-col)}
+.r5 .row{font-size:var(--rep-text-row);min-height:var(--rep-row-h)}
+.r5 .rows{gap:2px}
+.r5 .row .t{gap:10px}
+.r5 .row.sub{font-size:14px;min-height:32px}
+.r5 .row.grp{min-height:36px}
+.r5 .fav,.r5 .fav img{width:var(--rep-icon);height:var(--rep-icon)}
+.r5 .fav{font-size:10px}
+.r5 .row.step{font-size:var(--rep-text-step)}
+.r5 .row.step .chip{font-size:var(--rep-text-step-chip);padding:2px 9px}
+.r5 .row.step .page{font-size:14px}
+.r5 .foot,.r5 .rows .summary{font-size:var(--rep-text-foot)}
+.r5 .filter,.r5 .viewall button{font-size:13px}
+.r5 .brief{font-size:14px}
+.r5 .panel.fixed{height:372px}
+/* indicators (the shared coverage marker) next to a value */
+.r5 .row .cell.mk{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px}
+.r5 .row .cell .pie{flex:none}
+/* the composer inside a report */
+.thread-motion [data-dock] textarea{font-size:15px}
+.r5 .row .cell.mk .dn{color:var(--bad)} .r5 .row .cell.mk .muted{color:var(--ink3)}
+.r5 .row .cell.mk b{font-weight:600}
+.r5 .row.step .cell.mk{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;color:var(--ink2)}
+
+/* a full-width panel sizes to its content (one panel in its row) */
+.r5 .g1 > .panel.fixed.full{height:auto}
+/* next steps: one card per action */
+.r5 .steps{margin-top:16px}
+.r5 .steps-title{margin:0 0 10px;font-size:var(--rep-text-tab);font-weight:600}
+.r5 .step-cards{display:grid;gap:16px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.r5 .step-cards.n2{grid-template-columns:repeat(2,minmax(0,1fr))} .r5 .step-cards.n1{grid-template-columns:1fr}
+@media (max-width:720px){.r5 .step-cards,.r5 .step-cards.n2{grid-template-columns:1fr}}
+.r5 .step-card{display:flex;flex-direction:column;gap:12px;padding:18px 20px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;cursor:pointer;min-width:0;outline:none;transition:border-color .15s}
+.r5 .step-card:hover{border-color:var(--ink3)}
+.r5 .step-card:focus-visible{outline:2px solid var(--ink2);outline-offset:2px}
+.r5 .sc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.r5 .sc-head h3{margin:0;font-size:17px;line-height:1.3;font-weight:600}
+.r5 .chip{flex:none;display:inline-block;max-width:50%;padding:2px 9px;border:1px solid var(--line);border-radius:999px;font-size:13px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r5 .sc-ring{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--ink2)}
+.r5 .sc-ring b{color:var(--ink);font-size:15px;font-weight:600;margin-left:auto}
+.r5 .sc-page{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--ink2);min-width:0}
+.r5 .sc-page span{flex:none} .r5 .sc-page .x{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.r5 .sc-page .muted{color:var(--ink3)}
+.r5 .sc-prompts{display:flex;flex-direction:column;gap:3px;font-size:14px;color:var(--ink3);min-width:0}
+.r5 .sc-prompts q{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r5 .sc-prompts .favs{display:flex;margin-top:4px}
+.r5 .sc-prompts .favs .fav{box-shadow:0 0 0 2px var(--card);border-radius:50%}
+.r5 .sc-prompts .favs .fav + .fav{margin-left:-5px}
+.r5 .sc-foot{display:flex;justify-content:space-between;margin-top:auto;padding-top:10px;border-top:1px solid var(--line);font-size:14px}
+.r5 .sc-foot .link{color:var(--ink2)} .r5 .sc-foot .link:hover{color:var(--ink)}
+.r5 .sheet .sh-title{font-size:16px;font-weight:600;padding-left:6px}
+.r5 .sheet .brief-body{padding:16px 20px;display:flex;flex-direction:column;gap:12px;font-size:14px;overflow-y:auto}
+.r5 .sheet .brief-body .chip{align-self:flex-start;max-width:none}
+.r5 .sheet .brief-body p{margin:0;color:var(--ink2)}
+.r5 .sheet .brief-body h3{margin:4px 0 0;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);font-weight:500}
+.r5 .sheet .brief-body ul{margin:0;padding-left:18px;list-style:disc}
+.r5 .sheet .brief-body .acts{display:flex;gap:8px}
+
+/* round 7: View all expands in place --------------------------------------------------------------------------------- */
+.r5{--panel-h:372px}
+.r5 .panel.fixed{height:var(--panel-h)}
+.r5 .panel.fixed.open{overflow:hidden}
+.r5 .rows.clip{max-height:none}
+.r5 .g2,.r5 .g3{align-items:start}
+.r5 .rows.capped{max-height:calc(25 * (var(--rep-row-h) + 2px));overflow-y:auto;scrollbar-width:thin;scrollbar-color:transparent transparent}
+.r5 .rows.capped:hover{scrollbar-color:var(--line) transparent}
+.r5 .rows .rise{animation:r5rise .24s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(max(var(--k),0) * 20ms)}
+@keyframes r5rise{from{opacity:0;transform:translateY(4px)}}
+.r5 .panel .less{padding:4px 22px 14px}
+.r5 .panel .less button{font-size:13px;color:var(--ink2);text-decoration:none}
+.r5 .panel .less button:hover{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.r5 .rows .rise{animation:none}}
+
+/* action cards: the number to win and who's named; three of its prompts */
+.r5 .sc-num{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.r5 .sc-num b{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1}
+.r5 .sc-num span{font-size:14px;color:var(--ink2)}
+.r5 .sc-num em{font-style:normal;margin-left:auto;font-size:14px;color:var(--ink2)}
+.r5 .sc-list{border-top:1px solid var(--line);display:flex;flex-direction:column}
+.r5 .sc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:38px;border-bottom:1px solid var(--line);font-size:14px;color:var(--ink)}
+.r5 .sc-row:last-child{border-bottom:0}
+.r5 .sc-row .x{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r5 .favs{display:flex;flex:none}
+.r5 .favs .fav{box-shadow:0 0 0 2px var(--card);border-radius:50%}
+.r5 .favs .fav + .fav{margin-left:-5px}
+
+/* the brief drawer */
+.r5.brief-wrap .dim{opacity:.5}
+.r5 .sheet.brief{width:560px}
+.r5 .bd-head{position:sticky;top:0;z-index:2;background:var(--card);padding:16px 20px 12px;border-bottom:1px solid var(--line)}
+.r5 .bd-title{display:flex;align-items:center;gap:10px}
+.r5 .bd-title h2{margin:0;font-size:18px;font-weight:600;flex:1;min-width:0}
+.r5 .bd-title .chip{max-width:40%}
+.r5 .bd-facts{margin:6px 0 0;font-size:13px;color:var(--ink3)}
+.r5 .bd-body{flex:1;overflow-y:auto;scrollbar-width:thin}
+.r5 .bd-tiles{display:flex;border-bottom:1px solid var(--line);background:var(--tabs)}
+.r5 .bd-tiles > div{flex:1;padding:12px 20px 14px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.r5 .bd-tiles > div:last-child{border-right:0}
+.r5 .bd-tiles span{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);font-weight:500}
+.r5 .bd-tiles b{font-size:24px;font-weight:600;line-height:1.1}
+.r5 .bd-tiles .favs{min-height:28px;align-items:center}
+.r5 .bd-sec{padding:6px 20px 14px;border-bottom:1px solid var(--line)}
+.r5 .bd-sec h3{margin:10px 0 4px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);font-weight:500}
+.r5 .bd-cols{display:flex;align-items:center;gap:12px;padding:10px 0 4px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);font-weight:500}
+.r5 .bd-cols span:first-child{flex:1}
+.r5 .bd-cols .c,.r5 .bd-row .c{width:72px;flex:none;display:flex;justify-content:flex-end}
+.r5 .bd-row{display:flex;align-items:center;gap:12px;width:100%;min-height:40px;border-bottom:1px solid var(--line);font-size:15px;text-align:left}
+.r5 .bd-row-wrap:last-child .bd-row,.r5 .bd-sec .bd-row.static:last-child{border-bottom:0}
+.r5 .bd-row .x{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:8px}
+.r5 .bd-row:not(.static):hover{background:var(--bar)}
+.r5 .bd-row .tag{width:36px;flex:none;font-size:12px;font-weight:600;color:var(--ink3)}
+.r5 .bd-more{padding:4px 0 10px;font-size:14px;color:var(--ink2);display:flex;flex-direction:column;gap:4px;border-bottom:1px solid var(--line)}
+.r5 .bd-more span{display:inline-block;width:72px;color:var(--ink3)}
+.r5 .bd-foot{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--line);background:var(--card)}
+.r5 .bd-foot .primary{height:36px;padding:0 16px;border-radius:8px;background:var(--ink);color:var(--card);font-size:14px;font-weight:500}
+.r5 .bd-foot .link{font-size:14px;color:var(--ink2)} .r5 .bd-foot .link:hover{color:var(--ink)}
+@media (max-width:560px){.r5 .sheet.brief{width:100%}}
+
+/* round 8: panels as tall as their rows (up to 7), stretched to the tallest in their row, the summary at the bottom - */
+.r5 .g2,.r5 .g3{align-items:stretch}
+.r5 .panel,.r5 .panel.fixed{height:auto}
+.r5 .panel .rows{flex:0 0 auto}
+.r5 .rows.clip.seven{max-height:calc(7 * (var(--rep-row-h) + 2px) + 10px);overflow:hidden}
+.r5 .panel .summary.pinned{margin-top:auto;padding:8px 22px 14px}
+/* engine names never truncate */
+.r5 .panel[aria-label="Engines"] .row .t,.r5 .panel[aria-label="Where you show up"] .row .t{min-width:120px}
+.r5 .panel[aria-label="Engines"] .row .t .x,.r5 .panel[aria-label="Where you show up"] .row .t .x{overflow:visible;text-overflow:clip}
+
+/* What moved */
+.r5 .panel.moved{height:auto}
+.r5 .mv-head,.r5 .mv-row{display:grid;grid-template-columns:minmax(200px,1.4fr) 96px minmax(160px,1.6fr) 72px 64px 60px;align-items:center;gap:12px;padding:0 22px}
+.r5 .mv-head{padding-top:12px;padding-bottom:4px;font-size:var(--rep-text-col);letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);font-weight:500}
+.r5 .mv-head .mv-n{text-align:right}
+.r5 .mv-list{padding-bottom:8px}
+.r5 .mv-row{width:100%;min-height:44px;font-size:var(--rep-text-row);text-align:left;border-top:1px solid var(--line)}
+.r5 .mv-row:hover{background:var(--bar)}
+.r5 .mv-t{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r5 .mv-t .chev{display:inline-block;width:12px;color:var(--ink3);font-size:11px;transition:transform .2s}
+.r5 .mv-t .chev.on{transform:rotate(90deg)}
+.r5 .mv-bar{position:relative;height:16px}
+.r5 .mv-bar .axis{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--line)}
+.r5 .mv-bar .pos,.r5 .mv-bar .neg{position:absolute;top:5px;height:6px;border-radius:3px;opacity:.6}
+.r5 .mv-bar .pos{background:var(--rep-good)} .r5 .mv-bar .neg{background:var(--rep-bad)}
+.r5 .mv-n{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink3)}
+.r5 .mv-n.up{color:var(--rep-good)} .r5 .mv-n.dn{color:var(--rep-bad)} .r5 .mv-n.net{color:var(--ink)} .r5 .mv-n.net.up{color:var(--rep-good)} .r5 .mv-n.net.dn{color:var(--rep-bad)}
+.r5 .mv-body{overflow:hidden}
+.r5 .mv-p{display:grid;grid-template-columns:minmax(0,1fr) auto 20px;align-items:center;gap:12px;min-height:36px;padding:0 22px 0 42px;font-size:14px;border-top:1px solid var(--line)}
+.r5 .mv-p .x{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:720px){.r5 .mv-head,.r5 .mv-row{grid-template-columns:minmax(0,1fr) 72px 48px 48px 48px}.r5 .mv-head .mv-eng,.r5 .mv-row .mv-eng{display:none}}
+
+/* Next moves cards */
+.r5 .step-card.move{cursor:default}
+.r5 .mc-num{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.r5 .mc-num b{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1}
+.r5 .mc-num b.dn{color:var(--rep-bad)} .r5 .mc-num b.up{color:var(--rep-good)}
+.r5 .mc-num > span{font-size:14px;color:var(--ink2)}
+.r5 .mc-num em{font-style:normal;margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--ink2)}
+.r5 .sc-row{gap:10px}
+.r5 .sc-row .favs{margin-left:auto}
+.r5 .step-card.move.wide{display:grid;grid-template-columns:minmax(220px,0.9fr) minmax(0,2fr) auto;align-items:center;gap:24px}
+.r5 .step-card.move.wide .mc-main{display:flex;flex-direction:column;gap:10px}
+.r5 .step-card.move.wide .sc-list{border-top:0}
+.r5 .step-card.move.wide .sc-list.two{display:grid;grid-template-columns:1fr 1fr;column-gap:20px}
+.r5 .step-card.move.wide .sc-foot{flex-direction:column;align-items:flex-end;gap:10px;border-top:0;margin:0;padding:0}
+@media (max-width:980px){.r5 .step-card.move.wide{grid-template-columns:1fr}.r5 .step-card.move.wide .sc-foot{flex-direction:row;justify-content:space-between}}
+
+/* What moved without an Engines column; the chevron; "didn't run" on one line */
+.r5 .mv-head.noeng,.r5 .mv-row.noeng{grid-template-columns:minmax(200px,1.4fr) minmax(160px,1.6fr) 72px 64px 60px}
+.r5 .mv-t .chev{width:14px;height:14px;flex:none;color:var(--ink3);transition:transform .2s}
+.r5 .row.muted .cell.mk{width:auto !important;white-space:nowrap}
+@media (max-width:720px){.r5 .mv-head.noeng,.r5 .mv-row.noeng{grid-template-columns:minmax(0,1fr) 72px 48px 48px 48px}}
+
+/* round 9 -------------------------------------------------------------------------------------------------------- */
+/* What moved: full-strength bars, 8px; the zero line; ticks under the axis; prompts indented past the topic */
+.r5 .mv-bar .pos,.r5 .mv-bar .neg{top:4px;height:8px;border-radius:4px;opacity:1}
+.r5 .mv-bar .pos{background:var(--good)} .r5 .mv-bar .neg{background:var(--bad)}
+.r5 .mv-bar .axis{background:var(--color-line-strong)}
+.r5 .mv-ticks{min-height:22px;border-top:0;cursor:default;padding-bottom:6px}
+.r5 .mv-ticks:hover{background:none}
+.r5 .mv-ticks .mv-bar{display:flex;justify-content:space-between;height:auto;font-size:12px;color:var(--ink3)}
+.r5 .mv-ticks .mv-bar b{font-weight:500;width:12px;text-align:center}
+.r5 .mv-p{padding-left:60px}
+/* Competitors table */
+.r5 .ctable .ct-row{display:grid;align-items:center;gap:16px;min-height:44px;padding:0 22px;border-top:1px solid var(--line);font-size:var(--rep-text-row)}
+.r5 .ctable .ct-head{min-height:34px;border-top:0;font-size:var(--rep-text-col);letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);font-weight:500}
+.r5 .ctable .r{text-align:right}
+.r5 .ctable .t{display:flex;align-items:center;gap:10px;min-width:0}
+.r5 .ctable .x{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r5 .ctable .x em{font-style:normal;color:var(--ink3)}
+.r5 .ctable .muted{color:var(--ink3);font-style:normal}
+.r5 .ctable .up{color:var(--good)} .r5 .ctable .dn{color:var(--bad)}
+.r5 .ct-share{display:flex;align-items:center;gap:10px}
+.r5 .ct-share .track{flex:1;height:8px;border-radius:4px;background:var(--bar);overflow:hidden}
+.r5 .ct-share .track i{display:block;height:100%;border-radius:4px}
+.r5 .ct-share b{width:44px;text-align:right;font-weight:600}
+.r5 .ctable{padding-bottom:6px}
+/* Open prompts, grouped by topic */
+.r5 .openp .op-count{margin-left:6px;font-size:var(--rep-text-tab);color:var(--ink3)}
+.r5 .op-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:start}
+.r5 .op-block{padding:14px 22px 14px;border-top:1px solid var(--line);border-right:1px solid var(--line);min-width:0}
+.r5 .op-block:nth-child(3n){border-right:0}
+.r5 .op-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;font-size:var(--rep-text-row)}
+.r5 .op-head b{font-weight:600}
+.r5 .op-head span{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2)}
+.r5 .op-head .muted{color:var(--ink3)}
+.r5 .op-row{display:flex;align-items:center;gap:10px;min-height:32px;font-size:14px}
+.r5 .op-row .x{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r5 .op-row.rise{animation:r5rise .24s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(max(var(--k),0) * 20ms)}
+.r5 .op-more{margin-top:2px;font-size:13px;color:var(--ink3)} .r5 .op-more:hover{color:var(--ink)}
+@media (max-width:980px){.r5 .op-grid{grid-template-columns:1fr 1fr}.r5 .op-block:nth-child(3n){border-right:1px solid var(--line)}.r5 .op-block:nth-child(2n){border-right:0}}
+@media (max-width:720px){.r5 .op-grid{grid-template-columns:1fr}.r5 .op-block{border-right:0 !important}}
+/* the snapshot (one or two syncs) */
+.r5 .snap{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:28px;padding:18px 22px 14px}
+.r5 .snap h3{margin:0 0 8px;font-size:var(--rep-text-col);letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);font-weight:500}
+.r5 .sn-row{display:grid;grid-template-columns:minmax(150px,1fr) minmax(0,2fr) 48px;align-items:center;gap:12px;min-height:32px;font-size:var(--rep-text-row)}
+.r5 .sn-row .t,.r5 .sn-grid .t{display:flex;align-items:center;gap:9px;min-width:0}
+.r5 .sn-row .x,.r5 .sn-grid .x{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r5 .sn-row .x em{font-style:normal;color:var(--ink3)}
+.r5 .sn-bar{height:8px;border-radius:4px;background:var(--bar);overflow:hidden}
+.r5 .sn-bar i{display:block;height:100%;border-radius:4px}
+.r5 .sn-row b{text-align:right;font-weight:600}
+.r5 .sn-grid{display:grid;gap:4px;align-items:center;font-size:14px}
+.r5 .sn-col{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2);justify-content:center}
+.r5 .sn-cell{height:32px;display:grid;place-items:center;border-radius:6px;font-weight:600}
+.r5 .sn-note{grid-column:1/-1;margin:2px 0 0;font-size:13px;color:var(--ink3)}
+@media (max-width:980px){.r5 .snap{grid-template-columns:1fr}}
+/* move cards: same top, natural height; was → now on its own line; now naming; prompts won */
+.r5 .step-cards{align-items:start}
+.r5 .mc-was{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink2)}
+.r5 .mc-was .arr{color:var(--ink3)}
+.r5 .mc-naming{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink2)}
+.r5 .mc-now{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2)}
+.r5 .sc-row.lead{justify-content:flex-start}
+.r5 .sc-row.lead .x{flex:1}
+.r5 .sc-more{min-height:30px;display:flex;align-items:center;font-size:13px;color:var(--ink3)}
+.r5 .step-card.move{gap:10px}
+
+/* round 10 ------------------------------------------------------------------------------------------------------- */
+/* By engine: a row per engine, an 8px bar per brand in its chart colour */
+.r5 .snap-r .se-row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:14px;min-height:40px;font-size:var(--rep-text-row)}
+.r5 .snap-r .t{display:flex;align-items:center;gap:9px}
+.r5 .nowrap{white-space:nowrap;overflow:visible}
+.r5 .se-bars{display:flex;flex-direction:column;gap:5px}
+.r5 .se-bar{display:grid;grid-template-columns:minmax(0,1fr) 52px;align-items:center;gap:10px}
+.r5 .se-bar .track{height:8px;border-radius:4px;background:var(--bar);overflow:hidden}
+.r5 .se-bar.thin .track{height:4px}
+.r5 .se-bar .track i{display:block;height:100%;border-radius:4px}
+.r5 .se-bar b{text-align:right;font-size:15px;font-weight:600;color:var(--ink)}
+.r5 .se-bar.thin b{font-size:13px;font-weight:500;color:var(--ink2)}
+/* logos of who's named instead; the split bar; a number with a mini bar */
+.r5 .row .cell.lg{display:inline-flex;align-items:center;gap:6px;padding-left:12px}
+.r5 .row .cell.lg .favs .fav{width:20px;height:20px} .r5 .row .cell.lg .favs .fav img{width:20px;height:20px}
+.r5 .row .cell.lg .more{font-size:12px;color:var(--ink3)}
+.r5 .row .cell.lg .lg-eng{margin-left:4px}
+.r5 .row .cell.lg .lg-eng .fav,.r5 .row .cell.lg .lg-eng .fav img{width:16px;height:16px}
+.r5 .row .cell.sp{display:inline-flex;align-items:center;padding-left:12px}
+.r5 .split{display:flex;width:160px;height:8px;border-radius:4px;overflow:hidden;gap:2px;background:transparent}
+.r5 .split i{display:block;height:100%}
+.r5 .hatch{background:repeating-linear-gradient(135deg,var(--color-line-strong) 0 2px,transparent 2px 5px) !important;outline:1px dashed var(--color-line-strong);outline-offset:-1px;border-radius:4px}
+.r5 .row .cell.mini{display:inline-flex;align-items:center;justify-content:flex-end;gap:10px}
+.r5 .row .cell.mini b{font-weight:600;min-width:20px;text-align:right}
+.r5 .row .cell.mini .mtrack{width:96px;height:6px;border-radius:3px;background:var(--bar);overflow:hidden;display:block}
+.r5 .row .cell.mini .mtrack i{display:block;height:100%;border-radius:3px}
+.r5 .row .cell.n.muted{color:var(--ink3);font-weight:500}
+/* Biggest wins: same height, footer at the bottom, ink number with a small green ▲, muted outline ticks */
+.r5 .step-cards.won{align-items:stretch}
+.r5 .step-cards.won .step-card{height:100%}
+.r5 .step-card .sc-foot{margin-top:auto}
+.r5 .step-card.move .sc-head{margin-bottom:0}
+.r5 .step-card.move{gap:8px}
+.r5 .mc-num.won b{color:var(--ink);display:inline-flex;align-items:baseline;gap:4px}
+.r5 .mc-num.won .tri{font-size:13px;color:var(--good);transform:translateY(-3px)}
+.r5 .otick{flex:none;color:var(--ink3)}
+.r5 .sc-row.status .x{color:var(--ink2)}
+/* Quick wins rows */
+.r5 .sc-row.rich{position:relative;gap:8px;transition:transform .12s ease-out,background .12s}
+.r5 .sc-row.rich:hover{transform:translateY(-1px);background:var(--bar)}
+.r5 .sc-row.rich .x{flex:1}
+.r5 .sc-row.rich .favs{margin-left:0}
+.r5 .dot-red{flex:none;width:10px;height:10px;margin:0 2px;border-radius:50%;background:var(--bad)}
+.r5 .sc-row.rich .cov{flex:none;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--ink3)}
+.r5 .sc-row .row-copy{position:absolute;right:0;top:50%;transform:translateY(-50%);padding:3px 8px;border-radius:6px;background:var(--card);border:1px solid var(--line);font-size:12px;opacity:0;transition:opacity .12s}
+.r5 .sc-row.rich:hover .row-copy{opacity:1}
+@media (prefers-reduced-motion:reduce){.r5 .sc-row.rich{transition:none}.r5 .sc-row.rich:hover{transform:none}}
+
+/* By engine: one name column, so every bar starts at the same x */
+.r5 .snap-r .se-row{grid-template-columns:140px minmax(0,1fr)}
+
+/* round 11: one grid per panel. The name column takes what's left (minmax(0,1fr)); each number column is as wide as
+   its content (auto), 24px apart. The header row and every row share the grid (subgrid), so headers sit over their
+   numbers and no column has a fixed width. Names truncate first; numbers never do; nothing leaves the panel. */
+.r5 .panel{overflow:hidden;container-type:inline-size}
+.r5 .pgrid{display:grid;column-gap:24px;min-width:0}
+.r5 .pgrid > *{grid-column:1/-1}
+.r5 .sg{display:grid;grid-template-columns:subgrid;grid-column:1/-1;column-gap:24px;min-width:0}
+.r5 .pgrid .ptabs.sg{align-items:center;padding:0 22px 0 14px}
+.r5 .pgrid .ptabs .tabsbox{display:flex;align-items:center;gap:4px;min-width:0;overflow:hidden}
+.r5 .pgrid .ptabs .col{margin:0;padding:0;justify-self:end;text-align:right;white-space:nowrap}
+.r5 .pgrid .ptabs .col.ct{justify-self:start;text-align:left}
+.r5 .pgrid .ptabs .col.div{padding-left:16px;border-left:1px solid transparent}
+.r5 .pgrid .rows.sg{padding:10px 12px 0}
+.r5 .pgrid .row.sg{padding:0 10px;justify-content:initial;gap:0;column-gap:24px}
+.r5 .pgrid .row .t{min-width:0}
+.r5 .pgrid .row .t .x{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r5 .pgrid .row .cell{width:auto !important;justify-self:end;white-space:nowrap}
+.r5 .pgrid .row .cell.txt{justify-self:start;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+.r5 .pgrid .row .cell.lg,.r5 .pgrid .row .cell.sp{justify-self:start;padding-left:0}
+.r5 .pgrid .row .spark{width:auto;justify-self:end}
+.r5 .pgrid .row .cell.span{grid-column:2/-1;justify-self:end;display:inline-flex;align-items:center;gap:8px}
+.r5 .pgrid .row .cell.span .muted{color:var(--ink3)}
+.r5 .pgrid .row .cell.mini{justify-self:stretch}
+.r5 .pgrid .ptabs .col:last-child{padding-right:10px}
+/* engine names never truncate: the name column keeps its content's width in Engines */
+.r5 .pgrid.engines{grid-template-columns:minmax(max-content,1fr) repeat(auto-fill, auto)}
+/* narrow panels: no pie glyph below 380px; engines icon-only below 320px (the name in the tooltip) */
+@container (max-width:380px){.r5 .pgrid .row .cell .pie{display:none}}
+@container (max-width:320px){.r5 .pgrid.engines .row .t .x{display:none}}
+
+/* paths cut in the middle: a shorter cut in a narrow panel, never cut twice */
+.r5 .mid-short{display:none}
+@container (max-width:380px){.r5 .mid-long{display:none}.r5 .mid-short{display:inline}}

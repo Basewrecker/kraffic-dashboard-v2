@@ -72,30 +72,44 @@ amber pair). Until one is picked, nothing below changes.
 - No load animations that loop, count up, pulse or bounce. Motion is ≤500ms, ease-out, once, and off under
   `prefers-reduced-motion`.
 
-## 5. Reports: the three-band frame
+## 5. Reports (final design, v5)
 
-Every report kind (CEO summary, Competitor gap, Weekly summary and its client version, Missing prompts, Custom
-question) renders through `src/pages/reports/frame.jsx` from a `frame` object built in `src/data/reports.js`.
+Every report type (Weekly summary and its Client update, CEO summary, Competitor gap, Missing prompts, a custom
+question) renders through `src/pages/reports/v5/Report5.jsx` from the view model in `src/pages/reports/v5/model.js`,
+styled by `report5.css` (scoped to `.r5`). Port checklist, data per panel and every state: `docs/port-reports.md`.
 
-1. **Header**: the question as the H1 (32/600), one finding sentence under it (16/400, at most ~20 words), for a
-   custom question one "How I read your question" line; on the right the date range, the frequency and Export as
-   44px outline buttons with a 10px radius.
-2. **Band 1, the KPI strip**: one card, equal cells with 1px dividers. Each cell: a 14px label, the number, the
-   change chip with "vs <start>". **Numbers only**: no sparklines or mini bars inside a tile (decided; the code
-   still draws them, see Known gaps). The strip is the only place headline numbers live. Tiles are selectable and
-   switch the main chart.
-3. **Band 2, two visuals**, 2/3 + 1/3, equal height, each a 14px label plus a legend and nothing else. Left: the
-   main chart. Right: the breakdown, then a hairline and "By engine".
-4. **Band 3, the table**: single-line cells, 52px rows, a header on `--rep-head`, sortable columns, a Trend column
-   with an inline sparkline where the data exists, short next-step text buttons with an arrow, rows that open to
-   their prompts, the source line and "Showing N of M" in the footer.
-5. **Band 4** (CEO summary only): the pages AI cites most.
+**Anatomy, top to bottom**
+1. **Header**: the question as the H1, one answer sentence under it, for a typed question one "How I read it" line;
+   the date range and Export as menus.
+2. **Main card**: KPI tabs (label, number, delta chip; numbers only) fused to the Visibility history card in
+   compact mode (240px plot, legend on the controls row, best / avg labels in the right gutter). Under 3 syncs the
+   chart is replaced by the Snapshot (share this sync, by engine).
+3. **Panels**: tabbed lists with right-aligned value columns on a subgrid; up to 7 rows, View all expands in place
+   (up to 25, then scrolls); a short list ends in a muted summary line. Layout rule: a panel that can expand, or a
+   full-width block, gets its own row; short panels share a row, up to 3, stretched to the tallest.
+4. **Blocks** per type: What moved (topics, gained / lost / net bars around a zero line, rows open to prompts),
+   Competitors table, Open prompts.
+5. **Steps**: one card per action (Next moves, Close the gap, Biggest wins, Quick wins); a card opens the 560px
+   brief drawer.
+6. **Footer**: the syncs, the range, the engines that ran and those that didn't.
 
-Grid: 16px between bands and cards, 20px card padding, 12px card radius, left edges aligned, everything on an 8px
-grid. Follow-up chips sit 12px under the table, then the composer.
+**Reports-only exceptions** (the rest of the app keeps its own rules): the type scale `--rep-text-*` (H1 32, answer
+16, KPI 14 / 32, tab and row 15, row 40px, column labels 12 uppercase, footer 13, icon 18); the blue chart line and
+fade (`--plot`); coloured favicons in panel rows; sparklines in panel change columns and the Competitors table.
 
-**Visual reference for Reports:** `~/Documents/design-refs/reports/doctime-reports.png` (outside every repo). Copy
-its structure and restraint, apply our tokens.
+**Delta chips**: `+14` / `−2` on `--good-bg` / `--bad-bg` in `--rep-good` / `--rep-bad`; a lower-is-better number
+(Missing) flips; no chip with one sync.
+
+**Indicators**: one vocabulary, shared with Structured Data (`src/components/ui/Marker.jsx`): tick = all, part ring =
+some, dashed ring = none / not set up / didn't run, cross = lost.
+
+**Motion**: the chart line draws in (.9s), the area fades (.6s), row bars grow (.55s), rows and cards rise in
+(.24s), View all expands in place, drawers slide in .24s over a dim; all off under reduced motion.
+
+**Scheduled**: the All reports frame (title + Beta, brand switcher, New schedule); a 56px Upcoming strip (14 days,
+W / C / G chips, today tinted); one list (When · Report · Last sent dots + first line · To; hover actions on a solid
+group: Send now · Skip next, Resume when paused, Retry when failed); empty = the same list as suggestions with a
+preview and Set up; New / Edit in the site's right drawer.
 
 ## Charts
 
@@ -105,7 +119,8 @@ its structure and restraint, apply our tokens.
 - Topic charts are sorted by our lead, largest first.
 - Hover fades the other columns to 35% and shows the dark tooltip; nothing else moves.
 - At most three colours per chart: us, one competitor, neutral. Red is never a series colour.
-- Sparklines only in a table's Trend column, never in a KPI tile or a legend.
+- Sparklines only in a table's Trend / change column (Reports: Engines and Competitors), never in a KPI tile or a
+  legend.
 
 ## 6. Words
 
@@ -130,8 +145,8 @@ its structure and restraint, apply our tokens.
 
 ## Known gaps (code that doesn't follow this file yet)
 
-- KPI tiles still draw mini charts: the sparkline in Visibility score / Prompts named / Share of voice and the
-  segment pills in Competitors ahead (`KpiStrip` in `src/pages/reports/frame.jsx`). Decided: numbers only.
+- The old frame (`src/pages/reports/frame.jsx`) still renders the report skeleton and drew mini charts in KPI tiles;
+  v5 replaces it for reports. Decided: numbers only.
 - Two `font-bold` (700) uses outside Reports: the wordmark in `src/components/ui/Logo.jsx` and the phone nav's
   home link in `src/components/dashboard/MobileNav.jsx`. The scale stops at 600.
 - The adapter's footer wording (`src/data/live-report.js`, copied unchanged from the app): "Not in your data: score
