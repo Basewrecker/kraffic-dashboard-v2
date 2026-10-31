@@ -1,6 +1,6 @@
 # Porting Reports (v5) into the app
 
-The design mock on branch `design/reports-v5` is the approved Reports design. This file is the checklist for the app
+The design mock on `develop` at commit `1afea88` (squashed from `design/reports-v5`) is the approved Reports design. This file is the checklist for the app
 session: what to copy, which tokens come with it, what data each panel reads, every state, and what must stay
 behind. Compare the port 1:1 with `screenshots/reports-v5/final/` (list at the end).
 
