@@ -1,18 +1,18 @@
-// Reports (final design): a 1:1 port of the approved prototype (~/Documents/design-refs/reports/report-prototype.html):
-// the header, the KPI tabs fused to the blue area chart, the 2-up and 3-up panels, the next steps, the footer. Styles in
-// report5.css (the prototype's own); the chart is drawn by the prototype's draw(), ported unchanged apart from its data.
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+// Reports (final design): the approved prototype's anatomy (~/Documents/design-refs/reports/report-prototype.html).
+// Header; KPI tabs over the Visibility history card (components/dashboard/VisibilityHistory.jsx, reused as-is with the
+// tab's dataset); panels of one fixed height (View all opens a sheet); the next steps; the footer. Styles in report5.css.
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import './report5.css'
 import { PERIODS } from '../../../data/reports'
 import { NO_HISTORY } from './model'
-import Chart5 from './Chart5'
-import Insight, { useExplain } from '../../../components/ui/Insight'
+import VisibilityHistory from '../../../components/dashboard/VisibilityHistory'
 
 const reduce = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
 const ICON_EXP = <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M7 1.5h3.5V5M10.5 1.5 6.5 5.5M5 10.5H1.5V7M1.5 10.5l4-4" /></svg>
 const CHEV = <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m4 6 4 4 4-4" /></svg>
 const CAL = <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5" /><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg>
+const VISIBLE = 7 // rows a panel shows before View all
 
 // ---- header ---------------------------------------------------------------------------------------------------------
 function Menu({ label, icon, items }) {
@@ -28,56 +28,33 @@ function Menu({ label, icon, items }) {
   return (
     <div className="menu" ref={ref}>
       <button type="button" className="btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{icon}{label}{CHEV}</button>
-      {open && (
-        <ul role="menu">
-          {items.map((it) => <li key={it.label}><button type="button" role="menuitem" aria-current={it.on || undefined} onClick={() => { setOpen(false); it.onClick?.() }}>{it.label}</button></li>)}
-        </ul>
-      )}
+      {open && <ul role="menu">{items.map((it) => <li key={it.label}><button type="button" role="menuitem" aria-current={it.on || undefined} onClick={() => { setOpen(false); it.onClick?.() }}>{it.label}</button></li>)}</ul>}
     </div>
   )
 }
 
-function KpiCard({ kpis, selected, onSelect, dates, isos, history }) {
-  const [anim, setAnim] = useState(true)
+// ---- the main card: KPI tabs over the Visibility history card -------------------------------------------------------
+function KpiCard({ kpis, selected, onSelect, history }) {
   const k = kpis.find((x) => x.id === selected) ?? kpis[0]
-  const explain = useExplain(k.id)
   return (
-    <section className="card" aria-label="Key numbers and trend" ref={explain.cardRef}>
+    <section className="card" aria-label="Key numbers and trend">
       <div className="kpis" role="tablist">
         {kpis.map((m) => (
-          <button key={m.id} type="button" className="kpi" role="tab" aria-selected={m.id === k.id} onClick={() => { setAnim(true); onSelect(m.id) }}>
+          <button key={m.id} type="button" className="kpi" role="tab" aria-selected={m.id === k.id} onClick={() => onSelect(m.id)}>
             <div className="l">{m.label}</div>
             <div className="v"><b className="num">{m.value}</b>{m.delta && <span className={`d ${m.delta.tone}`}>{m.delta.text}</span>}</div>
           </button>
         ))}
       </div>
-      <div className="plot">
-        {k.series ? (
-          <>
-            <div className="legend">
-              {k.ribbon ? (
-                <>
-                  <span><i />{k.brand}</span><span><i className="dash" />{k.ribbon.them.label}</span>
-                  <span><i className="sq lead" />you lead</span><span><i className="sq behind" />they lead</span>
-                </>
-              ) : (
-                <>
-                  <span><i />{k.short === 'you' ? k.brand : k.short}</span>
-                  {k.compare && <span><i className="dash" />{k.compare.short === 'you' ? k.brand : k.compare.kind === 'previous' ? 'Previous period' : k.compare.label}</span>}
-                </>
-              )}
-            </div>
-            <Chart5 key={k.id} kpi={k} dates={k.offset ? dates.slice(k.offset) : dates} isos={k.offset ? isos.slice(k.offset) : isos} anim={anim} />
-            {(k.ribbon?.insight ?? k.insight) && <div className="insight"><Insight explain={explain} text={(k.ribbon?.insight ?? k.insight).text} evidence={{ keys: [], calc: (k.ribbon?.insight ?? k.insight).why }} /></div>}
-          </>
-        ) : <div className="state">{history ? `Not in your data: ${lowerFirst(k.label)} by sync` : NO_HISTORY}</div>}
-      </div>
+      {k.ds && history
+        ? <div className="vh" key={k.id}><VisibilityHistory dataset={k.ds} syncUrl={false} bare title={k.title} subtitle={k.subtitle} plotClass="h-[360px] max-md:h-[240px]" note={k.note}
+          initial={{ compare: k.compare !== false && k.ds.series.length > 1, chart: 'line', picks: k.picks?.filter((p) => k.ds.series.some((s) => s.key === p)) ?? null }} /></div>
+        : <div className="plot"><div className="state">{history ? `Not in your data: ${k.label.charAt(0).toLowerCase()}${k.label.slice(1)} by sync` : NO_HISTORY}</div></div>}
     </section>
   )
 }
-const lowerFirst = (t) => t.charAt(0).toLowerCase() + t.slice(1)
 
-// ---- panels ---------------------------------------------------------------------------------------------------------
+// ---- panel rows ------------------------------------------------------------------------------------------------------
 const favicon = (domain) => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`
 function Fav({ icon }) {
   const [bad, setBad] = useState(false)
@@ -85,95 +62,144 @@ function Fav({ icon }) {
   if (bad || !icon.domain) return <span className="fav" style={{ background: 'var(--ink3)' }}>{(icon.name || '?')[0].toUpperCase()}</span>
   return <span className="fav"><img src={favicon(icon.domain)} alt="" onError={() => setBad(true)} onLoad={(e) => e.currentTarget.naturalWidth <= 16 && setBad(true)} /></span>
 }
-
-function Rows({ rows, grow = true, onRow, extra, widths }) {
-  const max = Math.max(...rows.map((r) => r.n ?? 0), 1)
-  const maxSplit = Math.max(...rows.map((r) => (r.split ? r.split.reduce((a, x) => a + x.v, 0) : 0)), 1)
-  return rows.map((r, i) => <RowFragment key={`${r.t}-${i}`} r={r} i={i} max={max} maxSplit={maxSplit} grow={grow} onRow={onRow} extra={extra} widths={widths} />)
+function Spark({ spark }) {
+  if (!spark) return <span className="spark" />
+  const v = spark.values, lo = Math.min(...v), hi = Math.max(...v), span = hi - lo || 1
+  const d = v.map((x, i) => `${i ? 'L' : 'M'}${((i / (v.length - 1)) * 58 + 1).toFixed(1)},${(19 - ((x - lo) / span) * 18).toFixed(1)}`).join('')
+  return <span className="spark"><svg viewBox="0 0 60 20" width="60" height="20" aria-hidden><path d={d} fill="none" stroke={spark.color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" /></svg></span>
 }
-function RowFragment({ r, i, max, maxSplit, grow, onRow, extra, widths }) {
-  const click = onRow && (r.click !== null) ? () => onRow(r, i) : undefined
+// a bar only when it shows a real difference: not when every value is the same, or every value is 1
+function barsFor(rows, tab) {
+  if (tab.bar === false) return null
+  const vals = rows.filter((r) => !r.group).map((r) => (r.split ? r.split.reduce((a, x) => a + x.v, 0) : r.bar)).filter((v) => v != null)
+  if (vals.length < 2 || vals.every((v) => v === vals[0]) || vals.every((v) => v === 1)) return null
+  return Math.max(...vals)
+}
+function Cell({ v, c }) {
+  if (!v) return <span className="cell" style={{ width: c.w }} />
+  if (v.text != null) return <span className={`cell txt ${v.tone ?? ''}`} style={{ width: c.w }}>{v.text}</span>
+  return <span className={`cell n num ${v.tone ?? ''}`} style={{ width: c.w }}>{v.pre ?? ''}{v.v.toLocaleString()}{v.suf ?? ''}</span>
+}
+function Row({ r, i, tab, max, onClick, anim }) {
+  const total = r.split ? r.split.reduce((a, x) => a + x.v, 0) : r.bar
   return (
-    <>
-      <button type="button" className={`row ${grow ? 'grow' : ''} ${r.muted ? 'muted' : ''} ${r.wrap ? 'wrap2' : ''}`} title={r.topic && r.wrap ? `Topic: ${r.topic}` : undefined} style={{ '--i': i }} onClick={click} aria-expanded={extra ? !!extra(r, i) : undefined} disabled={!click && !extra ? undefined : undefined}>
-        {r.split
-          ? <span className="fill split" style={{ width: `${Math.max(5, (r.split.reduce((a, x) => a + x.v, 0) / maxSplit) * 100)}%` }}>{r.split.map((x, k) => <i key={k} className={x.tone} style={{ flex: `${x.v} 1 0` }} />)}</span>
-          : r.n != null && <span className="fill" style={{ width: `${Math.max(5, (r.n / (r.max ?? max)) * 100)}%` }} />}
-        <span className="t"><Fav icon={r.icon} /><span className="x">{r.t}</span></span>
-        {r.note && <span className="note">{r.note}</span>}
-        {r.vals
-          ? <span className="vals">{r.vals.map((v, k) => (v.text != null
-            ? <span key={k} className="vt" style={widths ? { width: widths[k] } : undefined}>{v.text}</span>
-            : <span key={k} className={`n num ${v.tone ?? ''}`} style={widths ? { width: widths[k] } : undefined}>{v.pre ?? ''}{v.v.toLocaleString()}{v.suf ?? ''}</span>))}</span>
-          : r.n != null && <span className={`n num ${r.sign ?? ''}`}>{r.pre ?? ''}{r.n.toLocaleString()}{r.suf ?? ''}</span>}
-      </button>
-      {extra?.(r, i)}
-    </>
+    <button type="button" className={`row ${anim ? 'grow' : ''} ${r.group ? 'grp' : ''} ${r.sub ? 'sub' : ''} ${r.muted ? 'muted' : ''}`} style={{ '--i': i }} onClick={onClick} title={r.sub && r.topic ? `Topic: ${r.topic}` : undefined}>
+      {max != null && total != null && (r.split
+        ? <span className="fill split" style={{ width: `${Math.max(4, (total / max) * 100)}%` }}>{r.split.map((x, k) => <i key={k} className={x.tone} style={{ flex: `${x.v} 1 0` }} />)}</span>
+        : <span className="fill" style={{ width: `${Math.max(4, (total / (r.barMax ?? max)) * 100)}%` }} />)}
+      <span className="t"><Fav icon={r.icon} /><span className="x">{r.t}</span></span>
+      <span className="cells">{tab.cols.map((c, k) => <Cell key={c.label} v={r.vals?.[k]} c={c} />)}{tab.spark && <Spark spark={r.spark} />}</span>
+    </button>
+  )
+}
+function Head({ def, tab, onTab }) {
+  return (
+    <div className="ptabs" role="tablist">
+      {def.tabs.map((t) => (
+        <button key={t.key} type="button" className={`ptab ${def.solo ? 'solo' : ''}`} role="tab" aria-selected={t.key === tab.key} onClick={def.solo ? undefined : () => onTab(t.key)}>{t.label}</button>
+      ))}
+      <span className="cols">{tab.cols.map((c) => <span key={c.label} className={`col ${c.text ? 'ct' : ''}`} style={{ width: c.w }}>{c.label}</span>)}{tab.spark && <span className="col sp">8 weeks</span>}</span>
+    </div>
   )
 }
 
-// a value column is as wide as its label (at least 60px; text columns 108px), shared by the header and the rows
-const colWidths = (d) => (Array.isArray(d.col) ? d.col.map((c, i) => (d.rows.some((r) => r.vals?.[i]?.text != null) ? 108 : Math.max(60, Math.ceil(c.length * 7.4) + 14))) : null)
+// ---- View all: a sheet from the right (520px; full screen on a phone) ------------------------------------------------
+function Sheet({ def, start, filter, onClose }) {
+  const [tabKey, setTabKey] = useState(start)
+  const [q, setQ] = useState('')
+  const [closing, setClosing] = useState(false)
+  const box = useRef(null)
+  const input = useRef(null)
+  const close = () => { if (reduce()) { onClose(); return } setClosing(true); setTimeout(onClose, 240) }
+  useEffect(() => {
+    input.current?.focus()
+    const key = (e) => { if (e.key === 'Escape') close() }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const tab = def.tabs.find((t) => t.key === tabKey) ?? def.tabs[0]
+  const base = filter && tab.key === 'prompts' ? tab.rows.filter((r) => r.topic === filter) : tab.rows
+  const rows = q ? base.filter((r) => `${r.t} ${r.topic ?? ''}`.toLowerCase().includes(q.toLowerCase())) : base
+  const max = barsFor(rows, tab)
+  // a portal: the sheet covers the page, whatever scrolls or clips around the panel
+  return createPortal(
+    <div className={`r5 sheet-wrap ${closing ? 'out' : ''}`} onMouseDown={(e) => { if (!box.current?.contains(e.target)) close() }}>
+      <div className="dim" />
+      <aside ref={box} className="sheet" role="dialog" aria-modal="true" aria-label={tab.label}>
+        <div className="sh-head">
+          <div className="sh-tabs">
+            {def.tabs.map((t) => <button key={t.key} type="button" className={`ptab ${def.solo ? 'solo' : ''}`} aria-selected={t.key === tab.key} onClick={() => setTabKey(t.key)}>{t.label}</button>)}
+          </div>
+          <button type="button" className="sh-x" onClick={close} aria-label="Close">×</button>
+        </div>
+        <div className="sh-search"><input ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label={`Search ${tab.label}`} /></div>
+        <div className="sh-cols"><span>{tab.label}</span><span className="cols">{tab.cols.map((c) => <span key={c.label} className={`col ${c.text ? 'ct' : ''}`} style={{ width: c.w }}>{c.label}</span>)}{tab.spark && <span className="col sp">8 weeks</span>}</span></div>
+        <div className="rows sh-rows">
+          {rows.map((r, i) => <div key={`${r.t}-${i}`} className="fadeup" style={{ '--i': Math.min(i, 30) }}><Row r={r} i={i} tab={tab} max={max} anim={false} /></div>)}
+          {!rows.length && <div className="summary">No matches</div>}
+        </div>
+      </aside>
+    </div>,
+    document.body,
+  )
+}
+
 export function Panel({ def }) {
-  const [st, setSt] = useState({ tab: def.tabs[0].key, filter: null, all: false })
-  const d = def.tabs.find((t) => t.key === st.tab) ?? def.tabs[0]
-  const rows = st.filter ? d.rows.filter((r) => r.topic === st.filter) : d.rows
-  const clip = !st.all && rows.length > 7
+  const [st, setSt] = useState({ tab: def.tabs[0].key, filter: null })
+  const [sheet, setSheet] = useState(false)
+  const tab = def.tabs.find((t) => t.key === st.tab) ?? def.tabs[0]
+  const rows = st.filter ? tab.rows.filter((r) => r.topic === st.filter) : tab.rows
+  const max = barsFor(rows, tab)
+  const more = rows.length > VISIBLE
   const prompts = def.tabs.some((t) => t.key === 'prompts')
-  const widths = colWidths(d)
   return (
-    <section className="panel" aria-label={d.label}>
-      <div className="ptabs" role="tablist">
-        {def.tabs.map((t) => (
-          <button key={t.key} type="button" className={`ptab ${def.solo ? 'solo' : ''}`} role="tab" aria-selected={t.key === d.key}
-            onClick={def.solo ? undefined : () => setSt({ tab: t.key, filter: null, all: false })}>{t.label}</button>
-        ))}
-        {Array.isArray(d.col) ? <span className="cols">{d.col.map((c, i) => <span key={c} className={d.rows.some((r) => r.vals?.[i]?.text != null) ? 'col ct' : 'col'} style={{ width: widths[i] }}>{c}</span>)}</span> : d.col && <span className="col">{d.col}</span>}
-      </div>
+    <section className={`panel fixed ${def.full ? 'full' : ''}`} aria-label={tab.label}>
+      <Head def={def} tab={tab} onTab={(k) => setSt({ tab: k, filter: null })} />
       {st.filter && <div className="filter">Filtered to <button type="button" onClick={() => setSt((s) => ({ ...s, filter: null }))}>{st.filter} <span aria-hidden="true">×</span></button></div>}
-      <div className={`rows ${clip ? 'clip' : ''} ${rows.length < 7 && !def.plain ? 'fillrows' : ''} ${def.plain ? 'plain' : ''}`}>
-        <Rows key={`${d.key}-${st.filter}`} rows={rows} widths={widths} onRow={prompts ? (r) => r.click && setSt({ tab: 'prompts', filter: r.click, all: true }) : undefined} />
+      <div className={`rows ${more ? 'clip' : ''} ${def.plain ? 'plain' : ''}`}>
+        {rows.slice(0, VISIBLE + 1).map((r, i) => (
+          <Row key={`${tab.key}-${st.filter}-${r.t}-${i}`} r={r} i={i} tab={tab} max={def.plain ? null : max} anim
+            onClick={prompts && r.click ? () => setSt({ tab: 'prompts', filter: r.click }) : undefined} />
+        ))}
+        {!more && tab.summary && <div className="summary">{tab.summary}</div>}
       </div>
-      {clip && <div className="viewall"><button type="button" onClick={() => setSt((s) => ({ ...s, all: true }))}>View all {ICON_EXP}</button><button type="button" aria-label="More options">···</button></div>}
-      {st.all && rows.length > 7 && <div className="less"><button type="button" onClick={() => setSt((s) => ({ ...s, all: false }))}>Show fewer</button></div>}
+      {more && <div className="viewall"><button type="button" onClick={() => setSheet(true)}>View all {ICON_EXP}</button><button type="button" aria-label="More options">···</button></div>}
+      {sheet && <Sheet def={def} start={tab.key} filter={st.filter} onClose={() => setSheet(false)} />}
     </section>
   )
 }
 
+// ---- next steps: action · topic · engines · your page (or New page) · +N ---------------------------------------------
 function Steps({ steps, onCopy, onOpen }) {
   const [open, setOpen] = useState(null)
-  const ref = useRef(null)
-  const [wide, setWide] = useState(true)
   useEffect(() => {
     const key = (e) => { if (e.key === 'Escape') setOpen(null) }
     window.addEventListener('keydown', key)
-    const ro = new ResizeObserver(([e]) => setWide(e.contentRect.width >= 980))
-    if (ref.current) ro.observe(ref.current)
-    return () => { window.removeEventListener('keydown', key); ro.disconnect() }
+    return () => window.removeEventListener('keydown', key)
   }, [])
-  // a column shows only when some row has it
-  const has = { topic: steps.rows.some((s) => s.topic), engines: steps.rows.some((s) => s.engines?.length), page: steps.rows.some((s) => s.page), cited: steps.rows.some((s) => s.cited != null), effort: wide && steps.rows.some((s) => s.effort) }
-  const cols = ['minmax(0,1.6fr)', has.topic && '128px', has.engines && '56px', has.page && 'minmax(0,1.3fr)', has.cited && '72px', has.effort && '72px', '48px'].filter(Boolean).join(' ')
+  const total = Math.max(...steps.rows.map((s) => s.n)) * 1.25
+  // a bar only when it shows a difference (not when every step could win the same number)
+  const bars = steps.rows.length > 1 && !steps.rows.every((s) => s.n === steps.rows[0].n)
+  const has = { engines: steps.rows.some((s) => s.engines?.length), page: steps.rows.some((s) => s.page !== undefined) }
+  const cols = ['fit-content(44%)', 'auto', has.engines && 'auto', has.page ? 'minmax(0,1fr)' : '1fr', '48px'].filter(Boolean).join(' ')
   return (
-    <section className="panel" aria-label={steps.title} ref={ref}>
+    <section className="panel" aria-label={steps.title}>
       <div className="ptabs"><span className="ptab solo">{steps.title}</span><span className="col">{steps.col}</span></div>
       <div className="rows">
         {steps.rows.map((s, i) => (
           <div key={s.t}>
             <button type="button" className="row grow step" style={{ '--i': i, gridTemplateColumns: cols }} aria-expanded={open === i} onClick={() => setOpen((o) => (o === i ? null : i))}>
-              <span className="fill" style={{ width: `${Math.max(5, (s.n / steps.total) * 100)}%` }} />
-              <span className="x act">{s.t}</span>
-              {has.topic && <span><span className="chip">{s.topic}</span></span>}
-              {has.engines && <span className="favs">{s.engines.map((e) => <Fav key={e.domain} icon={e} />)}</span>}
-              {has.page && <span className="page">{s.page && <><Fav icon={s.page.icon} /><span className="x">{s.page.path}</span></>}<span className="sr-only"> {steps.rival}’s page</span></span>}
-              {has.cited && <span className="cited num">{s.cited != null ? `cited ${s.cited}×` : ''}</span>}
-              {has.effort && <span className="effort">{s.effort}</span>}
+              {bars && <span className="fill" style={{ width: `${Math.max(5, (s.n / total) * 100)}%` }} />}
+              <span className="act">{s.t}</span>
+              <span><span className="chip">{s.topic}</span></span>
+              {has.engines && <span className="favs">{(s.engines || []).map((e) => <Fav key={e.domain} icon={e} />)}</span>}
+              <span className="page">{s.page !== undefined && <span className="x">{s.page}</span>}</span>
               <span className="n num">+{s.n}</span>
             </button>
             {open === i && (
               <div className="brief">
                 <p>{s.why}</p>
-                <ul>{s.prompts.slice(0, 4).map((p) => <li key={p}>{p}</li>)}</ul>
+                {s.prompts.length > 0 && <ul>{s.prompts.slice(0, 4).map((p) => <li key={p}>{p}</li>)}</ul>}
                 <div className="acts"><button type="button" className="btn" onClick={() => onCopy?.(s)}>Copy brief</button><button type="button" className="btn" onClick={() => onOpen?.(s)}>Open in Prompt Hub</button></div>
               </div>
             )}
@@ -186,9 +212,10 @@ function Steps({ steps, onCopy, onOpen }) {
 
 // ---- the report -----------------------------------------------------------------------------------------------------
 const grid = (n) => (n >= 3 ? 'g3' : n === 2 ? 'g2' : 'g1')
-export default function Report5({ view, isos, onPeriod, exportActions = [], onChangeRead, onCopyBrief, onOpenHub }) {
+export default function Report5({ view, onPeriod, exportActions = [], onChangeRead, onCopyBrief, onOpenHub }) {
   const [kpi, setKpi] = useState(view.defaultKpi)
   useEffect(() => setKpi(view.defaultKpi), [view])
+  const rows = useMemo(() => [view.row2, view.row3].filter((r) => r.length), [view])
   return (
     <div className="r5 wrap">
       <header className="head">
@@ -202,9 +229,13 @@ export default function Report5({ view, isos, onPeriod, exportActions = [], onCh
           <Menu label="Export" items={exportActions} />
         </div>
       </header>
-      <KpiCard kpis={view.kpis.map((k) => ({ ...k, brand: view.brand }))} selected={kpi} onSelect={setKpi} dates={view.dates} isos={isos} history={view.history} />
-      {view.row2.length > 0 && <div className={grid(view.row2.length)}>{view.row2.map((p) => <Panel key={p.id} def={p} />)}</div>}
-      {view.row3.length > 0 && <div className={grid(view.row3.length)}>{view.row3.map((p) => <Panel key={p.id} def={p} />)}</div>}
+      <KpiCard kpis={view.kpis} selected={kpi} onSelect={setKpi} history={view.history} />
+      {rows.map((r, i) => {
+        // a panel with sparklines goes first, in a wider column
+        const wide = r.length === 3 && r.some((p) => p.tabs.some((t) => t.spark))
+        const ordered = wide ? [...r].sort((a, b) => b.tabs.some((t) => t.spark) - a.tabs.some((t) => t.spark)) : r
+        return <div key={i} className={`${grid(r.length)} ${wide ? 'wide' : ''}`}>{ordered.map((p) => <Panel key={p.id} def={p} />)}</div>
+      })}
       {view.steps && <div className="g1"><Steps steps={view.steps} onCopy={onCopyBrief} onOpen={onOpenHub} /></div>}
       <div className="foot">{view.footer}</div>
     </div>

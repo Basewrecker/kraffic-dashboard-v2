@@ -27,6 +27,10 @@ const color = (s) => (s.key === FOCAL.key ? chart.you : chart[`c${slotOf(s) + 1}
 const lineColor = (s) => (s.key === FOCAL.key ? chart.lineYou : chart[`line${slotOf(s) + 1}`])
 const barColor = (s) => ({ fill: lineColor(s), opacity: 1 })
 const ANIM = { animationDuration: 500, animationEasing: 'ease-out' }
+// the unit of the values: '%' (share, the Overview) or a count (Reports: prompts named, prompts they win), set per render
+let UNIT = { pct: true, one: 'point', many: 'points' }
+const val = (v) => (UNIT.pct ? `${v}%` : `${v}`)
+const units = (n) => `${n} ${Math.abs(n) === 1 ? UNIT.one : UNIT.many}`
 
 // no fontFamily: ticks inherit --font-sans so they follow the font switcher
 const tick = { fontSize: 13, fontWeight: 400, fill: 'var(--color-stone-500)', className: 'num' }
@@ -117,7 +121,7 @@ function HistoryTooltip({ active, payload, label, series, compare, unit, line = 
               : <span className="h-2.5 w-2.5 rounded-sm" style={{ background: lineColor(s) }} />}
             {brandName(s.label)}
           </span>
-          <span className={`num text-stone-900 ${line && s.key !== YOU ? 'font-normal' : 'font-semibold'}`}>{payload.find((p) => p.dataKey === s.key)?.value}%</span>
+          <span className={`num text-stone-900 ${line && s.key !== YOU ? 'font-normal' : 'font-semibold'}`}>{val(payload.find((p) => p.dataKey === s.key)?.value)}</span>
         </div>
       ))}
       {!compare && delta != null && (
@@ -159,7 +163,7 @@ function GrowthTooltip({ active, payload, label, series, compare }) {
   const line = (s) => (
     <>
       <span className={`num font-semibold ${s.key === YOU ? signClass(p[s.key]) : 'text-stone-900'}`}>{fmtDelta(p[s.key])}</span>{' '}
-      <span className="num text-stone-600">({p.prevs[s.key]}% → {p.values[s.key]}%)</span>
+      <span className="num text-stone-600">({val(p.prevs[s.key])} → {val(p.values[s.key])})</span>
     </>
   )
   if (!compare) return <div className="rounded-lg border border-stone-200 bg-raised px-3 py-2 text-small shadow-sm"><span className="font-semibold text-stone-900">{label}</span> · {line(series[0])}</div>
@@ -209,7 +213,7 @@ function TopValueLabel({ x, y, width = 0, value }) {
   if (value == null) return null
   return (
     <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={12} fontWeight={500} className="num" fill="var(--color-stone-700)">
-      {value}%
+      {val(value)}
     </text>
   )
 }
@@ -330,7 +334,7 @@ function BrandsMenu({ brands, focalKey, drawn, onPick }) {
                 </span>
                 <SiteLogo domain={b.label} name={brandName(b.label)} className="h-5 w-5 shrink-0 rounded" imgPad="p-0" initialClass="text-[10px]" plate />
                 <span className={`min-w-0 flex-1 truncate ${on ? 'font-medium' : ''}`}>{brandName(b.label)}{you && <span className="font-normal text-stone-500"> · you</span>}</span>
-                <span className="num shrink-0 pl-2 text-stone-500">{b.share}%</span>
+                <span className="num shrink-0 pl-2 text-stone-500">{val(b.share)}</span>
               </button>
             )
           })}
@@ -383,18 +387,25 @@ function useWidth() {
   return [ref, w]
 }
 
-export default function VisibilityHistory() {
+// Props (all optional; the Overview passes none): Reports reuse the card for one metric of one report.
+//   dataset   { focal, series, weekly, monthly, unit?: 'count', one?, many? }: the data, in historyMany's shape
+//   syncUrl   false: the view lives in the card only (the report's URL has its own period)
+//   initial   the view it opens on ({ compare, chart, granularity, range, picks })
+//   bare      no card chrome (it sits under the report's KPI tabs); title / subtitle: the heading
+//   plotClass the plot's height; note: the line under a single sync
+export default function VisibilityHistory({ dataset: given = null, syncUrl = true, initial = null, bare = false, title = 'Visibility history', subtitle = null, plotClass = null, note = null } = {}) {
   const mobile = useIsMobile()
   const view0 = useBrandView()
   // ?history=many: the 6-competitor preview brand (data/historyMany.js) in place of the dashboard's brand, this card only
-  const dataset = historyManyPreview ? historyMany : null
-  const { focal, isOwnBrand, engine } = dataset ? { focal: historyMany.focal, isOwnBrand: true, engine: 'all' } : view0
+  const dataset = given ?? (historyManyPreview ? historyMany : null)
+  UNIT = dataset?.unit === 'count' ? { pct: false, one: dataset.one ?? 'prompt', many: dataset.many ?? 'prompts' } : { pct: true, one: 'point', many: 'points' }
+  const { focal, isOwnBrand, engine } = dataset ? { focal: dataset.focal, isOwnBrand: true, engine: 'all' } : view0
   const historySeries = useMemo(() => (dataset ? dataset.series : getHistory().series), [dataset])
   FOCAL = { key: focal.key }
   const YOU = focal.key
-  const [view, setView] = useState(() => readView(historySeries))
+  const [view, setView] = useState(() => (syncUrl ? readView(historySeries) : { ...DEFAULT_VIEW, ...initial }))
   const [hovered, setHovered] = useState(null) // series key highlighted from the legend
-  useEffect(() => writeView(view), [view])
+  useEffect(() => { if (syncUrl) writeView(view) }, [view, syncUrl])
 
   // competitors by share (highest first); the top 3 are drawn unless others were picked in "All N brands"
   const ranked = historySeries.filter((s) => s.key !== YOU).sort((a, b) => b.share - a.share)
@@ -496,7 +507,7 @@ export default function VisibilityHistory() {
     if (!end || end[YOU] == null) return null
     const name = focal.name
     const d = end.deltas?.[YOU]
-    const move = d == null ? `is at ${end[YOU]}%` : d > 0 ? `rose ${d} point${d === 1 ? '' : 's'}` : d < 0 ? `fell ${-d} point${d === -1 ? '' : 's'}` : 'held steady'
+    const move = d == null ? `is at ${val(end[YOU])}` : d > 0 ? `rose ${units(d)}` : d < 0 ? `fell ${units(-d)}` : 'held steady'
     const when = d == null ? '' : ` this ${stats.unit}`
     const top = (p, val) => historySeries.filter((x) => val(p, x) != null).sort((a, b) => val(p, b) - val(p, a))[0]
     const leader = top(end, (p, x) => p[x.key])
@@ -508,8 +519,8 @@ export default function VisibilityHistory() {
     // a move across the scoring change is partly the new scoring: say so in the evidence
     const across = scoringAt != null && points[points.length - 2]?.beforeScoring && !end.beforeScoring
     const calc = [
-      `${name}: ${d == null ? '' : `${end.prevs[YOU]}% → `}${end[YOU]}% (${end.date})`,
-      leader && leader.key !== YOU ? `${brandName(leader.label)}: ${end[leader.key]}%, the highest share` : null,
+      `${name}: ${d == null ? '' : `${val(end.prevs[YOU])} → `}${val(end[YOU])} (${end.date})`,
+      leader && leader.key !== YOU ? `${brandName(leader.label)}: ${val(end[leader.key])}, the highest${UNIT.pct ? ' share' : ''}` : null,
       across ? `${scoring.label}: part of this move is the new scoring` : null,
     ].filter(Boolean).join('. ')
     return { text, evidence: { keys: [`series:${YOU}`, ...(leader && leader.key !== YOU ? [`series:${leader.key}`] : [])], calc: `${calc}.`, source: sourceLine(tracking) } }
@@ -525,7 +536,7 @@ export default function VisibilityHistory() {
         <RLineChart data={points} margin={margin}>
           {furniture({ yDomain: domain, yTicks: ticks, tooltip: shareTooltip, cursor: { stroke: chart.c3, strokeWidth: 1 }, xPadding: { left: 16, right: 16 },
             gradients: series.map((s) => ({ id: `${gid}-${s.key}`, color: lineColor(s) })) })}
-          {!compare && avgLine(stats.average, `Avg ${stats.average}%`)}
+          {!compare && avgLine(stats.average, `Avg ${val(stats.average)}`)}
           {[...series].reverse().map((s) => {
             const you = s.key === YOU
             const c = lineColor(s)
@@ -551,7 +562,7 @@ export default function VisibilityHistory() {
       return (
         <RBarChart data={points} barSize={barSize} barGap={2} margin={{ ...margin, right: compare ? margin.right : AVG_GUTTER }}>
           {furniture({ yDomain: domain, yTicks: ticks, tooltip: shareTooltip, cursor: { fill: chart.track, fillOpacity: 0.6, radius: 6 } })}
-          {!compare && !single && avgLine(stats.average, `Avg ${stats.average}%`, true)}
+          {!compare && !single && avgLine(stats.average, `Avg ${val(stats.average)}`, true)}
           {series.map((s) => {
             const c = barFill(s)
             return (
@@ -625,14 +636,14 @@ export default function VisibilityHistory() {
   }
 
   return (
-    <Card ref={explain.cardRef} id="history" className="flex h-full min-w-0 scroll-mt-6 flex-col px-5 pt-5">
+    <Card ref={explain.cardRef} id={bare ? undefined : 'history'} bare={bare} className={bare ? 'flex min-w-0 flex-col' : 'flex h-full min-w-0 scroll-mt-6 flex-col px-5 pt-5'}>
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
-          <h2 className="whitespace-nowrap text-title font-semibold text-stone-900">Visibility history</h2>
-          <p className="mt-0.5 text-[13px] leading-[18px] font-normal text-stone-600">{isOwnBrand
+          <h2 className="whitespace-nowrap text-title font-semibold text-stone-900">{title}</h2>
+          <p className="mt-0.5 text-[13px] leading-[18px] font-normal text-stone-600">{subtitle ?? <>{isOwnBrand
             ? (!compare ? 'Your share of prompts over time' : youHidden ? 'Competitors’ share of prompts' : 'Your share of prompts vs competitors')
             : (!compare ? `${focal.name}’s share over time` : youHidden ? 'Other brands’ share of prompts' : `${focal.name} vs other brands`)}
-            {engine !== 'all' && ` · ${engineName(engine)}`}</p>
+            {engine !== 'all' && ` · ${engineName(engine)}`}</>}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Segmented label="Period" value={view.granularity} onChange={setGranularity} options={[{ value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }]} />
@@ -675,7 +686,7 @@ export default function VisibilityHistory() {
       <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${compare ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`} aria-hidden={compare}>
         <div className="overflow-hidden">
           <div className="flex flex-wrap gap-x-8 gap-y-2 pt-3">
-            <Stat label="Current">{stats.current == null ? '—' : `${stats.current}%`}</Stat>
+            <Stat label="Current">{stats.current == null ? '—' : val(stats.current)}</Stat>
             <Stat label="Change">
               {stats.change != null && (
                 <>
@@ -692,7 +703,7 @@ export default function VisibilityHistory() {
               </Stat>
             ) : (
               <Stat label="Best">
-                {stats.best == null ? '—' : <>{stats.best}% <span className="text-[13px] font-normal text-stone-600">{stats.bestLabel?.startsWith('this') ? `· ${stats.bestLabel}` : `(${stats.bestLabel})`}</span></>}
+                {stats.best == null ? '—' : <>{val(stats.best)} <span className="text-[13px] font-normal text-stone-600">{stats.bestLabel?.startsWith('this') ? `· ${stats.bestLabel}` : `(${stats.bestLabel})`}</span></>}
               </Stat>
             )}
           </div>
@@ -701,7 +712,7 @@ export default function VisibilityHistory() {
 
       {/* phones / tablets: 180px. Desktop: fills whatever the row leaves (at least 200px), so there's no empty band
           between the axis and the insight; the same box in every chart type, so switching type never moves anything */}
-      <div ref={plotRef} className="mt-3 h-[180px] min-h-0 lg:h-auto lg:min-h-[200px] lg:flex-1">
+      <div ref={plotRef} className={`mt-3 ${plotClass ?? 'h-[180px] min-h-0 lg:h-auto lg:min-h-[200px] lg:flex-1'}`}>
         {empty ? (
           <div className="grid h-full place-items-center rounded-lg bg-tint/50 px-4 text-center text-[13px] leading-[18px] text-stone-500">
             No visibility on record for this range yet.
@@ -712,7 +723,7 @@ export default function VisibilityHistory() {
           </ResponsiveContainer>
         )}
       </div>
-      {single && <p className="mt-1 text-[12px] leading-4 text-stone-500">Showing your first sync. Trend lines appear after the next sync.</p>}
+      {single && <p className="mt-1 text-[12px] leading-4 text-stone-500">{note ?? 'Showing your first sync. Trend lines appear after the next sync.'}</p>}
 
       {insight && <div className="mt-auto pb-3 pt-2"><Insight explain={explain} {...insight} /></div>}
     </Card>

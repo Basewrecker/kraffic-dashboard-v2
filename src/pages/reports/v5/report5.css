@@ -24,8 +24,12 @@ html[data-theme="dark"] .r5{
   --good:#4CC38A; --good-bg:rgba(76,195,138,.12); --bad:#FF6166; --bad-bg:rgba(255,97,102,.12);
   --tip:#1A1A1A; --tip-fg:#EDEDED;
 }}
+/* the reset sits in the base layer, so the app's own components inside a report (the Visibility history card) keep
+   their Tailwind utilities */
+@layer base{
 .r5 *{box-sizing:border-box}
 .r5 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0;text-align:inherit}
+}
 .r5 .num{font-variant-numeric:tabular-nums}
 .r5.wrap{max-width:1200px;margin:0 auto}
 .r5 :focus-visible{outline:2px solid var(--ink2);outline-offset:2px;border-radius:6px}
@@ -206,3 +210,57 @@ html[data-theme="dark"] .r5{--rep-you-line:#3291FF;--rep-lead-fill:rgba(76,195,1
 .r5 .legend i.sq.lead{background:var(--rep-lead-fill);box-shadow:inset 0 0 0 1px rgba(22,163,74,.35)}
 .r5 .legend i.sq.behind{background:var(--rep-behind-fill);box-shadow:inset 0 0 0 1px rgba(220,38,38,.3)}
 @media (prefers-reduced-motion:reduce){.r5 .chart5 .bands.in,.r5 .chart5 .reveal{animation:none}}
+
+/* round 4 ---------------------------------------------------------------------------------------------------------- */
+/* the main card: KPI tabs over the Visibility history card (bare) */
+.r5 .card .vh{padding:18px 20px 4px}
+/* panels: one fixed height (7 rows); never grow in place */
+.r5 .panel.fixed{height:310px;overflow:hidden}
+.r5 .panel.fixed .rows{flex:1;min-height:0;overflow:hidden}
+.r5 .rows .summary{padding:8px 10px 0;font-size:12px;color:var(--ink3)}
+/* row cells: fixed-width value columns shared with the header; an 8-week sparkline */
+.r5 .row .cells{position:relative;display:flex;align-items:center;flex:none}
+.r5 .row .cell{text-align:right;flex:none}
+.r5 .row .cell.n{font-weight:600}
+.r5 .row .cell.txt{text-align:left;padding-left:12px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r5 .row .cell.muted{color:var(--ink3)}
+.r5 .row .cell.up{color:var(--good)} .r5 .row .cell.dn{color:var(--bad)}
+.r5 .row .spark{display:inline-flex;width:72px;justify-content:flex-end;flex:none}
+.r5 .ptabs .cols{margin-left:auto;display:flex;padding-right:8px}
+.r5 .ptabs .cols .col{margin-left:0;padding-right:0;text-align:right;flex:none}
+.r5 .ptabs .cols .col.ct{text-align:left;padding-left:12px}
+.r5 .ptabs .cols .col.sp{width:72px}
+/* Gained / Lost grouped by topic */
+.r5 .row.grp{font-weight:500;min-height:30px}
+.r5 .row.sub{min-height:26px;padding-left:18px;color:var(--ink2);font-size:12.5px}
+.r5 .row.sub .t .x{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+/* View all: the sheet */
+.r5.sheet-wrap{position:fixed;inset:0;z-index:60}
+.r5.sheet-wrap .dim{position:absolute;inset:0;background:#000;opacity:.4;animation:r5dim .24s ease-out both}
+.r5.sheet-wrap .sheet{position:absolute;top:0;right:0;bottom:0;width:520px;max-width:100%;background:var(--card);border-left:1px solid var(--line);display:flex;flex-direction:column;animation:r5slide .24s ease-out both}
+.r5.sheet-wrap.out .dim{animation:r5dimout .24s ease-out both}
+.r5.sheet-wrap.out .sheet{animation:r5slideout .24s ease-out both}
+@keyframes r5dim{from{opacity:0}} @keyframes r5dimout{to{opacity:0}}
+@keyframes r5slide{from{transform:translateX(100%)}} @keyframes r5slideout{to{transform:translateX(100%)}}
+.r5 .sheet .sh-head{display:flex;align-items:center;justify-content:space-between;height:56px;padding:0 14px;border-bottom:1px solid var(--line)}
+.r5 .sheet .sh-tabs{display:flex;gap:4px}
+.r5 .sheet .sh-x{width:32px;height:32px;border-radius:8px;font-size:20px;line-height:1;color:var(--ink2)}
+.r5 .sheet .sh-x:hover{background:var(--tabs)}
+.r5 .sheet .sh-search{padding:12px 14px 4px}
+.r5 .sheet .sh-search input{width:100%;height:34px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;outline:none}
+.r5 .sheet .sh-search input:focus{border-color:var(--ink3)}
+.r5 .sheet .sh-cols{display:flex;align-items:center;padding:10px 22px 4px;font-size:11px;letter-spacing:.05em;color:var(--ink3);font-weight:500;text-transform:uppercase}
+.r5 .sheet .sh-cols .cols{margin-left:auto;display:flex}
+.r5 .sheet .sh-cols .col{text-align:right} .r5 .sheet .sh-cols .col.ct{text-align:left;padding-left:12px} .r5 .sheet .sh-cols .col.sp{width:72px}
+.r5 .sheet .sh-rows{overflow-y:auto;flex:1;scrollbar-width:thin}
+.r5 .sheet .fadeup{animation:r5up .24s ease-out both;animation-delay:calc(var(--i)*20ms)}
+@keyframes r5up{from{opacity:0;transform:translateY(6px)}}
+@media (max-width:560px){.r5.sheet-wrap .sheet{width:100%;border-left:0}}
+/* Close the gap: action · topic · engines · page · +N */
+.r5 .row.step .page{color:var(--ink3);font-size:12px}
+@media (prefers-reduced-motion:reduce){.r5.sheet-wrap .dim,.r5.sheet-wrap .sheet,.r5 .sheet .fadeup{animation:none}}
+
+/* a panel with history columns (Engines: change + sparkline) takes a wider column in its row */
+.r5 .g3.wide{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)}
+@media (max-width:980px){.r5 .g3.wide{grid-template-columns:1fr 1fr}}
+@media (max-width:720px){.r5 .g3.wide{grid-template-columns:1fr}}

@@ -8,7 +8,7 @@
 import { DATES, dataFor } from './reports.js'
 import { sampleFacts } from './live-facts-sample.js'
 
-export const PROPOSED_FIELDS = ['missedRows[].topic', 'missedRows[].engines', 'headToHead[]', 'topics[]', 'topicShare[]', 'competitors[].points', 'competitors[].cited', 'points[].share', 'points[].gained', 'points[].lost', 'lostRows[]']
+export const PROPOSED_FIELDS = ['engines[].points', 'missedRows[].topic', 'missedRows[].engines', 'headToHead[]', 'topics[]', 'topicShare[]', 'competitors[].points', 'competitors[].cited', 'points[].share', 'points[].gained', 'points[].lost', 'lostRows[]']
 const BASE = { foa: 'foa', dermasuri: 'dermasuri', lumen: 'dermasuri', brightside: 'dermasuri', 'northwind-derm': 'foa' }
 const DS_KEY = { foa: 'foa', dermasuri: 'dermasuri', lumen: 'dermasuri', brightside: 'dermasuri', 'northwind-derm': 'foa' }
 
@@ -103,5 +103,8 @@ export function proposedFacts(brandId, scans, { all = true } = {}) {
   const points = facts.points.map((p, i) => ({ ...p, share: d.share[youKey]?.[from + i] ?? null, gained: d.wonSeries?.[from + i] ?? null, lost: d.lostSeries?.[from + i] ?? null }))
   if (points[0]) { points[0].gained = null; points[0].lost = null } // the first sync in view has nothing before it
 
-  return { ...facts, lostRows, gainedRows, missedRows, headToHead, topics, topicShare, competitors, points, proposed: true }
+  // PROPOSED engines[].points: each engine's share of prompts named, per sync (platformStats[].history in the app)
+  const engines = facts.engines.map((e) => ({ ...e, points: (d.engines[e.id]?.series || []).slice(from).map((share, i) => ({ iso: facts.points[i]?.iso, date: facts.points[i]?.date, share })) }))
+
+  return { ...facts, lostRows, gainedRows, missedRows, headToHead, topics, topicShare, competitors, points, engines, proposed: true }
 }
