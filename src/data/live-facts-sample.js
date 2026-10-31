@@ -28,7 +28,8 @@ export function sampleFacts(brandId, scans = brandId === 'lumen' ? 1 : DATES.len
     const unique = pool.filter((r) => !seen.has(r.prompt) && seen.add(r.prompt))
     const missed = Math.min(Math.round(f.prompts * v.missedShare), unique.length) // the count is the rows, never more
     const rows = unique.slice(0, missed)
-    return { ...f, brandId, name: v.name, domain: v.domain, visible: f.prompts - missed, missed, missedRows: rows, points: f.points.map((p) => ({ ...p, visible: p.visible == null ? null : Math.min(f.prompts, Math.round((p.visible * (f.prompts - missed)) / f.visible)) })) }
+    // a lost prompt is one of its missed rows (the base brand's lost prompts that this brand still misses)
+    return { ...f, brandId, name: v.name, domain: v.domain, visible: f.prompts - missed, missed, missedRows: rows, lost: f.lost.filter((p) => rows.some((r) => r.prompt === p)), points: f.points.map((p) => ({ ...p, visible: p.visible == null ? null : Math.min(f.prompts, Math.round((p.visible * (f.prompts - missed)) / f.visible)) })) }
   }
   const d = dataFor(brandId)
   if (!d) return null

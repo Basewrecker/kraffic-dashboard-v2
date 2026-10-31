@@ -6,7 +6,7 @@ import Switch from '../../components/ui/Switch'
 import ActionMenu from '../../components/audit/ActionMenu'
 import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate } from '../../router'
-import { addReport, buildReport, dataFor, followUpsFor, inferOpts, optsLine, refine, reportById, stepsFor, updateReport } from '../../data/reports'
+import { ENGINE_NAMES, addReport, buildReport, dataFor, followUpsFor, inferOpts, optsLine, periodLabel, refine, reportById, stepsFor, templatesFor, updateReport } from '../../data/reports'
 import PillComposer from './PillComposer'
 import { pageFit } from '../../data/composer'
 import { DotAssemble } from './DotField'
@@ -14,9 +14,12 @@ import { Block, Thumb, blockName, explainFor } from './blocks'
 import { BetaTag, brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
 import { ContentsRail, FollowUps } from './library'
 import ReportFrame, { FrameSkeleton } from './frame'
-import { buildLiveReport } from '../../data/live-report'
+import { buildLiveReport, pointsIn } from '../../data/live-report'
 import { liveFacts, setLiveFacts } from '../../data/live-facts'
 import { sampleFacts } from '../../data/live-facts-sample'
+import { proposedFacts } from '../../data/live-facts-proposed'
+import { KIND_NAME, buildReport5 } from './v5/model'
+import Report5 from './v5/Report5'
 
 // Reports as a chat thread, ChatGPT-style. /reports is the empty state: a greeting and the box at the centre. Sending
 // turns the page into a thread in one motion: the greeting fades up and out, the box glides to the bottom and docks
@@ -44,16 +47,61 @@ const sameOpts = (a, b) => ['brand', 'period', 'audience', 'length'].every((k) =
 // every report is written through the app's live-report adapter from the brand's live facts (here the synthetic sample
 // in the API's shape); ?live=0 writes it from the sample builders instead
 const useLive = () => new URLSearchParams(window.location.search).get('live') !== '0'
+// Reports: topic and engine on the prompt rows are the fields the app is adding (always on here); ?fields=proposed adds
+// the other fields proposed for the API (docs/proposals-for-harsh.md, data/live-facts-proposed.js)
+const useProposed = () => new URLSearchParams(window.location.search).get('fields') === 'proposed'
+
+// what a typed question asks for and isn't tracked; where it lives, if anywhere
+const NOT_TRACKED = [
+  { re: /think of us|sentiment|feel about|reviews?|reputation|\btone\b/i, what: 'sentiment', where: 'Sentiment (Beta)', href: '/sentiment', closest: 'weekly' },
+  { re: /traffic|visits|sessions|clicks|conversions?/i, what: 'traffic and clicks', where: null, closest: 'weekly' },
+  { re: /backlinks?|domain authority|seo rank|keyword rank/i, what: 'SEO rankings and backlinks', where: null, closest: 'content' },
+  { re: /\bprices?\b|pricing|\bcost/i, what: 'pricing', where: null, closest: 'rival' },
+]
+// how a typed question is read: the report type it asks for (the mock's rules, then a named competitor, then plainer
+// words), the competitor it names, the period, and what it asks for that isn't tracked. A question that asks for no
+// type isn't guessed: the page offers the four types instead.
+export function readQuestion(prompt, facts, opts = {}) {
+  const q = String(prompt || '').trim()
+  const rivals = facts?.competitors ?? []
+  const low = q.toLowerCase()
+  const inf = inferOpts(q, null)
+  const named = q ? rivals.filter((c) => low.includes(c.key) || low.includes(c.name.toLowerCase()) || low.includes(c.name.toLowerCase().split(' ')[0])) : []
+  const notTracked = q ? NOT_TRACKED.filter((x) => x.re.test(low)).map(({ what, where, href, closest }) => ({ what, where, href, closest })) : []
+  let kind = opts.kind ?? inf.kind ?? null
+  if (!kind && q) {
+    if (/missing|not named|\bgaps?\b|don.t (show|appear)|opportunit/.test(low)) kind = 'content'
+    else if (named.length) kind = 'rival'
+    else if (/winning|share of voice|\bscore\b|where do we stand|standing/.test(low)) kind = 'ceo'
+    else if (/moved|changed|this week|last week|progress|trend|how did we do/.test(low)) kind = 'weekly'
+  }
+  if (notTracked.length) kind = null // asked for something we don't have: say so, and offer the closest type
+  const compare = opts.compare?.length ? opts.compare : named.slice(0, 1).map((c) => c.key)
+  const parts = [kind ? KIND_NAME[kind] : null, compare.length ? `vs ${compare.map((k) => rivals.find((c) => c.key === k)?.name ?? k).join(', ')}` : null, periodLabel(opts.period ?? inf.period ?? '30d').toLowerCase()].filter(Boolean)
+  return { kind, compare, matched: !!kind, read: q ? `How I read it: ${parts.join(' · ')}` : null, notTracked }
+}
 export function writeReport(opts, prompt) {
   if (!useLive()) return buildReport(opts, prompt)
-  const facts = sampleFacts(opts.brand)
+  const facts = sampleFacts(opts.brand) ? proposedFacts(opts.brand, undefined, { all: useProposed() }) : null
   setLiveFacts(facts)
-  return facts ? buildLiveReport(facts, prompt, opts) : buildReport(opts, prompt)
+  if (!facts) return buildReport(opts, prompt)
+  const typed = !!String(prompt || '').trim() && !opts.kind
+  const r = readQuestion(prompt, facts, opts)
+  if (typed && !r.matched) return { ok: false, reason: 'pick', opts, notTracked: r.notTracked }
+  const kind = opts.kind ?? r.kind
+  const built = buildLiveReport(facts, prompt, { ...opts, period: opts.period ?? 'quarter', kind, compare: r.compare })
+  // the adapter won't write a content list when nothing is missing; v4 shows that as a finished report
+  const nothingMissing = !built.ok && built.reason === 'outside' && kind === 'content' && facts.missed === 0
+  if (!built.ok && !nothingMissing) return built
+  const b = built.ok ? built : { ok: true, kind: 'content', opts: { ...built.opts, kind: 'content' } }
+  const points = pointsIn(facts.points || [], b.opts.period)
+  const view = buildReport5({ facts, built: b, points, prompt: typed ? prompt : '', read: typed ? { kind, line: r.read } : null })
+  return { ...b, v4: true, v5: true, view, isos: points.map((p) => p.iso), headline: view.answer, title: view.question, blocks: [] }
 }
 let seq = 0
 function makeTurn(ask, prompt, opts, { done = false, change = null } = {}) {
   const built = writeReport(opts, prompt)
-  return { id: `t${++seq}`, ask, prompt, opts: built.opts ?? opts, built, blocks: built.ok ? built.blocks : [], status: !built.ok ? 'thin' : done ? 'done' : 'steps', step: 0, live: !done, change }
+  return { id: `t${++seq}`, ask, prompt, opts: built.opts ?? opts, built, blocks: built.ok ? built.blocks : [], status: !built.ok ? (built.reason === 'pick' ? 'pick' : 'thin') : done ? 'done' : 'steps', step: 0, live: !done, change }
 }
 
 function initFor(rest) {
@@ -384,7 +432,7 @@ function Thread({ rest, mock, greeting, inter }) {
           style={{ left: ghost.rect.left, top: ghost.rect.top, width: ghost.rect.width, animation: `greet-out 150ms ${EASE} both` }}
           onAnimationEnd={() => setGhost(null)}>{ghost.text}</h1>
       )}
-      {dotsFor && turns.find((t) => t.id === dotsFor)?.built?.ok && !turns.find((t) => t.id === dotsFor).built.v3 && (
+      {dotsFor && turns.find((t) => t.id === dotsFor)?.built?.ok && !turns.find((t) => t.id === dotsFor).built.v3 && !turns.find((t) => t.id === dotsFor).built.v4 && (
         <DotAssemble brandId={turns.find((t) => t.id === dotsFor).opts.brand} kind={turns.find((t) => t.id === dotsFor).built.kind} targetRef={heroRef} fromRef={dock}
           done={turns.find((t) => t.id === dotsFor).status !== 'steps'} />
       )}
@@ -408,7 +456,7 @@ function Turn({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCancel
   const enter = (delay) => (t.live ? { animation: `bubble-in 200ms ${EASE} ${delay}ms both` } : undefined)
   return (
     <section aria-label={n ? `Version ${n}` : 'Message'} className="flex flex-col gap-5">
-      {!(t.built?.v3 && !t.change) && <div className="mx-auto flex w-full max-w-[760px] flex-col items-end gap-1.5" style={enter(100)}>
+      {!((t.built?.v3 || t.built?.v4 || t.status === 'pick') && !t.change) && <div className="mx-auto flex w-full max-w-[760px] flex-col items-end gap-1.5" style={enter(100)}>
         <p className="max-w-[70%] rounded-[18px] px-4 py-2.5 text-[15px] leading-6 text-stone-900 [text-wrap:pretty]" style={{ background: 'var(--bubble)' }}>{t.ask}</p>
         {t.built?.ok && <span className={`px-1 text-[12px] leading-4 ${t3}`}>{optsLine(t.opts)}{many ? ` · v${n}` : ''}</span>}
       </div>}
@@ -422,6 +470,7 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
   const col = 'mx-auto w-full max-w-[760px]'
   const article = useRef(null)
   if (t.status === 'thin') return <div className={col}><NotEnough r={t.built} /></div>
+  if (t.status === 'pick') return <Picker t={t} onPick={onFollowUp} />
   if (t.status === 'failed') {
     return (
       <div className={col}>
@@ -435,7 +484,7 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
   if (t.status === 'cancelled') return <p className={`${col} text-[14px] ${t3}`}>Stopped. Nothing was saved; change the question below and send it again.</p>
   if (t.status === 'steps') {
     const steps = stepsFor(t.opts)
-    if (t.built.v3) return <div ref={heroRef} className="mx-auto w-full max-w-[1264px] px-2"><FrameSkeleton steps={steps} step={t.step} /></div>
+    if (t.built.v3 || t.built.v4) return <div ref={heroRef} className="mx-auto w-full max-w-[1264px] px-2"><FrameSkeleton steps={steps} step={t.step} /></div>
     return (
       <div className="flex flex-col gap-5">
         <div className={`${col} flex items-start justify-between gap-3`}>
@@ -483,7 +532,11 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
               <button type="button" onClick={onToggle} className="h-8 rounded-full px-3 text-[13px] font-medium text-stone-600 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Hide v{n}</button>
             </div>
           )}
-          {t.built.v3 ? (
+          {t.built.v4 ? (
+            <Report5 view={t.built.view} isos={t.built.isos} exportActions={actions} onPeriod={isLatest ? (id) => frameActions.period(id, periodLabel(id)) : undefined}
+              onChangeRead={() => document.querySelector('textarea')?.focus()} onOpenHub={() => navigate('/tracker')}
+              onCopyBrief={(s) => { try { navigator.clipboard?.writeText([s.t, s.why, ...s.prompts.map((p) => `- ${p}`)].join('\n')) } catch { /* no clipboard */ } }} />
+          ) : t.built.v3 ? (
             <div className="mx-auto w-full max-w-[1264px] px-2"><ReportFrame built={t.built} live={t.live} onPeriod={isLatest ? frameActions.period : undefined} actions={actions} onSchedule={frameActions.schedule} /></div>
           ) : (
           <article ref={article} aria-label={t.built.title} className={t.built.v2 ? ARTICLE2 : ARTICLE}>
@@ -492,12 +545,12 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
               : bands}
           </article>
           )}
-          {isLatest && (
+          {isLatest && !t.built.v4 && (
             <div className={`mx-auto w-full ${t.built.v3 ? 'mt-3 max-w-[1264px] px-2' : 'mt-4 max-w-[1200px]'}`} style={t.live && !t.built.v3 ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
               <FollowUps items={followUpsFor(t.built)} onPick={onFollowUp} />
             </div>
           )}
-          {!t.built.v3 && <div className="mx-auto mt-3 flex w-full max-w-[1200px] flex-wrap items-center gap-x-1 gap-y-1" style={t.live ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
+          {!t.built.v3 && !t.built.v4 && <div className="mx-auto mt-3 flex w-full max-w-[1200px] flex-wrap items-center gap-x-1 gap-y-1" style={t.live ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
             {many && <span className={`mr-2 text-[13px] tabular-nums ${t3}`}>v{n}{t.change ? ` · ${t.change}` : ''}</span>}
             {actions.map((a) => (
               <button key={a.label} type="button" onClick={a.onClick}
@@ -581,6 +634,34 @@ function BlockFrame({ b, i, n, reveal, explainOpen, explainText, onExplain, onUp
 }
 
 // ---- Schedule this report
+// a typed question that matches no report type: the four types (the closest first when it asked for something we don't
+// track) and "Ask something else"
+function Picker({ t, onPick }) {
+  const missing = t.built.notTracked ?? []
+  const closest = missing[0]?.closest
+  // not tracked: the closest type only; no match at all: the four types
+  const cards = closest ? templatesFor(t.opts.brand).filter((c) => c.kind === closest) : templatesFor(t.opts.brand)
+  const what = missing.map((m) => m.what).join(' and ')
+  return (
+    <div className="r5 wrap" style={{ animation: `bubble-in 200ms ${EASE} 100ms both` }}>
+      <header className="head">
+        <div>
+          <h1>{t.ask}</h1>
+          <p>{missing.length
+            ? <>Not in your data: {what}.{missing.filter((m) => m.where).map((m) => <span key={m.what}> <a href={m.href} onClick={linkClick(m.href)} style={{ color: 'var(--ink)' }}>{m.where}</a> has it.</span>)} The closest report:</>
+            : 'That doesn’t match a report yet. Pick one:'}</p>
+        </div>
+      </header>
+      <div className={`picker ${cards.length === 1 ? 'one' : ''}`} role="list" aria-label="Report types">
+        {cards.map((c) => (
+          <button key={c.id} type="button" role="listitem" onClick={() => onPick({ id: c.id, text: c.prompt, ask: true, sets: c.sets })}><b>{c.name}</b>{c.what}</button>
+        ))}
+      </div>
+      <div style={{ marginTop: 16 }}><button type="button" className="btn" onClick={() => document.querySelector('textarea')?.focus()}>Ask something else</button></div>
+    </div>
+  )
+}
+
 function ScheduleModal({ open, onClose, onSave, title, brand }) {
   const [every, setEvery] = useState('week')
   const [day, setDay] = useState('Monday')
