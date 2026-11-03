@@ -123,6 +123,8 @@ body {
   --data-track: #F1F0EE;
   --tint: #F5F5F4;         /* soft backgrounds: chips, active nav, pills */
   --negative: #DC2626;     /* ONLY drops / failures */
+  --caution: #B8893E;      /* muted amber: ONLY the dot of a softer report verdict (Slower week, Room to grow); never text */
+  --sent-mixed: #57534E;   /* Sentiment: a Mixed page (stone-600), between Neutral's light grey and Positive's ink; not red */
   /* Visibility history, LINE chart only: you = ink, competitors by share rank. Bar/Growth keep --data-c1..c3. */
   --line-you: var(--ink);
   --line-1: #6366DB;       /* indigo → cerave.com */
@@ -160,6 +162,8 @@ html[data-theme="dark"] {
   --data-track: #1A1A1A;
   --tint: #1A1A1A;
   --negative: #F87171;
+  --caution: #C9A160;
+  --sent-mixed: #808080;
   --line-1: #8B8DF5;
   --line-2: #F27370;
   --line-3: #6EE7B7;
@@ -224,6 +228,8 @@ html[data-theme="dark"] {
     --data-track: #1A1A1A;
     --tint: #1A1A1A;
     --negative: #F87171;
+    --caution: #C9A160;
+    --sent-mixed: #808080;
     --line-1: #8B8DF5;
     --line-2: #F27370;
     --line-3: #6EE7B7;
@@ -321,6 +327,23 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
 /* modal step crossfade (import: upload → preview → done) */
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .fade-in { animation: fade-in 150ms ease-out; }
+/* Sentiment Over time: the Score line draws in (pathLength=1) */
+@keyframes sent-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+/* Sentiment lists: a fade each time the engine changes (two names, so the animation restarts without a re-mount) */
+@keyframes sent-fade-a { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sent-fade-b { from { opacity: 0; } to { opacity: 1; } }
+/* Sentiment: the hover card fades in and rises 4px; a crossfading text's old value fades out */
+@keyframes sent-peek-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes sent-fade-out { from { opacity: 1; } to { opacity: 0; } }
+/* Sentiment Over time: Score's latest-sync card under the chart (narrow screens) fades in from 8px right */
+@keyframes sent-dock-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+/* Sentiment (.k-sent, the page's root): --tabs for the chart's hover band (the dashboard's --tint); the Over time
+   neutral, darker than --data-c3 */
+.k-sent { --tabs: var(--tint); --sent-neutral: #CFCFCF; --sent-track: #CECECE; --row-hover: var(--tint); }
+html[data-theme="dark"] .k-sent { --sent-neutral: #3A3A3A; --sent-track: #3A3A3A; --row-hover: var(--tint); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .k-sent { --sent-neutral: #3A3A3A; --sent-track: #3A3A3A; --row-hover: var(--tint); }
+}
 /* add-prompt row leaving */
 @keyframes row-out { from { height: 43px; opacity: 1; } to { height: 0; opacity: 0; } }
 .row-out { animation: row-out 150ms ease-out forwards; overflow: hidden; }
