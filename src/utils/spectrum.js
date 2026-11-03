@@ -9,14 +9,14 @@ export function hash01(id) {
   return ((h >>> 0) % 10007) / 10007
 }
 
-// production has no per-page number, only a tone: three bands, Negative | Neutral | Positive
-export const BAND = { negative: 0, neutral: 1, positive: 2 }
+// production has no per-page number, only a tone. Not scored pages are listed, not placed on this scale.
+export const BAND = { negative: 0, neutral: 1, mixed: 2, positive: 3 }
 
 // Beeswarm: each dot's x is spread evenly (in a stable order) across its tone band, with a little jitter; y is the
 // smallest offset from the centre line that keeps it clear of every dot already placed (centres ≥ 2r + gap apart).
 //   items: [{ id, tone }] · returns { pos: { [id]: { x, y } }, extent } (extent = the swarm's half-height, dot included)
 export function layoutSwarm(items, { width, r = 14, gap = 3, pad = 8 }) {
-  const band = width / 3
+  const band = width / Object.keys(BAND).length
   const D = 2 * r + gap
   const pos = {}
   const targets = []
@@ -101,8 +101,9 @@ export function repeatedNumbers(texts) {
 
 // ---- "What AI says about you" ------------------------------------------------------------------------------------
 
-// SWOT → two columns: Hurting you (weaknesses + threats) and Working for you (strengths + opportunities). Within each,
-// the themes most of whose pages carry that side's tone come first (negative for hurting, positive for working).
+// SWOT → two columns: Hurting you (weaknesses + threats) and Working for you (strengths + opportunities). A theme is
+// hurting only when a linked page is negative, and working only when a linked page is positive. Neutral-only themes
+// are not praise or criticism. Within a side, the themes with the most pages in that tone come first.
 const KIND = { strengths: 'strength', opportunities: 'opportunity', weaknesses: 'weakness', threats: 'threat' }
 export function groupThemes(swot, pages) {
   const byId = new Map(pages.map((p) => [p.id, p]))
@@ -110,6 +111,7 @@ export function groupThemes(swot, pages) {
     .flatMap((k) => (swot?.[k] ?? []).map((t, i) => ({ ...t, kind: KIND[k], order: i, pages: t.sources.map((id) => byId.get(id)).filter(Boolean) })))
     .filter((t) => t.pages.length)
     .map((t) => ({ ...t, hits: t.pages.filter((p) => p.tone === tone).length }))
+    .filter((t) => t.hits > 0)
     .sort((a, b) => b.hits - a.hits || b.pages.length - a.pages.length || keys.indexOf(`${a.kind}s`.replace('opportunitys', 'opportunities')) - keys.indexOf(`${b.kind}s`.replace('opportunitys', 'opportunities')) || a.order - b.order)
   return { hurting: side(['weaknesses', 'threats'], 'negative'), working: side(['strengths', 'opportunities'], 'positive') }
 }
@@ -164,34 +166,31 @@ export function dotGrid(n, { perRow = 6, pitch = 12 }) {
 }
 export const dotRows = (n, perRow = 6) => Math.ceil(n / perRow)
 
-// the biggest move between two runs (the latest wins a tie): its index (the run after the change), the change and
-// what moved, in words without digits: "one more positive page and one fewer negative"
+// the biggest move between two runs: the most pages that changed tone (the latest run wins a tie). Not the blended
+// score, and not a smaller cited set. Runs need `.pages`. → { index, changes, what }
 const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
 export function biggestChange(runs) {
   let best = null
   for (let i = 1; i < runs.length; i++) {
-    const d = runs[i].score - runs[i - 1].score
-    if (d !== 0 && (!best || Math.abs(d) >= Math.abs(best.delta))) best = { index: i, delta: d }
+    const prev = runs[i - 1].pages
+    const next = runs[i].pages
+    if (!Array.isArray(prev) || !Array.isArray(next)) continue
+    const changes = toneChanges(prev, next)
+    if (!changes.length) continue
+    if (!best || changes.length >= best.changes.length) best = { index: i, changes }
   }
   if (!best) return null
-  const a = runs[best.index - 1].counts, b = runs[best.index].counts
-  const part = (tone) => {
-    const d = b[tone] - a[tone]
-    if (!d) return null
-    return `${WORDS[Math.abs(d)] ?? Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} ${tone}`
-  }
-  const parts = ['positive', 'negative'].map(part).filter(Boolean)
-  const what = parts.length ? `${parts[0]} page${/^one /.test(parts[0]) ? '' : 's'}${parts[1] ? ` and ${parts[1]}` : ''}` : 'the same split of pages'
-  return { ...best, what }
+  const n = (tone) => best.changes.filter((c) => c.to === tone).length
+  const part = (tone) => (n(tone) ? `${WORDS[n(tone)] ?? n(tone)} turned ${tone}` : null)
+  const parts = ['positive', 'negative', 'neutral'].map(part).filter(Boolean)
+  return { ...best, what: parts.join(' and ') }
 }
 
-// the note under the biggest move's two columns, from the data: "+13 · 2 more positive, 3 fewer negative"
-export function moveNote(runs, big) {
-  if (!big) return null
-  const a = runs[big.index - 1].counts, b = runs[big.index].counts
-  const part = (tone) => { const d = b[tone] - a[tone]; return d ? `${Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} ${tone}` : null }
-  const parts = ['positive', 'negative'].map(part).filter(Boolean)
-  return `${big.delta > 0 ? '+' : '−'}${Math.abs(big.delta)}${parts.length ? ` · ${parts.join(', ')}` : ''}`
+// the note for that move, from the pages that changed tone: "2 turned positive, 1 turned negative"
+export function moveNote(_runs, big) {
+  if (!big?.changes?.length) return null
+  const n = (tone) => big.changes.filter((c) => c.to === tone).length
+  return ['positive', 'negative', 'neutral'].map((tone) => (n(tone) ? `${n(tone)} turned ${tone}` : null)).filter(Boolean).join(', ')
 }
 
 // ---- tone flow (Over time) ----------------------------------------------------------------------------------------
@@ -329,11 +328,34 @@ export function alsoSaidOn(lead, themes, pages, tone) {
 
 // ---- Over time, per column ------------------------------------------------------------------------------------------
 
-// the change line under a run's date: how many more / fewer positive and negative pages than the run before
-// → [{ tone, d }] (non-zero only; [] = no change); null for the first run
+// pages cited last time that this run does not cite. Missing is not "became negative".
+export function citedGone(prev, next) {
+  if (!prev?.length || !next) return []
+  const now = new Set(next.map((p) => urlKey(p.url ?? `${p.domain}${p.path ?? ''}`)))
+  return prev.filter((p) => !now.has(urlKey(p.url ?? `${p.domain}${p.path ?? ''}`)))
+}
+
+// how many cited pages turned positive or negative (pages in both runs only)
+export function flipTotals(changes) {
+  return {
+    toPositive: changes.filter((c) => c.to === 'positive').length,
+    toNegative: changes.filter((c) => c.to === 'negative').length,
+  }
+}
+
+// the change line under a run's date: pages present in both runs whose tone changed.
+// A smaller cited set is not a change. → [{ tone, d }] (non-zero only; [] = no tone change); null for the first run
 export function changeSummary(prev, now) {
-  if (!prev) return null
-  return ['positive', 'negative'].map((tone) => ({ tone, d: now[tone] - prev[tone] })).filter((x) => x.d !== 0)
+  if (!prev || !now) return null
+  if (!Array.isArray(prev) || !Array.isArray(now)) return null
+  const d = { positive: 0, negative: 0 }
+  for (const c of toneChanges(prev, now)) {
+    if (c.from === 'positive') d.positive -= 1
+    if (c.to === 'positive') d.positive += 1
+    if (c.from === 'negative') d.negative -= 1
+    if (c.to === 'negative') d.negative += 1
+  }
+  return ['positive', 'negative'].map((tone) => ({ tone, d: d[tone] })).filter((x) => x.d !== 0)
 }
 // the ribbons for one column: only the pages that changed tone from the previous run into this one (none for the first)
 export const ribbonsInto = (runsPages, i) => (i > 0 ? toneChanges(runsPages[i - 1], runsPages[i]) : [])
