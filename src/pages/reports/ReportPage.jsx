@@ -546,8 +546,8 @@ function Reply({ t, n, isLatest, many, heroRef, open, onToggle, onRetry, onCance
               : bands}
           </article>
           )}
-          {isLatest && !t.built.v4 && (
-            <div className={`mx-auto w-full ${t.built.v3 ? 'mt-3 max-w-[1264px] px-2' : 'mt-4 max-w-[1200px]'}`} style={t.live && !t.built.v3 ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
+          {isLatest && (
+            <div className={`mx-auto w-full ${t.built.v3 || t.built.v4 ? 'mt-3 max-w-[1264px] px-2' : 'mt-4 max-w-[1200px]'}`} style={t.live && !t.built.v3 && !t.built.v4 ? { animation: `fade-in 200ms ease-out ${t.blocks.length * 120 + 200}ms both` } : undefined}>
               <FollowUps items={followUpsFor(t.built)} onPick={onFollowUp} />
             </div>
           )}

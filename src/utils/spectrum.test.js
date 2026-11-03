@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { PAGES, RUNS, SWOT, runPages, withScores } from '../data/sentiment.js'
 import { BAND, biggestChange, capRows, dotGrid, dotRows, groupThemes, hash01, layoutSwarm, lanesFor, leadTheme, matchIds, moveNote, neighbour, numbersIn, repeatedNumbers, scoreStrip, scoreX, tellingSentence, themeEngines, themeQuote, themeQuoteOf, toggleOpen } from './spectrum.js'
 import { byReach, divergingStack, dotPlan, fromCurrent, leadQuote, parseMatrix, reachOf, springAt, springEasing, staggerDelays, toneChanges, topChange, urlKey } from './spectrum.js'
+import { columnDividers } from './spectrum.js'
 
 const ENGINES = [{ id: 'google', name: 'Google search' }, { id: 'chatgpt', name: 'ChatGPT' }, { id: 'claude', name: 'Claude' }]
 // the dot plot places only pages with a tone: Not scored pages are listed, never placed (they have no band)
@@ -366,4 +367,9 @@ test('Over time sizing: fits at desktop widths, scrolls only when it must; the h
   assert.equal(l.H, l.dotsBottom + 22 + 20 + 8)
   // more rows → taller
   assert.ok(chartLayout({ width: 1000, n: 6, up: 5, down: 3 }).H > l.H)
+})
+
+test('the dot plot dividers sit between the four tone columns, the middle left to the even line', () => {
+  assert.deepEqual(columnDividers(Object.keys(BAND).length), [0.25, 0.75])
+  assert.deepEqual(columnDividers(3), [1 / 3, 2 / 3])
 })

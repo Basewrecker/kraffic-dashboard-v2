@@ -12,6 +12,14 @@ export function hash01(id) {
 // production has no per-page number, only a tone. Not scored pages are listed, not placed on this scale.
 export const BAND = { negative: 0, neutral: 1, mixed: 2, positive: 3 }
 
+// The dot plot's column dividers, as fractions of the plot width: one between each pair of tone columns except the
+// middle one, which the dashed even line draws (4 columns → [0.25, 0.75]).
+export function columnDividers(n) {
+  const out = []
+  for (let i = 1; i < n; i++) if (2 * i !== n) out.push(i / n)
+  return out
+}
+
 // Beeswarm: each dot's x is spread evenly (in a stable order) across its tone band, with a little jitter; y is the
 // smallest offset from the centre line that keeps it clear of every dot already placed (centres ≥ 2r + gap apart).
 //   items: [{ id, tone }] · returns { pos: { [id]: { x, y } }, extent } (extent = the swarm's half-height, dot included)

@@ -16,7 +16,7 @@ import { useIsMobile, useMedia } from '../../hooks/useMedia'
 import {
   TONES, TONE_LABEL, countTones, heroLine, runPages, scoredLine, scoreInfo, unscoredNote, scoreOf, sentimentFor, sentimentInsight, shareTrendLine, sortPages, sourceCloud, tonePercents, withScores,
 } from '../../data/sentiment'
-import { BAND, capStack, dotPlan, pageHref, groupThemes, layoutSwarm, lanesFor, matchIds, neighbour, scoreX, springEasing, staggerDelays, tellingSentence } from '../../utils/spectrum'
+import { BAND, capStack, columnDividers, dotPlan, pageHref, groupThemes, layoutSwarm, lanesFor, matchIds, neighbour, scoreX, springEasing, staggerDelays, tellingSentence } from '../../utils/spectrum'
 import { ENGINE_NAME, SCORING_UPDATED_TIP, SENTIMENT_ENGINES, heroTone, scoringChangedAt, scoreCardDocked, scoreChangeLine, sortAllPages, syncColumns, syncScoreChange, tipLeft, alsoSaidOnSites, changedCount, compareCsv, compareCsvRow, compareEntries, compareFilename, compareList, compareMarks, enginesIn, evenColumns, filterSyncPages, newPageIds, sourceColumns, sourceLead, syncCsv, syncFilename, syncMarks, toneById, turnedNegative } from '../../utils/sentimentSections'
 import { fmtDay, lineBtn, t2, t3 } from './parts'
 
@@ -763,8 +763,10 @@ function Spectrum({ pages: listed, lit, engine, split, score, onDot = (p) => ope
       <div ref={stage} className="relative">
         {/* the bands and the even line run the full height in both layouts, so nothing here moves */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
-          <div className="absolute inset-y-0 border-l border-line-strong" style={{ left: plotW / 3 }} />
-          <div className="absolute inset-y-0 border-l border-line-strong" style={{ left: (2 * plotW) / 3 }} />
+          {/* one divider between each pair of tone columns; the middle one is the dashed even line below */}
+          {columnDividers(Object.keys(BAND).length).map((f) => (
+            <div key={f} className="absolute inset-y-0 border-l border-line-strong" style={{ left: plotW * f }} />
+          ))}
           <div className="absolute inset-y-0 border-l border-dashed" style={{ left: plotW / 2, borderColor: 'var(--color-stone-400)' }} />
           {lanes.map((l) => <div key={l.id} ref={reg(`sep:${l.id}`)} className="absolute inset-x-0 top-0 border-b border-line-strong" />)}
           {lanes.map((l) => <div key={l.id} ref={reg(`mk:${l.id}`)} className="absolute left-0 top-0 h-[100px] w-0.5 origin-top rounded-full bg-ink" />)}

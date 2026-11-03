@@ -34,11 +34,11 @@ These stay in the app's adapters / wrappers, not in the mock, so a 1:1 copy must
 ## Differences from the app, on purpose
 - New report placeholders use the mock's shimmer, not `animate-pulse` (DESIGN.md §4 forbids pulse).
 - Prompt Hub's inline edit refuses duplicate text ("Already added"); the app's Prompt Hub doesn't yet.
-- Not ported, waiting on the owner: the "Suggested next" restyle (app 2983a39), which breaks the locked design system
-  (white fill, shadow, uppercase label, numbered black circle).
+- "Suggested next" (app 2983a39): the idea is in (full-width option rows under every report, v4 included) but
+  restyled in the mock's tokens (sentence-case label, hairline rows on the card surface, an arrow that darkens on
+  hover; no white fill, shadow, uppercase label or numbered circle). Copy the mock's FollowUps over the app's; the app
+  keeps its own question source (relatedQuestionsFor).
 
-## Open questions for the owner
-- Sentiment dot plot: the dashed column dividers sit at 1/3 and 2/3 while there are now four columns (copied 1:1 from
-  the app).
-- CLAUDE.md §2 still says "no yellow" and "the user's brand is always ink"; DESIGN.md now carries the approved
-  exceptions. CLAUDE.md was left unchanged pending the owner.
+## Follow-ups
+- Resolved: the dot plot's column lines now sit between the four tone columns (1/4, 3/4; the dashed even line is the
+  middle one, `columnDividers` in spectrum.js), and CLAUDE.md §2 matches DESIGN.md §3 (owner, 2026-11-03).

@@ -448,17 +448,22 @@ export function ContentsRail({ articleRef, items }) {
   )
 }
 
-// follow-up chips under a report: made from what its data can answer; clicking one sends it
+// Suggested next questions under a reply: made from what its data can answer; full-width rows that read as options
+// (the app's 2983a39 idea, in the mock's tokens: hairline rows, an arrow that darkens on hover); clicking one sends it
 export function FollowUps({ items, onPick }) {
   if (!items?.length) return null
   return (
-    <div role="group" aria-label="Follow-ups" className="flex flex-wrap gap-2">
-      {items.map((c) => (
-        <button key={c.id} type="button" onClick={() => onPick(c)}
-          className="inline-flex h-8 items-center rounded-full border border-line bg-surface px-3 text-[13px] font-medium text-stone-700 outline-none transition-colors duration-150 hover:border-line-strong hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
-          {c.text}
-        </button>
-      ))}
+    <div role="group" aria-label="Suggested next questions">
+      <p className="mb-2 text-[13px] text-stone-500">Suggested next</p>
+      <div className="overflow-hidden rounded-xl border border-line bg-surface">
+        {items.map((c) => (
+          <button key={c.id} type="button" onClick={() => onPick(c)}
+            className="group flex w-full items-center gap-3 border-t border-line px-4 py-3 text-left outline-none transition-colors duration-150 first:border-t-0 hover:bg-tint focus-visible:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
+            <span className="min-w-0 flex-1 text-[14px] font-medium leading-5 text-stone-900">{c.text}</span>
+            <ArrowRight size={16} className="shrink-0 text-stone-400 transition-colors duration-150 group-hover:text-stone-900" aria-hidden />
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
