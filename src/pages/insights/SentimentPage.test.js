@@ -69,7 +69,9 @@ test('the plot is only as tall as the score column (fitH), never below what its 
 
 test('light mode lines: the axis, the column dividers and the lane separators use --line-strong', () => {
   assert.match(axis, /border-t border-line-strong/)
-  assert.equal((spectrum.match(/border-l border-line-strong/g) || []).length, 2)
+  // the column dividers: one element per divider from columnDividers (4 columns → 1/4, 3/4; spectrum.test.js)
+  assert.match(spectrum, /columnDividers\(Object\.keys\(BAND\)\.length\)\.map\(\(f\) => \(\s*<div key=\{f\} className="absolute inset-y-0 border-l border-line-strong"/)
+  assert.doesNotMatch(spectrum, /plotW \/ 3|\(2 \* plotW\) \/ 3/)
   assert.match(spectrum, /sep:\$\{l\.id\}`\)\} className="[^"]*border-line-strong/)
   assert.doesNotMatch(spectrum, /border-\[var\(--div\)\]/)
 })
