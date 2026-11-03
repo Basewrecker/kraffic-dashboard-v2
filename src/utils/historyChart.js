@@ -75,3 +75,60 @@ export function scoringPosition(dates, marker) {
   if (i === -1 || i === dates.length - 1) return null
   return i + marker.frac
 }
+
+// Brands with a single point in range → { [key]: { index, date, why } }. why: there's no earlier point because the
+// old scoring miscounted the brand (an earlier period before the scoring change has other brands but not this one), or
+// because it has no earlier scan in range. points: the chart's points; series: [{ key, label }]; nameOf(series) → name.
+export function lonePoints(points, series, unit, nameOf) {
+  if (!points || points.length < 2) return {}
+  const out = {}
+  for (const s of series) {
+    const at = points.map((p, i) => (p[s.key] != null ? i : -1)).filter((i) => i >= 0)
+    if (at.length !== 1) continue
+    const hiddenBefore = points.slice(0, at[0]).some((p) => p.beforeScoring && p[s.key] == null && series.some((o) => p[o.key] != null))
+    const name = nameOf(s)
+    out[s.key] = {
+      index: at[0],
+      date: points[at[0]].date,
+      why: hiddenBefore ? `${name}: earlier ${unit}s are hidden, the old scoring miscounted this brand` : `${name}: no earlier ${unit} on record in this range`,
+    }
+  }
+  return out
+}
+
+// The Visibility history insight, one plain line about the range's last point: who leads and the focal brand's
+// share, with its move when the period before was counted the same way (end.deltas). No methodology.
+// "Finance of America leads at 60% this month, ahead of Reverse at 28%."
+export function historyInsight({ end, series, youKey, name, unit, nameOf }) {
+  if (!end || end[youKey] == null) return null
+  const when = `this ${unit}`
+  const d = end.deltas?.[youKey]
+  const you = end[youKey]
+  const moved = d == null ? null : d > 0 ? `rose ${d} point${d === 1 ? '' : 's'} to ${you}%` : d < 0 ? `fell ${-d} point${d === -1 ? '' : 's'} to ${you}%` : `held steady at ${you}%`
+  const ranked = series.filter((x) => end[x.key] != null).sort((a, b) => end[b.key] - end[a.key])
+  const [leader, runner] = ranked
+  if (!leader || ranked.length < 2) return { text: moved ? `${name} ${moved} ${when}.` : `${name} is at ${you}% ${when}.`, other: null }
+  // a tie at the top: "level", never "ahead of … at the same %"
+  if (end[leader.key] === end[runner.key]) {
+    const youTop = leader.key === youKey || runner.key === youKey
+    const other = leader.key === youKey ? runner : runner.key === youKey ? leader : null
+    if (youTop) return { text: moved ? `${name} ${moved} ${when}, level with ${nameOf(other)}.` : `${name} and ${nameOf(other)} are level at ${you}% ${when}.`, other }
+    return { text: `${nameOf(leader)} and ${nameOf(runner)} lead at ${end[leader.key]}% ${when}; ${name} is at ${you}%.`, other: leader }
+  }
+  if (leader.key === youKey) {
+    return {
+      text: moved
+        ? `${name} ${moved} ${when} and leads, ahead of ${nameOf(runner)} at ${end[runner.key]}%.`
+        : `${name} leads at ${you}% ${when}, ahead of ${nameOf(runner)} at ${end[runner.key]}%.`,
+      other: runner,
+    }
+  }
+  return {
+    text: moved
+      ? `${name} ${moved} ${when}; ${nameOf(leader)} leads at ${end[leader.key]}%.`
+      : runner.key === youKey
+        ? `${nameOf(leader)} leads at ${end[leader.key]}% ${when}, ahead of ${name} at ${you}%.`
+        : `${nameOf(leader)} leads at ${end[leader.key]}% ${when}; ${name} is at ${you}%.`,
+    other: leader,
+  }
+}

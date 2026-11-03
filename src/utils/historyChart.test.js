@@ -2,7 +2,7 @@
 // capped bar widths, and where the scoring change sits.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chipCap, drawnRivals, groupedBarSize, pickRival, picksFrom, scoringPosition, shareAxis, symmetricTicks } from './historyChart.js'
+import { chipCap, drawnRivals, groupedBarSize, historyInsight, lonePoints, pickRival, picksFrom, scoringPosition, shareAxis, symmetricTicks } from './historyChart.js'
 
 const ranked = ['rocket', 'omaha', 'aag', 'longbridge', 'liberty', 'guild']
 
@@ -80,4 +80,24 @@ test('the scoring marker sits between the dates around it, or not at all', () =>
   assert.equal(scoringPosition(dates, { after: 'Oct 26', frac: 0.5 }), null) // nothing after it yet
   assert.equal(scoringPosition(dates, { after: 'Aug 3', frac: 0.5 }), null) // outside the window
   assert.equal(scoringPosition(dates, null), null)
+})
+
+// ported from the app (scripts/test-visibility-history.mjs): a brand's lone point and the one-line insight
+test('a brand with a single point in range: drawn alone, and the tooltip says why', () => {
+  const fresh = lonePoints([{ date: 'Oct 12', a: 40 }, { date: 'Oct 19', a: 42, b: 10 }], [{ key: 'a', label: 'a.com' }, { key: 'b', label: 'b.com' }], 'week', (s) => s.label)
+  assert.equal(fresh.b.why, 'b.com: no earlier week on record in this range')
+  assert.equal(fresh.b.index, 1)
+  assert.equal(fresh.a, undefined)
+  const hidden = lonePoints([{ date: 'Oct 12', a: 40, beforeScoring: true }, { date: 'Oct 19', a: 42, b: 10 }], [{ key: 'a', label: 'a.com' }, { key: 'b', label: 'b.com' }], 'week', (s) => s.label)
+  assert.match(hidden.b.why, /hidden, the old scoring miscounted/)
+})
+
+test('the insight: one plain line, who leads and the brand\'s share; a tie at the top reads "level"', () => {
+  const S = [{ key: 'you', label: 'foa.com' }, { key: 'r', label: 'reverse.com' }, { key: 'l', label: 'lb.com' }]
+  const nm = (x) => ({ 'foa.com': 'Finance of America', 'reverse.com': 'Reverse', 'lb.com': 'Longbridge Financial' })[x.label]
+  const at = (end, unit) => historyInsight({ end, series: S, youKey: 'you', name: 'Finance of America', unit, nameOf: nm }).text
+  assert.equal(at({ you: 60, r: 28, l: 12, deltas: { you: null } }, 'month'), 'Finance of America leads at 60% this month, ahead of Reverse at 28%.')
+  assert.equal(at({ you: 30, r: 41, l: 12, deltas: { you: -3 } }, 'week'), 'Finance of America fell 3 points to 30% this week; Reverse leads at 41%.')
+  assert.equal(at({ you: 65, r: 65, l: 12, deltas: { you: null } }, 'week'), 'Finance of America and Reverse are level at 65% this week.')
+  assert.equal(historyInsight({ end: { you: null }, series: S, youKey: 'you', name: 'x', unit: 'week', nameOf: nm }), null)
 })

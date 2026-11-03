@@ -230,8 +230,8 @@ function MarketplaceCard() {
                         className="flex h-9 items-center justify-between gap-3 text-[14px] leading-5"
                       >
                         <span className="flex min-w-0 items-center gap-2.5">
-                          {domain ? <SiteLogo domain={r.label} name={brandName(r.label)} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" plate />
-                            : r.domain ? <SiteLogo domain={r.domain} name={r.label} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" plate />
+                          {domain ? <SiteLogo domain={r.label} name={brandName(r.label)} className="h-5 w-5 rounded-md" initialClass="text-[10px]" />
+                            : r.domain ? <SiteLogo domain={r.domain} name={r.label} className="h-5 w-5 rounded-md" initialClass="text-[10px]" />
                               : Glyph ? <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md border border-line text-stone-600" aria-hidden><Glyph size={14} /></span>
                                 : <SiteLogo name={r.label} className="h-5 w-5 rounded-md" initialClass="text-[10px]" />}
                           <span className={`truncate ${own ? 'font-semibold text-ink' : 'text-stone-900'}`}>{domain ? brandName(r.label) : r.label}</span>

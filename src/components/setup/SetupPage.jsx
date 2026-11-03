@@ -27,8 +27,8 @@ const iconBtn = 'grid h-7 w-7 place-items-center rounded-md text-stone-600 outli
 const textBtn = 'inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 ease-out hover:text-ink focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40'
 const smallBtn = 'inline-flex h-8 shrink-0 items-center rounded-md px-3 text-[13px] font-medium outline-none transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40'
 const rowAnim = (state) => (state === 'enter' ? 'srow-in' : state === 'leaving' ? 'srow-out' : '')
-// favicons sit on a white plate in both themes so white / light logos stay visible
-export const Logo = ({ domain, name }) => <SiteLogo domain={domain} name={name} className="h-7 w-7 rounded-md" imgPad="p-1" initialClass="text-[12px]" plate bordered={false} />
+// favicons fill their rounded square, no white plate (SiteLogo)
+export const Logo = ({ domain, name }) => <SiteLogo domain={domain} name={name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
 
 // ---------------------------------------------------------------- frame
 
@@ -106,8 +106,9 @@ const AddButton = ({ onClick, disabled, disabledTitle }) => (
   </span>
 )
 
-// one read-only row: [logo] name / meta … quiet value + hover-only Edit / Remove
-export function Row({ logo, name, meta, value, valueTitle, muted, onEdit, onRemove, state }) {
+// one read-only row: [logo] name / meta … quiet value + hover-only Edit / Remove. alwaysActions: a text "Edit" and the
+// remove × always shown (First-time setup's competitors, matching the "Edit" links on its done steps), not only on hover
+export function Row({ logo, name, meta, value, valueTitle, muted, onEdit, onRemove, state, alwaysActions = false }) {
   return (
     <li className={rowAnim(state)}>
       <div className="group flex h-[60px] items-center justify-between gap-4 px-5">
@@ -120,7 +121,13 @@ export function Row({ logo, name, meta, value, valueTitle, muted, onEdit, onRemo
         </span>
         <span className="flex shrink-0 items-center gap-3">
           {value && <span title={valueTitle} className="whitespace-nowrap text-[13px] leading-[18px] text-stone-600 tabular-nums">{value}</span>}
-          {(onEdit || onRemove) && (
+          {(onEdit || onRemove) && alwaysActions && (
+            <span className="flex items-center gap-3" data-row-actions="always">
+              {onEdit && <button type="button" aria-label={`Edit ${name}`} onClick={onEdit} className={`${textBtn} h-7`}>Edit</button>}
+              {onRemove && <button type="button" aria-label={`Remove ${name}`} onClick={onRemove} className={`${iconBtn} -mr-1.5`}><X size={14} aria-hidden /></button>}
+            </span>
+          )}
+          {(onEdit || onRemove) && !alwaysActions && (
             <span className="flex gap-0.5 opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 touch:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
               {onEdit && <button type="button" aria-label={`Edit ${name}`} onClick={onEdit} className={iconBtn}><Pencil size={14} aria-hidden /></button>}
               {onRemove && <button type="button" aria-label={`Remove ${name}`} onClick={onRemove} className={iconBtn}><X size={14} aria-hidden /></button>}
@@ -235,7 +242,7 @@ function useCardSave() {
   }
   return [failed, run]
 }
-const SaveFailed = ({ failed }) => (failed ? (
+export const SaveFailed = ({ failed }) => (failed ? ( // also First-time setup's competitors
   <p role="alert" className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--div)] px-5 py-2.5 text-[12.5px] leading-[18px]">
     <span className="text-negative">Couldn’t save · {failed.what}{failed.reason ? ` · ${failed.reason}` : ''}</span>
     <button type="button" onClick={failed.retry} className="rounded font-medium text-stone-900 underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Retry</button>
@@ -250,7 +257,7 @@ function BrandIdentity({ brand, syncing, onEdit, onDelete }) {
     <SettingsCard label={`${brand.name} brand`}>
       <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3">
         <span className="flex min-w-0 items-center gap-3">
-          <SiteLogo domain={brand.domain} name={brand.name} className="h-10 w-10 rounded-lg" imgPad="p-1.5" initialClass="text-[16px]" bordered={false} />
+          <SiteLogo domain={brand.domain} name={brand.name} className="h-10 w-10 rounded-lg" initialClass="text-[16px]" />
           <span className="min-w-0">
             <h2 className="truncate text-[16px] leading-6 font-semibold text-stone-900">{brand.name}</h2>
             <span className="flex items-center gap-1 text-[13px] leading-[18px] text-stone-600">

@@ -98,7 +98,7 @@ export default function MobileNav({ path, nav }) {
         <a href={HOME} aria-label="Kraffic — Home" className="grid h-10 w-10 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /></a>
         <button type="button" onClick={() => setWorkspace(true)} aria-label={`Workspace: ${account.name}`}
           className="ml-auto grid h-10 w-10 place-items-center rounded-md outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
-          <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" imgPad="p-0.5" initialClass="text-[12px]" plate />
+          <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
         </button>
       </header>
       <NavDrawer open={menu} onClose={() => setMenu(false)} path={path} nav={nav} />

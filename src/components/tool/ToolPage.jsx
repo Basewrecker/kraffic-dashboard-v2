@@ -82,7 +82,7 @@ export function ConnectCard({ title = 'Connect your data', sub = 'Read-only acce
             : r.status === 'expired' ? ['Access expired', 'text-negative'] : r.status === 'error' ? [r.account ?? 'Couldn’t connect', 'text-negative'] : ['Not connected', t3]
           return (
             <li key={r.id} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
-              {r.domain ? <SiteLogo domain={r.domain} name={r.name} className="h-8 w-8 rounded-lg" imgPad="p-1" />
+              {r.domain ? <SiteLogo domain={r.domain} name={r.name} className="h-8 w-8 rounded-lg" />
                 : <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-tint text-[13px] font-semibold text-stone-600" aria-hidden>{r.name[0]}</span>}
               <span className="min-w-0 flex-1">
                 <span className="block text-[14px] leading-5 font-medium text-stone-900">{r.name}</span>

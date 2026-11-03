@@ -128,7 +128,7 @@ function SourceRow({ s, prompt, own }) {
     <li>
       <a href={`https://${s.domain}${s.path}`} target="_blank" rel="noopener noreferrer"
         className={`group -mx-2 flex h-11 items-center gap-3 rounded-md px-2 outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus hover:bg-[var(--tint)]`}>
-        <SiteLogo domain={s.domain} name={brandName(s.domain)} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" />
+        <SiteLogo domain={s.domain} name={brandName(s.domain)} className="h-5 w-5 rounded-md" initialClass="text-[10px]" />
         <span className={`shrink-0 text-[14px] leading-5 ${own ? 'font-semibold text-ink' : 'font-medium text-stone-900'}`}>{brandName(s.domain)}</span>
         <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] text-stone-500">{cleanPath(s.path, prompt)}</span>
         <ArrowUpRight size={14} className="shrink-0 text-stone-500 opacity-0 transition-opacity duration-150 group-hover:opacity-100 touch:opacity-100 group-focus-visible:opacity-100" aria-hidden />
@@ -241,7 +241,7 @@ const Section = ({ title, count, children }) => (
 )
 
 function SummaryView({ c }) {
-  const logo = (domain, name) => <SiteLogo domain={domain} name={name} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" />
+  const logo = (domain, name) => <SiteLogo domain={domain} name={name} className="h-5 w-5 rounded-md" initialClass="text-[10px]" />
   const brandHref = (b) => (b.domain ? `https://${b.domain}` : `https://www.google.com/search?q=${encodeURIComponent(b.name)}`)
   const brands = [...c.brandsNew.map((b) => ['added', b]), ...c.brandsDropped.map((b) => ['dropped', b])]
   const sources = [...c.sourcesNew.map((x) => ['added', x]), ...c.sourcesDropped.map((x) => ['dropped', x])]
