@@ -20,7 +20,7 @@ export function SourcesPanel({ a }) {
             <a href={s.url} target="_blank" rel="noreferrer" aria-label={`${s.name}, ${CHANNELS[s.channel].label}: ${s.count} mentions, leans ${leanWord(s.lean)}. Opens in a new tab`}
               className="group -mx-2 grid min-h-12 w-[calc(100%+16px)] grid-cols-[20px_20px_minmax(0,1fr)_auto_16px] items-center gap-3 rounded-md px-2 py-1.5 outline-none transition-colors duration-150 hover:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
               <span className={`text-right text-[13px] ${t3} tabular-nums`}>{i + 1}</span>
-              <Logo domain={s.domain} name={s.name} className="h-5 w-5 rounded" imgPad="p-0.5" initialClass="text-[10px]" />
+              <Logo domain={s.domain} name={s.name} className="h-5 w-5 rounded" initialClass="text-[10px]" />
               <span className="min-w-0">
                 <span className="block truncate text-[14px] leading-5 text-stone-900">{s.name}</span>
                 <span className={`block text-[12px] leading-4 ${t3}`}>{CHANNELS[s.channel].label} · leans {leanWord(s.lean)}</span>
@@ -85,7 +85,7 @@ export function ComparePanel({ a }) {
           <ul className="mt-1">
             {c.newSources.map((s) => (
               <li key={s.key} className="flex h-9 items-center gap-2.5 text-[14px] leading-5">
-                <Logo domain={s.domain} name={s.name} className="h-5 w-5 rounded" imgPad="p-0.5" initialClass="text-[10px]" />
+                <Logo domain={s.domain} name={s.name} className="h-5 w-5 rounded" initialClass="text-[10px]" />
                 <span className="min-w-0 truncate text-stone-900">{s.name}</span>
                 <span className={`text-[13px] ${t3}`}>{CHANNELS[s.channel].label}</span>
               </li>

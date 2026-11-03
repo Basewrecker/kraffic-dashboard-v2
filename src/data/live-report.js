@@ -4,7 +4,7 @@
 // scan → the latest-scan version with no change, no sparkline, no trend line; no data → left out and named in the
 // table's footer. The KPI strip and the table always render; with no chart on one side the other takes the row.
 // Nothing here estimates a missing week, engine, competitor, topic or page.
-import { ENGINE_NAMES, inferOpts, savedReports, schedules, shares, titleFor } from './reports'
+import { ENGINE_NAMES, inferOpts, savedReports, schedules, shares, titleFor } from './reports.js'
 
 const GENERIC = new Set(['our', 'ours', 'us', 'we', 'the', 'a', 'an', 'my', 'this', 'that', 'ai', 'search', 'share', 'voice', 'visibility', 'prompt', 'prompts', 'score', 'week', 'month', 'client', 'team', 'ceo', 'report'])
 
@@ -188,7 +188,7 @@ export function buildLiveReport(facts, prompt = '', rawOpts = {}) {
     if (you == null || !top) {
       return { ok: false, reason: 'outside', note: `Share of voice isn’t stored for ${brand}’s competitors, so that comparison can’t be written.`, opts }
     }
-    verdict = ahead ? 'Winning' : 'Losing'
+    verdict = ahead ? 'Winning' : 'Room to grow'
     finding = ahead
       ? `Yes. ${brand} is named in ${you}% of AI answers in the latest scan, ${top.name} in ${top.share}%.`
       : `Not yet. ${top.name} is named in ${top.share}% of AI answers in the latest scan, ${brand} in ${you}%.`
@@ -218,7 +218,7 @@ export function buildLiveReport(facts, prompt = '', rawOpts = {}) {
   } else if (opts.kind === 'rival') {
     const rival = picked[0] || top || rivals[0]
     const rows = missedRows.filter((row) => (row.competitors || []).includes(rival.domain))
-    verdict = rows.length ? 'Losing' : 'Winning'
+    verdict = rows.length ? 'Room to grow' : 'Winning'
     finding = rows.length
       ? `${rival.name} is named on ${plural(rows.length, 'prompt')} where ${brand} is missing in the latest scan.`
       : `${rival.name} isn’t named on the prompts where ${brand} is missing in the latest scan.`
@@ -271,7 +271,7 @@ export function buildLiveReport(facts, prompt = '', rawOpts = {}) {
   } else {
     // weekly (and the client update, and a custom question): what moved between the two latest comparable scans
     if (compared && (gained.length || lost.length || net === 0)) {
-      verdict = net > 0 && lost.length * 2 <= gained.length ? (opts.period === 'week' ? 'Good week' : 'Good month') : net >= 0 ? 'Mixed' : (opts.period === 'week' ? 'Tough week' : 'Tough month')
+      verdict = net > 0 && lost.length * 2 <= gained.length ? (opts.period === 'week' ? 'Good week' : 'Good month') : net >= 0 ? 'Mixed' : (opts.period === 'week' ? 'Slower week' : 'Slower month')
       const ago = facts.since || 'the previous scan'
       finding = net > 0
         ? `${client ? 'You’re in' : `${brand} is in`} ${plural(net, 'more AI answer')} than ${ago}.`

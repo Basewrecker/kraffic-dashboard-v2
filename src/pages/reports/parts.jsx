@@ -109,7 +109,7 @@ export const menuLabel = 'px-2 pb-1 pt-1.5 text-[12px] leading-4 text-stone-500'
 export const brandOf = (id) => REPORT_BRANDS.find((b) => b.id === id)
 export function BrandLogo({ id, className = 'h-4 w-4' }) {
   const b = brandOf(id)
-  return b ? <SiteLogo domain={b.domain} name={b.name} className={`${className} shrink-0 rounded`} imgPad="p-0" initialClass="text-[8px]" plate /> : null
+  return b ? <SiteLogo domain={b.domain} name={b.name} className={`${className} shrink-0 rounded`} initialClass="text-[8px]" /> : null
 }
 
 // ---- report lists (home "Recent reports", All reports)

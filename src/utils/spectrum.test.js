@@ -7,18 +7,31 @@ import { BAND, biggestChange, capRows, dotGrid, dotRows, groupThemes, hash01, la
 import { byReach, divergingStack, dotPlan, fromCurrent, leadQuote, parseMatrix, reachOf, springAt, springEasing, staggerDelays, toneChanges, topChange, urlKey } from './spectrum.js'
 
 const ENGINES = [{ id: 'google', name: 'Google search' }, { id: 'chatgpt', name: 'ChatGPT' }, { id: 'claude', name: 'Claude' }]
+// the dot plot places only pages with a tone: Not scored pages are listed, never placed (they have no band)
+const PLACED = PAGES.filter((p) => p.tone in BAND)
+
+test('the mock\'s latest run has Not scored pages, and they have no place on the scale', () => {
+  const unread = PAGES.filter((p) => p.tone === 'unscored')
+  assert.ok(unread.length > 0)
+  assert.ok(!('unscored' in BAND))
+  const { pos } = layoutSwarm(PAGES, { width: 600 })
+  for (const p of unread) assert.equal(pos[p.id], undefined, p.domain)
+  for (const p of PLACED) assert.ok(pos[p.id], p.domain)
+  assert.deepEqual(Object.keys(BAND), ['negative', 'neutral', 'mixed', 'positive'], 'Mixed is its own band')
+})
 
 for (const [width, r] of [[860, 14], [330, 11], [200, 11]]) {
   test(`beeswarm at ${width}px: no two dots overlap, each stays in its band`, () => {
-    const { pos, extent } = layoutSwarm(PAGES, { width, r, gap: 3 })
-    const pts = PAGES.map((p) => ({ ...pos[p.id], tone: p.tone }))
+    const { pos, extent } = layoutSwarm(PLACED, { width, r, gap: 3 })
+    const pts = PLACED.map((p) => ({ ...pos[p.id], tone: p.tone }))
     for (let i = 0; i < pts.length; i++) {
       for (let j = i + 1; j < pts.length; j++) {
         const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y)
         assert.ok(d >= 2 * r + 3 - 1e-6, `dots ${i} and ${j} are ${d.toFixed(1)}px apart`)
       }
       const b = BAND[pts[i].tone]
-      assert.ok(pts[i].x >= (b * width) / 3 && pts[i].x <= ((b + 1) * width) / 3, `dot ${i} left its band`)
+      const bands = Object.keys(BAND).length
+      assert.ok(pts[i].x >= (b * width) / bands && pts[i].x <= ((b + 1) * width) / bands, `dot ${i} left its band`)
       assert.ok(Math.abs(pts[i].y) + r <= extent + 1e-6)
     }
   })
@@ -87,17 +100,24 @@ test('themes: weaknesses + threats hurt, strengths + opportunities work; the sid
   const g = groupThemes(SWOT, PAGES)
   assert.ok(g.hurting.every((x) => x.kind === 'weakness' || x.kind === 'threat'))
   assert.ok(g.working.every((x) => x.kind === 'strength' || x.kind === 'opportunity'))
-  assert.equal(g.hurting.length, SWOT.weaknesses.length + SWOT.threats.length)
+  assert.ok(g.hurting.every((x) => x.hits > 0))
+  assert.ok(g.working.every((x) => x.hits > 0))
+  assert.equal(g.hurting.length, 3) // neutral-only weaknesses and threats are not criticism
+  assert.equal(g.working.length, 4)
   for (const side of [g.hurting, g.working]) for (let i = 1; i < side.length; i++) assert.ok(side[i - 1].hits >= side[i].hits)
   assert.equal(g.hurting[0].theme, 'Cleanser runs out fast') // two pages say it, one of them negative
+  assert.equal(g.working.find((x) => x.theme.startsWith('Few marketplace')), undefined)
   assert.deepEqual(groupThemes(null, PAGES), { hurting: [], working: [] })
 })
 
 test('a theme quotes the sentence about it, and lists its engines in order', () => {
   const [pumps] = groupThemes(SWOT, PAGES).hurting.filter((x) => x.theme.startsWith('Pumps'))
   assert.match(themeQuote(pumps.pages[0], pumps).text, /pump/)
+  // production stores no match for a theme (match: null): the quote is the page's most telling sentence
   const cs = groupThemes(SWOT, PAGES).hurting.find((x) => x.theme.startsWith('Slow customer'))
-  assert.match(themeQuote(cs.pages[0], cs).text, /Customer service/)
+  assert.equal(cs.match, null)
+  assert.equal(themeQuote(cs.pages[0], cs), tellingSentence(cs.pages[0]))
+  assert.match(themeQuote(cs.pages[0], { ...cs, match: /customer service/i }).text, /Customer service/, 'with a match: the sentence about it')
   assert.deepEqual(themeEngines(pumps), ['google', 'chatgpt'])
 })
 
@@ -112,18 +132,19 @@ test('lead quote: the top Hurting theme, its quote about it, and its other pages
 })
 
 test('a theme with only quote-less pages: no quote, its page still named', () => {
-  const few = groupThemes(SWOT, PAGES).working.find((x) => x.theme.startsWith('Few marketplace'))
-  const q = themeQuoteOf(few)
+  const few = SWOT.opportunities.find((x) => x.theme.startsWith('Few marketplace'))
+  const q = themeQuoteOf({ ...few, pages: few.sources.map((id) => PAGES.find((p) => p.id === id)) })
   assert.equal(q.quote, null)
   assert.ok(q.page.noQuote)
 })
 
 test('columns: at most five rows, the rest behind "+N more" until expanded', () => {
   const g = groupThemes(SWOT, PAGES)
-  assert.equal(g.hurting.length, 7)
-  assert.equal(g.working.length, 5)
-  assert.deepEqual(capRows(g.hurting, false).more, 2)
-  assert.equal(capRows(g.hurting, false).rows.length, 5)
+  assert.equal(g.hurting.length, 3)
+  assert.equal(g.working.length, 4)
+  const seven = [1, 2, 3, 4, 5, 6, 7]
+  assert.deepEqual(capRows(seven, false).more, 2)
+  assert.equal(capRows(seven, false).rows.length, 5)
   assert.deepEqual(capRows(g.hurting, true), { rows: g.hurting, more: 0 })
   assert.deepEqual(capRows(g.working, false), { rows: g.working, more: 0 })
 })
@@ -154,13 +175,28 @@ test('dots wrap into centred rows of at most six, 8px dots 4px apart', () => {
   assert.deepEqual(dotGrid(0, {}), [])
 })
 
-test('biggest move: the largest change and its note from the data', () => {
-  const runs = withScores(RUNS)
+test('biggest move: the most pages that changed tone, not the score', () => {
+  // the runs scored the old way (positive / neutral / negative only; the note names those three tones)
+  const old = RUNS.filter((r) => r.createdAt < '2026-11-02T08:35:42Z')
+  const runs = old.map((r, i) => ({ ...withScores(old)[i], pages: runPages(PAGES, r.counts, r.id) }))
   const big = biggestChange(runs)
-  assert.equal(runs[big.index].date, '2026-09-08')
-  assert.equal(moveNote(runs, big), '+13 · 2 more positive, 3 fewer negative')
+  let best = 0, at = 0
+  for (let i = 1; i < runs.length; i++) {
+    const n = toneChanges(runs[i - 1].pages, runs[i].pages).length
+    if (n >= best) { best = n; at = i }
+  }
+  assert.ok(best > 0)
+  assert.equal(big.index, at)
+  assert.equal(big.changes.length, best)
+  assert.match(moveNote(runs, big), /turned/)
+  assert.doesNotMatch(moveNote(runs, big), /more positive|fewer negative|\+13/)
   assert.equal(moveNote(runs, null), null)
-  const tie = [{ score: 50, counts: { positive: 1, neutral: 1, negative: 1 } }, { score: 53, counts: { positive: 2, neutral: 1, negative: 1 } }, { score: 56, counts: { positive: 3, neutral: 1, negative: 1 } }]
+  const page = (id, tone) => ({ id, url: `https://${id}.com/a`, domain: `${id}.com`, tone })
+  const tie = [
+    { pages: [page('a', 'neutral'), page('b', 'neutral')] },
+    { pages: [page('a', 'positive'), page('b', 'neutral')] },
+    { pages: [page('a', 'positive'), page('b', 'negative')] },
+  ]
   assert.equal(biggestChange(tie).index, 2)
 })
 
@@ -260,7 +296,7 @@ test('spring settle: starts at 0, ends at 1, overshoots a little', () => {
   assert.match(springEasing(), /^linear\(0, .*, 1\)$/)
 })
 
-import { alsoSaidOn, capStack, changeSummary, normalizeUrl, pageHref, ribbonsInto } from './spectrum.js'
+import { alsoSaidOn, capStack, changeSummary, citedGone, normalizeUrl, pageHref, ribbonsInto } from './spectrum.js'
 
 test('links: normalised cited URLs, tracking stripped, path kept, nothing unsafe', () => {
   assert.equal(normalizeUrl('https://www.byrdie.com/best-niacinamide-serums-5089123?utm_source=chatgpt.com'), 'https://www.byrdie.com/best-niacinamide-serums-5089123')
@@ -298,9 +334,13 @@ test('"Also said on": the lead theme’s other pages, else the other pages in th
 })
 
 test('the change line under each run, and the ribbons into a column', () => {
-  assert.equal(changeSummary(null, { positive: 1, neutral: 1, negative: 1 }), null)
-  assert.deepEqual(changeSummary({ positive: 2, neutral: 12, negative: 5 }, { positive: 4, neutral: 13, negative: 2 }), [{ tone: 'positive', d: 2 }, { tone: 'negative', d: -3 }])
-  assert.deepEqual(changeSummary({ positive: 2, neutral: 1, negative: 1 }, { positive: 2, neutral: 3, negative: 1 }), [])
+  const page = (id, tone) => ({ id, url: `https://${id}.com/x`, domain: `${id}.com`, tone })
+  const prev = [page('a', 'positive'), page('b', 'neutral'), page('c', 'negative')]
+  const next = [{ ...page('a', 'neutral'), url: 'https://www.a.com/x/' }, page('b', 'negative')]
+  assert.equal(changeSummary(null, next), null)
+  assert.deepEqual(changeSummary(prev, next), [{ tone: 'positive', d: -1 }, { tone: 'negative', d: 1 }])
+  assert.deepEqual(citedGone(prev, next).map((p) => p.id), ['c'])
+  assert.deepEqual(changeSummary(prev, [prev[0], prev[1]]), [])
   const runs = RUNS.map((r, i) => (i === RUNS.length - 1 ? PAGES : runPages(PAGES, r.counts, r.id)))
   assert.deepEqual(ribbonsInto(runs, 0), [])
   assert.deepEqual(ribbonsInto(runs, 2), toneChanges(runs[1], runs[2]))

@@ -3,7 +3,7 @@ import { ArrowUp, AlignLeft, Calendar, Check, ChevronLeft, ChevronRight, Plus, S
 import SiteLogo from '../../components/ui/SiteLogo'
 import { EngineMark } from '../insights/parts'
 import { textHeight } from '../../data/composer'
-import { AUDIENCES, ENGINE_IDS, ENGINE_NAMES, LENGTHS, MAX_COMPARE, PERIODS, REPORT_BRANDS, dataFor, inferOpts, rivalsOf, suggestionsFor } from '../../data/reports'
+import { AUDIENCES, ENGINE_IDS, ENGINE_NAMES, LENGTHS, MAX_COMPARE, PERIODS, REPORT_BRANDS, SUGGESTION_ROWS, dataFor, inferOpts, rivalsOf, suggestionPlaceholders, suggestionsFor, suggestionsReady } from '../../data/reports'
 import { BrandLogo, ChipMenu, brandOf, menuItem, menuLabel, t3 } from './parts'
 
 // New report's box: the question on top, full width; under it, in the same box, "+" (brand, engines, competitors), any
@@ -59,8 +59,12 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
   const rivals = rivalsOf(opts.brand)
   // suggestions: shown while the empty box is focused. They fade up in a stagger, and fade out together (their space
   // kept until the fade ends). Transitions, not keyframes, so focusing again mid-fade carries on from where it is.
-  const want = suggest && focused && !closed && !prompt
-  const list = (suggestions ?? suggestionsFor(opts.brand)).slice(0, 4)
+  // until the brand's data is in, placeholder rows keep the list's space (nothing shifts when the suggestions land);
+  // a thread's next questions start with the same suggestions, so they wait too
+  const waiting = !suggestionsReady(opts.brand)
+  const list = waiting ? suggestionPlaceholders() : (suggestions ?? suggestionsFor(opts.brand)).slice(0, SUGGESTION_ROWS)
+  // an empty list would still paint the raised panel (a bare bar above the docked box), so there's no panel without rows
+  const want = suggest && focused && !closed && !prompt && list.length > 0
   const [phase, setPhase] = useState('gone') // gone → pre (mounted, hidden) → in → out → gone
   const seq = useRef(0)
   useEffect(() => {
@@ -76,7 +80,7 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
     const t = setTimeout(() => { if (seq.current === me) setPhase('gone') }, reduced ? 0 : 120)
     return () => clearTimeout(t)
   }, [want])
-  const sugg = want ? list : []
+  const sugg = want && !waiting ? list : []
   const pick = (s) => {
     setPrompt(s.text)
     if (s.sets) setOpts((o) => ({ ...o, kind: null, compare: [], ...s.sets }))
@@ -163,16 +167,21 @@ const PillComposer = forwardRef(function PillComposer({ prompt, setPrompt, opts,
           )}
         </div>
       </div>
-      {phase !== 'gone' && (
-        <ul id="report-suggestions" role="listbox" aria-label="Suggestions" aria-hidden={phase === 'out' || undefined} className={`absolute inset-x-0 z-20 flex flex-col px-2 ${docked ? 'bottom-full mb-2 rounded-2xl border border-line bg-raised p-1.5 shadow-md' : 'top-full mt-3'} ${phase === 'out' ? 'pointer-events-none' : ''}`}>
-          {list.map((s, i) => (
+      {phase !== 'gone' && list.length > 0 && (
+        <ul id="report-suggestions" role="listbox" aria-label="Suggestions" aria-busy={waiting || undefined} aria-hidden={phase === 'out' || undefined} className={`absolute inset-x-0 z-20 flex flex-col px-2 ${docked ? 'bottom-full mb-2 rounded-2xl border border-line bg-raised p-1.5 shadow-md' : 'top-full mt-3'} ${phase === 'out' ? 'pointer-events-none' : ''}`}>
+          {list.map((s, i) => (s.placeholder ? (
+            <li key={s.id} aria-hidden className="flex min-h-10 items-center gap-3 rounded-lg px-3 py-2" style={rowStyle(i)}>
+              <span className="h-[18px] w-[18px] shrink-0 rounded bg-tint" />
+              <span className="shimmer h-3 rounded-full" style={{ width: `${[52, 58, 44, 50][i % 4]}%` }} />
+            </li>
+          ) : (
             <li key={s.id} id={`sugg-${s.id}`} role="option" aria-selected={i === active}
               onMouseDown={(e) => e.preventDefault()} onClick={() => pick(s)} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(-1)}
               className={`flex min-h-10 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-[15px] leading-6 font-normal ${i === active ? 'bg-tint text-stone-900' : 'text-stone-600'}`}
               style={rowStyle(i)}>
               {s.icon ? <s.icon size={18} strokeWidth={1.5} className="shrink-0" aria-hidden /> : <MiniIcon kind={s.kind} />}{s.text}
             </li>
-          ))}
+          )))}
         </ul>
       )}
     </div>
@@ -261,7 +270,7 @@ function PlusMenu({ opts, set, rivals, up = false }) {
                 const on = opts.compare.includes(r.key)
                 return (
                   <button key={r.key} type="button" role="menuitemcheckbox" aria-checked={on} onClick={() => toggleRival(r.key)} className={`${menuItem} ${on ? 'font-medium text-stone-900' : 'text-stone-700'}`}>
-                    <Box on={on} /><SiteLogo domain={r.domain} name={r.name} className="h-4 w-4 shrink-0 rounded" imgPad="p-0" initialClass="text-[8px]" plate />
+                    <Box on={on} /><SiteLogo domain={r.domain} name={r.name} className="h-4 w-4 shrink-0 rounded" initialClass="text-[8px]" />
                     <span className="min-w-0 flex-1 truncate">{r.name}</span>
                   </button>
                 )

@@ -411,7 +411,7 @@ function Grid({ r }) {
           <li key={c.key} onMouseEnter={() => setHi(c.key)} onMouseLeave={() => setHi(null)} className="flex h-6 items-center gap-2 text-[14px] leading-5 tabular-nums">
             <span className="h-3 w-3 shrink-0 rounded-[2px]" style={{ background: TONE[c.tone] }} aria-hidden />
             {r.ranked && <span className={`w-4 shrink-0 ${META}`}>{i + 1}</span>}
-            {r.ranked && c.domain && <SiteLogo domain={c.domain} name={c.label} className="h-4 w-4 shrink-0 rounded" imgPad="p-0" initialClass="text-[8px]" plate />}
+            {r.ranked && c.domain && <SiteLogo domain={c.domain} name={c.label} className="h-4 w-4 shrink-0 rounded" initialClass="text-[8px]" />}
             <span className="min-w-0 truncate text-stone-700">{c.label}</span>
             <span className="ml-auto whitespace-nowrap pl-2 text-stone-900">{r.unit === '%' ? `${c.n}%` : <>{fmt(c.n)} <span className="text-stone-500">· {c.share}%</span></>}</span>
             {c.delta != null ? <ChangeChip delta={c.delta} worseUp={c.worseUp} /> : <span className="w-[42px]" aria-hidden />}
@@ -477,7 +477,7 @@ function RightCard({ r }) {
         <div className="mt-4 border-t border-[var(--rep-line)] pt-3">
           <p className={META}>{r.list.label}</p>
           <ul className="mt-1 flex flex-col gap-1">
-            {r.list.rows.map((x) => <li key={x.key} className="flex h-6 items-center gap-2 text-[14px] leading-5 tabular-nums"><SiteLogo domain={x.domain} name={x.name} className="h-4 w-4 shrink-0 rounded" imgPad="p-0" initialClass="text-[8px]" plate /><span className="min-w-0 truncate text-stone-900">{x.name}</span><span className="ml-auto pl-3 text-stone-600">{fmt(x.n)} prompts</span></li>)}
+            {r.list.rows.map((x) => <li key={x.key} className="flex h-6 items-center gap-2 text-[14px] leading-5 tabular-nums"><SiteLogo domain={x.domain} name={x.name} className="h-4 w-4 shrink-0 rounded" initialClass="text-[8px]" /><span className="min-w-0 truncate text-stone-900">{x.name}</span><span className="ml-auto pl-3 text-stone-600">{fmt(x.n)} prompts</span></li>)}
           </ul>
         </div>
       )}
@@ -535,7 +535,7 @@ function TableCard({ t, source, notes = [], picked = null }) {
           </span>
         )
       }
-      case 'leader': return <span className={`inline-flex items-center gap-2 ${T} text-stone-900`}><SiteLogo domain={v.domain} name={v.name} className="h-4 w-4 shrink-0 rounded" imgPad="p-0" initialClass="text-[8px]" plate />{v.name}</span>
+      case 'leader': return <span className={`inline-flex items-center gap-2 ${T} text-stone-900`}><SiteLogo domain={v.domain} name={v.name} className="h-4 w-4 shrink-0 rounded" initialClass="text-[8px]" />{v.name}</span>
       case 'step': return v
         ? <a href={v.href} onClick={(e) => { e.stopPropagation(); e.preventDefault(); navigate(v.href) }} className={`inline-flex items-center gap-1 rounded ${T} font-medium text-stone-900 outline-none hover:underline hover:underline-offset-4 focus-visible:ring-2 focus-visible:ring-focus`}>{v.label}<ArrowRight size={14} aria-hidden /></a>
         : <span className={`${T} text-stone-500`}>—</span>

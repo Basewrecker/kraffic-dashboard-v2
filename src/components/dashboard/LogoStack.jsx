@@ -17,7 +17,7 @@ export default function LogoStack({ domains, max = 3, labels = {}, empty = null 
       className="inline-flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus">
       {shown.map((d, i) => (
         <span key={d} title={names[i]} className="inline-flex">
-          <SiteLogo domain={d} name={names[i]} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" />
+          <SiteLogo domain={d} name={names[i]} className="h-5 w-5 rounded-md" initialClass="text-[10px]" />
         </span>
       ))}
       {domains.length > max && <span className="ml-1 text-[12px] leading-4 font-medium text-stone-500 tabular-nums">+{domains.length - max}</span>}

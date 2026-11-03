@@ -20,10 +20,13 @@ never `gray-*`, never `bg-white`.
 | Ink (text, primary buttons, your data) | `--ink` | `#171412` | `#ECECEC` |
 | Text steps | `--color-stone-900` … `--color-stone-500` | stone scale | remapped greys |
 | Loss, failure | `--negative` | `#DC2626` | `#F87171` |
+| Softer report-verdict dot only (muted amber) | `--caution` | `#B8893E` | `#C9A160` |
+| Sentiment: a Mixed page | `--sent-mixed` | `#57534E` | `#808080` |
 | Beta tag, the only violet | `--beta` | `#6E56CF` | `#7C66DC` |
 | Reports send button, the only blue | `--send` | `#3C65C0` | same |
 | Chart: you | `--line-you` = `--ink` | ink | ink |
 | Chart: competitors, line chart only | `--line-1` … `--line-4` | indigo, red, mint, fuchsia | lighter tints |
+| Share of voice + Visibility history brands | `BRAND_PALETTE` (`src/utils/brandColors.js`) | by rank, see §3 | +8% lightness |
 | Chart: competitor bars and donuts | `--data-c1` … `--data-c4` | `#78716C` … `#E7E5E4` | `#A3A3A3` … `#3A3A3A` |
 | Chart track | `--data-track` | `#F1F0EE` | `#1A1A1A` |
 
@@ -56,12 +59,25 @@ amber pair). Until one is picked, nothing below changes.
 
 ## 3. Colour rules
 
-- Graphite first: ink and the grey steps for healthy data. Brand hues only in the Visibility history line chart
-  and in Reports' competitor series, and the user's own brand is always ink.
+- Graphite first: ink and the grey steps for healthy data. Brand hues only in Share of voice, the Visibility history
+  chart (the brand palette below) and Reports' competitor series. In Share of voice and Visibility history the user's
+  brand takes its palette colour by rank like every other brand (owner, 2026-11-03); elsewhere it stays ink.
 - Red (`--negative`) only for a loss of yours or a failure. A competitor's own gain is never red; it's the change
   chip's job to say whether a move is bad for you.
 - Violet (`--beta`) only for the Beta tag. Blue (`--send`) only for the Reports send button.
-- No yellow, no coloured pills or links, no rainbow palettes. At most three colours in any one chart.
+- No yellow, no coloured pills or links, no rainbow palettes. At most three colours in any one chart. Exceptions,
+  approved by the owner on 2026-11-02 and updated on 2026-11-03 (built in the app first):
+  - **Brand colours in Share of voice and Visibility history:** a fixed cool palette assigned by rank (biggest share
+    first, exact counts; a tie keeps the tracked order), one brand → colour map for both cards, so a brand has one
+    colour on the page and it follows the engine filter. Light: `#4F46E5`, `#6366F1`, `#38BDF8`, `#818CF8`,
+    `#A78BFA`, `#C084FC`, `#E879F9`. Dark, +8% lightness: `#716AEA`, `#888BF4`, `#5FCAF9`, `#A8AFFA`, `#C5B2FC`,
+    `#D4ACFD`, `#EFA0FB`. Brands past the 7th share one grey "Other brands" slice (`--color-stone-500`, never
+    near-white). The user's own slice is the pulled-out one. Solid fills, no gradient or glow. (This replaces the
+    short-lived 2026-11-02 "every brand takes its logo's colour" rule.)
+  - **Medals, in Share of voice only:** gold `#E0A200` (22px, the #1 row), silver `#9CA3AF` and bronze `#B4703A`
+    (16px). The "Top share" pill text uses the darker gold `#A87700` (on gold at 12%) so it stays readable.
+  - **Muted amber (`--caution`)** only for the dots of the softer report verdicts (Slower week, Slower month, Room to
+    grow). The verdict's label stays neutral text. "No yellow" still applies everywhere else.
 
 ## 4. Forbidden effects
 

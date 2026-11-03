@@ -5,15 +5,19 @@
 // Gemini 90 / ChatGPT 54). Competitors are generated to their tracked share (CeraVe ≈18%, The Ordinary ≈4%,
 // Paula’s Choice ≈3%), preferring prompts the mock already says they win.
 import {
-  account, citedPages, citedPagesOther, history, historyEarlier, historySeries, kpis, missedPrompts, platforms as platformList,
+  account, citedPages, citedPagesOther, extraCompetitors, history, historyEarlier, historySeries, kpis, missedPrompts, platforms as platformList,
   platformStats, syncHistory, syncTotal, trackedPrompts, visiblePrompts,
 } from './mock.js'
+import { brandListName } from '../utils/brand.js'
 
 export const TRACKED_BRANDS = [
   { domain: account.domain, key: 'dermasuri', name: account.name, you: true },
   { domain: 'cerave.com', key: 'cerave', name: 'CeraVe' },
   { domain: 'theordinary.com', key: 'ordinary', name: 'The Ordinary' },
   { domain: 'paulaschoice.com', key: 'paulas', name: 'Paula’s Choice' },
+  // ?competitors=many (data/mock.js extraCompetitors): the name Brand Setup holds, or with none set the domain tidied
+  // (utils/brand.js brandListName, the app's rule: "byoma.com" → "Byoma")
+  ...extraCompetitors.map((c) => ({ domain: c.domain, key: c.key, name: brandListName([c.name], c.domain) })),
 ]
 export const brandByDomain = (d) => TRACKED_BRANDS.find((b) => b.domain === d)
 export const OWN = TRACKED_BRANDS[0]
@@ -73,6 +77,23 @@ export const appearances = (() => {
         cited,
         citedPlatforms: cited ? ['google'] : [],
         citedPage: cited ? PAGES[domain][Math.floor(r() * PAGES[domain].length)] : null,
+      }
+    })
+  }
+  // ?competitors=many: each extra competitor named in exactly `target` answers, drawn from every tracked prompt (so one
+  // can appear in more answers than you); its own random stream, so the brands above keep their rows
+  const rx = rng(4242)
+  for (const c of extraCompetitors) {
+    const on = new Set(shuffle(trackedPrompts.map((p) => p.id), rx).slice(0, c.target))
+    trackedPrompts.forEach((p) => {
+      const visible = on.has(p.id)
+      const cited = visible && rx() < 0.3
+      table[p.id][c.domain] = {
+        visible,
+        platforms: visible ? ['google', ...['gemini', 'chatgpt'].filter(() => rx() < 0.45)] : [],
+        cited,
+        citedPlatforms: cited ? ['google'] : [],
+        citedPage: cited ? ['/', '/products', '/blog'][Math.floor(rx() * 3)] : null,
       }
     })
   }

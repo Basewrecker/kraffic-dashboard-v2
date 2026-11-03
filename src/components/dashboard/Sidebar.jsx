@@ -63,7 +63,7 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
     return (
       <button type="button" role="menuitem" onClick={() => (current ? onDone?.() : pick(b))} aria-current={current || undefined}
         className={`${item} ${current ? 'font-medium text-stone-900' : 'text-stone-900'}`}>
-        <SiteLogo domain={b.domain} name={b.name} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" plate />
+        <SiteLogo domain={b.domain} name={b.name} className="h-5 w-5 rounded-md" initialClass="text-[10px]" />
         <span className="min-w-0 flex-1 truncate">{b.name}</span>
         {current && <Check size={14} className="shrink-0 text-ink" aria-label="Current brand" />}
       </button>
@@ -88,7 +88,7 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
       <div className="min-h-0 flex-1 overflow-y-auto p-1 pt-0">
         {agencyUser && !q && (
           <a role="menuitem" href={HOME} className={`${item} font-medium text-stone-900`}>
-            <SiteLogo domain={agency.domain} name={agency.name} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" plate />
+            <SiteLogo domain={agency.domain} name={agency.name} className="h-5 w-5 rounded-md" initialClass="text-[10px]" />
             <span className="min-w-0 flex-1 truncate">{agency.name}</span>
             <span className="shrink-0 text-[12px] text-stone-500">Agency home</span>
           </a>
@@ -167,7 +167,7 @@ export function WorkspaceSwitcher() {
       <button ref={trigger} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => { if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !open) { e.preventDefault(); setOpen(true) } }}
         className="flex h-12 w-full items-center gap-3 rounded-lg border border-line bg-surface px-3 text-left outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus">
-        <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" imgPad="p-0.5" initialClass="text-[12px]" plate />
+        <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{account.name}</span>
           <span className="block truncate text-[12px] leading-4 text-stone-500">{agencyUser ? brand.client : account.plan}</span>

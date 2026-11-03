@@ -15,7 +15,7 @@ export function useCardBrand({ triggerClassName, className } = {}) {
       id: b.domain,
       label: b.you ? `${b.name} (You)` : b.name,
       short: b.name,
-      icon: <SiteLogo domain={b.domain} name={b.name} className="h-4 w-4 rounded" imgPad="p-0" initialClass="text-[9px]" plate />,
+      icon: <SiteLogo domain={b.domain} name={b.name} className="h-4 w-4 rounded" initialClass="text-[9px]" />,
       meta: `${getBrandView(b.domain).kpis.score}%`,
     })),
   }]

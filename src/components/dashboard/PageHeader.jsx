@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Info } from 'lucide-react'
 import { account } from '../../data/mock'
 import { ENGINES, OWN, TRACKED_BRANDS, getBrandView } from '../../data/brandViews'
 import { PlatformIcon } from './icons'
@@ -136,6 +136,7 @@ const brandGroups = () => [
 export default function PageHeader() {
   const tracking = useTracking()
   const { focal, isOwnBrand, setView, engine, setEngine } = useBrandView()
+  const [tip, setTip] = useState(false)
   // prompts where each engine mentions the brand being viewed (unfiltered: the card data covers all engines)
   const perEngine = Object.fromEntries(getBrandView(focal.domain).platforms.map((p) => [p.id, p.visible]))
   const engineGroups = [{
@@ -151,9 +152,27 @@ export default function PageHeader() {
       {/* phones / tablets: title, subtitle, then the two filters full width (one row each) */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div className="min-w-0">
-          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Visibility Overview</h1>
-          {/* the only competitor-view indicator: same line, same height */}
-          <p className="mt-1 text-body font-normal text-stone-600">
+          <div className="relative flex items-center gap-1.5">
+            <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Visibility Overview</h1>
+            {/* desktop, own brand: the description sits in an ⓘ, so the header is one row and the next row of cards
+                peeks in on short screens (1366×768) */}
+            {isOwnBrand && (
+              <>
+                <button type="button" aria-label="About this page" aria-describedby={tip ? 'overview-hint' : undefined}
+                  onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)} onFocus={() => setTip(true)} onBlur={() => setTip(false)}
+                  className="hidden h-5 w-5 place-items-center rounded-full text-stone-500 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus lg:grid">
+                  <Info size={14} aria-hidden />
+                </button>
+                {tip && (
+                  <span id="overview-hint" role="tooltip" className="absolute left-0 top-full z-20 mt-1 hidden w-72 rounded-md border border-line bg-raised px-2.5 py-2 text-[12px] leading-4 font-normal text-stone-700 shadow-md lg:block">
+                    Track how often {account.name} appears in AI answers across Google, ChatGPT, Gemini &amp; Claude.
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+          {/* the only competitor-view indicator: same line, same height (own brand: phones and tablets only) */}
+          <p className={`mt-1 text-body font-normal text-stone-600 ${isOwnBrand ? 'lg:hidden' : ''}`}>
             {isOwnBrand ? (
               <>Track how often {account.name} appears in AI answers across Google, ChatGPT, Gemini &amp; Claude.</>
             ) : (
