@@ -7,7 +7,8 @@ import { openDrawer } from '../../components/audit/parts'
 import Marker from '../../components/ui/Marker'
 import { useToast } from '../../components/dashboard/overlays'
 import { navigate } from '../../router'
-import { DEFAULT_OPTS, REPORT_BRANDS, VERDICT_TONE, savedReports, schedules, seriesRuns, templatesFor } from '../../data/reports'
+import { DEFAULT_OPTS, REPORT_BRANDS, savedReports, schedules, seriesRuns, templatesFor } from '../../data/reports'
+import { verdictTone, verdictWord } from '../../data/verdicts'
 import { initials } from '../../data/schedules'
 import { brand as workspaceBrand } from '../../store/workspace'
 import { Thumb } from './blocks'
@@ -33,7 +34,7 @@ const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const TIMES = ['8:00', '9:00', '10:00', '12:00', '16:00']
-const TONE_DOT = { up: 'var(--ink)', mid: 'var(--color-stone-400)', down: 'var(--negative)' }
+const TONE_DOT = { up: 'var(--ink)', mid: 'var(--color-stone-400)', caution: 'var(--caution)' }
 const ACT = 'text-[13px] font-medium text-stone-700 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus rounded'
 const COMING_SOON = 'Coming soon: sending is part of the app, not the preview.'
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
@@ -96,15 +97,15 @@ function Dots({ s }) {
   const [tip, setTip] = useState(null)
   if (!runs.length) return null
   return (
-    <span className="relative flex shrink-0 items-center gap-1.5" onMouseLeave={() => setTip(null)} role="img" aria-label={`Last sends, oldest to newest: ${runs.map((r) => `${r.date} ${r.verdict}`).join(', ')}`}>
+    <span className="relative flex shrink-0 items-center gap-1.5" onMouseLeave={() => setTip(null)} role="img" aria-label={`Last sends, oldest to newest: ${runs.map((r) => `${r.date} ${verdictWord(r.verdict)}`).join(', ')}`}>
       {runs.map((r, i) => (
         <button key={r.id} type="button" onMouseEnter={() => setTip(i)} onFocus={() => setTip(i)} onClick={(e) => { e.stopPropagation(); navigate(`/reports/${s.reportId}`) }}
           aria-label={`${r.date}: ${r.headline}`} className="h-2.5 w-2.5 rounded-full outline-none transition-transform duration-150 hover:scale-125 focus-visible:ring-2 focus-visible:ring-focus"
-          style={{ background: TONE_DOT[VERDICT_TONE[r.verdict] ?? 'mid'] }} />
+          style={{ background: TONE_DOT[verdictTone(r.verdict)] }} />
       ))}
       {tip != null && (
         <span role="tooltip" className="pointer-events-none absolute bottom-full z-20 mb-2 w-max max-w-[280px] -translate-x-1/2 rounded-lg border border-line bg-raised px-2.5 py-1.5 text-[12px] leading-4 text-stone-800 shadow-sm" style={{ left: tip * 16 + 5 }}>
-          <span className={`block ${t3}`}>{runs[tip].date} · {runs[tip].verdict}</span>{runs[tip].headline}
+          <span className={`block ${t3}`}>{runs[tip].date} · {verdictWord(runs[tip].verdict)}</span>{runs[tip].headline}
         </span>
       )}
     </span>

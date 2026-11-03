@@ -4,6 +4,7 @@ import SiteLogo from '../../components/ui/SiteLogo'
 import { EngineMark } from '../insights/parts'
 import { agency } from '../../store/workspace'
 import { Hero2, ReadStrip, Section as Section2, explainV2 } from './library'
+import { verdictTone, verdictWord } from '../../data/verdicts'
 
 // The report's block library, on a 12-column grid. Same bands for every kind: a hero band (headline, stat chips, one big
 // visual answer) · numbered sections (7 + 5 side by side, or full width) · action cards · a one-line footer. Graphite;
@@ -31,23 +32,25 @@ function useWidth(initial = 640) {
 }
 
 // ---- small parts ---------------------------------------------------------------------------------------------------
-const TONE = { 'Good week': 'up', 'Good month': 'up', Winning: 'up', Mixed: 'mid', Opportunity: 'mid', 'Tough week': 'down', 'Tough month': 'down', Losing: 'down' }
+// a verdict's dot: ink when it's good, grey when mixed, muted amber (never red) when it's a slower week; the word in
+// neutral text. Old stored words ("Tough week", "Losing") show as the new ones.
+const VERDICT_DOT = { up: INK, mid: 'var(--color-stone-400)', caution: 'var(--caution)' }
 export function VerdictChip({ verdict, small = false }) {
-  const tone = TONE[verdict] ?? 'mid'
+  const tone = verdictTone(verdict)
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border ${small ? 'h-6 px-2 text-[12px]' : 'h-7 px-2.5 text-[13px]'} font-medium leading-none ${tone === 'down' ? 'border-[color-mix(in_srgb,var(--negative)_35%,transparent)] text-negative' : tone === 'up' ? 'border-line-strong text-stone-900' : 'border-line text-stone-700'}`}>
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone === 'down' ? RED : tone === 'up' ? INK : 'var(--color-stone-400)' }} aria-hidden />
-      {verdict}
+    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border ${small ? 'h-6 px-2 text-[12px]' : 'h-7 px-2.5 text-[13px]'} font-medium leading-none ${tone === 'up' ? 'border-line-strong text-stone-900' : 'border-line text-stone-700'}`}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: VERDICT_DOT[tone] }} aria-hidden />
+      {verdictWord(verdict)}
     </span>
   )
 }
 
 export function VerdictDot({ verdict, className = '' }) {
-  const tone = TONE[verdict] ?? 'mid'
+  const tone = verdictTone(verdict)
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] leading-4 font-medium ${tone === 'down' ? 'text-negative' : tone === 'up' ? 'text-stone-900' : 'text-stone-600'} ${className}`}>
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone === 'down' ? RED : tone === 'up' ? INK : 'var(--color-stone-400)' }} aria-hidden />
-      {verdict}
+    <span className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] leading-4 font-medium ${tone === 'up' ? 'text-stone-900' : 'text-stone-600'} ${className}`}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: VERDICT_DOT[tone] }} aria-hidden />
+      {verdictWord(verdict)}
     </span>
   )
 }
@@ -375,7 +378,7 @@ function HeroBand({ data: d }) {
     <header className="grid items-start gap-x-8 gap-y-8 md:grid-cols-12">
       {d.client && (
         <p className="flex items-center gap-2.5 border-b border-[var(--div)] pb-4 text-[13px] leading-5 text-stone-600 md:col-span-12">
-          <SiteLogo domain={agency.domain} name={agency.name} className="h-6 w-6 shrink-0 rounded" imgPad="p-0" initialClass="text-[10px]" plate />
+          <SiteLogo domain={agency.domain} name={agency.name} className="h-6 w-6 shrink-0 rounded" initialClass="text-[10px]" />
           <b className="font-semibold text-stone-900">{agency.name}</b><span className="text-stone-400" aria-hidden>·</span>Prepared for {d.brand}
         </p>
       )}
@@ -489,7 +492,7 @@ function Ranking({ v }) {
           return (
             <li key={r.key} className="-mx-2 grid min-h-10 grid-cols-[minmax(0,184px)_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 tabular-nums transition-colors duration-150 hover:bg-tint">
               <span className="flex min-w-0 items-center gap-2">
-                <SiteLogo domain={r.domain} name={r.name} className="h-5 w-5 shrink-0 rounded" imgPad="p-0" initialClass="text-[9px]" plate />
+                <SiteLogo domain={r.domain} name={r.name} className="h-5 w-5 shrink-0 rounded" initialClass="text-[9px]" />
                 <span className={`truncate ${BODY} ${r.you ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>{r.name}</span>
               </span>
               <span className="h-2 rounded-full" style={{ width: `${Math.max(2, (r.now / max) * 100)}%`, background: r.you ? INK : GREY }} />
@@ -716,7 +719,7 @@ function Dumbbell({ v }) {
           return (
             <li key={r.key} className="grid min-h-11 grid-cols-[minmax(0,184px)_minmax(0,1fr)] items-center gap-4 max-md:grid-cols-1 max-md:gap-1 max-md:py-2">
               <span className="flex min-w-0 items-center gap-2">
-                <SiteLogo domain={r.domain} name={r.name} className="h-5 w-5 shrink-0 rounded" imgPad="p-0" initialClass="text-[9px]" plate />
+                <SiteLogo domain={r.domain} name={r.name} className="h-5 w-5 shrink-0 rounded" initialClass="text-[9px]" />
                 <span className={`truncate ${BODY} ${r.you ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>{r.name}</span>
               </span>
               <span className="relative h-6" title={`${r.from}% → ${r.now}%`}>
@@ -1123,7 +1126,7 @@ function OwnerBoard({ v }) {
     <ul className="grid gap-x-6 gap-y-6 max-md:!grid-cols-2" style={{ gridTemplateColumns: `repeat(${Math.min(5, v.rows.length)}, minmax(0, 1fr))` }}>
       {v.rows.map((r) => (
         <li key={r.key} className="min-w-0">
-          <span className={`flex items-center gap-2 ${LABEL}`}><SiteLogo domain={r.domain} name={r.name} className="h-4 w-4 shrink-0 rounded" imgPad="p-0" initialClass="text-[8px]" plate /><span className="truncate">{r.name}</span></span>
+          <span className={`flex items-center gap-2 ${LABEL}`}><SiteLogo domain={r.domain} name={r.name} className="h-4 w-4 shrink-0 rounded" initialClass="text-[8px]" /><span className="truncate">{r.name}</span></span>
           <span className="mt-2 block text-[32px] leading-9 font-semibold tracking-[-0.01em] tabular-nums text-stone-900">{r.n}</span>
           <span className={`mt-1 flex items-center gap-1.5 ${META}`}><span className="h-1.5 w-1.5 rounded-full" style={{ background: r.color }} aria-hidden />named instead of you</span>
         </li>

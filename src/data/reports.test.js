@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DATES, library, seriesRuns, scoreStrip, shares, shortRange, addReport, optsLine, followUpsFor, reportById, updateReport, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, templatesFor, weekGroup, weeklyRuns } from './reports.js'
+import { DATES, library, seriesRuns, scoreStrip, shares, shortRange, addReport, optsLine, followUpsFor, reportById, updateReport, buildReport, dataFor, glance, inferOpts, libraryItems, refine, resolveOpts, runSummary, savedReports, schedules, stepsFor, suggestionsFor, suggestionsReady, suggestionPlaceholders, SUGGESTION_ROWS, templatesFor, weekGroup, weeklyRuns } from './reports.js'
 
 const types = (r) => r.blocks.map((b) => b.type)
 const block = (r, type) => r.blocks.find((b) => b.type === type)?.data
@@ -50,7 +50,7 @@ test('follow-up chips: per report, from what its data can answer; never an engin
   assert.equal(followUpsFor(buildReport({ brand: 'foa' }, 'Show the answers where Longbridge is named'))[0].text, 'Where is Longbridge beating us?')
 })
 
-test('verdicts: Good week / Mixed / Tough week; Winning / Mixed / Losing', () => {
+test('verdicts: Good week / Mixed / Slower week; Winning / Mixed / Room to grow', () => {
   assert.equal(buildReport({ brand: 'foa', kind: 'weekly', period: 'week' }).verdict, 'Good week')
   assert.equal(buildReport({ brand: 'foa', kind: 'ceo' }).verdict, 'Winning')
   assert.equal(buildReport({ brand: 'foa', kind: 'rival', compare: ['longbridge'] }).verdict, 'Mixed')
@@ -88,7 +88,7 @@ test('glance, steps, and every saved report builds', () => {
 test('weekly runs: one per sync after the first, each verdict from that week; the newest is the saved weekly report', () => {
   const runs = weeklyRuns('foa')
   assert.equal(runs.length, DATES.length - 1)
-  assert.deepEqual(runs.map((r) => r.verdict), ['Good week', 'Tough week', 'Good week', 'Good week', 'Mixed', 'Good week', 'Good week'])
+  assert.deepEqual(runs.map((r) => r.verdict), ['Good week', 'Slower week', 'Good week', 'Good week', 'Mixed', 'Good week', 'Good week'])
   const last = runs.at(-1)
   const saved = buildReport(savedReports.find((r) => r.id === 'r-foa-week').opts)
   assert.equal(last.id, 'r-foa-week')
@@ -117,6 +117,24 @@ test('suggestions: four, the competitor one names the closest tracked rival; eac
   assert.deepEqual(s.map((x) => x.text), ['Weekly summary: what moved this week', 'CEO summary: are we winning in AI search?', 'Where is CeraVe beating us?', 'What should we write next?'])
   for (const x of s) assert.equal(buildReport({ brand: 'dermasuri', ...x.sets }, x.text).kind, x.kind, x.id)
   assert.equal(suggestionsFor('foa')[2].text, 'Where is Longbridge beating us?')
+})
+
+test('New report suggestions: ready on the mock data; until a live brand’s data is in, 4 placeholder rows hold the space', async () => {
+  const { setLiveFacts } = await import('./live-facts.js')
+  assert.equal(SUGGESTION_ROWS, 4)
+  assert.equal(suggestionsReady('foa'), true)
+  const rows = suggestionPlaceholders()
+  assert.equal(rows.length, SUGGESTION_ROWS)
+  assert.ok(rows.every((r) => r.placeholder && r.id))
+  assert.equal(new Set(rows.map((r) => r.id)).size, SUGGESTION_ROWS)
+  setLiveFacts({ brandId: 'b1', loading: true, competitors: [] })
+  assert.equal(suggestionsReady('b1'), false)
+  assert.equal(suggestionsReady('foa'), true) // another brand isn't held up
+  setLiveFacts({ brandId: 'b1', loading: true, competitors: [{ key: 'longbridge', domain: 'longbridge-financial.com', name: 'Longbridge Financial' }] })
+  assert.equal(suggestionsReady('b1'), true) // the competitor line can be written
+  setLiveFacts({ brandId: 'b1', loading: false, competitors: [] })
+  assert.equal(suggestionsReady('b1'), true) // no competitors: three suggestions, once the data is in
+  setLiveFacts(null)
 })
 
 test('the thread: the options line, the follow-up chips (each one understood), and a new report kept with the saved ones', () => {
@@ -161,7 +179,7 @@ test('series runs: one per run of the schedule, newest first; the newest is the 
   const ceo = seriesRuns(schedules.find((x) => x.id === 's-foa-ceo'))
   assert.deepEqual(ceo.map((r) => r.idx), [7, 3])
   assert.match(ceo[1].change, /pts share$/)
-  for (const r of [...week, ...client, ...ceo]) assert.ok(['Good week', 'Good month', 'Mixed', 'Tough week', 'Tough month', 'Winning', 'Losing'].includes(r.verdict), r.verdict)
+  for (const r of [...week, ...client, ...ceo]) assert.ok(['Good week', 'Good month', 'Mixed', 'Slower week', 'Slower month', 'Winning', 'Room to grow'].includes(r.verdict), r.verdict)
 })
 
 

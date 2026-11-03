@@ -6,6 +6,8 @@
 import { historyMany } from './historyMany.js'
 import { brandName } from '../utils/brand.js'
 import { liveFacts } from './live-facts.js'
+import { verdictTone } from './verdicts.js'
+import { cardStatus } from './cards.js'
 
 export const ENGINE_NAMES = { aio: 'AI Overview', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
 export const ENGINE_IDS = Object.keys(ENGINE_NAMES)
@@ -299,7 +301,7 @@ export function glance(brandId) {
 export function inferOpts(prompt, d) {
   const q = String(prompt ?? '').toLowerCase()
   const out = {}
-  if (/this week|weekly|past week/.test(q)) out.period = 'week'
+  if (/this week|weekly|past week|last week/.test(q)) out.period = 'week'
   else if (/last month|30 days|since last month|this month/.test(q)) out.period = '30d'
   else if (/quarter/.test(q)) out.period = 'quarter'
   if (/\bceo\b|board|exec|are we winning/.test(q)) out.audience = 'ceo'
@@ -409,9 +411,9 @@ export function buildReport(rawOpts, prompt = '') {
     const top = ranked[0]
     const ahead = me.at(-1) > top.now
     const gaining = me.at(-1) > me[i0]
-    verdict = ahead && gaining ? 'Winning' : ahead || gaining ? 'Mixed' : 'Losing'
-    headline = verdict === 'Losing'
-      ? `${top.name} is named most for ${d.lead}, and the gap isn’t closing.`
+    verdict = ahead && gaining ? 'Winning' : ahead || gaining ? 'Mixed' : 'Room to grow'
+    headline = verdict === 'Room to grow'
+      ? `${top.name} is named most for ${d.lead}, and the gap is holding steady.`
       : `The brand AI names most for ${d.lead}${gaining ? ', and gaining' : ''}.`
     // the lead chart: you and the closest competitor over the period, the gap between you shaded (share of voice
     // values themselves only appear in Where you stand)
@@ -473,7 +475,7 @@ export function buildReport(rawOpts, prompt = '') {
   } else {
     const net = flow.won - flow.lost
     const span = o.period === 'week' ? 'week' : 'month'
-    verdict = net > 0 && flow.lost * 2 <= flow.won ? `Good ${span}` : net >= 0 ? 'Mixed' : `Tough ${span}`
+    verdict = net > 0 && flow.lost * 2 <= flow.won ? `Good ${span}` : net >= 0 ? 'Mixed' : `Slower ${span}`
     const best = moved.find((m) => m.d > 0)
     // short enough for two lines at 28px: the brand is already in the meta line above it
     const ago = FROM[o.period]
@@ -562,8 +564,7 @@ function actionsFor(o, d, card, client) {
 // Both answer with blocks from one library: verdict · stat row (at most 4) · head-to-head bar · prompt groups (every
 // prompt in full, with its engines and who's named instead) · page leaderboard · trend chart · next steps (each one a
 // link). Anything the data can't answer is said in a "Not in your data" block, never estimated.
-const TONE_OF = { Winning: 'up', Mixed: 'mid', Losing: 'down', Opportunity: 'mid', 'Good month': 'up', 'Tough month': 'down', 'Good week': 'up', 'Tough week': 'down' }
-const verdictOf = (word) => ({ word, tone: TONE_OF[word] ?? 'mid' })
+const verdictOf = (word) => ({ word, tone: verdictTone(word) })
 const shortPath = (path) => { const segs = path.split('/').filter(Boolean); return segs.length > 1 ? `…/${segs.at(-1)}` : path }
 const pageOf = (c, domain, extra = {}) => (c ? { path: c.path, text: shortPath(c.path), n: c.n, domain, isNew: !!c.isNew, ...extra } : null)
 export const topicHref = (theme) => `/tracker?topic=${encodeURIComponent(theme)}`
@@ -629,7 +630,7 @@ function competitorGap(o, d, x) {
   if (!h) return { ok: false, reason: 'nobreakdown', brand: d.name, rival: rn }
   const theirs = h.onlyThem + h.themFirst
   const ours = h.onlyYou + h.youFirst
-  const word = ours > theirs * 4 ? 'Winning' : ours > theirs ? 'Mixed' : 'Losing'
+  const word = ours > theirs * 4 ? 'Winning' : ours > theirs ? 'Mixed' : 'Room to grow'
   const themes = [...h.themes].sort((a, b) => b.prompts.length - a.prompts.length)
   const wins = winsOf(h)
   const bare = h.why.filter((w) => !w.you).length
@@ -679,7 +680,7 @@ function weeklySummary(o, d, x) {
   const moved = d.moved[o.period] ?? d.moved['30d']
   const net = flow.won - flow.lost
   const span = o.period === 'week' ? 'week' : 'month'
-  const word = net > 0 && flow.lost * 2 <= flow.won ? `Good ${span}` : net >= 0 ? 'Mixed' : `Tough ${span}`
+  const word = net > 0 && flow.lost * 2 <= flow.won ? `Good ${span}` : net >= 0 ? 'Mixed' : `Slower ${span}`
   const best = moved.find((m) => m.d > 0)
   const lost = moved.filter((m) => m.d < 0)
   const ago = o.period === 'week' ? 'last week' : DATES[i0]
@@ -743,7 +744,7 @@ function ceoSummary(o, d, x) {
   const lead0 = me[i0] - top.series[i0]
   const ahead = lead > 0
   const gaining = me.at(-1) > me[i0]
-  const word = ahead && gaining ? 'Winning' : ahead || gaining ? 'Mixed' : 'Losing'
+  const word = ahead && gaining ? 'Winning' : ahead || gaining ? 'Mixed' : 'Room to grow'
   const ratio = top.series.at(-1) ? Math.round(me.at(-1) / top.series.at(-1)) : null
   const finding = ahead
     ? `Yes. ${d.name} is in ${me.at(-1)}% of AI answers${ratio >= 2 ? `, ${times(ratio)} ${top.name}` : `, ahead of ${top.name}`}, and the lead ${lead > lead0 ? 'grew' : lead < lead0 ? 'shrank' : 'held at'} ${lead === lead0 ? '' : `${Math.abs(lead - lead0)} points`}.`
@@ -967,6 +968,18 @@ export function templatesFor(brandId) {
 }
 
 // ---- New report suggestions (shown under the empty box on focus): the text, and the dropdowns it sets ----------
+// Their rows are kept from the start: until the brand's data is in, SUGGESTION_ROWS placeholder rows hold the space,
+// so the list doesn't grow when the competitor suggestion ("Where is X beating us?") can be written.
+// app: not ready while the live facts for this brand are still loading and have no competitors yet.
+// mock: the data is instant; ?cards=suggestions:loading (or ?cards=loading) previews the not-ready state.
+export const SUGGESTION_ROWS = 4
+export function suggestionsReady(brandId) {
+  if (cardStatus('suggestions').state === 'loading') return false
+  const live = liveFacts()
+  if (!live || live.brandId !== brandId) return true
+  return !live.loading || (Array.isArray(live.competitors) && live.competitors.length > 0)
+}
+export const suggestionPlaceholders = () => Array.from({ length: SUGGESTION_ROWS }, (_, i) => ({ id: `loading-${i}`, placeholder: true }))
 export function suggestionsFor(brandId) {
   const d = dataFor(brandId)
   const rival = d?.rivals.find((r) => d.h2h[r.key])
@@ -1014,7 +1027,7 @@ export function stepsFor(o) {
 
 // ---- the library (All reports) ----------------------------------------------------------------------------------
 export const TODAY = new Date(2026, 9, 28) // the mock's "today": Wednesday, two days after the Oct 26 sync
-export const VERDICT_TONE = { 'Good week': 'up', 'Good month': 'up', Winning: 'up', Mixed: 'mid', Opportunity: 'mid', 'Tough week': 'down', 'Tough month': 'down', Losing: 'down' }
+export { VERDICT_TONE, verdictTone, verdictWord } from './verdicts.js'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 export const parseDay = (s) => { const [m, d] = s.split(' '); return new Date(2026, MONTHS.indexOf(m), Number(d)) }
@@ -1041,7 +1054,7 @@ export function weeklyRuns(brandId) {
   for (let i = 1; i < DATES.length; i++) {
     const net = d.series.named[i] - d.series.named[i - 1]
     const ds = d.series.score[i] - d.series.score[i - 1]
-    const verdict = net > 0 && ds > 0 ? 'Good week' : net < 0 && ds < 0 ? 'Tough week' : 'Mixed'
+    const verdict = net > 0 && ds > 0 ? 'Good week' : net < 0 && ds < 0 ? 'Slower week' : 'Mixed'
     const n = Math.abs(net)
     const latest = i === DATES.length - 1
     const headline = latest ? buildReport(saved.opts, saved.prompt).headline
@@ -1100,14 +1113,14 @@ export function seriesRuns(s) {
       const lead = (x) => me[x] - Math.max(...d.rivals.map((r) => d.share[r.key][x]))
       const ahead = lead(i) > 0
       const gaining = me[i] > me[j]
-      verdict = ahead && gaining ? 'Winning' : ahead || gaining ? 'Mixed' : 'Losing'
+      verdict = ahead && gaining ? 'Winning' : ahead || gaining ? 'Mixed' : 'Room to grow'
       headline = ahead ? `The brand AI names most for ${d.lead}${gaining ? ', and gaining' : ''}.` : `A competitor is named more than you for ${d.lead}.`
       change = `${signedN(me[i] - me[j])} pts share`
     } else {
       const net = d.series.named[i] - d.series.named[j]
       const ds = d.series.score[i] - d.series.score[j]
       const span = step === 1 ? 'week' : 'month'
-      verdict = net > 0 && ds > 0 ? `Good ${span}` : net < 0 && ds < 0 ? `Tough ${span}` : 'Mixed'
+      verdict = net > 0 && ds > 0 ? `Good ${span}` : net < 0 && ds < 0 ? `Slower ${span}` : 'Mixed'
       const since = step === 1 ? 'the week before' : DATES[j]
       headline = net > 0 ? `In ${net} more AI ${net === 1 ? 'answer' : 'answers'} than ${since}.` : net < 0 ? `In ${-net} fewer AI ${net === -1 ? 'answer' : 'answers'} than ${since}.` : `In as many AI answers as ${since}.`
       change = `${signedN(net)} ${Math.abs(net) === 1 ? 'answer' : 'answers'}`

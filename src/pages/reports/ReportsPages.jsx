@@ -4,7 +4,8 @@ import Modal from '../../components/ui/Modal'
 import Segmented from '../../components/dashboard/Segmented'
 import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate, usePath } from '../../router'
-import { AUDIENCES, KINDS, REPORT_BRANDS, VERDICT_TONE, library, monthGroup, runSummary, savedReports, schedules } from '../../data/reports'
+import { AUDIENCES, KINDS, REPORT_BRANDS, library, monthGroup, runSummary, savedReports, schedules } from '../../data/reports'
+import { verdictTone, verdictWord } from '../../data/verdicts'
 import { brand as workspaceBrand } from '../../store/workspace'
 import ReportThread from './ReportPage'
 import ScheduledPage from './ScheduledPage'
@@ -40,8 +41,8 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 const TYPES = Object.entries(KINDS).map(([id, k]) => ({ id, label: k.name }))
 const KIND_ICON = { weekly: CalendarDays, ceo: Briefcase, rival: Swords, content: PenLine, custom: MessageCircleQuestion }
 const KIND_WORD = { weekly: 'Summary', ceo: 'CEO summary', rival: 'Competitor gap', content: 'Content plan', custom: 'Custom' }
-const TONE_DOT = { up: 'var(--ink)', mid: 'var(--color-stone-400)', down: 'var(--negative)' }
-const toneOf = (v) => VERDICT_TONE[v] ?? 'mid'
+const TONE_DOT = { up: 'var(--ink)', mid: 'var(--color-stone-400)', caution: 'var(--caution)' }
+const toneOf = verdictTone
 // the brand in scope: the one the brand switcher is on (when it has reports at all), else the default
 const scopeBrand = () => (REPORT_BRANDS.some((b) => b.id === workspaceBrand.id) ? workspaceBrand.id : defaultBrand())
 const H2 = 'flex items-baseline gap-2 text-[15px] leading-5 font-semibold text-stone-900'
@@ -207,11 +208,11 @@ function SeriesRow({ s, open, onToggle, onRun, starred, onStar, showBrand }) {
             <span className={`block text-[12px] leading-4 ${t3}`}>{s.cadence} · {s.recipients === 1 ? '1 recipient' : `${s.recipients} recipients`}</span>
           </span>
         </button>
-        <span className="relative flex items-center gap-1.5" onMouseLeave={() => setTip(null)} role="img" aria-label={`Verdicts, oldest to newest: ${dots.map((r) => `${r.date} ${r.verdict}`).join(', ')}`}>
+        <span className="relative flex items-center gap-1.5" onMouseLeave={() => setTip(null)} role="img" aria-label={`Verdicts, oldest to newest: ${dots.map((r) => `${r.date} ${verdictWord(r.verdict)}`).join(', ')}`}>
           {dots.map((r, i) => <span key={r.id} onMouseEnter={() => setTip(i)} className="h-2.5 w-2.5 rounded-full transition-transform duration-150 hover:scale-125" style={{ background: TONE_DOT[toneOf(r.verdict)] }} />)}
           {tip != null && (
             <span role="tooltip" className="pointer-events-none absolute bottom-full z-20 mb-2 w-max max-w-[280px] -translate-x-1/2 rounded-lg border border-line bg-raised px-2.5 py-1.5 text-[12px] leading-4 text-stone-800 shadow-sm" style={{ left: tip * 16 + 5 }}>
-              <span className={`block ${t3}`}>{dots[tip].date} · {dots[tip].verdict}</span>{dots[tip].headline}
+              <span className={`block ${t3}`}>{dots[tip].date} · {verdictWord(dots[tip].verdict)}</span>{dots[tip].headline}
             </span>
           )}
         </span>

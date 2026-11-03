@@ -3,6 +3,7 @@ import { ArrowRight, Info } from 'lucide-react'
 import SiteLogo from '../../components/ui/SiteLogo'
 import { EngineMark } from '../insights/parts'
 import { linkClick } from '../../router'
+import { verdictTone, verdictWord } from '../../data/verdicts'
 
 // The report block library (v2). One question, one hero built for it; every section is title · one-line takeaway ·
 // the visual · details 5 at a time ("Show all N"). The reading column is 760px; a figure can go wide (the article's
@@ -11,7 +12,6 @@ export const t2 = 'text-stone-600'
 export const t3 = 'text-stone-500'
 export const READ = 'max-w-[760px]'
 const INK = 'var(--ink)'
-const RED = 'var(--negative)'
 const TRACK = 'color-mix(in srgb, var(--ink) 9%, transparent)'
 const LABEL = 'text-[13px] leading-[18px] text-stone-600'
 const META = 'text-[12px] leading-4 text-stone-500'
@@ -40,12 +40,13 @@ export function Delta({ n, unit = '', bad = n < 0, className = '' }) {
 
 // ---- verdict: the word with its dot, then the headline sentence -----------------------------------------------------
 export function Verdict({ v, headline }) {
-  const tone = v?.tone ?? 'mid'
+  // the word's tone from the shared verdict map (an old stored word shows as the new one): muted amber dot, never red
+  const tone = v ? verdictTone(v.word) : 'mid'
   return (
     <div>
       {v && (
-        <p className={`inline-flex items-center gap-2 text-[15px] leading-5 font-semibold ${tone === 'down' ? 'text-negative' : 'text-stone-900'}`}>
-          <span className="h-2 w-2 rounded-full" style={{ background: tone === 'down' ? RED : tone === 'up' ? INK : 'var(--color-stone-400)' }} aria-hidden />{v.word}
+        <p className="inline-flex items-center gap-2 text-[15px] leading-5 font-semibold text-stone-900">
+          <span className="h-2 w-2 rounded-full" style={{ background: tone === 'caution' ? 'var(--caution)' : tone === 'up' ? INK : 'var(--color-stone-400)' }} aria-hidden />{verdictWord(v.word)}
         </p>
       )}
       <h1 className={`mt-2 ${READ} text-[26px] leading-[34px] font-semibold tracking-[-0.01em] text-stone-900 [text-wrap:balance] max-md:text-[22px] max-md:leading-[29px]`}>{headline}</h1>
@@ -277,7 +278,7 @@ export function PageLeaderboard({ v, shown = Infinity }) {
         {rows.map((r) => (
           <li key={`${r.domain}${r.path}`} className={`grid grid-cols-[minmax(0,1fr)_72px] items-center gap-x-4 py-2.5 ${PAGE_COLS}`}>
             <span className="flex min-w-0 items-center gap-2.5">
-              <SiteLogo domain={r.domain} name={r.who} className="h-5 w-5 shrink-0 rounded" imgPad="p-0" initialClass="text-[9px]" plate />
+              <SiteLogo domain={r.domain} name={r.who} className="h-5 w-5 shrink-0 rounded" initialClass="text-[9px]" />
               <span className="min-w-0">
                 <span className="block truncate text-[13px] leading-[18px] text-stone-900" title={`${r.domain}${r.path}`}>{r.path}</span>
                 <span className={`block ${META}`}>{r.who}{r.isNew ? ' · new' : ''}</span>
