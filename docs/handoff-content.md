@@ -24,7 +24,7 @@ Newest first. Release PR #22 (develop → main) is open and carries all of these
 | f63660f | CLAUDE.md colour rule matches DESIGN.md §3. |
 | 1ccaae9 | App catch-up (the app's Oct 31 – Nov 3 design back in the mock). |
 
-Tests: `npm test` = `node --test src/ tests/` (330 pass, 1 skipped on Node 18: a deflated-DOCX unit test the browser
+Tests: `npm test` = `node --test src/` then `node tests/run-browser.mjs` (the browser tests one file at a time; six at once timed out on a loaded Mac) (330 pass, 1 skipped on Node 18: a deflated-DOCX unit test the browser
 test covers). Browser tests in `tests/` drive Chrome through playwright-core (`tests/chromePath.mjs`).
 
 ## 2. Branches not on develop
