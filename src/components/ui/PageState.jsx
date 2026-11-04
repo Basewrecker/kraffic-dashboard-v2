@@ -63,7 +63,7 @@ export function AppLoading({ label = 'Loading' }) {
   return (
     <div className="flex min-h-screen bg-page">
       {/* the sidebar's outline (desktop) / the top bar (phones) */}
-      <aside aria-hidden className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col gap-3 border-r border-stone-200 bg-stone-50 px-3 pt-4 lg:flex">
+      <aside aria-hidden className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col gap-3 border-r border-stone-200 bg-stone-50 px-3 pt-4 lg:flex">
         <span className={`${line} h-7 w-28`} />
         <span className={`${line} mt-6 h-4 w-20`} />
         {[0, 1, 2].map((i) => <span key={i} className={`${line} h-8 w-full`} />)}

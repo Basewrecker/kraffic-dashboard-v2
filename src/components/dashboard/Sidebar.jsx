@@ -173,7 +173,6 @@ export function WorkspaceSwitcher() {
     if (open && e.key === 'Escape') { e.preventDefault(); close() }
     else if (open && e.key === 'Tab' && !e.shiftKey && e.target === menu.current?.querySelector('[role=menuitem]:last-of-type')) setOpen(false)
   }
-  const agencyUser = role() === 'agency'
   return (
     <div ref={wrap} className="relative" onKeyDown={onKey}>
       {mounted && pos && createPortal(
@@ -188,8 +187,9 @@ export function WorkspaceSwitcher() {
         className="flex h-12 w-full items-center gap-3 rounded-lg border border-line bg-surface px-3 text-left outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus">
         <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{account.name}</span>
-          <span className="block truncate text-[12px] leading-4 text-stone-500">{agencyUser ? brand.client : account.plan}</span>
+          {/* as the live site: the brand's domain, then its short name */}
+          <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{account.domain}</span>
+          <span className="block truncate text-[12px] leading-4 text-stone-500">{account.shortName}</span>
         </span>
         <ChevronsUpDown size={14} className="ml-auto shrink-0 text-stone-500" aria-hidden />
       </button>
@@ -197,35 +197,75 @@ export function WorkspaceSwitcher() {
   )
 }
 
+// a small filled caret (▾) before each nav section label
+function Caret({ className = '' }) {
+  return <svg viewBox="0 0 10 10" aria-hidden className={`size-2.5 shrink-0 fill-current ${className}`}><path d="M2 3.5h6L5 7.2z" /></svg>
+}
+
+// Nav density (owner, 2026-11-04, after peec.ai): rows 30px (44px below lg, the phone drawer's touch rows), 8px side
+// padding, 6px radius, 1px apart; 14/500 ink text; 16px icons at a 1.5 stroke, muted (ink when selected), 10px to the
+// text. Selected = the soft --tint background (no left bar). Section labels 12/500 muted with a caret that collapses the
+// section (200ms height), 16px above a section and 4px below its label.
+// Collapsed sections are remembered per account in this browser. A collapsed section keeps the current page's row.
+const COLLAPSED_KEY = `kraffic:nav:collapsed:${account.domain}`
+const readCollapsed = () => { try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]')) } catch { return new Set() } }
+
+// one row's (or one section's) collapsible box: animates its height between 0 and auto (grid rows 0fr ↔ 1fr)
+function Fold({ open, children }) {
+  return (
+    <div className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+      inert={open ? undefined : ''} aria-hidden={open ? undefined : true}>
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  )
+}
+
 // the grouped nav links (sidebar on desktop, the drawer on phones); onNavigate runs before an in-app link navigates.
 // nav: another set of groups (First-time setup's setup mode)
 export function NavLinks({ path, onNavigate, nav = groups }) {
+  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const toggle = (label) => setCollapsed((prev) => {
+    const next = new Set(prev)
+    if (next.has(label)) next.delete(label); else next.add(label)
+    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next])) } catch { /* private mode: this visit only */ }
+    return next
+  })
   return (
     <nav className="flex flex-col" aria-label="Main">
-      {nav.map((g, gi) => (
-      <div key={g.label} role="group" aria-labelledby={`nav-${g.label}`} className="flex flex-col gap-0.5">
-      <div id={`nav-${g.label}`} className={`mb-1.5 px-3 text-[12px] leading-4 font-medium text-stone-500 ${gi ? 'mt-6' : ''}`}>{g.label}</div>
-      {g.items.map(({ label, icon: Icon, href, beta }) => {
+      {nav.map((g, gi) => {
+        const open = !collapsed.has(g.label)
+        const id = `nav-${g.label.replace(/\W+/g, '-')}`
+        return (
+      <div key={g.label} role="group" aria-labelledby={`${id}-label`} className={`flex flex-col ${gi ? 'pt-4' : ''}`}>
+      <button type="button" id={`${id}-label`} aria-expanded={open} aria-controls={id} onClick={() => toggle(g.label)}
+        className="group/sec relative mb-1 flex h-4 items-center gap-1 self-start rounded-sm px-2 text-[12px] leading-4 font-medium text-stone-500 outline-none transition-colors duration-150 before:absolute before:-inset-y-1 before:inset-x-0 hover:text-stone-700 focus-visible:ring-2 focus-visible:ring-focus">
+        <Caret className={`-ml-0.5 transition-transform duration-200 motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
+        {g.label}
+      </button>
+      <div id={id}>
+      {g.items.map(({ label, icon: Icon, href, beta }, i) => {
         const active = href === path
         return (
+        <Fold key={label} open={open || active}>
         <a
-          key={label}
           href={href ?? '#'}
           onClick={href ? (e) => { onNavigate?.(); linkClick(href)(e) } : (e) => e.preventDefault()}
           aria-current={active ? 'page' : undefined}
-          className={`relative flex h-11 items-center gap-3 rounded-lg px-3 text-body font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus lg:h-10 ${
-            active ? 'bg-selected text-ink' : 'text-stone-600 hover:bg-nav-hover hover:text-stone-900'
+          className={`flex h-11 items-center gap-2.5 rounded-md px-2 text-[14px] leading-5 font-medium text-ink outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus lg:h-[30px] ${i ? 'mt-px' : ''} ${
+            active ? 'bg-[var(--tint)]' : 'hover:bg-nav-hover'
           }`}
         >
-          {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-ink" aria-hidden />}
-          <Icon size={18} strokeWidth={2} className={active ? 'text-ink' : undefined} />
-          {label}
+          <Icon size={16} strokeWidth={1.5} aria-hidden className={`shrink-0 ${active ? 'text-ink' : 'text-stone-500'}`} />
+          <span className="min-w-0 truncate">{label}</span>
           {beta && <BetaTag className="ml-auto" />}
         </a>
+        </Fold>
         )
       })}
       </div>
-      ))}
+      </div>
+        )
+      })}
     </nav>
   )
 }
@@ -233,14 +273,16 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
 export default function Sidebar({ path = '/overview', nav }) {
   return (
     // below lg the sidebar is replaced by the top bar + drawer (MobileNav)
-    <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-sidebar-line bg-sidebar lg:flex">
+    // 232px wide (owner, 2026-11-04). Logo and footer stay pinned; when the nav doesn't fit (1366×768 with every section
+    // open) only the nav list scrolls, with a thin scrollbar shown on hover (.nav-scroll in index.css)
+    <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col border-r border-sidebar-line bg-sidebar lg:flex">
       {/* top: the logo (a link home). px-3 everywhere: logo, nav icons and the footer blocks share one x */}
       <div className="shrink-0 px-3 pt-4">
         <a href={HOME} title="Home" aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
       </div>
-      <div className="mt-6 px-3"><NavLinks path={path} nav={nav} /></div>
+      <div className="nav-scroll mt-6 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 pb-2"><NavLinks path={path} nav={nav} /></div>
       {/* footer: theme, then the workspace (its menu holds Home) */}
-      <div className="mt-auto flex flex-col gap-2 px-3 pb-3">
+      <div className="flex shrink-0 flex-col gap-2 px-3 pb-3 pt-1">
         <ThemeToggle />
         <WorkspaceSwitcher />
       </div>
