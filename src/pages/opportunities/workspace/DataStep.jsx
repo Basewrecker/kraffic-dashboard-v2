@@ -19,7 +19,7 @@
 // pdf.js, DOCX, CSV, TXT; up to 10 MB each, 5 files) and nothing is uploaded: a row reads "Read · ~1,200 words" or
 // "Couldn't read this file" (the reason on hover); a file that can't be added says why in red ("Not a PDF, DOCX, CSV or
 // TXT", "Over 10 MB", "Only 5 files at a time") until it's removed. No "Suggested from your files" (nothing finds facts
-// in the text; the draft reads it). Under the intro, "Sent with your draft, not stored" (once for the step, not under
+// in the text; the draft reads it). Under the intro, "Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team." (once for the step, not under
 // each block: the three would repeat it). Everything goes into ONE userFacts payload (data/userFacts.js), capped at
 // 20k characters: over it, a line under the files says "Too long, the first 20k characters will be used" and which
 // file is cut (and where) or left out. The questions are the response's own flags an answer can clear.
@@ -99,7 +99,7 @@ export default function DataStep({ data, update, v1 = false, cap = null, drafted
   return (
     <div>
       <p className="text-[15px] leading-[22px] text-stone-500">Give the draft what only you know. Everything here is optional.</p>
-      {v1 && <p className="mt-1 text-[13px] leading-[18px] text-stone-500">Sent with your draft, not stored</p>}
+      {v1 && <p className="mt-1 text-[13px] leading-[18px] text-stone-500">Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team.</p>}
       <ol className="mt-6 divide-y divide-[var(--div)]">
         <Task n={1} title="Upload documents" why="Studies, spec sheets or price lists the draft can quote." status={nFiles ? `${nFiles} ${nFiles === 1 ? 'file' : 'files'}` : null}>
           <DropZone slim={nRows > 0} v1={v1} onFiles={addFiles} onPaste={() => { setDraftText(pasted); setPasting(true) }} />

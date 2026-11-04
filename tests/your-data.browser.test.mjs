@@ -35,7 +35,7 @@ test('Your data (v1): files read in the browser, a fact, the 20k cap, kept per p
     const dlg = page.getByRole('dialog')
     await dlg.getByText('Upload documents').waitFor()
     assert.match(await dlg.locator('h3').first().textContent(), /^Step 2 of 4: Add your data/)
-    assert.equal(await dlg.getByText('Sent with your draft, not stored').count(), 1)
+    assert.equal(await dlg.getByText('Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team.').count(), 1)
 
     const input = dlg.locator('input[type=file]')
     await input.setInputFiles([

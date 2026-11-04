@@ -131,7 +131,7 @@ amber pair). Until one is picked, nothing below changes.
   **Your data, v1 (owner, 2026-11-04):** the round-4 design (three numbered blocks, all optional, Skip always there), in
   the focus panel (880px). Files are read in the browser (PDF, DOCX, CSV, TXT; 10 MB each, 5 files; nothing uploaded):
   a row says "Read · ~1,200 words", or "Couldn't read this file" / why it can't be added in `--negative` red (an error).
-  One muted 13px line under the intro, once for the step: "Sent with your draft, not stored". Everything becomes one
+  One muted 13px line under the intro, once for the step: "Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team.". Everything becomes one
   `userFacts` payload capped at 20k characters (`pages/opportunities/data/userFacts.js`); over it, a 13px line with an
   ⓘ under the files: "Too long, the first 20k characters will be used." + the file cut and where. No "Suggested from
   your files" in v1, so the facts table drops its source column and the value takes it. The reading bar eases to 90%

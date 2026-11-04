@@ -122,7 +122,7 @@ Request: `{ prompt, brandDomain, brandName, competitors, sources, targetUserId }
 ### 3a. Your data (step 2, v1; optional, Skip always there)
 Opens in the focus panel (880px) from the Target bar's **Add your data** (or **Skip to draft**). The round-4 design:
 three numbered blocks, all optional. Under the intro, once for the step (not under each block, where it would repeat
-three times): **"Sent with your draft, not stored"**.
+three times): **"Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team."**.
 - **① Upload documents.** PDF, DOCX, CSV, TXT; up to 10 MB each, 5 files (checked by extension AND MIME type; an
   unknown or `octet-stream` MIME is accepted on the extension). Read **in the browser**: nothing is uploaded or stored
   on a server. Each row: icon · name · size · `Read · ~1,200 words` (exact under 100, then to the nearest 10 / 100 /
