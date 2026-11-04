@@ -12,18 +12,18 @@ export const workspaceAgency = { name: 'PTA Agency', domain: 'pta.agency' }
 export const workspaceUser = { name: 'Alex Morgan', email: 'alex@pta.agency' } // the signed-in user (mock)
 export const workspaceDirectory = [
   { id: 'dermasuri-co', client: 'Dermasuri Skincare', brands: [
-    { id: 'dermasuri', name: 'Dermasuri', domain: 'dermasuri.com', data: 'full' },
-    { id: 'dermasuri-men', name: 'Dermasuri Men', domain: 'dermasurimen.com', data: 'empty' },
+    { id: 'dermasuri', name: 'Dermasuri', shortName: 'Dermasuri', domain: 'dermasuri.com', data: 'full' },
+    { id: 'dermasuri-men', name: 'Dermasuri Men', shortName: 'Dermasuri Men', domain: 'dermasurimen.com', data: 'empty' },
   ] },
   { id: 'lumen-co', client: 'Lumen Beauty Group', brands: [
-    { id: 'lumen', name: 'Lumen Skin', domain: 'lumenskin.com', data: 'full' },
+    { id: 'lumen', name: 'Lumen Skin', shortName: 'Lumen', domain: 'lumenskin.com', data: 'full' },
   ] },
   { id: 'brightside-co', client: 'Brightside', brands: [
-    { id: 'brightside', name: 'Brightside Botanics', domain: 'brightsidebotanics.com', data: 'empty', setUp: true }, // prompts and competitors in, first sync pending
+    { id: 'brightside', name: 'Brightside Botanics', shortName: 'Brightside', domain: 'brightsidebotanics.com', data: 'empty', setUp: true }, // prompts and competitors in, first sync pending
   ] },
   { id: 'northwind-co', client: 'Northwind Pharmacy', brands: [
-    { id: 'northwind-derm', name: 'Northwind Derm', domain: 'northwindderm.com', data: 'empty' },
-    { id: 'northwind-sun', name: 'Northwind Sun', domain: 'northwindsun.com', data: 'empty' },
+    { id: 'northwind-derm', name: 'Northwind Derm', shortName: 'NW Derm', domain: 'northwindderm.com', data: 'empty' },
+    { id: 'northwind-sun', name: 'Northwind Sun', shortName: 'NW Sun', domain: 'northwindsun.com', data: 'empty' },
   ] },
 ]
 const storedBrandId = (() => { try { return typeof localStorage !== 'undefined' ? localStorage.getItem('kraffic:brand') : null } catch { return null } })()
@@ -35,6 +35,8 @@ export const currentBrand = workspaceDirectory.flatMap((c) => c.brands.map((b) =
 const featuresOff = (() => { try { return (new URLSearchParams(window.location.search).get('off') || '').split(',') } catch { return [] } })()
 export const account = {
   name: currentBrand.name,
+  // the brand card's second line, under the domain (live: "FoA" for Finance of America); falls back to the name
+  shortName: currentBrand.shortName ?? currentBrand.name,
   plan: 'PTA · Agency',
   domain: currentBrand.domain,
   llm: 'Google AI Overview',

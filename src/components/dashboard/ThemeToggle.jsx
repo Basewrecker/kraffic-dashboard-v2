@@ -8,12 +8,12 @@ const options = [
 ]
 
 // Segmented Light / Dark / System control for the sidebar footer: exactly the footer's width (three equal cells);
-// below 216px of its own width (a sidebar under 240px) it drops the labels and shows icons only.
+// below 200px of its own width (a sidebar under 224px; the sidebar is 232) it drops the labels and shows icons only; under 216px (the 232px sidebar) the cells sit 2px apart and the icon 4px from its label (not 4 / 6), so "System" fits.
 export default function ThemeToggle() {
   const theme = useTheme()
   return (
     <div className="@container w-full" role="group" aria-label="Theme">
-    <div className="grid h-10 w-full grid-cols-3 gap-1 rounded-lg bg-switch p-1 ring-1 ring-inset ring-switch-line">
+    <div className="grid h-10 w-full grid-cols-3 gap-1 @max-[215px]:gap-0.5 rounded-lg bg-switch p-1 ring-1 ring-inset ring-switch-line">
       {options.map(([id, label, Icon]) => (
         <button
           key={id}
@@ -24,13 +24,13 @@ export default function ThemeToggle() {
           }}
           aria-pressed={theme === id}
           aria-label={label}
-          className={`flex min-w-0 items-center justify-center gap-1.5 rounded-md text-[13px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
+          className={`flex min-w-0 items-center justify-center gap-1.5 @max-[215px]:gap-1 rounded-md text-[13px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
             theme === id ? 'bg-[var(--ink)] text-[var(--color-surface)]' : 'text-stone-600 hover:text-stone-900'
           }`}
         >
           {/* key flips when this button becomes active, replaying the turn-in */}
           <Icon key={theme === id ? 'on' : 'off'} size={14} aria-hidden className={theme === id ? 'theme-icon-in' : undefined} />
-          <span className="truncate @max-[215px]:hidden">{label}</span>
+          <span className="truncate @max-[199px]:hidden">{label}</span>
         </button>
       ))}
     </div>

@@ -24,6 +24,7 @@ never `gray-*`, never `bg-white`.
 | Softer report-verdict dot only (muted amber) | `--caution` | `#B8893E` | `#C9A160` |
 | Sentiment: a Mixed page | `--sent-mixed` | `#57534E` | `#808080` |
 | Beta tag, the only violet | `--beta` | `#6E56CF` | `#7C66DC` |
+| Beta pill text / fill (from `--beta`) | `--beta-fg`, `--beta-bg` | `--beta` on `--beta` at 15% | `--beta` 65% toward white, on `--beta` at 15% |
 | Reports send button, the only blue | `--send` | `#3C65C0` | same |
 | Chart: you | `--line-you` = `--ink` | ink | ink |
 | Chart: competitors, line chart only | `--line-1` … `--line-4` | indigo, red, mint, fuchsia | lighter tints |
@@ -65,7 +66,21 @@ amber pair). Until one is picked, nothing below changes.
   brand takes its palette colour by rank like every other brand (owner, 2026-11-03); elsewhere it stays ink.
 - Red (`--negative`) only for a loss of yours or a failure. A competitor's own gain is never red; it's the change
   chip's job to say whether a move is bad for you.
-- Violet (`--beta`) only for the Beta tag. Blue (`--send`) only for the Reports send button.
+- Violet (`--beta`) only for the Beta pill. Beta pill: 18px, 11px text, soft violet tint, no sparkle. Only on pages
+  still in preview. (Owner, 2026-11-04, replacing the solid violet tag: violet text on violet at 15%, `--beta-fg` on
+  `--beta-bg`, 11px/600, 6px side padding, no motion; `components/ui/BetaTag.jsx`.) Blue (`--send`) only for the
+  Reports send button.
+- **Sidebar (owner, 2026-11-04):** 232px wide. The logo stays pinned at the top and the theme switch + brand card at
+  the bottom; when the nav doesn't fit (1366×768 with every section open) only the nav list scrolls, with a thin 6px
+  scrollbar shown on hover (`.nav-scroll`), never sideways. Nothing is cut off. The brand card reads as the live site:
+  the brand's domain on line 1, its short name on line 2 (`shortName` on the mock brands, else the name).
+- **Sidebar nav density (owner, 2026-11-04, after peec.ai), nav items only; the logo header and the theme + brand
+  card footer are unchanged:** rows 30px (44px below lg, the phone drawer's touch rows), 8px side padding, 6px radius,
+  1px apart; 14/500 ink text; 16px icons at a 1.5 stroke, `--color-stone-500` (ink when selected), 10px to the text.
+  Selected = the `--tint` background, no left bar. Section labels 12/500 `--color-stone-500`, 16px above each section
+  after the first, 4px below the label, with a ▾ caret that collapses the section (height, 200ms; none under reduced
+  motion). Collapsed sections are kept per account in localStorage (`kraffic:nav:collapsed:<domain>`); a collapsed
+  section still shows the current page's row.
 - No yellow, no coloured pills or links, no rainbow palettes. At most three colours in any one chart. Exceptions,
   approved by the owner on 2026-11-02 and updated on 2026-11-03 (built in the app first):
   - **Brand colours in Share of voice and Visibility history:** a fixed cool palette assigned by rank (biggest share

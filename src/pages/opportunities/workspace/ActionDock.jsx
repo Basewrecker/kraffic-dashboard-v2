@@ -17,7 +17,7 @@ export default function ActionDock({ show, open, choice, action, secondary = nul
   const t = still ? 'opacity 150ms ease-out' : `opacity 220ms ease-out, transform ${Math.min(SP.duration, 220)}ms ${SP.easing}`
   return (
     <div aria-hidden={!show || undefined} inert={show ? undefined : ''}
-      className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center px-4 print:hidden lg:pl-[248px]">
+      className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center px-4 print:hidden lg:pl-[232px]">
       <div role="region" aria-label="Current step"
         className="pointer-events-auto flex max-w-full items-center gap-3 whitespace-nowrap rounded-[14px] bg-ink p-2 pl-4 text-on-ink shadow-[0_8px_24px_-8px_color-mix(in_srgb,var(--ink)_45%,transparent)]"
         style={{ opacity: show ? 1 : 0, transform: show || still ? 'translateY(0)' : 'translateY(16px)', transition: t }}>

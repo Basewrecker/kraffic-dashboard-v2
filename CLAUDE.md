@@ -48,7 +48,8 @@ repo.
 - Production must look exactly like this mock, with no remnants of the old UI.
 - **Locked design system.** Manrope; the existing type scale; graphite tokens only (no hex, no `gray-*`, no
   `bg-white`); light and dark; no uppercase labels; no coloured pills or links (two exceptions: the blue Reports send
-  button, and the solid violet Beta tag, the `--beta` token, the only use of violet); no yellow, except the Share of
+  button, and the Beta pill: 18px, 11px text, soft violet tint (`--beta`), no sparkle, only on pages still in
+  preview; the only use of violet); no yellow, except the Share of
   voice medals and Top share gold and the muted amber `--caution` dot on softer report verdicts; red only for drops
   and errors; brand colours only in Share of voice and the Visibility history chart (the fixed palette by rank, the
   user's brand included, DESIGN.md §3) and Reports' competitor series, ink everywhere else; `tabular-nums` on numbers; never
