@@ -8,6 +8,9 @@ Newest first. Release PR #22 (develop → main) is open and carries all of these
 
 | Hash | What |
 |---|---|
+| b27f059 | Hooks: squash-merge conflicts stop for the owner too (`merge_key` in lib.sh: MERGE_HEAD, or `squash:<commit>` from SQUASH_MSG); test-hooks.sh covers it (84 pass). |
+| c731327 | No-result state on the Prompt mix table: the one "No {Engine} result in the latest scan" line + ⓘ, no brand tabs, no "won n new prompts" notice. Screenshots in `screenshots/no-result/`. |
+| fa046eb | This handoff note. |
 | 07c6b1f | A written draft survives a reload (saved brief keeps `written` + `sent`; list shows "Draft ready" and opens it). pdfjs-dist pinned to exactly 4.10.38. Port guide §9–10. |
 | c5a40a4 | Your data joins v1: Target page → Your data → Draft → Copy & publish. Browser-only file reading, one `userFacts` payload. |
 | 6a13be7 | Target page: format matrix left (8/12), Update column right (4/12); stacked below 1100px, matrix first. |
@@ -29,16 +32,18 @@ test covers). Browser tests in `tests/` drive Chrome through playwright-core (`t
 
 ## 3. In progress / open decisions
 - Nothing in progress in the mock.
-- Open (owner): the "Prompt mix" / "Where rivals win" table has no no-result line yet; Release PR #22's description
-  wasn't updated with the brand-menu note (a GitHub write was blocked; the owner said leave PR #22 as it is).
-- Tooling gap: `.claude/hooks/conflict-stop.sh` only notices conflicts of a normal merge (MERGE_HEAD), not a squash
-  merge, so `approve-merge.sh conflicts` has nothing to approve after `git merge --squash`. Not fixed.
+- Open (owner): Release PR #22's description wasn't updated with the brand-menu note (a GitHub write was blocked; the
+  owner said leave PR #22 as it is).
+- Done 2026-11-04: the Prompt mix no-result line (c731327) and the squash-merge conflict gap in the hooks (b27f059).
+  After a conflicted `git merge --squash`, the commit is now blocked until the owner runs
+  `! .claude/hooks/approve-merge.sh conflicts`, same as a normal merge.
 - Disk on the owner's Mac was nearly full earlier (builds and tests failed); ~8 GB free at last check.
 - Older Content screenshots (291 files) are in `~/Documents/design-refs/content-history/`, not in the repo.
 
 ## 4. What the app session is porting
 App session (`~/app_kraffic.ai`, latest name app-kraffic-ai-65). Already ported: aa5622b, 1b79186, a4f95de, 5d2e847.
-Its order now: its own bug-fix round on `feat/content-page`, then 6a13be7 → c5a40a4 → 07c6b1f, adding `userFacts` to
+Its order now: its own bug-fix round on `feat/content-page`, then 6a13be7 → c5a40a4 → 07c6b1f → c731327 (Prompt mix
+no-result line; not yet sent to it), adding `userFacts` to
 the content-recommend route (owner approved: optional field, no tools on the CLI for the draft call, nothing stored;
 the no-tools switch is draft-only because runClaudeCli is shared with scans that need WebSearch). It will run
 `npm audit` in the app and report pdfjs-dist findings to the owner. Mock-only parts it skips: sample data (e.g.
