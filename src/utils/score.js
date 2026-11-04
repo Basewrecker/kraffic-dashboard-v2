@@ -10,5 +10,10 @@ export const isScore = (v) => typeof v === 'number' && Number.isFinite(v)
 // 73 → "73", 73 with '%' → "73%"; no score → "—" (never "0", never "null%")
 export const fmtScore = (v, unit = '') => (isScore(v) ? `${Math.round(v)}${unit}` : NO_SCORE)
 
-// the ⓘ beside a "—": "No result from Gemini in the latest scan"
-export const noResultText = (engine) => `No result from ${engineName(engine)} in the latest scan`
+// the ⓘ beside a "—": "No result from Gemini in the latest scan"; for an older scan, its date ("Sep 7, 2026" or
+// "Sep 7"): "No result from Gemini in the Sep 7 scan"
+const scanOf = (date) => (date ? `the ${String(date).replace(/, \d{4}$/, '')} scan` : 'the latest scan')
+export const noResultText = (engine, date = null) => `No result from ${engineName(engine)} in ${scanOf(date)}`
+
+// a prompt list on an engine with no result: "No Gemini result in the latest scan"
+export const noResultLine = (engine, date = null) => `No ${engineName(engine)} result in ${scanOf(date)}`

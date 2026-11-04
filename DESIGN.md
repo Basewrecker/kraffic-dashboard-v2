@@ -220,8 +220,11 @@ preview and Set up; New / Edit in the site's right drawer.
 - An engine whose latest scan gave no result has no score (null), never 0: the score ring is the empty track with a
   muted "—" in the centre (no fill, no count-up); a score or count reads "—" in muted text with an ⓘ "No result from
   {Engine} in the latest scan" (`src/utils/score.js` `fmtScore`, `src/components/ui/NoResult.jsx`); its change lines
-  (▲/▼ since …) are hidden; per-engine scores in menus, tables and Share of voice read "—"; charts leave a gap at that
-  point (null, never a drop to 0). The All-engines score is unchanged: it averages the engines that answered. Preview:
+  (▲/▼ since …) are hidden; per-engine scores in menus, tables and Share of voice read "—"; a prompt list on that
+  engine is one muted line, "No Gemini result in the latest scan" + ⓘ, with no count badge or pagination; charts leave
+  a gap at that point (null, never a drop to 0), and the Growth view an empty slot whose tooltip reads "—". An older
+  failed scan is the same, its ⓘ naming the day ("No result from Gemini in the Sep 7 scan"; sample data: Gemini's
+  Sep 7). The All-engines score is unchanged: it averages the engines that answered. Preview:
   `?noresult=gemini&engine=gemini`.
 - Two different messages, never mixed:
   - **"Not in your data: …"** for something Kraffic doesn't track (sentiment, a page's traffic, an untracked

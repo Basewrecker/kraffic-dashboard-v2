@@ -1,17 +1,17 @@
 import { useId, useRef, useState } from 'react'
 import { Info } from 'lucide-react'
-import { NO_SCORE, noResultText } from '../../utils/score'
+import { NO_SCORE, noResultLine, noResultText } from '../../utils/score'
 
 // The ⓘ beside a "—" score: "No result from Gemini in the latest scan" on hover or focus (KpiCard's hint, the same
 // button and tooltip). align 'right' opens the tooltip leftwards, for a "—" near a card's right edge.
 // inButton: inside a row that is itself a button (Sync history), the ⓘ is a labelled image with the hover tooltip
 // (a button can't hold a button); the row's name carries the text.
 // The tooltip is fixed to the viewport under the ⓘ, so a card or a collapsing strip with overflow hidden never cuts it.
-export function NoResultHint({ engine, align = 'left', inButton = false }) {
+export function NoResultHint({ engine, date = null, align = 'left', inButton = false }) {
   const [tip, setTip] = useState(null) // { x, y } while shown
   const ref = useRef(null)
   const id = useId()
-  const text = noResultText(engine)
+  const text = noResultText(engine, date)
   const Tag = inButton ? 'span' : 'button'
   const show = () => {
     const r = ref.current?.getBoundingClientRect()
@@ -36,11 +36,22 @@ export function NoResultHint({ engine, align = 'left', inButton = false }) {
 }
 
 // a score with no result: "—" in muted text, then the ⓘ. The caller's type size and weight apply to the dash.
-export default function NoResult({ engine, align, inButton, className = '' }) {
+// date: an older scan's day (Sync history's rows); none = the latest scan
+export default function NoResult({ engine, date, align, inButton, className = '' }) {
   return (
     <span className={`inline-flex items-center gap-1 ${className}`}>
       <span className="text-stone-500">{NO_SCORE}</span>
-      <NoResultHint engine={engine} align={align} inButton={inButton} />
+      <NoResultHint engine={engine} date={date} align={align} inButton={inButton} />
+    </span>
+  )
+}
+
+// a list on an engine with no result (the prompt tables): one muted line and the ⓘ
+export function NoResultLine({ engine }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-small text-stone-500" data-no-result>
+      {noResultLine(engine)}
+      <NoResultHint engine={engine} />
     </span>
   )
 }

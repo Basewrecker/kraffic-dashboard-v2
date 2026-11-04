@@ -251,8 +251,16 @@ export const noResultEngines = () => {
 export const setNoResult = (list) => { noResultOverride = list; cache.clear() }
 // did this engine's latest scan answer? ('all' always has a score: it averages the engines that did)
 export const hasResult = (engine) => !engine || engine === 'all' || !noResultEngines().includes(engine)
-// the latest sync's day for the history chart: a gap there (null), never a drop to 0
-export const engineGaps = (engine) => (hasResult(engine) ? [] : [weekly.at(-1).iso])
+// Older scans that failed on one engine (sample data): engine → the sync days (iso) with no result from it. Gemini's
+// Sep 7 scan didn't complete (citationHistory's FAILED reads this): its Sync history row, history point and that week's
+// mentions are null on Gemini, never estimated. The All-engines score that day averages the engines that answered.
+export const FAILED_SCANS = { gemini: ['2026-09-07'] }
+const syncDateOf = (iso) => { const w = weekly.find((x) => x.iso === iso); return w ? `${w.date}, ${iso.slice(0, 4)}` : null }
+// the sync rows' dates ("Sep 7, 2026") with no result from this engine (the latest included, under ?noresult=)
+export const failedSyncDates = (engine) => (FAILED_SCANS[engine] ?? []).map(syncDateOf).filter(Boolean)
+// the days the history chart leaves a gap on this engine (null, never a drop to 0): its failed scans, and the latest
+// sync when it had no result
+export const engineGaps = (engine) => (!engine || engine === 'all' ? [] : [...(FAILED_SCANS[engine] ?? []), ...(hasResult(engine) ? [] : [weekly.at(-1).iso])])
 
 const mentions = (domain, pid) => trackedPrompts.filter((p) => appearances[p.id][domain].platforms.includes(pid))
 // a brand's share on one engine relative to its share on any engine: scales its weekly history
@@ -293,10 +301,14 @@ function applyEngine(base, engine) {
     changes: r.changes && { ...r.changes, gained: r.changes.gained.filter((g) => visIds.has(g.id)) },
   }))
   // the latest row is the score the card shows on this engine; an engine that never shows the brand loses nothing
-  // the latest scan on this engine with no result: that row's numbers are unknown (null), never 0 of 152
+  // the latest scan on this engine with no result, or an older one that failed (FAILED_SCANS): that row's numbers are
+  // unknown (null), never 0 of 152 and never estimated
   const answered = hasResult(engine)
   if (syncRows[0]) syncRows[0].visibility = answered ? pct(onEngine.size, TOTAL) : null
-  if (syncRows[0] && !answered) Object.assign(syncRows[0], { visible: null, missed: null, cited: null })
+  const failed = failedSyncDates(engine)
+  syncRows.forEach((r, i) => {
+    if ((i === 0 && !answered) || failed.includes(r.date)) Object.assign(r, { visibility: null, visible: null, missed: null, cited: null })
+  })
   if (!ratio) syncRows.forEach((r) => { if (r.changes) r.changes = { ...r.changes, lost: [] } })
   syncRows.forEach((r, i) => { r.delta = i < syncRows.length - 1 ? pointsBetween(r.visibility, syncRows[i + 1].visibility) : Math.round(r.delta * ratio) })
 

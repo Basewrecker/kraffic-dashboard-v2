@@ -35,7 +35,7 @@ const barColor = (s) => ({ fill: lineColor(s), opacity: 1 })
 const ANIM = { animationDuration: 500, animationEasing: 'ease-out' }
 // the unit of the values: '%' (share, the Overview) or a count (Reports: prompts named, prompts they win), set per render
 let UNIT = { pct: true, one: 'point', many: 'points' }
-const val = (v) => (UNIT.pct ? `${v}%` : `${v}`)
+const val = (v) => (v == null ? '—' : UNIT.pct ? `${v}%` : `${v}`) // no value (no result): "—", never "null%"
 const units = (n) => `${n} ${Math.abs(n) === 1 ? UNIT.one : UNIT.many}`
 
 // no fontFamily: ticks inherit --font-sans so they follow the font switcher
@@ -140,7 +140,7 @@ function LegendBox({ color: c, checked }) {
   )
 }
 
-const fmtDelta = (d) => (d > 0 ? `+${d}` : d < 0 ? `−${Math.abs(d)}` : '0')
+const fmtDelta = (d) => (d == null ? '—' : d > 0 ? `+${d}` : d < 0 ? `−${Math.abs(d)}` : '0') // a gap is "—", never 0
 const listNames = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
 
 function HistoryTooltip({ active, payload, label, series, compare, unit, line = false, lone = {} }) {
@@ -210,8 +210,9 @@ function GrowthTooltip({ active, payload, label, series, compare }) {
   const YOU = FOCAL.key
   const line = (s) => (
     <>
-      <span className={`num font-semibold ${s.key === YOU ? signClass(p[s.key]) : 'text-stone-900'}`}>{fmtDelta(p[s.key])}</span>{' '}
-      <span className="num text-stone-600">({val(p.prevs[s.key])} → {val(p.values[s.key])})</span>
+      <span className={`num font-semibold ${p[s.key] == null ? 'text-stone-500' : s.key === YOU ? signClass(p[s.key]) : 'text-stone-900'}`}>{fmtDelta(p[s.key])}</span>{' '}
+      {/* a period with no result (either side): no "a → b" */}
+      {p[s.key] != null && <span className="num text-stone-600">({val(p.prevs[s.key])} → {val(p.values[s.key])})</span>}
     </>
   )
   if (!compare) return <div className="rounded-lg border border-stone-200 bg-raised px-3 py-2 text-small shadow-sm"><span className="font-semibold text-stone-900">{label}</span> · {line(series[0])}</div>
@@ -605,7 +606,8 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
     // phones: at most 4 date labels, a 28px Y axis
     <XAxis key="x" dataKey="date" height={26} tickMargin={10} tickLine={false} axisLine={false} tick={tick} padding={xPadding} interval={interval ?? (mobile ? Math.max(0, Math.ceil(points.length / 4) - 1) : 'preserveEnd')} />,
     <YAxis key="y" width={mobile ? 30 : 36} tickMargin={mobile ? 4 : 8} domain={yDomain} ticks={yTicks} tickFormatter={yFormat} allowDataOverflow tickLine={false} axisLine={false} tick={tick} />,
-    <Tooltip key="tip" cursor={cursor} content={tooltip} {...(markerTip ? { active: false } : {})} />,
+    // filterNull off: a period with no result (null on every series) still gets its tooltip, reading "—"
+    <Tooltip key="tip" cursor={cursor} content={tooltip} filterNull={false} {...(markerTip ? { active: false } : {})} />,
     scoringAt != null && <ScoringMarker key="scoring" at={scoringAt} dates={dates} label={mobile ? scoring.label.replace('Scoring updated', 'Scoring') : scoring.label} onHover={setMarkerTip} />,
     // a Brand Setup change (it applies from the next scan; earlier points stay as they were scored)
     h.setupChange && <ScoringMarker key="setup" at={h.setupChange.at ?? dates.length - 1} dates={dates} label={mobile ? h.setupChange.label.replace('Setup changed', 'Setup') : h.setupChange.label} onHover={(t) => setMarkerTip(t && { ...t, kind: 'setup' })} avoidAt={scoringAt} />,

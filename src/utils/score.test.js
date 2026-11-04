@@ -69,7 +69,7 @@ test('the history chart leaves a gap for the latest scan with no result, never a
   setNoResult(['gemini'])
   try {
     const gaps = engineGaps('gemini')
-    assert.equal(gaps.length, 1)
+    assert.deepEqual(gaps, ['2026-09-07', '2026-10-05']) // the failed Sep 7 scan, and the latest under ?noresult=
     const scale = { dermasuri: 0.8, cerave: 0.5, ordinary: 0.5, paulas: 0.5 }
     for (const granularity of ['weekly', 'monthly']) {
       const h = getHistory({ granularity, scale, gaps })
@@ -79,11 +79,45 @@ test('the history chart leaves a gap for the latest scan with no result, never a
       assert.equal(h.stats.current, null)
       assert.equal(h.stats.change, null)
       assert.equal(last.delta, null)
-      // the points before it are untouched
-      assert.deepEqual(h.points.slice(0, -1).map((p) => p.dermasuri), plain.points.slice(0, -1).map((p) => p.dermasuri))
+      // the points before it are untouched, but for the failed Sep 7 scan (a gap too)
+      assert.deepEqual(h.points.slice(0, -1).map((p) => (p.iso === '2026-09-07' ? null : p.dermasuri)), h.points.slice(0, -1).map((p) => p.dermasuri))
+      assert.deepEqual(h.points.slice(0, -1).filter((p) => p.iso !== '2026-09-07').map((p) => p.dermasuri), plain.points.slice(0, -1).filter((p) => p.iso !== '2026-09-07').map((p) => p.dermasuri))
+      // Growth: the period with no result (and the one after a gap) stays in, as null, never a 0 bar
+      const g = h.growth.points
+      assert.equal(g.at(-1).date, last.date)
+      assert.equal(g.at(-1).dermasuri, null)
+      assert.ok(g.every((p) => p.dermasuri !== 0 || (p.values.dermasuri != null && p.prevs.dermasuri != null)))
     }
     assert.deepEqual(engineGaps('chatgpt'), [])
     assert.deepEqual(engineGaps('all'), [])
+  } finally {
+    setNoResult(undefined)
+  }
+})
+
+test("Gemini's failed Sep 7 scan (sample data): its Sync history row and history point are null, never 58 or 0", () => {
+  setNoResult([])
+  try {
+    for (const b of TRACKED_BRANDS) {
+      const rows = withSyncChanges(getBrandView(b.domain, 'gemini')).syncHistory
+      const sep7 = rows.find((r) => r.date === 'Sep 7, 2026')
+      for (const k of ['visibility', 'visible', 'missed', 'cited', 'delta']) assert.equal(sep7[k], null, `${b.name}: Sep 7 ${k}`)
+      // the row after it has no change against it
+      assert.equal(rows[rows.indexOf(sep7) - 1].delta, null, `${b.name}: Sep 16's change`)
+      // the rest keep their numbers; All engines and the other engines show Sep 7 as before
+      assert.ok(rows.filter((r) => r !== sep7).every((r) => isScore(r.visibility)))
+      for (const e of ['all', 'aio', 'chatgpt']) assert.ok(isScore(getBrandView(b.domain, e).syncHistory.find((r) => r.date === 'Sep 7, 2026').visibility))
+    }
+    const own = getBrandView(TRACKED_BRANDS[0].domain, 'gemini').syncHistory.find((r) => r.date === 'Sep 7, 2026')
+    assert.notEqual(fmtScore(own.visibility, '%'), '58%')
+    assert.equal(fmtScore(own.visibility, '%'), '—')
+    // the history chart on Gemini: a gap on Sep 7, not on any other engine
+    const scale = { dermasuri: 0.8, cerave: 0.5, ordinary: 0.5, paulas: 0.5 }
+    const h = getHistory({ scale, gaps: engineGaps('gemini') })
+    assert.equal(h.points.find((p) => p.iso === '2026-09-07').dermasuri, null)
+    assert.equal(h.points.find((p) => p.iso === '2026-09-16').delta, null)
+    assert.ok(h.points.filter((p) => p.iso !== '2026-09-07').every((p) => isScore(p.dermasuri)))
+    assert.equal(noResultText('gemini', 'Sep 7, 2026'), 'No result from Gemini in the Sep 7 scan')
   } finally {
     setNoResult(undefined)
   }

@@ -229,16 +229,21 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
   const series = (compare ? historySeries.filter((s) => !hidden.includes(s.key)) : historySeries.filter((s) => s.key === focal))
     .sort((a, b) => (b.key === focal) - (a.key === focal)) // focal brand first (legend, bars, tooltip)
 
-  // Growth view: change vs the previous period, per visible series. Periods with no previous period are omitted.
+  // Growth view: change vs the previous period, per visible series. Periods with no previous period are omitted. With
+  // gaps (an engine with no result), a period whose change can't be worked out (it, or the one before, has no result)
+  // stays in as a gap: null, an empty slot, never a 0 bar. (Reports pass no gaps: their periods are as before.)
   const growthPoints = points
-    .filter((p) => p.delta != null)
+    .filter((p, i) => p.delta != null || (gaps.length > 0 && start + i > 0))
     .map((p) => ({ date: p.date, ...Object.fromEntries(series.map((s) => [s.key, p.deltas[s.key]])), prevs: p.prevs, values: p }))
   const maxAbs = Math.max(0, ...growthPoints.flatMap((p) => series.map((s) => Math.abs(p[s.key] ?? 0))))
   const growth = {
     points: growthPoints,
     ...symmetricTicks(maxAbs), // round, symmetric: −20, −10, 0, +10, +20
     // the focal brand's average growth (read from the raw deltas, so it exists even when it is hidden)
-    average: growthPoints.length ? Math.round((growthPoints.reduce((a, p) => a + p.values.delta, 0) / growthPoints.length) * 10) / 10 : 0,
+    average: (() => {
+      const ds = growthPoints.map((p) => p.values.delta).filter((d) => d != null)
+      return ds.length ? Math.round((ds.reduce((a, d) => a + d, 0) / ds.length) * 10) / 10 : 0
+    })(),
   }
   const you = points.map((p) => p[focal]).filter((v) => v != null)
   const last = points[points.length - 1] || {}

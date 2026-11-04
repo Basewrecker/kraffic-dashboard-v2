@@ -5,6 +5,7 @@ import Sheet, { SheetItem } from '../ui/Sheet'
 import { useIsMobile } from '../../hooks/useMedia'
 import { EXPORT_EVENT } from '../ui/MobileActions'
 import Card from './Card'
+import { NoResultLine } from '../ui/NoResult'
 import Checkbox from '../ui/Checkbox'
 import { downloadCsv } from './csv'
 
@@ -36,7 +37,16 @@ import { downloadCsv } from './csv'
 //   column.mobileText(row): plain text for the meta line instead of rendering the cell (on the primary: 2-line text)
 //   column.desktop: false → a phones-only column (e.g. a meta fact the desktop shows inside another cell)
 //   mobileRowClick(row, el): what a tap does on phones when the desktop row has no click (its action button is hidden)
-export default function PromptTable({
+//   noResult: an engine id whose latest scan had no result (the table follows that engine): the list is replaced by one
+//     muted line, "No Gemini result in the latest scan" + ⓘ, with no count badge and no pagination (never a 0)
+export default function PromptTable({ noResult = null, ...props }) {
+  if (!noResult) return <Table {...props} />
+  const line = <NoResultLine engine={noResult} />
+  // no pagination footer either ("Showing 0–0 of 0" would be a 0)
+  return <Table {...props} rows={[]} count={null} emptyMessage={line} emptyQuery={() => line} onClearFilters={null} pagination={false} />
+}
+
+function Table({
   id, title, subtitle, rows, columns: dataColumns, filterKeys = ['prompt'], csvName,
   count = rows.length, // null: no count badge (the page already shows the number)
   defaultSort = null, // { key, dir }

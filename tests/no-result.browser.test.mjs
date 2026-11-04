@@ -1,7 +1,9 @@
 // Browser test: an engine whose latest scan didn't answer has no score (null), shown as "—", never 0.
 // /overview?noresult=gemini&engine=gemini: Gemini's latest scan returned no result (data/brandViews.js noResultEngines)
 // and the engine filter is on Gemini. The Visibility score ring, the history's Current score, the "Viewing as" menu's
-// score for the brand and the Sync history's latest row must read "—", and the ⓘ says why.
+// score for the brand and the Sync history's latest row must read "—", and the ⓘ says why. Also: the prompt tables
+// show one line instead of their lists, the Growth view leaves the period empty, and Gemini's failed Sep 7 scan (sample
+// data) reads "—" in Sync history.
 // Runs a real browser (playwright-core + the Chromium in ~/Library/Caches/ms-playwright) against Vite's dev server.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -34,10 +36,13 @@ test('a null engine score renders as "—" with its ⓘ, never as 0', async () =
       const current = leaf('Current')?.nextElementSibling
       // Sync history's latest row: its score cell
       const latest = [...document.querySelectorAll('main li')].find((li) => li.querySelector('button span')?.textContent.includes('Latest'))
+      // Gemini's failed Sep 7 scan (sample data): its row reads "—" too
+      const sep7 = [...document.querySelectorAll('main li')].find((li) => li.querySelector('button span')?.textContent.trim().startsWith('Sep 7'))
       return {
         ring: text(card?.querySelector('svg text')),
         current: text(current),
         syncRow: text(latest?.querySelector('button > span:nth-child(3) > span:first-child')),
+        syncSep7: text(sep7?.querySelector('button > span:nth-child(3) > span:first-child')),
       }
     })
 
@@ -60,6 +65,53 @@ test('a null engine score renders as "—" with its ⓘ, never as 0', async () =
     const tip = page.getByRole('tooltip').filter({ hasText: 'No result from' })
     await tip.waitFor({ state: 'visible' })
     assert.equal((await tip.textContent()).trim(), 'No result from Gemini in the latest scan')
+    await page.mouse.move(0, 0)
+
+    // the Sep 7 row's ⓘ names that scan, and neither it nor the row after has a change line
+    const sep7 = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('main li')]
+      const at = (d) => rows.find((li) => li.querySelector('button span')?.textContent.trim().startsWith(d))
+      return {
+        label: at('Sep 7')?.querySelector('[role=img][aria-label^="No result from"]')?.getAttribute('aria-label') ?? null,
+        text: at('Sep 7')?.querySelector('button')?.textContent ?? '',
+        after: at('Sep 16')?.querySelector('button > span:nth-child(3)')?.textContent ?? '',
+      }
+    })
+    assert.equal(sep7.label, 'No result from Gemini in the Sep 7 scan')
+    assert.ok(!/58%|\b0%/.test(sep7.text), `the Sep 7 row reads "${sep7.text}"`)
+    assert.ok(!/pts?|No change/.test(sep7.after), `Sep 16 has a change line against the failed scan: "${sep7.after}"`)
+
+    // the prompt tables: one muted line + ⓘ instead of the list, and no count badge (never 0)
+    for (const id of ['visible-prompts', 'missed-prompts']) {
+      const t = await page.evaluate((id) => {
+        const card = document.getElementById(id)
+        return {
+          line: card?.querySelector('[data-no-result]')?.textContent.trim() ?? null,
+          info: !!card?.querySelector('[data-no-result] button[aria-label="No result from Gemini in the latest scan"]'),
+          rows: card ? card.querySelectorAll('tbody tr').length : -1,
+          badge: card?.querySelector('h2')?.nextElementSibling?.textContent.trim() ?? null,
+          zeros: /Showing 0|of 0\b/.test(card?.textContent ?? ''),
+        }
+      }, id)
+      assert.equal(t.line, 'No Gemini result in the latest scan', `${id}: the no-result line`)
+      assert.ok(t.info, `${id}: the ⓘ`)
+      assert.equal(t.rows, 1, `${id}: only the line, no prompt rows`)
+      assert.equal(t.badge, null, `${id}: no count badge (was "${t.badge}")`)
+      assert.ok(!t.zeros, `${id}: no "Showing 0–0 of 0" footer`)
+    }
+
+    // Growth view: the period with no result is an empty slot whose tooltip reads "—", never a 0 bar
+    await page.goto(`http://localhost:${port}/overview?noresult=gemini&engine=gemini&chart=growth&compare=off`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(700)
+    const hist = page.locator('#history')
+    const tick = hist.locator('.recharts-cartesian-axis-tick-label', { hasText: 'Oct 5' })
+    await tick.waitFor({ state: 'visible' })
+    const tb = await tick.boundingBox()
+    await page.mouse.move(tb.x + tb.width / 2, tb.y - 90) // inside the plot, above the date
+    const gtip = hist.locator('.recharts-tooltip-wrapper')
+    await page.waitForTimeout(250)
+    const gtext = (await gtip.textContent()).trim()
+    assert.match(gtext, /^Oct 5 · —$/, `the Oct 5 growth tooltip reads "${gtext}"`)
   } finally {
     await browser?.close()
     await server.close()

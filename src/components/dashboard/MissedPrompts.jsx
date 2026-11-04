@@ -12,7 +12,7 @@ import { PromptSetPill, usePromptSet } from './promptSet'
 import { account, missedPrompts, missedTopics, platformNames } from '../../data/mock'
 import { assignPriorities } from '../../utils/priority'
 import LogoStack from './LogoStack'
-import { OWN, TRACKED_BRANDS, appearances } from '../../data/brandViews'
+import { OWN, TRACKED_BRANDS, appearances, hasResult } from '../../data/brandViews'
 import { buildBrief } from '../../utils/brief'
 import { brandName } from '../../utils/brand'
 
@@ -75,7 +75,9 @@ export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilt
   const setSort = (s) => { setSortState(s); writeSort(s) }
   const [brief, setBrief] = useState(null)
   const [toastNode, toast] = useToast()
-  const { platform, setPlatform, matches, label } = usePlatformFilter()
+  const { platform, setPlatform, matches, label, engine } = usePlatformFilter()
+  // the engine filter's latest scan had no result: the list is one line, and the topic chips (counts) go
+  const noResult = hasResult(engine) ? null : engine
   const syncF = useSyncFilter('lost')
   const set = usePromptSet('missed-prompts')
   // arriving from Sync history: show that sync's lost prompts, not whatever topic was picked
@@ -174,6 +176,7 @@ export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilt
       <PromptSetPill set={set} />
       {syncF.ids && <SyncFilterPill kind="lost" sync={syncF.sync} onClear={syncF.clear} />}
       <PlatformFilterPill />
+      {!noResult && <>
       <button className={chip(!topic)} style={topic ? { background: 'var(--tint)', color: 'var(--color-stone-700)' } : undefined} aria-pressed={!topic} onClick={() => { setTopic(null); setSelected(new Set()) }}>
         All <span className={chipCount(!topic)}>{missedPrompts.length}</span>
       </button>
@@ -182,6 +185,7 @@ export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilt
           {t} <span className={chipCount(topic === t)}>{n}</span>
         </button>
       ))}
+      </>}
     </div>
   )
 
@@ -205,6 +209,7 @@ export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilt
     <>
       <PromptTable
         id="missed-prompts"
+        noResult={noResult}
         title="Missed prompts"
         subtitle={`Prompts where ${account.name} doesn't appear yet`}
         count={missedPrompts.length}

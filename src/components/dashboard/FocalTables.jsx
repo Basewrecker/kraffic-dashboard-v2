@@ -7,7 +7,7 @@ import { alsoMissing } from './MissedPrompts'
 import { PlatformFilterPill, usePlatformFilter } from './PlatformFilter'
 import { SyncFilterPill, useSyncFilter } from './syncFilter'
 import { PromptSetPill, usePromptSet } from './promptSet'
-import { OWN } from '../../data/brandViews'
+import { OWN, hasResult } from '../../data/brandViews'
 import { useBrandView } from '../../hooks/useBrandView'
 import { brandName } from '../../utils/brand'
 
@@ -63,7 +63,8 @@ function TopicChips({ list, topic, setTopic, before }) {
 
 // "Where X is missing": prompts the focal brand doesn't appear in, and who wins them instead
 export function FocalMissedTable() {
-  const { missedPrompts, focal } = useBrandView()
+  const { missedPrompts, focal, engine } = useBrandView()
+  const noResult = hasResult(engine) ? null : engine // no result on this engine: one line, no topic chips
   const [topic, setTopic] = useState(null)
   useEffect(() => setTopic(null), [focal.domain])
   const { platform, setPlatform, matches, label } = usePlatformFilter()
@@ -76,6 +77,7 @@ export function FocalMissedTable() {
   return (
     <PromptTable
       id="missed-prompts"
+      noResult={noResult}
       title={`Where ${focal.name} is missing`}
       subtitle={`Prompts where ${focal.name} doesn't appear in AI answers`}
       count={missedPrompts.length}
@@ -83,7 +85,7 @@ export function FocalMissedTable() {
       rowHeight={topic ? 'h-11' : 'h-[52px]'}
       csvName={`${focal.key}-missed-prompts.csv`}
       defaultSort={{ key: 'winners', dir: 'desc' }}
-      filterBar={<TopicChips list={missedPrompts} topic={topic} setTopic={setTopic} before={<><PromptSetPill set={set} />{syncF.ids && <SyncFilterPill kind="lost" sync={syncF.sync} onClear={syncF.clear} />}</>} />}
+      filterBar={noResult ? <div className="flex gap-1.5"><PromptSetPill set={set} /><PlatformFilterPill /></div> : <TopicChips list={missedPrompts} topic={topic} setTopic={setTopic} before={<><PromptSetPill set={set} />{syncF.ids && <SyncFilterPill kind="lost" sync={syncF.sync} onClear={syncF.clear} />}</>} />}
       emptyMessage={platform ? `No missed prompts on ${label}` : `No missed prompts in ${topic ?? 'this view'}`}
       onClearFilters={() => { setTopic(null); setPlatform(null); syncF.clear(); set.clear() }}
       columns={[
