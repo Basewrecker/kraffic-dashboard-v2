@@ -523,6 +523,9 @@ const QUAD_TEXT = { positive: 'text-ink', negative: 'text-negative', neutral: t3
 // a faint red on Negative only; Positive has no fill (a grey fill read as a box, owner 2026-11-04)
 const QUAD_TINT = { negative: 'color-mix(in srgb, var(--negative) 4%, transparent)' }
 const QUAD_ORDER = ['neutral', 'positive', 'negative', 'mixed']
+// every dot's edge (its badge included: the engine badge sits inside the dot's corner) stays 24px clear of the cross's
+// two lines and the outer edges, measured from a line's far side (+1px, the line itself) (owner, 2026-11-04)
+const EDGE = 25
 
 // ---- the tone grid: 2×2 by tone (Neutral · Positive over Negative · Mixed), every page a dot in its tone's quadrant,
 // scattered organically (utils/spectrum quadrantScatter: seeded by the page URL, so the same spots on every load; 10px
@@ -576,7 +579,7 @@ function Spectrum({ pages: listed, lit, engine, split, onDot = (p) => openDrawer
   const W = Math.max(160, w)
   // about 240px; in the hero as tall as the score column (both end level), never shorter than two rows need
   // about 240px, as tall as the score column (both end level); never less than two staggered rows of dots need
-  const H = Math.max(scatterMinH(r), fitH ?? 240)
+  const H = Math.max(scatterMinH(r, { edge: EDGE }), fitH ?? 240)
   const { c, tone, setTone, explain } = filter || {}
   const counts = c ?? countTones(pages)
 
@@ -586,7 +589,7 @@ function Spectrum({ pages: listed, lit, engine, split, onDot = (p) => openDrawer
   const isActive = (d) => d.shown && (split ? engine === 'all' || d.lane === engine : engine === 'all' || d.page.engines.includes(engine))
   // each corner label's width (13px medium, "Neutral 10"), for the 24px clearance around it
   const labelW = Object.fromEntries(QUAD_ORDER.map((k) => [k, Math.ceil(`${TONE_LABEL[k]} ${counts[k] ?? 0}`.length * 7.4) + 12]))
-  const pack = (list) => quadrantScatter(list.map((d) => ({ key: d.key, tone: d.page.tone, seed: `${d.page.url ?? d.page.id}#${d.lane}` })), { width: W, height: H, r, labelW })
+  const pack = (list) => quadrantScatter(list.map((d) => ({ key: d.key, tone: d.page.tone, seed: `${d.page.url ?? d.page.id}#${d.lane}` })), { width: W, height: H, r, labelW, edge: EDGE })
   const live = pack(plan.filter(isActive))
   const every = pack(plan.filter((d) => d.shown)) // where a dot that's off the grid fades out (its last place)
   const placed = plan.map((d) => {
@@ -684,7 +687,7 @@ function Spectrum({ pages: listed, lit, engine, split, onDot = (p) => openDrawer
                 </span>
               </span>
               {split && d.lane !== 'all' && (
-                <span aria-hidden className="absolute -bottom-1 -right-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-surface ring-1 ring-line transition-opacity duration-150" style={{ opacity: dim ? 0.3 : 1 }}>
+                <span aria-hidden className="absolute bottom-0 right-0 grid h-[18px] w-[18px] place-items-center rounded-full bg-surface ring-1 ring-line transition-opacity duration-150" style={{ opacity: dim ? 0.3 : 1 }}>
                   <EngineIcon id={d.lane} size={12} />
                 </span>
               )}

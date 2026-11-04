@@ -64,7 +64,7 @@ test('the insight line runs full width under the dot plot, on one line (owner, 2
 test('the tone grid is about 240px and as tall as the score column (fitH), never below two rows of dots', () => {
   assert.match(hero, /const measure = \(\) => setColH\(colTop\.current\?\.offsetHeight \?\? 0\)/)
   assert.match(hero, /<Spectrum [^>]*fitH=\{fitH\}/)
-  assert.match(spectrum, /const H = Math\.max\(scatterMinH\(r\), fitH \?\? 240\)/)
+  assert.match(spectrum, /const H = Math\.max\(scatterMinH\(r, \{ edge: EDGE \}\), fitH \?\? 240\)/)
   assert.match(page, /const CHART_CHROME = 26 /, 'no axis under the grid: only the label row above it')
 })
 
