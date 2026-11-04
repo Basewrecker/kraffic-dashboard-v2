@@ -31,7 +31,7 @@ test('intent: account and local queries are tagged and scored at half', () => {
   assert.equal(a.queries[0].adjusted, Math.round(a.queries[0].match * 0.5))
 })
 
-test('best query: an intent match with ≥ 10 impressions, the highest adjusted × log10(impressions + 1); none → no Best', () => {
+test('best query: an eligible query with ≥ 10 impressions, the most intent words then the most impressions; none → no Best', () => {
   // topic: niacinamide, serum (in most queries); intent: dry, skin
   const a = analyzeRows('niacinamide serum dry skin', [
     ROW('niacinamide serum dry skin routine', 9), // the only intent match, too few impressions
@@ -42,9 +42,10 @@ test('best query: an intent match with ≥ 10 impressions, the highest adjusted 
   const b = analyzeRows('niacinamide serum dry skin', [
     ROW('niacinamide serum for dry skin', 40), ROW('niacinamide serum dry skin review', 30), ROW('niacinamide serum', 900, 'https://ex.com/b/'), ROW('niacinamide', 2000, 'https://ex.com/c/'),
   ], { suggestedPath: '/x' })
-  const score = (q) => q.adjusted * Math.log10(q.impressions + 1)
   assert.equal(b.bestQuery.intentMatch, true)
-  for (const q of b.queries.filter((x) => x.intentMatch && x.impressions >= BEST_MIN_IMPRESSIONS)) assert.ok(score(b.bestQuery) >= score(q))
+  for (const q of b.queries.filter((x) => x.intentMatch && x.impressions >= BEST_MIN_IMPRESSIONS)) {
+    assert.ok(b.bestQuery.intentCount > q.intentCount || (b.bestQuery.intentCount === q.intentCount && b.bestQuery.impressions >= q.impressions))
+  }
   assert.equal(b.queries.filter((q) => q.best).length, 1)
 })
 
@@ -128,4 +129,61 @@ test('the sample follows the rule: every Best is an intent match; the synonym ca
   for (const a of all) if (a.bestQuery) assert.equal(a.bestQuery.intentMatch, true, a.prompt)
   const p = all.find((a) => /cause breakouts/.test(a.prompt))
   assert.match(p.bestQuery.query, /acne/)
+})
+
+test('shared case (mock and app): "best face mist for dry skin" picks a "dry skin" query, never an "oily skin" one', async () => {
+  const { GSC_SHARED_CASES } = await import('./gscMatchCases.js')
+  for (const c of GSC_SHARED_CASES) {
+    const a = analyzeRows(c.prompt, c.rows, { suggestedPath: '/new' })
+    assert.equal(a.bestQuery?.query, c.best, c.name)
+    if (c.publishOn) assert.equal(a.publishOn.path, c.publishOn, `${c.name}: publish on`)
+    assert.ok(a.bestQuery.query.includes(c.bestIncludes), c.name)
+    for (const n of c.never) {
+      assert.notEqual(a.bestQuery.query, n)
+      assert.equal(a.queries.find((q) => q.query === n)?.intentMatch ?? false, false, `${n} is not eligible`)
+    }
+  }
+})
+
+test('eligible as Best: at least half the intent words (min 1), ranked by intent words then impressions; opposites disqualify', async () => {
+  const { intentNeed, intentCountOf, oppositeOf, OPPOSITES } = await import('./gscMatch.js')
+  assert.equal(intentNeed([]), 1); assert.equal(intentNeed(['a']), 1); assert.equal(intentNeed(['a', 'b']), 1); assert.equal(intentNeed(['a', 'b', 'c']), 2); assert.equal(intentNeed(['a', 'b', 'c', 'd']), 2)
+  assert.equal(intentCountOf('cheap retinol for beginners', ['beginner', 'cheap']), 2)
+  assert.deepEqual(OPPOSITES.map((g) => g[0]), ['dry', 'cheap', 'men', 'beginner', 'small'])
+  assert.equal(oppositeOf('retinol for beginners', 'advanced retinol routine'), true)
+  assert.equal(oppositeOf('cheap moisturizer', 'luxury moisturizer'), true)
+  assert.equal(oppositeOf('moisturizer for men', 'moisturizer for women'), true)
+  assert.equal(oppositeOf('dry skin toner', 'toner for dry and oily skin'), true, 'any other word of the group disqualifies (as the app)')
+  assert.equal(oppositeOf('moisturizer for mens skin', 'womens moisturizer'), true, 'stemmed forms')
+  assert.equal(oppositeOf('cheapest retinol', 'luxury retinol'), true)
+  assert.equal(oppositeOf('face mist', 'face mist oily skin'), false, 'no opposite in the prompt')
+  // more intent words beat more impressions
+  const a = analyzeRows('gentle retinol cream for sensitive beginners', [
+    { keyword: 'retinol cream', impressions: 9000, clicks: 90, position: 5, url: 'https://ex.com/a/' },
+    { keyword: 'retinol cream', impressions: 10, clicks: 0, position: 30, url: 'https://ex.com/z/' },
+    { keyword: 'gentle retinol cream', impressions: 3000, clicks: 30, position: 8, url: 'https://ex.com/b/' },
+    { keyword: 'gentle retinol cream sensitive beginners', impressions: 40, clicks: 1, position: 12, url: 'https://ex.com/c/' },
+  ], { suggestedPath: '/x' })
+  assert.equal(a.bestQuery.query, 'gentle retinol cream sensitive beginners')
+})
+
+test('publish on (as the app): only strong eligible queries count; under 10 impressions → still that page, with lowVolume; none → create', () => {
+  // strong but topic-only (no intent word): create, with no Best
+  const topicOnly = analyzeRows('niacinamide serum dry skin', [
+    ROW('niacinamide serum', 900, 'https://ex.com/b/'), ROW('niacinamide serum benefits', 400, 'https://ex.com/b/'), ROW('niacinamide serum review', 300, 'https://ex.com/c/'),
+  ], { suggestedPath: '/new' })
+  assert.equal(topicOnly.bestQuery, null)
+  assert.equal(topicOnly.publishOn.action, 'create')
+  // a strong intent match under 10 impressions: no Best, but its page, with lowVolume
+  const low = analyzeRows('niacinamide serum dry skin', [
+    ROW('niacinamide serum dry skin', 7, 'https://ex.com/dry/'), ROW('niacinamide serum', 900, 'https://ex.com/b/'), ROW('niacinamide serum benefits', 400, 'https://ex.com/b/'),
+  ], { suggestedPath: '/new' })
+  assert.equal(low.bestQuery, null)
+  assert.equal(low.publishOn.action, 'update')
+  assert.equal(low.publishOn.path, '/dry')
+  assert.equal(low.publishOn.lowVolume, true)
+  // the ?co=gsc-lowvolume preview: every query under 10 impressions, still an update with the note
+  const pv = gscMatchFor(missedPrompts.find((r) => /face mist for dry/.test(r.prompt)), { state: 'low-volume' })
+  assert.equal(pv.publishOn.action, 'update')
+  assert.equal(pv.publishOn.lowVolume, true)
 })

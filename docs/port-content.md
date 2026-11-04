@@ -445,6 +445,21 @@ intent match with ≥ 10 impressions, not a site query; none → no Best (never 
 to create. analyzePrompt returns `intentTerms`. Sample: rm-1's Best is "reverse mortgage line of credit growth rate";
 "can pigmentation serum cause breakouts" → "does pigmentation serum cause acne".
 
+**Refinement (owner, 2026-11-04):** a query is eligible as Best only if it contains at least half of the prompt's
+intent words (minimum 1: `intentNeed`), and no word opposite to one in the prompt (`OPPOSITES`: dry/oily,
+cheap/expensive/luxury, men/women, beginner/advanced, small/large; a query that also has the prompt's word isn't
+disqualified; as the app, any other word of the group disqualifies, even next to the prompt's word; word forms are
+stemmed: man/mens → men, woman/womens → women, cheapest → cheap, smaller → small, larger → large). Eligible queries (`intentMatch`) rank by how many intent words they contain (`intentCount`), then by
+impressions; the Best is the first with ≥ 10 impressions that isn't a site query. Shared case for both matchers:
+`src/data/gscMatchCases.js` (`GSC_SHARED_CASES`: the app's fixture rows; "best face mist for dry skin" must pick "face mist for dry skin" and
+publish on /dry, never "face mist for oily skin"); the app's test should import it from its copy of the mock and run its own lib/gsc-match.js
+against it.
+
+**Publish on (as the app's lib/gsc-match.js):** only strong eligible queries count (adjusted ≥ 30, a top page,
+intentMatch, not a site query). The Best if it's one; else, when every strong eligible query is under 10 impressions,
+the first of them with `lowVolume: true` (the low-volume note); none → create (the topic-only chain). Previews:
+`?co=gsc-lowvolume` (low volume) and prompt 0 (create, topic-only).
+
 **Content list "Best page"** (`ContentList.jsx` column via `MissedPrompts` `extraColumns`, 248px): the path
 (middle-truncated) + match %, or "New page" (muted) when `action === 'create'`; hover / focus: the full URL and
 "Best query “…” · 72% match". Not connected → "—" and the header ⓘ "Connect Search Console in a prompt’s Target page…".

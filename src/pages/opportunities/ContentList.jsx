@@ -100,7 +100,7 @@ export default function ContentList() {
   const connectSc = () => { setScConnecting(true); scTimer.current = setTimeout(() => { setScConnecting(false); setBrandScState(CO_BRAND.domain, 'connected'); setScStateRaw('connected') }, 900) }
   // Best page (Search Console, the app's bestPageFor): the page to publish on and its match, or "New page"; hover /
   // focus: the full URL and its best query. Not connected: "—", the header's ⓘ says where to connect.
-  const scOn = scState === 'connected' || scState === 'no-data'
+  const scOn = scState === 'connected' || scState === 'no-data' || scState === 'low-volume'
   const bestPageFor = (r) => bestPageForRow(r, { state: scState })
   const bestPageColumn = {
     key: 'bestPage',

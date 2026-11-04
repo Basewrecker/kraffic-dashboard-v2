@@ -11,7 +11,8 @@
 // land on that page, else 'best-query'; lowVolume: no strong query (adjusted ≥ 30) reached 10 impressions.
 // Range: the last 8 weeks (56 days) ending 2 days ago; lagNote is fixed text.
 //
-// Preview states (?co=): gsc-new = not connected · gsc-reconnect · gsc-nodomain · gsc-nodata (connected, no data).
+// Preview states (?co=): gsc-new = not connected · gsc-reconnect · gsc-nodomain · gsc-nodata (connected, no data) ·
+// gsc-lowvolume (every query under 10 impressions: the strong intent match's page, with the low-volume note).
 //
 // Intent (owner, 2026-11-04; the app's matcher feat/content-page 4385c8e): a query can be the Best query only if it
 // matches the prompt's core intent term(s), the words that make the question specific ("breakouts" in "can
@@ -19,8 +20,11 @@
 // half of its matching queries (TOPIC_SHARE); intent words = its other key terms, without the local / account marker
 // words (those keep their half-score tag). Synonyms count as one: breakout(s) = acne = purging = pimples; cost = fees =
 // price; grow = growth = increase. Each query gets intentMatch (true when the prompt has no intent words); the list
-// sorts intent matches first, then by rank (adjusted × log10(impr + 1)); topic-only queries keep their score. Best:
-// an intent match with ≥ 10 impressions that isn't a site query; none → no Best (never a topic-only one).
+// sorts eligible queries first; topic-only queries keep their score. Eligible as Best (owner, refined): at least half of
+// the prompt's intent words (minimum 1), no opposite word (OPPOSITES: dry/oily, cheap/expensive/luxury, men/women,
+// beginner/advanced, small/large); eligible queries rank by intent words, then impressions. Best: the first eligible
+// query with ≥ 10 impressions that isn't a site query; none → no Best (never a topic-only one). The shared case in
+// data/gscMatchCases.js runs against this matcher and the app's.
 import { CO_BRAND, CO_BRANDS } from './contentOpportunities.js'
 import { coStates, gscKeywordsFor, newPageFor, promptWords } from './contentOpportunities-proposed.js'
 import { RM_BRAND } from './contentRecommendRm.js'
@@ -61,7 +65,9 @@ export function matchOf(prompt, query) {
 }
 // one word per meaning: synonyms (owner's list) and a plain plural → the same key
 const SYN = [['breakout', 'breakouts', 'acne', 'purging', 'pimple', 'pimples'], ['cost', 'costs', 'fee', 'fees', 'price', 'prices', 'pricing'], ['grow', 'grows', 'growth', 'increase', 'increases']]
-const SYN_OF = new Map(SYN.flatMap((g) => g.map((w) => [w, g[0]])))
+const SYN_OF = new Map([...SYN.flatMap((g) => g.map((w) => [w, g[0]])),
+  // the opposite words' other forms (as the app's lib/gsc-match.js stems them)
+  ['man', 'men'], ['mens', 'men'], ['woman', 'women'], ['womens', 'women'], ['cheapest', 'cheap'], ['cheaper', 'cheap'], ['smaller', 'small'], ['smallest', 'small'], ['larger', 'large'], ['largest', 'large'], ['beginners', 'beginner']])
 export const canon = (w) => SYN_OF.get(w) ?? (w.length > 4 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)
 const canonWords = (s) => new Set(promptWords(s).map(canon))
 // the local / account markers aren't intent words (they keep their own half-score tag)
@@ -73,13 +79,26 @@ export function intentTerms(prompt, queries) {
   const sets = queries.map((q) => canonWords(q.query))
   return terms.filter((t) => sets.filter((ws) => ws.has(t)).length / sets.length < TOPIC_SHARE)
 }
-export const intentMatchOf = (query, intent) => !intent.length || [...canonWords(query)].some((w) => intent.includes(w))
+// Eligible as Best (owner, 2026-11-04): the query has at least half of the prompt's intent words (minimum 1), and no
+// word opposite to one in the prompt ("dry skin" prompt vs an "oily skin" query; a prompt that names no side never
+// clashes). As the app's lib/gsc-match.js: any other word of the group disqualifies, even next to the prompt's word.
+// Eligible queries rank by how many intent words they have, then by impressions.
+export const OPPOSITES = [['dry', 'oily'], ['cheap', 'expensive', 'luxury'], ['men', 'women'], ['beginner', 'advanced'], ['small', 'large']]
+export const intentCountOf = (query, intent) => { const ws = canonWords(query); return intent.filter((w) => ws.has(w)).length }
+export const intentNeed = (intent) => Math.max(1, Math.ceil(intent.length / 2))
+export function oppositeOf(prompt, query) {
+  const p = canonWords(prompt), q = canonWords(query)
+  return OPPOSITES.some((g) => g.some((w) => p.has(w) && g.some((o) => o !== w && !p.has(o) && q.has(o))))
+}
+export const intentMatchOf = (query, intent, prompt = '') => !oppositeOf(prompt, query) && (!intent.length || intentCountOf(query, intent) >= intentNeed(intent))
 const adjustedOf = (match, intent) => Math.round(match * (intent ? INTENT_PENALTY[intent] : 1))
 const rank = (q) => q.adjusted * Math.log10(q.impressions + 1)
-// Best: an intent match with ≥ 10 impressions, not a site query, the highest rank; none → null
+// eligible queries: more intent words first, then more impressions
+const byIntent = (a, b) => (b.intentCount ?? 0) - (a.intentCount ?? 0) || b.impressions - a.impressions
+// Best: an eligible query (intentMatch) with ≥ 10 impressions, not a site query, first by byIntent; none → null
 const bestOf = (queries) => queries
   .filter((q) => q.impressions >= BEST_MIN_IMPRESSIONS && q.intent !== 'site' && q.intentMatch !== false)
-  .reduce((b, q) => (!b || rank(q) > rank(b) ? q : b), null)
+  .sort(byIntent)[0] ?? null
 const pathOf = (url) => { try { return new URL(url).pathname.replace(/\/$/, '') || '/' } catch { return url } }
 
 // FNV-1a: the same prompt always gets the same numbers
@@ -99,17 +118,22 @@ export function analyzeRows(prompt, rows, { suggestedPath, cited = () => false, 
   const found = all.filter((q) => q.match > 0)
   const intentTermsOf = intentTerms(prompt, found)
   // intent matches first, then by rank
-  const matching = found.map((q) => ({ ...q, intentMatch: intentMatchOf(q.query, intentTermsOf) }))
-    .sort((a, b) => (a.intentMatch === b.intentMatch ? 0 : a.intentMatch ? -1 : 1) || rank(b) - rank(a))
+  const matching = found.map((q) => ({ ...q, intentCount: intentCountOf(q.query, intentTermsOf), opposite: oppositeOf(prompt, q.query), intentMatch: intentMatchOf(q.query, intentTermsOf, prompt) }))
+    // eligible queries first (by intent words, then impressions), then the rest by rank
+    .sort((a, b) => (a.intentMatch === b.intentMatch ? (a.intentMatch ? byIntent(a, b) : rank(b) - rank(a)) : a.intentMatch ? -1 : 1))
   const best = bestOf(matching)
   const queries = matching.slice(0, 5).map((q) => ({ ...q, best: q === best }))
   if (best && !queries.some((q) => q.best)) queries.splice(4, 1, { ...best, best: true })
   const bestQuery = best ? { ...best, best: true } : null
-  const strong = matching.filter((q) => q.adjusted >= CREATE_BELOW)
-  const lowVolume = strong.length > 0 && strong.every((q) => q.impressions < BEST_MIN_IMPRESSIONS)
-  const onBest = bestQuery ? queries.filter((q) => q.topPage.path === bestQuery.topPage.path).length : 0
-  const publishOn = bestQuery && bestQuery.adjusted >= CREATE_BELOW
-    ? { action: 'update', url: bestQuery.topPage.url, path: bestQuery.topPage.path, share: bestQuery.topPage.share, match: bestQuery.adjusted, query: bestQuery.query, reason: onBest >= 2 ? 'several-queries' : 'best-query', lowVolume }
+  // publish on (the app's lib/gsc-match.js): only strong eligible queries count (adjusted ≥ 30, a top page,
+  // intentMatch); the Best if it's one, else (every strong eligible one is under 10 impressions) the first of them,
+  // with lowVolume; none → create
+  const strong = matching.filter((q) => q.adjusted >= CREATE_BELOW && q.topPage?.path && q.intentMatch !== false && q.intent !== 'site')
+  const lead = bestQuery && bestQuery.adjusted >= CREATE_BELOW ? bestQuery : strong[0] ?? null
+  const lowVolume = Boolean(lead) && strong.every((q) => q.impressions < BEST_MIN_IMPRESSIONS)
+  const onBest = lead ? queries.filter((q) => q.topPage.path === lead.topPage.path).length : 0
+  const publishOn = lead
+    ? { action: 'update', url: lead.topPage.url, path: lead.topPage.path, share: lead.topPage.share, match: lead.adjusted, query: lead.query, reason: onBest >= 2 ? 'several-queries' : 'best-query', lowVolume }
     : { action: 'create', suggestedPath }
   const topQueryPages = queries.filter((q) => q.adjusted >= CREATE_BELOW).slice(0, 3).map((q) => ({ query: q.query, url: q.topPage.url, path: q.topPage.path, share: q.topPage.share }))
   // pages: every page a matching query lands on, scored (PAGE_WEIGHTS)
@@ -241,7 +265,7 @@ export const setBrandScState = (domain, state) => { BRAND_SC.set(domain, state) 
 // 'connected' | 'new' | 'reconnect' | 'no-domain' | 'no-data' (this browser's preview: ?co=)
 export function gscMatchState() {
   const co = coStates()
-  return co.has('gsc-new') ? 'new' : co.has('gsc-reconnect') ? 'reconnect' : co.has('gsc-nodomain') ? 'no-domain' : co.has('gsc-nodata') ? 'no-data' : 'connected'
+  return co.has('gsc-new') ? 'new' : co.has('gsc-reconnect') ? 'reconnect' : co.has('gsc-nodomain') ? 'no-domain' : co.has('gsc-nodata') ? 'no-data' : co.has('gsc-lowvolume') ? 'low-volume' : 'connected'
 }
 
 // GET …/gsc-match for one prompt: the route's response. row: the missed-prompt row; cited(path): AI engines cite it
@@ -255,7 +279,7 @@ export function gscMatchFor(row, { state = gscMatchState(), cited = () => false 
   if (state === 'no-data') {
     return { ...routeBase(domain), totals: { queries: 0, pages: 0, clicks: 0, impressions: 0 }, matchingQueries: 0, queries: [], bestQuery: null, publishOn: { action: 'create', suggestedPath }, topQueryPages: [], pages: [] }
   }
-  const a = rm ? RM_ANALYSIS : analyzeRows(row.prompt, dermasuriRows(row), {
+  const a = rm ? RM_ANALYSIS : analyzeRows(row.prompt, state === 'low-volume' ? dermasuriRows(row).map((k, i) => ({ ...k, impressions: 3 + (i % 6), clicks: 0 })) : dermasuriRows(row), {
     suggestedPath, cited, competitors: Object.entries(CO_BRANDS).map(([domain, b]) => ({ domain, name: b.name })),
     // the best-ranked page rarely gets all of a query's impressions: 70–95% on the busiest queries
     shareOf: (r) => (r.impressions >= 1000 ? +(0.7 + rnd(`${row.prompt}|${r.keyword}`, 'share') * 0.25).toFixed(2) : 1),
