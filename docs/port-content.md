@@ -32,6 +32,7 @@ don't port it until the line says approved.
 | 396d783 | Google split into two engines, Google AI Overview (`aio` / prompt data `google`) and Google AI Mode (`aimode`), everywhere engines appear (Overview, Prompt Hub, drawers, Tracking/Sync, Sentiment, Insights, Reports, Content); new icons (G + square ≡ badge / round ✦ badge); see §11 | Waiting (screenshots: `screenshots/google-split/`) |
 | 27a649c | Sentiment: the dot plot becomes a 2×2 tone grid (Neutral · Positive / Negative · Mixed), "+n more" past two rows, engine badges when split; `SentimentPage.jsx` Spectrum + `utils/spectrum.js` quadrantPack | Waiting (screenshots: `screenshots/sentiment-grid/`) |
 | c9d33cc | Your data: no draft yet → the five first-visit questions (credentials, locations, fees, reviews, contact, by flag score); a draft's flags replace them; first-visit subline (`userFacts.js` FIRST_VISIT, `questionsFor(…, { drafted })`, `DataStep` `drafted`) | Owner rule (relayed by the app) · mirrors the app |
+| 46ce1f0 | Your data privacy note: "Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team." (`DataStep.jsx`) | Owner wording (relayed by the app) |
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
