@@ -43,6 +43,7 @@ don't port it until the line says approved.
 | 8d2d9d2 | Cited pages by folder: the donut centre shows only the % (no name, count or mini trend, at rest or on hover); `CitedFolders.jsx` | Owner fix · port with 208bd43 |
 | 9416ecd | Sentiment grid: dots scattered organically per quadrant (`utils/spectrum.js` quadrantScatter, seeded by page URL; 10px apart, 24px clear of edges / cross / labels; drift-in entrance); grid min 248px | Approved · port it (with the scatter tweak) |
 | 424d55b | Content: Search Console access (Connect step before the ladder, connecting spinner, "Connected · <domain> · Change" chip, skipped row, list banner), ONE target page everywhere (Workspace `page`: pick ?? Publish on ?? the route's page → Update column, payoff bar, Copy & publish, targetUrl), best query follows the prompt's intent (replaced by the owner's rule: see the next commit) | Owner request · waiting for screenshot review |
+| e1090a8 | Search Console intent: the owner's rule (intent words vs topic words, synonyms, intentMatch sort, no Best without an intent match; mirrors the app's 4385c8e); topic-only create wording; Update column reason only for the route's own page | Owner rule · port with 424d55b |
 | de2f86d | Sentiment scatter tweak: 24px clear of the cross's two lines and the edges (dot edge + badge, from a line's far side; badge inside the dot's corner; `EDGE = 25`) | Owner tweak · port with 9416ecd |
 
 ## 1. Routes and navigation
