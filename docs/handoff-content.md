@@ -8,6 +8,8 @@ Newest first. Release PR #22 (develop → main) is open and carries all of these
 
 | Hash | What |
 |---|---|
+| 396d783 | Google split: Google AI Overview + Google AI Mode as two engines everywhere (port guide §11); screenshots `screenshots/google-split/`. |
+| 5c4af0d | Your data test: the deflated-DOCX check passes exact bytes (failed on Node 20). |
 | b27f059 | Hooks: squash-merge conflicts stop for the owner too (`merge_key` in lib.sh: MERGE_HEAD, or `squash:<commit>` from SQUASH_MSG); test-hooks.sh covers it (84 pass). |
 | c731327 | No-result state on the Prompt mix table: the one "No {Engine} result in the latest scan" line + ⓘ, no brand tabs, no "won n new prompts" notice. Screenshots in `screenshots/no-result/`. |
 | fa046eb | This handoff note. |

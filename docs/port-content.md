@@ -29,7 +29,7 @@ don't port it until the line says approved.
 | c5a40a4 | Your data in v1 (§3a, §5a, §10) | Approved · queued |
 | 07c6b1f | A written draft reopens after a reload; list shows "Draft ready" (§9) | Owner-requested fix · queued |
 | c731327 | Prompt mix table: the no-result line + ⓘ, no brand tabs, no "won n new prompts" notice | Approved · ported (app develop 0a5c8f2) |
-| (this commit) | Google split into two engines, Google AI Overview (`aio` / prompt data `google`) and Google AI Mode (`aimode`), everywhere engines appear (Overview, Prompt Hub, drawers, Tracking/Sync, Sentiment, Insights, Reports, Content); new icons (G + square ≡ badge / round ✦ badge); see §11 | Waiting (screenshots: `screenshots/google-split/`) |
+| 396d783 | Google split into two engines, Google AI Overview (`aio` / prompt data `google`) and Google AI Mode (`aimode`), everywhere engines appear (Overview, Prompt Hub, drawers, Tracking/Sync, Sentiment, Insights, Reports, Content); new icons (G + square ≡ badge / round ✦ badge); see §11 | Waiting (screenshots: `screenshots/google-split/`) |
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
