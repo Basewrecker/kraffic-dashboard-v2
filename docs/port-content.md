@@ -390,7 +390,7 @@ low: Google hides rare queries."):
 | Create a new page · suggested path · "No query matches this prompt well enough yet (best 22%)" | `publishOn.action === 'create'`, `suggestedPath`, `bestQuery.adjusted` (no bestQuery → "None of your pages gets impressions…") |
 | Update this page / Create this page → "Using this page" | sets the workspace's `scPick` (below) |
 | Other top queries: query (account / local: muted + tag, ⓘ "Scored at half…"), Match, Impr., Clicks, Pos., Page | `queries[]` without `best`, first 4: `adjusted`, `match`, `intent`, `impressions`, `clicks`, `position`, `topPage.path` |
-| Your pages: path · "Best match" (only the publishOn page) · Match {score}% + ⓘ its matching queries · engines that cite it (else the "AI" mark when `cited`, else "Not cited") · impressions bar + number | `pages[]` (by score, first 5): `path`, `score`, `cited`, `impressions`; engines from content-recommend `citedPages` with that path |
+| Your pages: path · "Best match" (only the publishOn page) · Match {score}% + ⓘ its matching queries · engines that cite it (else the "AI" mark when `cited`; nothing when not cited, owner 2026-11-04) · impressions bar + number | `pages[]` (by score, first 5): `path`, `score`, `cited`, `impressions`; engines from content-recommend `citedPages` with that path |
 
 **States** (`?co=` previews): `gsc-new` → "Connect Search Console to rank your pages by real search traffic." + Connect
 (`{ connected: false }`); `gsc-reconnect` → "Search Console needs reconnecting…" + Reconnect (`reason: 'reconnect'`);
@@ -410,3 +410,10 @@ picked page with the draft request: content-recommend takes optional `targetUrl`
 "Best query “…” · 72% match". Not connected → "—" and the header ⓘ "Connect Search Console in a prompt’s Target page…".
 To keep the prompt readable at 1280 the Content list drops "Missed by" (`omit={['missedBy']}`); the Overview keeps it.
 Tests: `src/data/gscMatch.test.js`, `tests/search-match.browser.test.mjs`.
+
+**Owner fixes (2026-11-04):** (1) a query naming a site or brand (reddit, quora, youtube, amazon, walmart, the brand's
+competitors by name or domain) is tagged `site`: muted with a neutral "site" tag, scored at half like account / local,
+never the Best query, so it never decides where to publish (the app's matcher d7a0789 does the same). (2) The Google
+page 1 ladder has no gaps: every rank 1–10 shows that result's favicon, non-competitor sites too (content-recommend's
+`citedPages` already lists every page-1 result; empty slots only when Google returned fewer). (3) Your pages: no "Not
+cited"; engine icons only when cited.

@@ -76,3 +76,19 @@ test('rm-1: the app\'s sample chain on the account\'s made-up domain; bestPageFo
   assert.equal(none.connected, true); assert.equal(none.bestQuery, null); assert.equal(none.publishOn.action, 'create')
   assert.equal(bestPageFor(RM_ROW, { state: 'new' }), null)
 })
+
+test('site queries (a forum, a store, a competitor by name or domain): tagged "site", scored at half, never the Best query', async () => {
+  const { analyzeRows, intentOf, siteRe } = await import('./gscMatch.js')
+  const site = siteRe([{ name: 'CeraVe', domain: 'cerave.com' }, { name: 'Paula’s Choice', domain: 'paulaschoice.com' }])
+  for (const q of ['face mist reddit', 'face mist amazon', 'cerave face mist', 'paula’s choice face mist', 'quora face mist']) assert.equal(intentOf(q, site), 'site', q)
+  assert.equal(intentOf('face mist for dry skin', site), null)
+  const url = 'https://dermasuri.com/products/face-mist/'
+  const a = analyzeRows('best face mist for dry skin', [
+    { keyword: 'face mist dry skin reddit', impressions: 5000, clicks: 50, position: 6, url: 'https://dermasuri.com/blog/reddit-roundup/' },
+    { keyword: 'face mist for dry skin', impressions: 400, clicks: 9, position: 12, url },
+  ], { suggestedPath: '/x', competitors: [{ name: 'CeraVe', domain: 'cerave.com' }] })
+  const r = a.queries.find((q) => q.intent === 'site')
+  assert.equal(r.adjusted, Math.round(r.match * 0.5))
+  assert.equal(a.bestQuery.query, 'face mist for dry skin', 'the busier site query is never Best')
+  assert.equal(a.publishOn.path, '/products/face-mist', 'and never decides where to publish')
+})

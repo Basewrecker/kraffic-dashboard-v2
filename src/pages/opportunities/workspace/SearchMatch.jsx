@@ -8,7 +8,8 @@
 //   · position · its page (middle-truncated). Account / local queries: muted, a small neutral tag, scored at half (ⓘ).
 //   Right (5/12): "Your pages" (analyzePrompt.pages, by score), two lines each: the path (middle-truncated; "Best
 //   match" on the page the chain publishes on) and "Match 76%" (the page's score) with an ⓘ listing its matching
-//   queries; under it the AI engines that cite it (else "Not cited") and an impressions bar with the number.
+//   queries; under it the AI engines that cite it (only when cited: nothing otherwise) and an impressions bar with
+//   the number.
 //   States: not connected (Connect) · reconnect (Reconnect) · no property for the domain · connected with no data yet
 //   (the new page it would suggest). The ladder and the matrix render in every state.
 // Stacked below 1100px (the chain, then Your pages).
@@ -39,7 +40,7 @@ export function Tip({ label, children, align = 'right', width = 260 }) {
 }
 const Chip = ({ children }) => <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-tint px-2 text-[12px] leading-4 font-medium text-stone-600">{children}</span>
 const Tag = ({ intent }) => <span className="inline-flex h-[18px] shrink-0 items-center rounded border border-line px-1.5 text-[11px] leading-none font-medium text-stone-500">{intent}</span>
-const INTENT_WHY = { account: 'an account question (the reader’s own account, not the topic)', local: 'a local search (a place)' }
+const INTENT_WHY = { account: 'an account question (the reader’s own account, not the topic)', local: 'a local search (a place)', site: 'it names a site or a brand, not the topic; never the best query' }
 
 // gsc: the route's response · domain: the brand's domain · state: gscMatchState() · connecting: the mock's OAuth wait ·
 // onConnect() · enginesFor(path) → { engines, unknown } · pick: the Update column's page from here ({ action, path, url })
@@ -209,9 +210,9 @@ function YourPages({ gsc, enginesFor }) {
                 </span>
               </span>
               <span className="flex items-center gap-3">
-                <span className="flex w-[64px] shrink-0 items-center gap-1" aria-label={e.engines.length ? `Cited by ${e.engines.map((x) => ENGINE_NAME[x]).join(', ')}` : p.cited ? 'Cited by AI answers' : 'Not cited by AI answers'}>
+                <span className="flex w-[64px] shrink-0 items-center gap-1" aria-label={e.engines.length ? `Cited by ${e.engines.map((x) => ENGINE_NAME[x]).join(', ')}` : p.cited ? 'Cited by AI answers' : undefined}>
                   {e.engines.length ? e.engines.map((x) => <span key={x} title={ENGINE_NAME[x]} className="flex"><PlatformIcon id={engineIcon(x)} size={14} /></span>) : p.cited ? <span title="Cited by AI answers (engine not specified)" className="grid h-[14px] w-[14px] place-items-center rounded-full bg-stone-200 text-[7px] leading-none font-bold text-stone-700">AI</span>
-                    : <span className="text-[12px] leading-4 text-stone-400">Not cited</span>}
+                    : null}
                 </span>
                 <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-tint" aria-hidden><span className="block h-full rounded-full bg-[var(--color-stone-400)]" style={{ width: `${Math.max(4, (p.impressions / max) * 100)}%` }} /></span>
                 <span className="w-[96px] shrink-0 text-right text-[12px] leading-4 tabular-nums text-stone-600">{num(p.impressions)} impr.</span>

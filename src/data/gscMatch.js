@@ -12,13 +12,13 @@
 // Range: the last 8 weeks (56 days) ending 2 days ago; lagNote is fixed text.
 //
 // Preview states (?co=): gsc-new = not connected · gsc-reconnect · gsc-nodomain · gsc-nodata (connected, no data).
-import { CO_BRAND } from './contentOpportunities.js'
+import { CO_BRAND, CO_BRANDS } from './contentOpportunities.js'
 import { coStates, gscKeywordsFor, newPageFor, promptWords } from './contentOpportunities-proposed.js'
 import { RM_BRAND } from './contentRecommendRm.js'
 
 export const MATCH_WEIGHTS = { coverage: 55, precision: 20, phrase: 25 }
 export const PAGE_WEIGHTS = { query: 45, volume: 20, rank: 15, url: 15, cited: 5 }
-export const INTENT_PENALTY = { account: 0.5, local: 0.5 }
+export const INTENT_PENALTY = { account: 0.5, local: 0.5, site: 0.5 }
 export const BEST_MIN_IMPRESSIONS = 10
 export const CREATE_BELOW = 30
 export const LAG_NOTE = 'Search Console data is about 2 days behind.'
@@ -28,7 +28,14 @@ const FETCHED_AT = '2026-11-04T12:00:00.000Z'
 // account questions (the user's own account, not the topic) and local ones (a place): scored at half
 const ACCOUNT = /\b(my|login|log in|sign in|statement|statements|payment|payments|customer service|account|order status)\b/
 const LOCAL = /\b(near me|alabama|alaska|arizona|california|colorado|florida|georgia|illinois|new york|texas|ohio|county|nyc|los angeles|chicago|houston|miami|london|manchester)\b/
-export const intentOf = (q) => (ACCOUNT.test(q) ? 'account' : LOCAL.test(q) ? 'local' : null)
+// site: the query names a site or a brand (a forum, a video site, a store, a competitor by name or domain): it's about
+// that site, not the topic (owner, 2026-11-04; the app's matcher d7a0789). Scored at half, never the Best query, so it
+// never decides where to publish.
+const SITES = ['reddit', 'quora', 'youtube', 'amazon', 'walmart']
+const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+export const siteRe = (competitors = []) => new RegExp(`\\b(${[...SITES, ...competitors.flatMap((c) => [c.name, c.domain, c.domain?.replace(/\.[a-z.]+$/, '')]).filter(Boolean).map((x) => escape(x.toLowerCase().replace(/’/g, "'")))].join('|')})\\b`)
+const SITE_DEFAULT = siteRe()
+export const intentOf = (q, site = SITE_DEFAULT) => (ACCOUNT.test(q) ? 'account' : LOCAL.test(q) ? 'local' : site.test(q.toLowerCase().replace(/’/g, "'")) ? 'site' : null)
 
 // how well a query matches the prompt, 0–100: coverage (the prompt's terms the query has), precision (the query's
 // terms that are the prompt's) and phrase (two prompt terms side by side, in order)
@@ -44,7 +51,7 @@ export function matchOf(prompt, query) {
 }
 const adjustedOf = (match, intent) => Math.round(match * (intent ? INTENT_PENALTY[intent] : 1))
 const bestOf = (queries) => queries
-  .filter((q) => q.impressions >= BEST_MIN_IMPRESSIONS)
+  .filter((q) => q.impressions >= BEST_MIN_IMPRESSIONS && q.intent !== 'site')
   .reduce((b, q) => (!b || q.adjusted * Math.log10(q.impressions + 1) > b.adjusted * Math.log10(b.impressions + 1) ? q : b), null)
 const pathOf = (url) => { try { return new URL(url).pathname.replace(/\/$/, '') || '/' } catch { return url } }
 
@@ -53,11 +60,13 @@ const hash = (s) => { let h = 2166136261; for (const c of s) { h ^= c.codePointA
 const rnd = (key, salt) => (hash(`${key}|${salt}`) % 10000) / 10000
 
 // analyzePrompt from gsc_keywords-shaped rows ({ keyword, clicks, impressions, position, url }); cited: page path → bool
-export function analyzeRows(prompt, rows, { suggestedPath, cited = () => false, shareOf = () => 1 } = {}) {
+// competitors: [{ name, domain }] the brand's competitors (their names and domains count as sites)
+export function analyzeRows(prompt, rows, { suggestedPath, cited = () => false, shareOf = () => 1, competitors = [] } = {}) {
+  const site = siteRe(competitors)
   const terms = promptWords(prompt)
   const all = rows.map((r) => {
     const match = matchOf(prompt, r.keyword)
-    const intent = intentOf(r.keyword)
+    const intent = intentOf(r.keyword, site)
     return { query: r.keyword, match, adjusted: adjustedOf(match, intent), intent, impressions: r.impressions, clicks: r.clicks, position: r.position, best: false, topPage: { url: r.url, path: pathOf(r.url), share: shareOf(r) } }
   })
   const matching = all.filter((q) => q.match > 0).sort((a, b) => b.impressions - a.impressions)
@@ -119,8 +128,10 @@ function dermasuriRows(row) {
   }
   const extra = r < 0.55
     ? { keyword: `${core} near me`, clicks: Math.round(extraImpr * 0.02), impressions: extraImpr, ctr: 2, position: 22.4, url: url0 }
-    : r < 0.75 ? { keyword: `my ${CO_BRAND.name.toLowerCase()} ${core} order`, clicks: Math.round(extraImpr * 0.03), impressions: extraImpr, ctr: 3, position: 9.8, url: `https://${CO_BRAND.domain}/account/orders` } : null
-  return extra ? [...base, extra] : base
+    : r < 0.75 ? { keyword: `my ${CO_BRAND.name.toLowerCase()} ${core} order`, clicks: Math.round(extraImpr * 0.03), impressions: extraImpr, ctr: 3, position: 9.8, url: `https://${CO_BRAND.domain}/account/orders` }
+      // a site query among the heads: a forum or a competitor by name (the "site" tag; never the Best query)
+      : { keyword: rnd(prompt, 'site') < 0.5 ? `${core} reddit` : `cerave ${core}`, clicks: Math.round(extraImpr * 0.02), impressions: Math.round(extraImpr * 1.6 / 10) * 10, ctr: 2, position: 14.6, url: url0 }
+  return [...base.filter((k) => norm(k.keyword) !== norm(extra.keyword)), extra]
 }
 
 // the rm-1 account: the app's sample (an invented lender), renamed to the account's made-up domain
@@ -177,7 +188,7 @@ export function gscMatchFor(row, { state = gscMatchState(), cited = () => false 
     return { ...routeBase(domain), totals: { queries: 0, pages: 0, clicks: 0, impressions: 0 }, matchingQueries: 0, queries: [], bestQuery: null, publishOn: { action: 'create', suggestedPath }, topQueryPages: [], pages: [] }
   }
   const a = rm ? RM_ANALYSIS : analyzeRows(row.prompt, dermasuriRows(row), {
-    suggestedPath, cited,
+    suggestedPath, cited, competitors: Object.entries(CO_BRANDS).map(([domain, b]) => ({ domain, name: b.name })),
     // the best-ranked page rarely gets all of a query's impressions: 70–95% on the busiest queries
     shareOf: (r) => (r.impressions >= 1000 ? +(0.7 + rnd(`${row.prompt}|${r.keyword}`, 'share') * 0.25).toFixed(2) : 1),
   })

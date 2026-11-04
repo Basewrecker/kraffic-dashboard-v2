@@ -120,6 +120,9 @@ export const userLocation = (u) => u?.answers?.find((a) => a.flagId === 'locatio
 
 // ---- citedPages: the client's sources + Google's organic top 10 + AI Overview references (one per host) ----------
 const ORGANIC = ['healthline.com', 'allure.com', 'byrdie.com', 'verywellhealth.com', 'glamour.com', 'womenshealthmag.com']
+// the rest of Google page 1: forums, stores, reference sites (no format detected, not AI-cited, so they never move the
+// format scores); they fill every rank a winner doesn't hold, so the ladder has no gaps unless Google returned fewer
+const PAGE1_FILL = ['reddit.com', 'sephora.com', 'webmd.com', 'ulta.com', 'dermstore.com', 'wikipedia.org', 'amazon.com', 'self.com', 'byrdie.com', 'cosmopolitan.com']
 const FORMAT_POOL = {
   breakouts: ['faq', 'research', 'listicle', 'how_to'],
   howto: ['how_to', 'tutorial', 'faq', 'checklist'],
@@ -155,7 +158,17 @@ function citedPagesFor(row, family) {
     p.rank = r
     used.add(r)
   }
-  return pages.slice(0, 12).map((p, i) => {
+  // every rank 1–10 a page above doesn't hold: the next filler site (Google returned 10 for every sample prompt; the
+  // ladder keeps an empty slot only when a response has fewer)
+  const results = 10
+  const fill = PAGE1_FILL.filter((h) => !seen.has(h))
+  const filled = []
+  for (let r = 1; r <= results && fill.length; r++) {
+    if (used.has(r)) continue
+    const h = fill.shift()
+    filled.push({ url: `https://${h}/${slug}`, host: h, rank: r, engines: ['google'], aiCited: false, formats: [], isOurs: false, title: titleFor(row.prompt, h, r) })
+  }
+  return [...pages.slice(0, 12).map((p, i) => {
     const isOurs = p.host === CO_BRAND.domain
     const aiCited = p.src || rnd(key, `ai${i}`) < 0.2
     const rank = p.rank != null && p.rank > 10 ? null : p.rank // Google's organic top 10 only
@@ -166,7 +179,7 @@ function citedPagesFor(row, family) {
     const engines = [...(rank != null && rank <= 10 ? ['google'] : []), ...(aiCited ? google : [])]
     const title = isOurs ? `${cap(productOf(row.prompt))}: the Dermasuri guide` : titleFor(row.prompt, p.host, i)
     return { url: p.url, host: p.host, rank, engines, aiCited, formats, isOurs, title }
-  })
+  }), ...filled]
 }
 const TITLES = [(p) => `${cap(p)}: what to know`, (p) => `${cap(p)}, explained`, (p) => `The best picks: ${p}`, (p) => `${cap(p)} (tested)`, (p) => `${cap(p)}: a dermatologist’s view`]
 const titleFor = (prompt, host, i) => TITLES[Math.floor(rnd(`${prompt}|${host}`, i) * TITLES.length)](prompt)

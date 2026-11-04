@@ -141,3 +141,15 @@ test('the request carries targetUrl + targetAction only when a page was picked (
   assert.equal(up.targetAction, 'update')
   assert.equal(requestFor(row, null, { action: 'create', url: 'https://dermasuri.com/new-page' }).targetAction, 'create')
 })
+
+test('Google page 1 is full: every rank 1..n holds one page (n = 10, or the 8–9 Google returned); fillers never move the formats', () => {
+  for (const res of Object.values(CONTENT_RECOMMEND)) {
+    const ranks = res.citedPages.map((p) => p.rank).filter((r) => r != null).sort((a, b) => a - b)
+    assert.equal(new Set(ranks).size, ranks.length, `${res.prompt}: one page per rank`)
+    const n = Math.max(...ranks)
+    assert.ok(n >= 8, `${res.prompt}: at least 8 results`)
+    assert.deepEqual(ranks, Array.from({ length: n }, (_, i) => i + 1), `${res.prompt}: no gaps up to #${n}`)
+  }
+  const fillers = Object.values(CONTENT_RECOMMEND).flatMap((r) => r.citedPages.filter((p) => !p.formats.length && !p.aiCited && !p.isOurs && p.engines.join() === 'google'))
+  assert.ok(fillers.length > 0)
+})

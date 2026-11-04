@@ -166,7 +166,8 @@ test('R26: the rank strip places the up-against rows by rank; your page ringed a
   const r9 = CONTENT_RECOMMEND[9]
   const s = rankStrip(r9, [], (d) => d)
   assert.equal(s.ours, 9)
-  assert.deepEqual(s.marks.map((m) => [m.host, m.rank]), [['cerave.com', 2], ['paulaschoice.com', 4], ['healthline.com', 5], ['byrdie.com', 6], ['verywellhealth.com', 7], ['glamour.com', 8]])
+  // Google page 1 is full (owner, 2026-11-04): reddit.com, sephora.com and webmd.com hold #1, #3 and #10
+  assert.deepEqual(s.marks.map((m) => [m.host, m.rank]), [['reddit.com', 1], ['cerave.com', 2], ['sephora.com', 3], ['paulaschoice.com', 4], ['healthline.com', 5], ['byrdie.com', 6], ['verywellhealth.com', 7], ['glamour.com', 8], ['webmd.com', 10]])
   assert.deepEqual(s.aiOnly, ['allure.com'])
   assert.ok(s.marks.every((m) => m.lane === 0))
   // a new page: you aren't ranked
