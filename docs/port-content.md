@@ -401,7 +401,9 @@ matrix render in every state. In the mock, Connect / Reconnect flips to connecte
 **The override:** `scPick` (`{ action, path, url }` | null) lives in Workspace (kept for the visit). It replaces the
 route's page everywhere the workspace shows "the page" (Update column, payoff bar line, Copy & publish's "Paste it
 into…"); the Update column says "From Search Console · Use the suggested page" (back to null). The app should send the
-picked page with the draft request if the route accepts a target; today the route picks its own, so tell Harsh.
+picked page with the draft request: content-recommend takes optional `targetUrl` + `targetAction` ('update' default |
+'create'), validated to the brand's own domain, never the homepage, and it replaces the route's own page on the draft
+(done in the app, feat/content-page 22b3a36). The mock's `requestFor(row, userFacts, pick)` sends them when picked.
 
 **Content list "Best page"** (`ContentList.jsx` column via `MissedPrompts` `extraColumns`, 248px): the path
 (middle-truncated) + match %, or "New page" (muted) when `action === 'create'`; hover / focus: the full URL and

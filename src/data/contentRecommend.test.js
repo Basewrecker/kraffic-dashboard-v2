@@ -132,3 +132,12 @@ test('every generated sample reads right: a capital after ". " and after "Confir
     if (q) assert.notEqual(plainOf(q.inline).toLowerCase(), `${res.prompt.replace(/\?$/, '')}?`.toLowerCase(), res.prompt)
   }
 })
+
+test('the request carries targetUrl + targetAction only when a page was picked (Search Console "Update this page")', () => {
+  const row = missedPrompts[0]
+  assert.equal('targetUrl' in requestFor(row), false)
+  const up = requestFor(row, null, { action: 'update', path: '/blog/x', url: 'https://dermasuri.com/blog/x' })
+  assert.equal(up.targetUrl, 'https://dermasuri.com/blog/x')
+  assert.equal(up.targetAction, 'update')
+  assert.equal(requestFor(row, null, { action: 'create', url: 'https://dermasuri.com/new-page' }).targetAction, 'create')
+})

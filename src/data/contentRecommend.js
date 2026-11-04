@@ -101,7 +101,9 @@ const familyOf = (prompt) => {
 
 // ---- the request (the client sends these) ------------------------------------------------------------------------
 // userFacts (proposed, Your data): sent only when there's something in it
-export const requestFor = (row, userFacts = null) => ({
+// pick: the page the user chose (Search Console's "Update this page" / a new page): optional targetUrl + targetAction
+// ('update' | 'create'), on the brand's own domain, never the homepage; it replaces the route's own page on the draft
+export const requestFor = (row, userFacts = null, pick = null) => ({
   prompt: row.prompt,
   brandDomain: CO_BRAND.domain,
   brandName: CO_BRAND.name,
@@ -109,6 +111,7 @@ export const requestFor = (row, userFacts = null) => ({
   sources: (row.sources ?? []).map((s) => ({ url: `https://${s.domain}${s.path ?? ''}`, title: '' })),
   targetUserId: 'user_3f9a',
   ...(hasUserFacts(userFacts) ? { userFacts } : {}),
+  ...(pick?.url ? { targetUrl: pick.url, targetAction: pick.action === 'create' ? 'create' : 'update' } : {}),
 })
 const hasUserFacts = (u) => Boolean(u && (u.facts?.length || u.answers?.length || u.documentsText))
 // the location the user gave (the locations answer, else a fact labelled like one), or null

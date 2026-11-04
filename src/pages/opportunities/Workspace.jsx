@@ -84,7 +84,9 @@ function Flow({ row }) {
   const stored = useMemo(() => { try { return JSON.parse(window.localStorage.getItem(store) ?? 'null') ?? {} } catch { return {} } }, [store])
   // the userFacts sent with the draft request (v1): taken when the writing starts (and on Regenerate); null = none
   const [sent, setSent] = useState(() => kept?.sent ?? stored.sent ?? null)
-  const request = useMemo(() => requestFor(row, sent), [row, sent]) // the (mock) request: userFacts only when non-empty
+  // Search Console's "Update this page": the page the user picked (sent as the request's targetUrl / targetAction)
+  const [scPick, setScPick] = useState(() => kept?.scPick ?? null)
+  const request = useMemo(() => requestFor(row, sent, scPick), [row, sent, scPick]) // the (mock) request: userFacts only when non-empty; the picked page
   const res = useMemo(() => contentRecommendFor(row, request.userFacts), [row, request]) // the route's response (the mock's)
   // the response before any userFacts: its flags are Your data's questions (they stay put once answered)
   const baseRes = useMemo(() => contentRecommendFor(row), [row])
@@ -98,7 +100,6 @@ function Flow({ row }) {
   useEffect(() => () => clearTimeout(scTimer.current), [])
   const connectSc = () => { setScConnecting(true); scTimer.current = setTimeout(() => { setScConnecting(false); setScState('connected') }, 900) }
   const gscRes = useMemo(() => gscMatchFor(row, { state: scState }), [row, scState])
-  const [scPick, setScPick] = useState(() => kept?.scPick ?? null)
 
   // the page the draft is for: the route's, or the one picked in Search Console (scPick)
   const page = useMemo(() => {
