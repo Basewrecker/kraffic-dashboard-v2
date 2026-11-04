@@ -2,9 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import SheetHandle, { SHEET_FOOTER_PAD } from './SheetHandle'
-import { useBackClose } from '../../hooks/useOverlay'
+import { useBackClose, useDialogFocus } from '../../hooks/useOverlay'
 
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 const SIZE = { md: 'md:max-w-[520px]', lg: 'md:max-w-[760px]' }
 
 // Mount on open, unmount after the exit animation (150ms).
@@ -34,38 +33,8 @@ export default function Modal({ open, onClose, title, subtitle, meta, toolbar, f
   const titleId = useId()
   useBackClose(open, () => close.current()) // Back closes the dialog first
 
-  // focus trap + Esc + return focus + scroll lock, for as long as it's open
-  useEffect(() => {
-    if (!open || !mounted) return
-    const before = document.activeElement
-    const el = panel.current
-    const items = () => [...el.querySelectorAll(FOCUSABLE)].filter((n) => n.offsetParent !== null)
-    ;(el.querySelector('[data-autofocus]') ?? el).focus()
-
-    const onKey = (e) => {
-      if (e.key === 'Escape') { close.current(); return }
-      if (e.key !== 'Tab') return
-      const f = items()
-      if (!f.length) { e.preventDefault(); return }
-      const inside = el.contains(document.activeElement)
-      if (e.shiftKey && (!inside || document.activeElement === f[0] || document.activeElement === el)) { e.preventDefault(); f[f.length - 1].focus() }
-      else if (!e.shiftKey && (!inside || document.activeElement === f[f.length - 1])) { e.preventDefault(); f[0].focus() }
-    }
-    document.addEventListener('keydown', onKey) // bubble phase: popovers inside handle their own Esc first (capture + stopPropagation)
-
-    // lock the page behind, keeping its width (no jump when the scrollbar disappears)
-    const { overflow, paddingRight } = document.body.style
-    const gap = window.innerWidth - document.documentElement.clientWidth
-    document.body.style.overflow = 'hidden'
-    if (gap) document.body.style.paddingRight = `${gap}px`
-
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = overflow
-      document.body.style.paddingRight = paddingRight
-      before?.focus?.()
-    }
-  }, [open, mounted])
+  // focus trap + Esc + return focus + scroll lock, for as long as it's open (hooks/useOverlay.js, shared)
+  useDialogFocus(panel, open && mounted, close)
 
   if (!mounted) return null
   return createPortal(

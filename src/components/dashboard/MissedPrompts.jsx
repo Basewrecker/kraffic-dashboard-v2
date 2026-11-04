@@ -61,7 +61,12 @@ const csvColumns = [
   { label: 'Status', csv: (r) => (r.status ? STATUSES[r.status].label : '') },
 ]
 
-export default function MissedPrompts() {
+// Optional (Opportunities → Content reuses this table as is; the Overview passes none of these):
+//   statusColumn: a column that replaces Status · onOpen(row): a row click opens this instead of the sheet ·
+//   bulkExtra(rows, clear): an extra bulk action, first in the bulk bar · rowFilter(row): keep only these rows ·
+//   onRowHover(row | null, element) · promptStyle(row): a style for the prompt text (Content: its view-transition-name) ·
+//   bulkOnly: the bulk bar is just the count, bulkExtra and Clear, sliding up from the table's bottom
+export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilter, onRowHover, promptStyle, bulkOnly = false } = {}) {
   const [statuses, setStatuses] = useState(() => Object.fromEntries(missedPrompts.map((r) => [r.id, r.status])))
   const [topic, setTopic] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
@@ -78,9 +83,9 @@ export default function MissedPrompts() {
 
   const rows = useMemo(
     () => missedPrompts
-      .filter((r) => (!topic || r.topic === topic) && matches(r.platforms) && (!syncF.ids || syncF.ids.has(r.id)) && (!set.ids || set.ids.has(r.id)))
+      .filter((r) => (!topic || r.topic === topic) && matches(r.platforms) && (!syncF.ids || syncF.ids.has(r.id)) && (!set.ids || set.ids.has(r.id)) && (!rowFilter || rowFilter(r)))
       .map((r) => ({ ...r, status: statuses[r.id] })),
-    [topic, platform, statuses, syncF.sync, set.ids],
+    [topic, platform, statuses, syncF.sync, set.ids, rowFilter],
   )
   const byId = (ids) => missedPrompts.filter((r) => ids.includes(r.id)).map((r) => ({ ...r, status: statuses[r.id] }))
 
@@ -109,7 +114,7 @@ export default function MissedPrompts() {
       sort: { value: (r) => r.prompt.toLowerCase(), first: 'asc' },
       cell: (r) => (
         <div className="min-w-0">
-          <div title={r.prompt} className="truncate text-body text-stone-900">{r.prompt}</div>
+          <div title={r.prompt} className="truncate text-body text-stone-900" style={promptStyle?.(r)}>{r.prompt}</div>
           {/* meta line: only what the active filters don't already say (topic pill / engine filter) */}
           {showMeta && (
             <div className="mt-0.5 flex items-center gap-2 text-[13px] leading-[18px] text-stone-500">
@@ -147,7 +152,7 @@ export default function MissedPrompts() {
       skeleton: '56px',
       cell: (r) => <LogoStack domains={alsoMissing(`m${r.id}`, r.competitors)} />,
     },
-    {
+    statusColumn ?? {
       key: 'status',
       label: 'Status',
       mobile: 'extra', // phones: line 3, next to the logos
@@ -184,9 +189,12 @@ export default function MissedPrompts() {
     <>
       <span className="px-2 text-small font-medium text-stone-900 proportional-nums">{count} selected</span>
       <span className="mx-1 h-5 w-px bg-stone-200" aria-hidden />
-      <GhostButton icon={FileText} onClick={() => openBrief(byId([...selected]))}>Create one brief</GhostButton>
-      <GhostButton icon={Loader} onClick={() => markInProgress([...selected])}>Mark in progress</GhostButton>
-      <GhostButton icon={Download} onClick={() => downloadCsv('missed-prompts-selected.csv', byId([...selected]), csvColumns)}>Export</GhostButton>
+      {bulkExtra?.(byId([...selected]), () => setSelected(new Set()))}
+      {!bulkOnly && <>
+        <GhostButton icon={FileText} onClick={() => openBrief(byId([...selected]))}>Create one brief</GhostButton>
+        <GhostButton icon={Loader} onClick={() => markInProgress([...selected])}>Mark in progress</GhostButton>
+        <GhostButton icon={Download} onClick={() => downloadCsv('missed-prompts-selected.csv', byId([...selected]), csvColumns)}>Export</GhostButton>
+      </>}
       <GhostButton icon={X} onClick={() => setSelected(new Set())}>Clear</GhostButton>
     </>
   )
@@ -208,9 +216,11 @@ export default function MissedPrompts() {
         onSortChange={setSort}
         selection={{ selected, setSelected }}
         bulkBar={bulkBar}
+        bulkAt={bulkOnly ? 'bottom' : 'header'}
         filterBar={filterBar}
         rowHeight={showMeta ? 'h-[52px]' : 'h-11'}
-        onRowClick={(r) => setOpenId(r.id)}
+        onRowClick={(r) => (onOpen ? onOpen(r) : setOpenId(r.id))}
+        onRowHover={onRowHover}
         emptyMessage={platform ? `No missed prompts on ${label}${topic ? ` in ${topic}` : ''}` : `No missed prompts in ${topic ?? 'this view'}`}
         onClearFilters={() => { setTopic(null); setPlatform(null); syncF.clear(); set.clear() }}
       />

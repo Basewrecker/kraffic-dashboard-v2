@@ -5,6 +5,7 @@ import Sheet, { SheetItem } from '../ui/Sheet'
 import { useIsMobile } from '../../hooks/useMedia'
 import { EXPORT_EVENT } from '../ui/MobileActions'
 import Card from './Card'
+import Checkbox from '../ui/Checkbox'
 import { downloadCsv } from './csv'
 
 // Shared table for the prompt lists (visible / missed / competitor).
@@ -37,7 +38,7 @@ import { downloadCsv } from './csv'
 //   mobileRowClick(row, el): what a tap does on phones when the desktop row has no click (its action button is hidden)
 export default function PromptTable({
   id, title, subtitle, rows, columns: dataColumns, filterKeys = ['prompt'], csvName,
-  count = rows.length,
+  count = rows.length, // null: no count badge (the page already shows the number)
   defaultSort = null, // { key, dir }
   loading = false,
   pageSizes = [10, 25, 50],
@@ -54,6 +55,9 @@ export default function PromptTable({
   topRow = null,
   bottomRow = null, // a node after the data rows: a <tr> on desktop, rendered as-is under the list on phones (e.g. a collapsed group)
   rowHover = 'hover:bg-stone-50',
+  headerText = 'text-[13px] leading-5', // optional: the column headers' size
+  bulkAt = 'header', // 'bottom': the bulk bar slides up from the table's bottom edge instead of replacing search / export
+  onRowHover = null, // optional (row | null, element) → e.g. a tooltip for the hovered row (Content)
   rowClass = null, // optional (row) → extra classes, e.g. a tint on the account's own rows
   sort: controlledSort, // optional controlled sort ({ key, dir } | null, with onSortChange), e.g. kept in the URL
   onSortChange,
@@ -148,22 +152,18 @@ export default function PromptTable({
     stopRowClick: true,
     skeleton: '16px',
     header: (
-      <input
-        type="checkbox"
-        aria-label="Select all rows on this page"
+      <Checkbox
+        label="Select all rows on this page"
         checked={pageIds.length > 0 && pageSelected === pageIds.length}
-        ref={(el) => { if (el) el.indeterminate = pageSelected > 0 && pageSelected < pageIds.length }}
+        indeterminate={pageSelected > 0 && pageSelected < pageIds.length}
         onChange={togglePage}
-        className="size-4 cursor-pointer accent-ink"
       />
     ),
     cell: (r) => (
-      <input
-        type="checkbox"
-        aria-label={`Select “${r.prompt}”`}
+      <Checkbox
+        label={`Select “${r.prompt}”`}
         checked={selection.selected.has(r.id)}
         onChange={() => toggleRow(r.id)}
-        className="size-4 cursor-pointer accent-ink"
       />
     ),
   }
@@ -258,14 +258,16 @@ export default function PromptTable({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="text-title font-semibold text-stone-900">{title}</h2>
-            <span className="inline-flex h-6 items-center rounded-full bg-stone-100 px-2 text-[13px] leading-none font-medium text-stone-600 proportional-nums">
-              {count}
-            </span>
+            {count != null && (
+              <span className="inline-flex h-6 items-center rounded-full bg-stone-100 px-2 text-[13px] leading-none font-medium text-stone-600 proportional-nums">
+                {count}
+              </span>
+            )}
           </div>
           <p className="mt-0.5 text-[13px] leading-[18px] font-normal text-stone-600">{subtitle}</p>
           {notice && <div className="mt-0.5 text-[13px] leading-[18px] text-stone-600">{notice}</div>}
         </div>
-        {bulkBar && selectedCount > 0 ? (
+        {bulkBar && bulkAt === 'header' && selectedCount > 0 ? (
           <div className="flex h-9 shrink-0 items-center gap-1">{bulkBar(selectedCount)}</div>
         ) : (
         <div className="flex shrink-0 items-center gap-2">
@@ -287,7 +289,7 @@ export default function PromptTable({
                 <th
                   key={c.key}
                   aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                  className={`${pad(i)} ${align(c)} ${c.colClass ?? ''} whitespace-nowrap text-[13px] leading-5 font-medium text-stone-500`}
+                  className={`${pad(i)} ${align(c)} ${c.colClass ?? ''} whitespace-nowrap ${headerText} font-medium text-stone-500`}
                   style={{ width: colWidth(c) }}
                 >
                   {c.header ? c.header : c.sort ? (
@@ -318,12 +320,15 @@ export default function PromptTable({
             : visible.map((r) => (
                 <tr
                   key={r.id}
+                  data-row-key={r.id}
+                  onMouseEnter={onRowHover ? (e) => onRowHover(r, e.currentTarget) : undefined}
+                  onMouseLeave={onRowHover ? () => onRowHover(null, null) : undefined}
                   onClick={onRowClick ? (e) => openRow(e, r) : undefined}
                   onKeyDown={onRowClick ? (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) openRow(e, r) } : undefined}
                   tabIndex={onRowClick ? 0 : undefined}
                   className={`group ${rowHeight} border-b border-stone-100 transition-[height,background-color] duration-150 ease-out motion-reduce:transition-none last:border-0 ${rowHover} ${
                     onRowClick ? 'cursor-pointer outline-none focus-visible:bg-stone-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus' : ''
-                  } ${selection?.selected.has(r.id) ? 'bg-stone-50' : ''} ${rowClass?.(r) ?? ''}`}
+                  } ${selection?.selected.has(r.id) ? 'bg-[var(--tint)]' : ''} ${rowClass?.(r) ?? ''}`}
                 >
                   {columns.map((c, i) => (
                     <td key={c.key} data-stop-row={c.stopRowClick || undefined} className={`${pad(i)} ${align(c)} ${c.colClass ?? ''} ${c.tdClass ?? ''}`}>{c.cell(r, sorted)}</td>
@@ -346,6 +351,7 @@ export default function PromptTable({
         </tbody>
       </table>
 
+      {bulkBar && bulkAt === 'bottom' && <BottomBar open={selectedCount > 0} count={selectedCount}>{bulkBar}</BottomBar>}
       {pagination && <div className="flex h-12 items-center justify-between border-t border-stone-100 px-5 text-[13px] text-stone-500 proportional-nums">
         <span>Showing {sorted.length ? start + 1 : 0}–{start + visible.length} of {sorted.length}</span>
         <div className="flex items-center gap-4">
@@ -419,6 +425,28 @@ export function NewTag() {
 }
 
 // Small ghost button for toolbars (bulk actions etc.)
+// The bulk bar at the table's bottom edge (bulkAt="bottom"): slides up (200ms, opacity + 8px) when rows are selected
+// and away when cleared (index.css .bulk-in / .bulk-out; instant under reduced motion). Sticky, so a long page keeps it
+// in view. Keeps showing the last count while it leaves.
+function BottomBar({ open, count, children }) {
+  const [state, setState] = useState(open ? 'in' : 'gone')
+  const last = useRef(count)
+  if (count > 0) last.current = count
+  useEffect(() => {
+    if (open) { setState('in'); return undefined }
+    if (state === 'gone') return undefined
+    setState('out')
+    const t = setTimeout(() => setState('gone'), 200)
+    return () => clearTimeout(t)
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (state === 'gone') return null
+  return (
+    <div className={`sticky bottom-0 z-10 flex h-12 items-center gap-1 border-t border-line bg-surface px-3 ${state === 'out' ? 'bulk-out' : 'bulk-in'}`} role="region" aria-label="Selected prompts">
+      {children(last.current)}
+    </div>
+  )
+}
+
 export function GhostButton({ children, onClick, icon: Icon }) {
   return (
     <button
@@ -463,7 +491,7 @@ function MobileList({
         <div className="px-4 pt-4">
           <div className="flex items-center gap-2">
             <h2 className="text-[15px] leading-5 font-semibold text-stone-900">{title}</h2>
-            <span className="inline-flex h-6 items-center rounded-full bg-stone-100 px-2 text-[13px] leading-none font-medium text-stone-600 tabular-nums">{count}</span>
+            {count != null && <span className="inline-flex h-6 items-center rounded-full bg-stone-100 px-2 text-[13px] leading-none font-medium text-stone-600 tabular-nums">{count}</span>}
           </div>
           {subtitle && <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600">{subtitle}</p>}
           {notice && <div className="mt-0.5 text-[13px] leading-[18px] text-stone-600">{notice}</div>}

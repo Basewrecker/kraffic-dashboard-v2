@@ -5,6 +5,8 @@ const KNOWN = {
   'cerave.com': 'CeraVe', 'theordinary.com': 'The Ordinary', 'paulaschoice.com': 'Paula’s Choice',
   'laroche-posay.us': 'La Roche-Posay', 'supergoop.com': 'Supergoop!', 'eltamd.com': 'EltaMD',
   'firstaidbeauty.com': 'First Aid Beauty', 'drunkelephant.com': 'Drunk Elephant',
+  // brands AI answers name (data/answers.js), so their logos resolve from the name (domainForName)
+  'neutrogena.com': 'Neutrogena', 'cetaphil.com': 'Cetaphil',
   // the many-competitor history preview (?history=many)
   'financeofamerica.com': 'Finance of America', 'rocketmortgage.com': 'Rocket Mortgage',
   'mutualofomahamortgage.com': 'Mutual of Omaha Mortgage', 'aag.com': 'American Advisors Group',
@@ -70,3 +72,18 @@ export function brandListName(stored, domain) {
   if (named.length) return resolveBrandName(named, host)
   return tidy || resolveBrandName(names, host)
 }
+
+// ---- the product's own name (ported from the app's lib/brand-icon.js, 2026-11-04) ---------------------------------
+// A white-label workspace (a host brand whose slug isn't "kraffic") is sold under its own name; Kraffic stays Kraffic.
+// UI copy that needs the product's name reads it from here, never a hard-coded "Kraffic".
+export const isWhiteLabel = (host) => Boolean(host?.slug && host.slug !== 'kraffic')
+export function productNameOf(host) {
+  const name = String(host?.brandName || '').trim()
+  if (isWhiteLabel(host) && name) return name
+  return 'Kraffic'
+}
+
+// the domain of a brand known by name (the reverse of KNOWN: "La Roche-Posay" → "laroche-posay.us"); null when the
+// name isn't one of them (AI answers name brands by name; only tracked ones carry a domain)
+const BY_NAME = Object.fromEntries(Object.entries(KNOWN).map(([d, n]) => [n.toLowerCase(), d]))
+export const domainForName = (name) => BY_NAME[String(name ?? '').trim().toLowerCase()] ?? null

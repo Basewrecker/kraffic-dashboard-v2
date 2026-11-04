@@ -42,9 +42,9 @@
   /* surfaces */
   --color-page: #fafaf9;        /* stone-50 */
   --color-surface: #ffffff;
-  --color-line: #e7e5e4;        /* stone-200: card borders, dividers */
+  --color-line: #DEDCDA;        /* card borders, dividers (round 4, 2026-11-04: was stone-200 #e7e5e4, too faint) */
   --color-line-soft: #f5f5f4;   /* stone-100 */
-  --color-line-strong: #d6d3d1; /* stone-300: hovered card borders */
+  --color-line-strong: #CFCCC9; /* section rules, hovered card borders (was stone-300 #d6d3d1) */
   /* barely-there boxes inside a card (Sync history gained / lost) */
   --subtle-border: #E2DFDC;
   --subtle-bg: color-mix(in srgb, var(--tint) 45%, transparent);
@@ -124,6 +124,7 @@ body {
   --tint: #F5F5F4;         /* soft backgrounds: chips, active nav, pills */
   --negative: #DC2626;     /* ONLY drops / failures */
   --caution: #B8893E;      /* muted amber: ONLY the dot of a softer report verdict (Slower week, Room to grow); never text */
+    --co-improved: #16A34A; /* Content: the Improved status and ▲ improvement deltas only (owner, 2026-11-04) */
   --sent-mixed: #57534E;   /* Sentiment: a Mixed page (stone-600), between Neutral's light grey and Positive's ink; not red */
   /* Visibility history, LINE chart only: you = ink, competitors by share rank. Bar/Growth keep --data-c1..c3. */
   --line-you: var(--ink);
@@ -163,6 +164,7 @@ html[data-theme="dark"] {
   --tint: #1A1A1A;
   --negative: #F87171;
   --caution: #C9A160;
+  --co-improved: #22C55E;
   --sent-mixed: #808080;
   --line-1: #8B8DF5;
   --line-2: #F27370;
@@ -180,9 +182,9 @@ html[data-theme="dark"] {
   --color-raised: #1B1B1B;
   --color-overlay: #1B1B1B;
   --color-white: #111111;
-  --color-line: #222222;
+  --color-line: #2A2A2A;
   --color-line-soft: #1A1A1A;
-  --color-line-strong: #333333;
+  --color-line-strong: #3D3D3D;
   --subtle-border: #1C1C1C;
   --subtle-bg: rgba(255,255,255,0.02);
   --dashed-border: var(--color-line);
@@ -229,6 +231,7 @@ html[data-theme="dark"] {
     --tint: #1A1A1A;
     --negative: #F87171;
     --caution: #C9A160;
+    --co-improved: #22C55E;
     --sent-mixed: #808080;
     --line-1: #8B8DF5;
     --line-2: #F27370;
@@ -246,9 +249,9 @@ html[data-theme="dark"] {
     --color-raised: #1B1B1B;
     --color-overlay: #1B1B1B;
     --color-white: #111111;
-    --color-line: #222222;
+    --color-line: #2A2A2A;
     --color-line-soft: #1A1A1A;
-    --color-line-strong: #333333;
+    --color-line-strong: #3D3D3D;
     --subtle-border: #1C1C1C;
     --subtle-bg: rgba(255,255,255,0.02);
     --dashed-border: var(--color-line);
@@ -337,12 +340,13 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
 @keyframes sent-fade-out { from { opacity: 1; } to { opacity: 0; } }
 /* Sentiment Over time: Score's latest-sync card under the chart (narrow screens) fades in from 8px right */
 @keyframes sent-dock-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
-/* Sentiment (.k-sent, the page's root): --tabs for the chart's hover band (the dashboard's --tint); the Over time
+/* Sentiment (.k-sent, the page's root) and the Content workspace (.co-ws, its Mix chart uses the same tokens): --tabs for the
+   chart's hover band (the dashboard's --tint); the Over time
    neutral, darker than --data-c3 */
-.k-sent { --tabs: var(--tint); --sent-neutral: #CFCFCF; --sent-track: #CECECE; --row-hover: var(--tint); }
-html[data-theme="dark"] .k-sent { --sent-neutral: #3A3A3A; --sent-track: #3A3A3A; --row-hover: var(--tint); }
+.k-sent, .co-ws { --tabs: var(--tint); --sent-neutral: #CFCFCF; --sent-track: #CECECE; --row-hover: var(--tint); }
+html[data-theme="dark"] .k-sent, html[data-theme="dark"] .co-ws { --sent-neutral: #3A3A3A; --sent-track: #3A3A3A; --row-hover: var(--tint); }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .k-sent { --sent-neutral: #3A3A3A; --sent-track: #3A3A3A; --row-hover: var(--tint); }
+  :root:not([data-theme="light"]) .k-sent, :root:not([data-theme="light"]) .co-ws { --sent-neutral: #3A3A3A; --sent-track: #3A3A3A; --row-hover: var(--tint); }
 }
 /* add-prompt row leaving */
 @keyframes row-out { from { height: 43px; opacity: 1; } to { height: 0; opacity: 0; } }
@@ -546,4 +550,102 @@ html[data-theme="dark"] { --bubble: var(--color-raised); }
 @supports not selector(::-webkit-scrollbar) {
   .thread-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color 300ms ease-out; }
   .thread-scroll[data-sb='on'] { scrollbar-color: var(--color-line-strong) transparent; transition-duration: 120ms; }
+}
+
+/* Opportunities → Content: the row's prompt morphs into the workspace title (parts.jsx goTo); quick and ease-out */
+::view-transition-group(*) { animation-duration: 250ms; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 150ms; }
+
+
+/* Table checkboxes (ui/Checkbox): the box fills with a 120ms scale, the tick / dash draws in over 150ms */
+@keyframes cb-pop { from { transform: scale(.8); } to { transform: none; } }
+.cb-pop { animation: cb-pop 120ms ease-out; }
+@keyframes cb-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.cb-draw { stroke-dasharray: 1; animation: cb-draw 150ms ease-out both; }
+/* PromptTable's bottom bulk bar: slides up 8px and fades in (200ms); out the same way */
+@keyframes bulk-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes bulk-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px); } }
+.bulk-in { animation: bulk-in 200ms ease-out both; }
+.bulk-out { animation: bulk-out 200ms ease-out both; }
+@media (prefers-reduced-motion: reduce) { .cb-pop, .cb-draw, .bulk-in, .bulk-out { animation: none; } }
+
+
+/* Opportunities → Content, focus mode (pages/opportunities/workspace/FocusPanel.jsx): the page behind blurs (8px) and
+   dims under --page (55% light, 65% dark). Blur is forbidden elsewhere (DESIGN.md §4): the owner's exception. */
+.co-veil { background: color-mix(in srgb, var(--color-page) 55%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+html[data-theme="dark"] .co-veil { background: color-mix(in srgb, var(--color-page) 65%, transparent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .co-veil { background: color-mix(in srgb, var(--color-page) 65%, transparent); } }
+/* the focus panel: a soft 2-layer shadow (contact + diffuse); dark mode keeps its 1px line only */
+.co-panel { box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent), 0 24px 48px -16px color-mix(in srgb, var(--ink) 28%, transparent); }
+html[data-theme="dark"] .co-panel { box-shadow: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .co-panel { box-shadow: none; } }
+/* a step's content arriving inside the panel: in from the right */
+@keyframes co-slide-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+.co-slide-in { animation: co-slide-in 260ms cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .co-slide-in { animation: fade-in 150ms ease-out both; } }
+/* Your data: an upload's thin bar while it's read (scaleX, so it can resume mid-way with a negative delay) */
+@keyframes co-read { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.co-read { transform-origin: left; animation-name: co-read; animation-timing-function: linear; animation-fill-mode: both; }
+/* Writing the draft (draft/Generating.jsx): rows arriving in the live view, a tick popping in, the current step's soft
+   pulse and the outline's caret (the pulse and the caret loop: the owner's exception, DESIGN.md; off under reduced motion) */
+@keyframes co-row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes co-pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes co-pulse-k { 0% { opacity: .35; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.9); } }
+.co-pulse { animation: co-pulse-k 1.4s ease-out infinite; }
+@keyframes co-caret-k { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.co-caret { animation: co-caret-k 1s step-end infinite; }
+@media (prefers-reduced-motion: reduce) { .co-pulse { animation: none; opacity: 0; } .co-caret { animation: none; } }
+/* Draft step v1, writing (draft/Writing.jsx): the outline's skeleton lines brighten one after another, calmly
+   (opacity only; a loop: the owner's exception, DESIGN.md; static under reduced motion) */
+@keyframes co-skel-k { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.co-skel { animation: co-skel-k 1.6s ease-in-out infinite; }
+html[data-theme="dark"] .co-skel { background: var(--color-line-strong); }
+@media (prefers-reduced-motion: reduce) { .co-skel { animation: none; } }
+/* Target page (v1): a logo dropping into its rank slot (transform + opacity, once) */
+/* Target page (v1) load sequence and linked hover: logos drop in (8px), engine icons pop, a soft highlight sweeps the
+   format columns, cells scale in, "the draft adds" rows slide in; a missing cell pulses once on hover */
+@keyframes co-slot-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes co-pop-in { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes co-sweep { 0% { opacity: 0; } 35% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes co-cell-in { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+@keyframes co-slide-row { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@keyframes co-pulse-once { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+
+/* Opportunities → Content, LIGHT ONLY (owner, 2026-11-04: light read washed out; dark stays as it is). Scoped to the
+   workspace's root and its focus-panel portal (.co-ws), not global tokens. html:not([data-theme="dark"]) = light, and
+   System with a light OS (the app sets data-theme="dark" for System + a dark OS). */
+.co-ws { --co-empty: var(--color-line-strong); --co-slot: var(--color-line-strong); }
+html:not([data-theme="dark"]) .co-ws {
+  --div: #E3E3E3;                /* row dividers */
+  --color-line-strong: #CFCFCF;  /* section rules under headers */
+  --color-line: #DDDDDD;         /* card borders (the payoff bar) */
+  --color-stone-500: #6B6B6B;    /* muted text: column labels, "3 of 5", "#2", meta (5.1:1 on the page) */
+  --color-stone-400: #6B6B6B;    /* never lighter for anything you need to read */
+  --tint: #F0F0F0; --color-tint: #F0F0F0; /* selected / hover row tint */
+  --co-empty: #B8B8B8;           /* the matrix's empty cell ring */
+  --co-slot: #C4C4C4;            /* the ladder's empty slot ring */
+}
+/* Draft step v1, writing: the shimmer moves through the skeleton top to bottom (each line brightens in turn, then the
+   wave restarts); a loop: the owner's exception; static under reduced motion */
+@keyframes co-skel-wave-k { 0% { opacity: .5; } 8% { opacity: 1; } 18%, 100% { opacity: .5; } }
+.co-skel-wave { animation-name: co-skel-wave-k; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+@media (prefers-reduced-motion: reduce) { .co-skel-wave { animation: none; opacity: .7; } }
+@keyframes co-arrive-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* Draft (v1): "Show in draft" marks the first mention for 1.2s (static under reduced motion) */
+@keyframes co-flash-k { 0%, 60% { background: color-mix(in srgb, var(--caution) 28%, transparent); } 100% { background: transparent; } }
+.co-flash { animation: co-flash-k 1200ms ease-out both; }
+@media (prefers-reduced-motion: reduce) { .co-flash { animation: none; background: color-mix(in srgb, var(--caution) 28%, transparent); } }
+/* Draft (v1) rail: scrolls on its own (vertical only) with no visible track. overflow-y auto: no scrollbar at all when it
+   fits. A thin thumb shows on hover and while scrolling (data-sb="on", ~800ms), muted (--color-line-strong); the track
+   stays transparent. Chrome / Safari: a 6px ::-webkit-scrollbar whose thumb takes the element's border colour (as
+   .thread-scroll: a pseudo-element's own :hover background doesn't repaint reliably); Firefox: scrollbar-width thin +
+   scrollbar-color. The rail has no border, so the colour shows only on the thumb. */
+.co-rail { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; border-color: transparent; transition: border-color 300ms ease-out; }
+.co-rail:hover, .co-rail[data-sb='on'] { border-color: var(--color-line-strong); transition-duration: 120ms; }
+.co-rail::-webkit-scrollbar { width: 6px; height: 0; background: transparent; }
+.co-rail::-webkit-scrollbar-track, .co-rail::-webkit-scrollbar-corner { background: transparent; }
+.co-rail::-webkit-scrollbar-thumb { border-radius: 3px; border-style: solid; border-width: 0 6px 0 0; border-color: inherit; }
+@supports not selector(::-webkit-scrollbar) {
+  .co-rail { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  .co-rail:hover, .co-rail[data-sb='on'] { scrollbar-color: var(--color-line-strong) transparent; }
 }

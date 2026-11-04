@@ -3,6 +3,7 @@
 // reloads so every page reads the new brand (mock.js picks it up as `account`). ?role=client previews a client user;
 // ?role=superadmin a superadmin signed in as a client through "Login as client" (the client's brands, and Home).
 import { currentBrand, workspaceAgency, workspaceDirectory } from '../data/mock'
+import { productNameOf } from '../utils/brand.js'
 
 const BRAND = 'kraffic:brand'
 const RECENT = 'kraffic:brand:recent'
@@ -33,3 +34,12 @@ export function switchBrand(id) {
   if (main && !reduce) { main.style.transition = 'opacity 150ms ease-out'; main.style.opacity = '0' }
   setTimeout(() => window.location.reload(), reduce ? 0 : 150)
 }
+
+// The host brand the mock runs under (the app reads it from the request's host). ?label=<Name> previews a white label.
+export const host = () => {
+  const label = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('label')
+  return label ? { slug: slugOf(label), brandName: label } : { slug: 'kraffic', brandName: 'Kraffic' }
+}
+const slugOf = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+// the name to show for the product on this host
+export const productName = () => productNameOf(host())

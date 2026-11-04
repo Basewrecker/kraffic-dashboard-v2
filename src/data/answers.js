@@ -4,8 +4,9 @@
 // key: a tracked prompt id ("v12" / "m3") or a marketplace prompt ("mp7").
 // Who appears comes from the dashboard's appearances table (so the drawer agrees with the tables);
 // older syncs are the current answer perturbed: some sentences reworded, some brands/sources in or out.
-import { appearances, TRACKED_BRANDS, enginePid } from './brandViews.js'
-import { account, guessCategory, marketplace, recentSyncs, trackedPrompts } from './mock.js'
+import { appearances, TRACKED_BRANDS, brandByDomain, enginePid } from './brandViews.js'
+import { brandName } from '../utils/brand.js'
+import { account, guessCategory, marketplace, missedPrompts, recentSyncs, trackedPrompts } from './mock.js'
 
 export const ANSWER_SYNCS = [...recentSyncs].reverse() // newest first: "Oct 5, 2026", "Sep 28, 2026", …
 export const LATEST = ANSWER_SYNCS[0]
@@ -49,6 +50,22 @@ export function answerPrompt(key) {
   }
   const p = trackedById[key]
   return p && { key, prompt: p.prompt, topic: p.category }
+}
+
+// a missed prompt's row (data/mock.js missedPrompts, keyed "m<id>"), else null
+const missedRow = (key) => (/^m\d+$/.test(key) ? missedPrompts.find((m) => m.id === Number(key.slice(1))) ?? null : null)
+// the brands a missed prompt's row names on this engine (brandsMentioned, in the row's competitors order), then the
+// user's brand where the row says it's named (row.platforms = the engines it's MISSING on); cited when the row's
+// sources include the brand's site
+function missedMentions(row, engine) {
+  const pid = enginePid(engine)
+  const page = (d) => row.sources.find((s) => s.domain === d)?.path ?? null
+  const named = row.competitors
+    .map((d) => row.brandsMentioned.find((b) => b.domain === d))
+    .filter((b) => b && b.domain !== account.domain && b.platforms.includes(pid))
+    .map((b) => ({ ...(brandByDomain(b.domain) ?? { domain: b.domain, name: brandName(b.domain) }), cited: Boolean(page(b.domain)), page: page(b.domain) }))
+  const own = row.platforms.includes(pid) ? [] : [{ ...TRACKED_BRANDS[0], cited: false, page: null }]
+  return [...named, ...own]
 }
 
 // which tracked brands appear in this prompt's answer on this engine (current sync)
@@ -112,11 +129,16 @@ function baseState(item, engine) {
   const r = rng(hash(`${item.key}|${engine}`))
   const s = slots(item, r)
   const products = PRODUCT[s.topic]
-  const tracked = trackedMentions(item, engine)
+  const row = missedRow(item.key)
+  const tracked = row ? missedMentions(row, engine) : trackedMentions(item, engine)
   const others = OTHER_BRANDS.filter(() => r() < 0.55).slice(0, 3 + Math.floor(r() * 3))
-  // tracked brands land early in the list (they're the ones the dashboard tracks); others fill around them
-  const names = [...others.map((n) => ({ name: n }))]
-  tracked.forEach((b) => names.splice(Math.floor(r() * Math.min(3, names.length + 1)), 0, b))
+  // a missed prompt (2026-11-04): its answer agrees with the Missed prompts row: the brands the row names on this
+  // engine first, in the row's order, then the user's brand where the row says it's named, then the other brands.
+  // Anything else: tracked brands land early in the list (the ones the dashboard tracks); others fill around them.
+  const names = row
+    ? [...tracked, ...others.filter((n) => !tracked.some((b) => b.name === n)).map((n) => ({ name: n }))]
+    : [...others.map((n) => ({ name: n }))]
+  if (!row) tracked.forEach((b) => names.splice(Math.floor(r() * Math.min(3, names.length + 1)), 0, b))
   const brands = names.map((b) => ({ ...b, product: pick(products, r), why: pick(s.why, r) }))
   const v = Math.floor(r() * 3)
   const sources = [

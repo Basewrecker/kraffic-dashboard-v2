@@ -346,10 +346,10 @@ export const brands = {
   'cerave.com': { name: 'CeraVe' },
   'theordinary.com': { name: 'The Ordinary' },
   'paulaschoice.com': { name: 'Paula’s Choice' },
-  'lumiere-labs.com': { name: 'Lumière Labs' },
-  'dewdrop-skin.com': { name: 'Dewdrop' },
+  'laroche-posay.us': { name: 'La Roche-Posay' },
+  'drunkelephant.com': { name: 'Drunk Elephant' },
 }
-const brandWeights = ['cerave.com', 'cerave.com', 'cerave.com', 'theordinary.com', 'theordinary.com', 'paulaschoice.com', 'lumiere-labs.com', 'dewdrop-skin.com']
+const brandWeights = ['cerave.com', 'cerave.com', 'cerave.com', 'theordinary.com', 'theordinary.com', 'paulaschoice.com', 'laroche-posay.us', 'drunkelephant.com']
 
 // logos stored for a brand or marketplace, by domain (Setup uploads); SiteLogo falls back to the favicon, then the initial.
 // None stored in this demo.
@@ -396,7 +396,7 @@ const topicDetails = {
     angle: 'Target the condition by name (keratosis pilaris) with a clinical-style FAQ and a weekly exfoliation schedule.' },
 }
 
-const publishers = ['skinwiki.org', 'dermdaily.com', 'beautyedit.co', 'thecosmeticchemist.blog']
+const publishers = ['healthline.com', 'byrdie.com', 'allure.com', 'verywellhealth.com']
 const publisherPaths = (slug) => [`/guides/best-${slug}`, `/reviews/${slug}-2026`, `/ingredients/${slug}-explained`, `/top-picks/${slug}`]
 
 function answerFor(prompt, topic, winners) {

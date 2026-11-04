@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2 } from 'lucide-react'
+import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, FilePenLine } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
@@ -21,6 +21,9 @@ export const groups = [
     { label: 'New report', icon: Sparkles, href: '/reports', beta: true },
     { label: 'All reports', icon: FileText, href: '/reports/all' },
     { label: 'Scheduled', icon: CalendarClock, href: '/reports/scheduled' },
+  ] },
+  { label: 'Opportunities', items: [
+    { label: 'Content', icon: FilePenLine, href: '/opportunities/content', beta: true },
   ] },
   { label: 'Optimize', items: [
     { label: 'Structured Data', icon: Code2, href: '/structured-data' },
