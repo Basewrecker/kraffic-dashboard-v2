@@ -118,7 +118,7 @@ test('a theme quotes the sentence about it, and lists its engines in order', () 
   assert.equal(cs.match, null)
   assert.equal(themeQuote(cs.pages[0], cs), tellingSentence(cs.pages[0]))
   assert.match(themeQuote(cs.pages[0], { ...cs, match: /customer service/i }).text, /Customer service/, 'with a match: the sentence about it')
-  assert.deepEqual(themeEngines(pumps), ['google', 'chatgpt'])
+  assert.deepEqual(themeEngines(pumps), ['google', 'aimode', 'chatgpt']) // AI Overview before AI Mode, then the rest
 })
 
 test('lead quote: the top Hurting theme, its quote about it, and its other pages', () => {
@@ -264,7 +264,7 @@ test('split plan: one dot per citing engine, the original to the first lane, cop
   assert.deepEqual(merged.map((d) => d.shown), [true, false, true, true])
   assert.ok(merged.every((d) => d.lane === 'all'))
   // the mock: every page's copies = its engines
-  const plan = dotPlan(PAGES, engines, true)
+  const plan = dotPlan(PAGES, [{ id: 'google' }, { id: 'aimode' }, { id: 'chatgpt' }, { id: 'claude' }], true)
   assert.equal(plan.length, PAGES.reduce((n, p) => n + p.engines.length, 0))
 })
 

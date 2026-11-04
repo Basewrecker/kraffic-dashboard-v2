@@ -9,8 +9,10 @@
 // The caller passes `points` (the facts' points in the period, by the adapter's pointsIn) and `prev` (the syncs before).
 import { ENGINE_NAMES, periodLabel } from '../../../data/reports.js'
 
-export const ENGINE_DOMAIN = { aio: 'google.com', chatgpt: 'chatgpt.com', gemini: 'gemini.google.com', claude: 'claude.ai' }
-export const ALL_ENGINES = ['aio', 'chatgpt', 'gemini', 'claude']
+export const ENGINE_DOMAIN = { aio: 'google.com', aimode: 'google.com', chatgpt: 'chatgpt.com', gemini: 'gemini.google.com', claude: 'claude.ai' }
+export const ALL_ENGINES = ['aio', 'aimode', 'chatgpt', 'gemini', 'claude']
+// engines in the one order every list uses (AI Overview, AI Mode, ChatGPT, Gemini, Claude), whatever order they came in
+const inOrder = (ids) => [...new Set(ids)].filter(Boolean).sort((a, b) => ALL_ENGINES.indexOf(a) - ALL_ENGINES.indexOf(b))
 export const NO_HISTORY = 'Not enough history yet: one scan so far'
 export const KIND_NAME = { weekly: 'Weekly summary', client: 'Client update', ceo: 'CEO summary', rival: 'Competitor gap', content: 'Missing prompts' }
 const MONTH = { Sep: 'September', Oct: 'October', Nov: 'November', Dec: 'December' }
@@ -30,7 +32,8 @@ const nameOf = (facts, domain) => (facts.competitors || []).find((c) => c.domain
 const lower = (t) => (/^[A-Z]{2}/.test(t) ? t : t.charAt(0).toLowerCase() + t.slice(1))
 // "a calculators page", "an eligibility page"
 const aPage = (topic) => `${/^[aeiou]/i.test(topic) ? 'an' : 'a'} ${lower(topic)} page`
-const engine = (id) => ({ domain: ENGINE_DOMAIN[id], name: ENGINE_NAMES[id] })
+// engine: the PlatformIcon id, so AI Overview and AI Mode (both google.com) get their own marks, not one favicon
+const engine = (id) => ({ domain: ENGINE_DOMAIN[id], name: ENGINE_NAMES[id], engine: id })
 const brandIcon = (domain, name) => ({ domain, name })
 
 // a delta chip: the change over the period. tone: good / bad, or neutral when the change is neither (or zero)
@@ -161,7 +164,7 @@ function stepItems(facts, prompts, { engineOf = () => null, rival = null } = {})
   const you = { domain: facts.domain, name: facts.name, you: true }
   return prompts.map((prompt) => {
     const row = (facts.missedRows || []).find((r) => r.prompt === prompt)
-    const engines = [...new Set([engineOf(prompt), ...(row?.engines || [])].filter(Boolean))]
+    const engines = inOrder([engineOf(prompt), ...(row?.engines || [])])
     const named = row ? row.competitors.map((d) => ({ domain: d, name: nameOf(facts, d) })) : [you, ...(rival ? [{ domain: rival.domain, name: rival.name }] : [])]
     return { prompt, engines, named, you: !row }
   })
@@ -194,7 +197,7 @@ function topicFacts(facts, topic, colorOf) {
   return {
     you, comp, nobody: rows.length - comp, missing: rows.length,
     logos: { list: logos.slice(0, 3), more: Math.max(0, logos.length - 3) },
-    engines: [...new Set(rows.flatMap((r) => r.engines || []))],
+    engines: inOrder(rows.flatMap((r) => r.engines || [])),
     split: { parts: [...(you != null ? [{ v: you, color: 'var(--line-you)', label: 'you' }] : []), { v: comp, color: 'var(--rep-bad)', label: 'a competitor', alpha: 0.7 }, { v: rows.length - comp, label: 'nobody', hatched: true }] },
   }
 }
@@ -212,7 +215,7 @@ function movedOf(ctx, labels = { title: 'What moved', gained: 'Gained', lost: 'L
   }
   ;(history ? facts.gained || [] : []).forEach((p) => add(p, facts.gainedRows, 'gained'))
   ;(history ? facts.lost || [] : []).forEach((p) => add(p, facts.lostRows, 'lost'))
-  const rows = [...byTopic.values()].map((m) => ({ ...m, net: m.gained.length - m.lost.length, engines: [...new Set([...m.gained, ...m.lost].flatMap((x) => x.engines))] }))
+  const rows = [...byTopic.values()].map((m) => ({ ...m, net: m.gained.length - m.lost.length, engines: inOrder([...m.gained, ...m.lost].flatMap((x) => x.engines)) }))
     .sort((a, b) => (a.lost.length > 0) !== (b.lost.length > 0) ? (a.lost.length > 0 ? -1 : 1) : a.lost.length ? b.lost.length - a.lost.length : b.net - a.net)
   return rows.length ? { ...labels, col: 'Since last sync', rows } : null
 }
@@ -318,7 +321,7 @@ function competitor(ctx) {
         of: topicTotal(facts, g.key, g.items.length), now: youIn(facts, g.key),
         rival: { name: R, domain: r.domain, icon: brandIcon(r.domain, r.name) }, theirPage: w?.them ?? null, yourPage: w?.you ?? null,
         items: stepItems(facts, g.items.map((x) => x.prompt), { engineOf: (p) => g.items.find((x) => x.prompt === p)?.engine, rival: r }),
-        engines: [...new Set(g.items.map((x) => x.engine).filter(Boolean))].map(engine),
+        engines: inOrder(g.items.map((x) => x.engine)).map(engine),
         page: w ? (w.you ? w.you.path : 'New page') : undefined,
         why: w?.them ? `${R}’s ${w.them.path} is cited in ${plural(w.them.n, 'answer')}. ${w.you ? `Yours, ${w.you.path}, in ${w.you.n}.` : 'You have no page for this.'}` : `${R} is named on ${g.items.length} of these prompts and you aren’t.`,
       })

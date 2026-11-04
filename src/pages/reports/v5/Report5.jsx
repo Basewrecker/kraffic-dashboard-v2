@@ -5,8 +5,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronRight } from 'lucide-react'
 import './report5.css'
-import { PERIODS } from '../../../data/reports'
-import { NO_HISTORY } from './model'
+import { ENGINE_NAMES, PERIODS } from '../../../data/reports'
+import { ENGINE_DOMAIN, NO_HISTORY } from './model'
+import { PlatformIcon } from '../../../components/dashboard/icons'
 import VisibilityHistory from '../../../components/dashboard/VisibilityHistory'
 import Marker from '../../../components/ui/Marker'
 
@@ -57,7 +58,7 @@ function Snapshot({ snap, note }) {
           <h3>By engine</h3>
           {snap.engines.map((e) => (
             <div key={e.id} className="se-row">
-              <span className="t"><Fav icon={engineIcon(e.id)} /><span className="x nowrap">{{ aio: 'AI Overview', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }[e.id]}</span></span>
+              <span className="t"><Fav icon={engineIcon(e.id)} /><span className="x nowrap">{ENGINE_NAMES[e.id]}</span></span>
               <span className="se-bars">
                 {e.bars.map((b, k) => (
                   <span key={b.domain} className={`se-bar ${k ? 'thin' : ''}`} title={`${b.name}: ${b.named} prompts named`}><span className="track"><i style={{ width: `${b.share}%`, background: b.color }} /></span><b className="num">{b.share}%</b></span>
@@ -100,6 +101,8 @@ const favicon = (domain) => `https://www.google.com/s2/favicons?domain=${encodeU
 function Fav({ icon }) {
   const [bad, setBad] = useState(false)
   if (!icon) return null
+  // an engine: its own mark (AI Overview and AI Mode share google.com, so a favicon can't tell them apart)
+  if (icon.engine) return <span className="fav eng" title={icon.name}><PlatformIcon id={icon.engine} size={16} /></span>
   if (bad || !icon.domain) return <span className="fav" style={{ background: 'var(--ink3)' }}>{(icon.name || '?')[0].toUpperCase()}</span>
   return <span className="fav"><img src={favicon(icon.domain)} alt="" onError={() => setBad(true)} onLoad={(e) => e.currentTarget.naturalWidth <= 16 && setBad(true)} /></span>
 }
@@ -355,8 +358,8 @@ function OpenPrompts({ open }) {
 // ---- next steps: one card per action (2–3 in a row, equal width and height; full width alone; stacked on a phone) ----
 // Card: the action and its topic; the prompts it could win (28px) with who's named on them; its first 3 prompts with
 // the engines they're lost on. A click opens the brief.
-const Favs = ({ list }) => <span className="favs">{list.map((e) => <Fav key={e.domain} icon={e} />)}</span>
-const engineIcon = (id) => ({ domain: { aio: 'google.com', chatgpt: 'chatgpt.com', gemini: 'gemini.google.com', claude: 'claude.ai' }[id], name: id })
+const Favs = ({ list }) => <span className="favs">{list.map((e) => <Fav key={e.engine ?? e.domain} icon={e} />)}</span>
+const engineIcon = (id) => ({ domain: ENGINE_DOMAIN[id], name: ENGINE_NAMES[id] ?? id, engine: id })
 // who's named on the step's prompts: the brand named most often (not always the report's rival), and you
 function stepFacts(s) {
   const items = s.items ?? []
@@ -421,7 +424,7 @@ function BriefDrawer({ s, onClose, onCopy, onOpen }) {
                 {row === i && (
                   <div className="bd-more">
                     <div><span>Named</span>{x.named.length ? x.named.map((b) => b.you ? `${b.name} (you)` : b.name).join(', ') : 'No brand'}</div>
-                    {x.engines.length > 0 && <div><span>Lost on</span>{x.engines.map((e) => ({ aio: 'AI Overview', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }[e])).join(', ')}</div>}
+                    {x.engines.length > 0 && <div><span>Lost on</span>{x.engines.map((e) => ENGINE_NAMES[e]).join(', ')}</div>}
                   </div>
                 )}
               </div>

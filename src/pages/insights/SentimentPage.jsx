@@ -32,7 +32,7 @@ import { stackSegments } from '../../utils/mixBars'
 // States: ?mock=never | running | nopages | error | one (first run) | calm (no negative pages).
 // Fallbacks: ?themes=unlinked (themes not linked to pages) · ?quotes=none (pages analysed before quotes were kept).
 
-const ENGINES = SENTIMENT_ENGINES.map((id) => ({ id, name: ENGINE_NAME[id], short: ENGINE_NAME[id], icon: id === 'google' ? 'aio' : id }))
+const ENGINES = SENTIMENT_ENGINES.map((id) => ({ id, name: ENGINE_NAME[id], short: ENGINE_NAME[id], icon: id === 'google' ? 'aio' : id })) // 'aimode' is its own PlatformIcon
 const engineName = (id) => ENGINES.find((e) => e.id === id)?.name
 const EngineIcon = ({ id, size = 14 }) => <PlatformIcon id={ENGINES.find((e) => e.id === id)?.icon ?? id} size={size} />
 const EngineMarks = ({ ids, size = 14 }) => (
@@ -869,7 +869,7 @@ const SECOND = 'text-[14px] leading-5 font-normal text-stone-500'
 // every segmented control in these sections: 36px tall, 14px padding per option, 4px apart
 const SEG = 'gap-1 [&>button]:px-3.5'
 // the pages list: favicon | title (and "New") | domain ↗ | engines | tone (or "Neutral → Negative")
-const PAGE_GRID = 'grid grid-cols-[20px_minmax(0,1fr)_168px_56px_136px] items-center gap-x-2.5 max-md:grid-cols-[20px_minmax(0,1fr)_112px]' // phones: favicon, title, tone
+const PAGE_GRID = 'grid grid-cols-[20px_minmax(0,1fr)_168px_76px_136px] items-center gap-x-2.5 max-md:grid-cols-[20px_minmax(0,1fr)_112px]' // phones: favicon, title, tone
 const VIEWS = [{ value: 'mix', label: 'Mix' }, { value: 'score', label: 'Score' }]
 const EASE_OUT = 'cubic-bezier(.2,.8,.2,1)'
 
@@ -1391,7 +1391,8 @@ function OverTime({ runs, run, onPick: pickSync, pagesOf, engine, brand }) {
       const parts = [...probeRef.current.firstElementChild.children].map((e) => e.getBoundingClientRect().width)
       const gap = 8
       const full = parts.reduce((a, b) => a + b, 0) + gap * (parts.length - 1)
-      setMode(full <= room ? 'full' : 'compact')
+      // full line · the tone tabs + a Filters menu · that too is wider than the room (1280): the menu wraps below
+      setMode(full <= room ? 'full' : parts[0] + gap + 96 <= room ? 'compact' : 'wrap')
     }
     fit()
     const ro = new ResizeObserver(fit)
@@ -1443,11 +1444,14 @@ function OverTime({ runs, run, onPick: pickSync, pagesOf, engine, brand }) {
             )
           }) : null}
         </div>
-        <div ref={barRef} className="relative order-5 flex h-14 min-w-0 items-center md:order-none">
-          <SyncFilters L={L} mode={mode} />
-          {/* the full line, measured off screen: its parts decide the mode (full · Filters menu) */}
-          <div ref={probeRef} aria-hidden inert="" className="pointer-events-none invisible absolute left-0 top-0 flex w-max">
-            <SyncFilters L={L} />
+        <div ref={barRef} className={`relative order-5 flex min-w-0 items-center md:order-none ${mode === 'wrap' ? 'min-h-14 py-2' : 'h-14'}`}>
+          <SyncFilters L={L} mode={mode === 'wrap' ? 'compact' : mode} wrap={mode === 'wrap'} />
+          {/* the full line, measured off screen: its parts decide the mode (full · Filters menu). Clipped, so the
+              measuring copy never widens the page (with 4 engine toggles it ran past the window at 1280) */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div ref={probeRef} inert="" className="invisible absolute left-0 top-0 flex w-max">
+              <SyncFilters L={L} />
+            </div>
           </div>
         </div>
         <div className="order-3 min-w-0 md:order-none">
@@ -1626,7 +1630,8 @@ function SyncPageRow({ p, change = null }) {
 // site's numbers ("negative in 5 of 6 syncs"). Rows: favicon | domain ⌄ | bar | syncs | engines. Hover: the site's
 // quote (or its tone in every sync); click: the row opens in place (quotes, tone across syncs, its pages); several can
 // be open. A column more than a row longer shows "+n more" (the drawer with all of them).
-const SRC_GRID = 'grid grid-cols-[20px_minmax(0,1fr)_120px_48px_64px] items-center gap-x-3'
+// the engines column fits all four marks (AI Overview, AI Mode, ChatGPT, Claude: 4 × 14px + 3 × 6px gaps)
+const SRC_GRID = 'grid grid-cols-[20px_minmax(0,1fr)_120px_48px_76px] items-center gap-x-3'
 function Sources({ runs, pagesOf, engine, brand, latestPages, swot }) {
   const columns = useMemo(() => syncColumns(runs, pagesOf, engine), [runs, engine]) // eslint-disable-line react-hooks/exhaustive-deps
   const cloud = useMemo(() => sourceColumns(sourceCloud(columns)), [columns])
@@ -1782,7 +1787,7 @@ function SourceRow({ s, site, syncs, latestPages, open, onToggle }) {
                 {pages.map((h) => {
                   const href = pageHref(h)
                   return (
-                    <li key={h.id ?? h.url} className="grid h-11 grid-cols-[minmax(0,1fr)_minmax(0,140px)_56px_72px] items-center gap-x-2.5 border-b border-[var(--div)]">
+                    <li key={h.id ?? h.url} className="grid h-11 grid-cols-[minmax(0,1fr)_minmax(0,140px)_76px_72px] items-center gap-x-2.5 border-b border-[var(--div)]">
                       {href
                         ? <a href={href} {...LINK} aria-label={`${h.title} (opens in a new tab)`} className={`min-w-0 rounded outline-none underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ${ROW_TITLE}`}>{h.title}<span className="sr-only"> (opens in a new tab)</span></a>
                         : <span className={`min-w-0 ${ROW_TITLE}`}>{h.title}</span>}
@@ -1870,7 +1875,7 @@ function collapseKeepingHead(section, collapse) {
 // quote); its domain ↗ opens the cited page in a new tab. Rows: favicon | title (and "New") | domain ↗ | engines | tone.
 const SORTS = [{ value: 'tone', label: 'Tone' }, { value: 'title', label: 'Title' }, { value: 'engines', label: 'Engines' }]
 const FIRST = 5
-const ALL_GRID = 'grid grid-cols-[20px_minmax(0,1fr)_168px_56px_136px] items-center gap-x-2.5 max-md:grid-cols-[20px_minmax(0,1fr)_136px]'
+const ALL_GRID = 'grid grid-cols-[20px_minmax(0,1fr)_168px_76px_136px] items-center gap-x-2.5 max-md:grid-cols-[20px_minmax(0,1fr)_136px]'
 // an All pages row: favicon | title (and "New") | domain ↗ | engines | tone; a hover card with its quote
 function AllPageRow({ p, change, style }) {
           const href = pageHref(p)

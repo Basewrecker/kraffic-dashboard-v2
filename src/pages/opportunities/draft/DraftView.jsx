@@ -17,7 +17,7 @@ import { PlatformIcon } from '../../../components/dashboard/icons'
 import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
 import { formatLabel } from '../../../data/contentRecommend'
 import SiteLogo from '../../../components/ui/SiteLogo'
-import { LogoPlate, Ring } from '../parts'
+import { LogoPlate, Ring, withResults } from '../parts'
 import { RingDraw, TickDraw } from '../workspace/ui'
 import { competitorName } from '../../../data/contentRecommend'
 import { COVERAGE_LABEL, beforeAfter, rankStrip, enginesOf, flagHost, outlineShort, upAgainstRows, competitorTerms, competitorsToBeat, confirmOf, draftNotes, draftSections, formatRows, pageOf, readinessOf, sortedFlags, sourcesOf, sourcesToOutrank, splitMentions, withComparisons } from './recommend'
@@ -332,7 +332,7 @@ function Rail({ res, flags, ready, ticked, onTick, competitors, onRecheck, onSho
   const [hot, setHot] = useState(null) // linked hover: a rank-strip logo ↔ its row
   const checked = flags.filter((f) => ticked.includes(f.id)).length
   const topScore = Math.max(0, ...flags.map((f) => f.score))
-  const eng = (p) => (p ? enginesOf(p, resolve) : { engines: [], unknown: false })
+  const eng = (p) => (p ? withResults(enginesOf(p, resolve)) : { engines: [], unknown: false })
   return (
     <aside id="co-draft-checks" className="flex min-w-0 scroll-mt-36 flex-col gap-8" aria-label="Draft checks">
       <section>
@@ -403,7 +403,8 @@ function Rail({ res, flags, ready, ticked, onTick, competitors, onRecheck, onSho
               <LogoPlate domain={r.host} name={r.name} size={22} />
               <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-semibold text-stone-900">{r.name}</span>
               <span className="w-8 text-right text-[13px] leading-[18px] tabular-nums text-stone-700">{r.rank ? `#${r.rank}` : ''}</span>
-              <span className="flex w-12 justify-end">{(eng(r.page).engines.length || eng(r.page).unknown) ? <EngineIconRow e={eng(r.page)} /> : <span className="text-[13px] text-stone-500" aria-label="Not cited in AI answers">—</span>}</span>
+              {/* room for all five engines (5 × 14px + gaps): the rank column stays put whatever a row has */}
+              <span className="flex w-[86px] shrink-0 justify-end">{(eng(r.page).engines.length || eng(r.page).unknown) ? <EngineIconRow e={eng(r.page)} /> : <span className="text-[13px] text-stone-500" aria-label="Not cited in AI answers">—</span>}</span>
               {r.url && (
                 <span role="tooltip" className={`${CARD} right-0 w-[260px] text-stone-700 group-hover/ua:block ${i >= shownRows.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
                   <span className="block truncate font-medium text-stone-900" title={r.url}>{r.url.replace(/^https?:\/\/(www\.)?/, '')}</span>

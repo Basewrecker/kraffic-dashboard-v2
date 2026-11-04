@@ -22,7 +22,7 @@ import { STEPS, backLabel, stepPos } from './flow'
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const LINK = 'rounded text-[13px] leading-[18px] font-medium text-stone-600 underline-offset-4 outline-none whitespace-nowrap hover:text-ink hover:underline focus-visible:ring-2 focus-visible:ring-focus'
 
-// engines: all 4 engine ids, in order · named: the ones that name the brand now (the rest are missed)
+// engines: the engines with a result in the latest scan (5 with Google split in two; a no-result one is left out) · named: the ones that name the brand now (the rest are missed)
 export default function PayoffBar({ barRef, current, open, values = [], onPick, headline, line, engines = [], named = [], engineName = (e) => e, action, secondary = null, onClose = null, headingId, busy = false, steps }) {
   const still = reduced()
   return (
@@ -57,8 +57,8 @@ export default function PayoffBar({ barRef, current, open, values = [], onPick, 
   )
 }
 
-// the stakes: the 4 engines over "Named on n of 4". Named: full colour on a small ink ring; missed: plain (greyed, on a
-// the engines that name the brand now, in colour, over "Named on n of 4" (owner, 2026-11-04: no greyed icons for the
+// the stakes: the engines over "Named on n of 5". Named: full colour on a small ink ring; missed: plain (greyed, on a
+// the engines that name the brand now, in colour, over "Named on n of 5" (owner, 2026-11-04: no greyed icons for the
 // missed ones, so the button's "light up the missed engines" hover has nothing to light and is gone)
 function Engines({ engines, named, engineName }) {
   return (

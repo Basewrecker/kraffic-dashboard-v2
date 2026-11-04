@@ -286,13 +286,23 @@ export const historySeries = [
   ...extraCompetitors.map((c) => ({ key: c.key, label: c.domain })), // ?competitors=many
 ]
 
+// Google is two engines: AI Overview (the answer box on the results page) and AI Mode (Google's conversational search).
+// AI Mode is last in this list only so the seeded draws for the others stay as they were; ENGINE_ORDER (brandViews)
+// is the display order everywhere.
 export const platforms = [
   { id: 'chatgpt', name: 'ChatGPT', visible: 54, cited: 4 },
   { id: 'aio', name: 'AI Overview', visible: 111, cited: 30 },
   { id: 'gemini', name: 'Gemini', visible: 90, cited: 1 },
   { id: 'claude', name: 'Claude', visible: 0, cited: 0 },
   { id: 'grok', name: 'Grok', visible: 0, cited: 0 },
+  { id: 'aimode', name: 'AI Mode', visible: 82, cited: 12 },
 ]
+// the display order of a prompt's engines (prompt-data ids: 'google' = AI Overview, 'aimode' = AI Mode)
+export const PID_ORDER = ['google', 'aimode', 'gemini', 'chatgpt', 'claude', 'grok']
+// AI Mode in sample rows that already have AI Overview: a fixed hash of the row, so adding it moves no other draw
+const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return (h >>> 0) / 4294967296 }
+// inserted right after AI Overview; the rest keep their order
+export const withAiMode = (list, key, share = 0.7) => (list.includes('google') && !list.includes('aimode') && hashStr(`aimode|${key}`) < share ? list.flatMap((p) => (p === 'google' ? ['google', 'aimode'] : [p])) : list)
 
 // ---- filler generation (deterministic) ----
 const topics = [
@@ -368,7 +378,7 @@ const brandWeights = ['cerave.com', 'cerave.com', 'cerave.com', 'theordinary.com
 export const brandLogos = {}
 
 // platform ids match PlatformIcon (google = AI Overview)
-export const platformNames = { google: 'Google AI Overview', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude', grok: 'Grok' }
+export const platformNames = { google: 'Google AI Overview', aimode: 'Google AI Mode', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude', grok: 'Grok' }
 
 const topicOf = (p) =>
   /blush|highlighter|cheek tint/.test(p) ? 'Makeup'
@@ -469,7 +479,8 @@ export const missedPrompts = missedTexts.map((prompt, id) => {
   const winners = nWinners >= 4
     ? sample(Object.keys(brands), nWinners)
     : [...new Set(Array.from({ length: nWinners * 2 }, () => pick(brandWeights)))].slice(0, nWinners)
-  const platforms = ['google', ...sample(['chatgpt', 'gemini', 'claude'], Math.floor(rand() * 3))]
+  const basePlatforms = ['google', ...sample(['chatgpt', 'gemini', 'claude'], Math.floor(rand() * 3))]
+  const platforms = withAiMode(basePlatforms, `m${id}`)
   const d = topicDetails[topic]
   return {
     id,
@@ -483,8 +494,8 @@ export const missedPrompts = missedTexts.map((prompt, id) => {
     history,
     answer: answerFor(prompt, topic, winners),
     brandsMentioned: winners.map((domain) => {
-      const seen = platforms.filter(() => rand() < 0.75)
-      return { domain, platforms: seen.length ? seen : ['google'] }
+      const seen = basePlatforms.filter(() => rand() < 0.75) // drawn before AI Mode (keeps the seeded stream)
+      return { domain, platforms: withAiMode(seen.length ? seen : ['google'], `m${id}|${domain}`) }
     }),
     sources: [
       ...winners.slice(0, 2).map((w) => ({ domain: w, path: `/blog/${d.slug}-guide` })),
@@ -594,7 +605,7 @@ export const competitorPrompts = [
     ...r,
     topic,
     discovery: 'google',
-    platforms: ['google', ...['chatgpt', 'gemini'].filter(() => crand() < 0.45)],
+    platforms: withAiMode(['google', ...['chatgpt', 'gemini'].filter(() => crand() < 0.45)], `c${id}`),
     isNew,
     streak, // consecutive syncs the competitor has won this prompt
     you, // 'cited' | 'missing'
@@ -621,8 +632,10 @@ export const competitorSummary = Object.entries(
   }, {}),
 ).map(([domain, c]) => ({ domain, ...c })).sort((a, b) => b.total - a.total)
 
-const SYNC_PLATFORMS = ['aio', 'gemini', 'chatgpt', 'claude', 'grok'] // display order
+const SYNC_PLATFORMS = ['aio', 'gemini', 'chatgpt', 'claude', 'grok', 'aimode'] // drawn in this order (seeded); shown in SYNC_SHOWN's
+const SYNC_SHOWN = ['aio', 'aimode', 'gemini', 'chatgpt', 'claude', 'grok']
 const srand = mulberry32(440)
+const aimodeRand = mulberry32(441) // AI Mode's own stream, so its draws don't shift the other engines' rows
 // PLACEHOLDER: the first 5 scores come from the weekly history; everything else must be
 // replaced with the exact screenshot values.
 export const syncHistory = [
@@ -648,10 +661,10 @@ export const syncHistory = [
     breakdown: SYNC_PLATFORMS.map((id) => {
       const p = platforms.find((x) => x.id === id)
       const base = Math.round((p.visible / total) * 100)
-      const mentionPct = i === 0 || base === 0 ? base : Math.min(100, Math.max(0, base + Math.round(srand() * 10 - 5)))
+      const mentionPct = i === 0 || base === 0 ? base : Math.min(100, Math.max(0, base + Math.round((id === 'aimode' ? aimodeRand : srand)() * 10 - 5)))
       const cited = i === 0 ? p.cited : p.cited === 0 ? 0 : Math.max(0, Math.round(p.cited * (r.cited / 30)))
       return { id, platform: p.name, mentionPct, citedPct: Math.round((cited / total) * 100), visible: i === 0 ? p.visible : Math.round((mentionPct / 100) * total), cited }
-    }),
+    }).sort((a, b) => SYNC_SHOWN.indexOf(a.id) - SYNC_SHOWN.indexOf(b.id)),
   }
 })
 export const syncTotal = 40
@@ -719,21 +732,21 @@ export const platformStats = platforms.map((p) => ({
   const counts = Object.fromEntries(platforms.map((p) => [p.id, p.visible]))
   const chosen = Object.fromEntries(Object.entries(counts).map(([id, n]) => [id, n >= visiblePrompts.length ? null : pickIds(n)]))
   visiblePrompts.forEach((r) => {
-    r.platforms = platforms
-      .filter((p) => p.visible > 0 && (chosen[p.id] === null || chosen[p.id].has(r.id)))
-      .map((p) => (p.id === 'aio' ? 'google' : p.id))
+    const on = platforms.filter((p) => p.visible > 0 && (chosen[p.id] === null || chosen[p.id].has(r.id))).map((p) => (p.id === 'aio' ? 'google' : p.id))
+    // AI Mode sits right after AI Overview; the others keep the order they always had
+    r.platforms = on.includes('aimode') ? on.filter((p) => p !== 'aimode').flatMap((p) => (p === 'google' ? ['google', 'aimode'] : [p])) : on
   })
 }
 
 // Top cited pages: Dermasuri URLs cited in the latest sync. Counts = prompts citing the page, summing to the
 // sync's 30 citations; deltas sum to +3 (27 → 30). Platforms follow the per-platform cited counts:
-// AI Overview cites in all 30 prompts, ChatGPT in 4, Gemini in 1.
+// AI Overview cites in all 30 prompts, ChatGPT in 4, Gemini in 1; AI Mode cites three of the pages (12 prompts).
 export const citedPages = [
-  { path: '/products/vitamin-c-serum', count: 9, delta: 3, platforms: ['google', 'chatgpt', 'gemini'] },
-  { path: '/blog/sunscreen-without-white-cast', count: 7, delta: 2, platforms: ['google', 'chatgpt'] },
+  { path: '/products/vitamin-c-serum', count: 9, delta: 3, platforms: ['google', 'aimode', 'chatgpt', 'gemini'] },
+  { path: '/blog/sunscreen-without-white-cast', count: 7, delta: 2, platforms: ['google', 'aimode', 'chatgpt'] },
   { path: '/products/ceramide-barrier-cream', count: 5, delta: 0, platforms: ['google', 'chatgpt'] },
   { path: '/blog/retinol-for-beginners', count: 4, delta: -1, platforms: ['google', 'chatgpt'] },
-  { path: '/collections/serums', count: 3, delta: 1, platforms: ['google'] },
+  { path: '/collections/serums', count: 3, delta: 1, platforms: ['google', 'aimode'] },
   { path: null, label: '2 other pages', count: 2, delta: -2, platforms: [] },
 ]
 // the "2 other pages" above, one by one (Top cited pages lists them when the card has room)
@@ -960,10 +973,10 @@ export const MAX_COMPETITORS = 5
 // "Citations and Mentions" card: per brand → per engine [mentions, citations] (engines not listed = 0).
 // Totals are always summed from these rows.
 export const citationsMentions = {
-  'dermasuri.com': { aio: [111, 30], gemini: [90, 2], chatgpt: [54, 4] },
-  'cerave.com': { aio: [33, 9], gemini: [23, 3], chatgpt: [18, 2] },
-  'theordinary.com': { aio: [8, 2], gemini: [5, 0], chatgpt: [6, 0] },
-  'paulaschoice.com': { aio: [6, 1], gemini: [3, 0], chatgpt: [5, 0] },
+  'dermasuri.com': { aio: [111, 30], aimode: [82, 12], gemini: [90, 2], chatgpt: [54, 4] },
+  'cerave.com': { aio: [33, 9], aimode: [26, 5], gemini: [23, 3], chatgpt: [18, 2] },
+  'theordinary.com': { aio: [8, 2], aimode: [6, 1], gemini: [5, 0], chatgpt: [6, 0] },
+  'paulaschoice.com': { aio: [6, 1], aimode: [4, 0], gemini: [3, 0], chatgpt: [5, 0] },
 }
 
 // the agency's other client workspaces (sidebar workspace switcher); not loaded in this demo
@@ -1113,7 +1126,8 @@ export const setupActions = {
 // ---------------------------------------------------------------------------
 export const initialTracking = {
   platforms: [
-    { id: 'aio', name: 'AI Overview', enabled: true, ready: true },
+    { id: 'aio', name: 'Google AI Overview', enabled: true, ready: true },
+    { id: 'aimode', name: 'Google AI Mode', enabled: true, ready: true },
     { id: 'gemini', name: 'Gemini', enabled: true, ready: true },
     { id: 'chatgpt', name: 'ChatGPT', enabled: true, ready: true },
     { id: 'claude', name: 'Claude', enabled: true, ready: true },
@@ -1129,34 +1143,34 @@ export const trackingOptions = {
 }
 // Sync now's modes: the app's agency Sync menu (components/ClientSyncDropdown.js), word for word. engines: the ones a mode
 // runs; prompts: 'all' or 'missed' (Google's missed prompts only); calls: paid API calls per prompt per engine, low–high,
-// read from the app's scan routes: Google 1 SerpAPI search on a hit, up to 3 tries on a miss, each with a possible AI
-// Overview fetch (6), +1 AI Mode call when the client's AI Mode is on (7); ChatGPT 1 (2 with the gpt-4o fallback);
+// read from the app's scan routes: Google AI Overview 1 SerpAPI search on a hit, up to 3 tries on a miss, each with a
+// possible AI Overview fetch (6); Google AI Mode, now its own engine, 1 call (it was the "+1 when AI Mode is on" add-on
+// to the Google scan); ChatGPT 1 (2 with the gpt-4o fallback);
 // Gemini 1 (2 on the retry without location); Claude 1 call with up to 5 web searches inside it (6). After a sync, each
 // branded domain gets about 8 more SerpAPI searches and 1 LLM call (SYNC_AFTER).
-export const SYNC_CALLS = { aio: [1, 6], chatgpt: [1, 2], gemini: [1, 2], claude: [1, 6] }
-export const SYNC_AI_MODE = 1
+export const SYNC_CALLS = { aio: [1, 6], aimode: [1, 1], chatgpt: [1, 2], gemini: [1, 2], claude: [1, 6] }
 export const SYNC_AFTER = 9
-// roughly how many paid calls a mode makes: { n: prompts it runs, lo, hi }. counts: { prompts, missed, domains, aiMode }
-export const estimateSync = (m, { prompts, missed, domains = 1, aiMode = false }) => {
+// roughly how many paid calls a mode makes: { n: prompts it runs, lo, hi }. counts: { prompts, missed, domains }
+export const estimateSync = (m, { prompts, missed, domains = 1 }) => {
   const n = m.prompts === 'missed' ? missed : prompts
   if (!m.engines.length || !n) return { n, lo: 0, hi: 0 }
-  const [lo, hi] = m.engines.reduce(([a, b], e) => [a + SYNC_CALLS[e][0] * n, b + (SYNC_CALLS[e][1] + (e === 'aio' && aiMode ? SYNC_AI_MODE : 0)) * n], [0, 0])
+  const [lo, hi] = m.engines.reduce(([a, b], e) => [a + SYNC_CALLS[e][0] * n, b + SYNC_CALLS[e][1] * n], [0, 0])
   return { n, lo: lo + SYNC_AFTER * domains, hi: hi + SYNC_AFTER * domains }
 }
 export const syncModes = {
   website: [
-    { id: 'full', title: 'Full sync', description: 'Runs Google (SERP + AI Mode), ChatGPT, Gemini, and Claude for every prompt.', engines: ['aio', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
-    { id: 'missed_google', title: 'Missed prompts (Google only)', description: 'Only re-checks prompts still marked missed on Google. Skips ChatGPT, Gemini, and Claude.', engines: ['aio'], prompts: 'missed' },
-    { id: 'chatgpt_only', title: 'ChatGPT sync', description: 'Runs ChatGPT for every prompt. Skips Google, Gemini, and Claude.', engines: ['chatgpt'], prompts: 'all' },
-    { id: 'gemini_only', title: 'Gemini sync', description: 'Runs Gemini for every prompt. Skips Google, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
-    { id: 'claude_only', title: 'Claude sync', description: 'Runs Claude for every prompt. Skips Google, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
+    { id: 'full', title: 'Full sync', description: 'Runs Google AI Overview and AI Mode, ChatGPT, Gemini, and Claude for every prompt.', engines: ['aio', 'aimode', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
+    { id: 'missed_google', title: 'Missed prompts (Google only)', description: 'Only re-checks prompts still marked missed on Google AI Overview and AI Mode. Skips ChatGPT, Gemini, and Claude.', engines: ['aio', 'aimode'], prompts: 'missed' },
+    { id: 'chatgpt_only', title: 'ChatGPT sync', description: 'Runs ChatGPT for every prompt. Skips Google AI Overview and AI Mode, Gemini, and Claude.', engines: ['chatgpt'], prompts: 'all' },
+    { id: 'gemini_only', title: 'Gemini sync', description: 'Runs Gemini for every prompt. Skips Google AI Overview and AI Mode, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
+    { id: 'claude_only', title: 'Claude sync', description: 'Runs Claude for every prompt. Skips Google AI Overview and AI Mode, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
   ],
   brand: [
-    { id: 'brand_full', title: 'Full brand sync', description: 'Runs every platform for this brand and its competitors, then rebuilds the Brand vs Brand comparison.', engines: ['aio', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
+    { id: 'brand_full', title: 'Full brand sync', description: 'Runs every platform for this brand and its competitors, then rebuilds the Brand vs Brand comparison.', engines: ['aio', 'aimode', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
     { id: 'brand_insights', title: 'Rebuild insights only', description: 'Re-reads the answers already stored and regenerates the topic comparison and recommendations. No new scans, no scan cost.', engines: [], prompts: 'all' },
-    { id: 'gemini_only', title: 'Gemini only', description: 'Runs Gemini for every prompt. Skips Google, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
-    { id: 'chatgpt_only', title: 'ChatGPT only', description: 'Runs ChatGPT for every prompt. Skips Google, Gemini, and Claude.', engines: ['chatgpt'], prompts: 'all' },
-    { id: 'claude_only', title: 'Claude only', description: 'Runs Claude for every prompt. Skips Google, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
+    { id: 'gemini_only', title: 'Gemini only', description: 'Runs Gemini for every prompt. Skips Google AI Overview and AI Mode, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
+    { id: 'chatgpt_only', title: 'ChatGPT only', description: 'Runs ChatGPT for every prompt. Skips Google AI Overview and AI Mode, Gemini, and Claude.', engines: ['chatgpt'], prompts: 'all' },
+    { id: 'claude_only', title: 'Claude only', description: 'Runs Claude for every prompt. Skips Google AI Overview and AI Mode, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
   ],
 }
 // a sync here: accepted after a moment, then each engine works through its prompts (progress). ?sync=slow: it outlasts

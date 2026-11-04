@@ -28,7 +28,7 @@ export function syncChanges(row, domain) {
       return { key, prompt: p.prompt, engine, meta: `Now visible on ${engineName(engine)} · ${a?.cited ? `cited ${a.citedPage}` : 'not cited yet'}` }
     }
     // lost: it was on one of the engines that cover this brand; say who took the spot
-    const engines = ENGINE_ORDER.filter((e) => ['aio', 'gemini', 'chatgpt'].includes(e))
+    const engines = ENGINE_ORDER.filter((e) => ['aio', 'aimode', 'gemini', 'chatgpt'].includes(e))
     const engine = engines[hash(key) % engines.length]
     const instead = rivals.find((b) => appearances[key]?.[b.domain]?.platforms.includes(enginePid(engine))) ?? rivals.find((b) => appearances[key]?.[b.domain]?.visible)
     return { key, prompt: p.prompt, engine, meta: `Was visible on ${engineName(engine)} · ${instead ? `now ${instead.name} shows instead` : 'now no tracked brand shows'}` }

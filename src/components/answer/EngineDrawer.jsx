@@ -3,7 +3,7 @@ import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '
 import { ArrowUpRight, ChevronDown, ChevronRight, Search, X } from 'lucide-react'
 import { PlatformIcon } from '../dashboard/icons'
 import { LATEST, getAnswer } from '../../data/answers'
-import { ENGINES, TRACKED_BRANDS, brandByDomain, engineDetail, engineName, getBrandView } from '../../data/brandViews'
+import { ENGINES, TRACKED_BRANDS, brandByDomain, engineDetail, engineFullName, engineName, getBrandView } from '../../data/brandViews'
 import { promptCategories } from '../../data/mock'
 import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
@@ -284,7 +284,7 @@ export default function EngineDrawer() {
   }
 
   if (!open) return null
-  const name = engineName(engine)
+  const name = engineFullName(engine) // the title and filter button: "Google AI Mode", never just "Google"
   const counts = { mentions: data.mentions.length, pages: data.pages.length }
   const engineChips = [{ id: 'all', name: 'All' }, ...engines]
   // ←/→ move between the engine chips

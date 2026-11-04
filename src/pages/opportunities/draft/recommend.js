@@ -251,22 +251,25 @@ export function formatMatrix(res) {
 
 // R20 · Which engines cite a page. citedPages[].engines holds the route's generic tags:
 //   'google' = the page's organic Google rank: not an AI engine, no icon (the ladder slot already shows the rank);
-//   'aio'    = Google's AI Overview cites it → the Google engine icon;
+//   'aio'    = Google's AI Overview cites it → the AI Overview icon;
+//   'aimode' = Google's AI Mode cites it → the AI Mode icon. PROPOSED: Harsh's route doesn't return it yet (Google is
+//              one engine there); the mock's samples carry it so the split is designed (docs/port-content.md §3);
 //   'ai'     = an AI answer cites it, but the route doesn't say which engine (client sources are tagged 'ai'). It's
 //              resolved on the client from the prompt's own answers (resolve(host): the tracked engines whose answers
 //              cite that host, as the workspace's "Who you're up against" shows); when they don't cite it, it stays a
 //              neutral "AI" (engine not specified). No precision the data doesn't have.
-// → { engines: ['google' | 'chatgpt' | 'gemini' | 'claude'], unknown: boolean }
-const NAMED = ['google', 'chatgpt', 'gemini', 'claude', 'perplexity']
+// → { engines: ['google' (= AI Overview) | 'aimode' | 'chatgpt' | 'gemini' | 'claude'], unknown: boolean }, in that order
+const NAMED = ['google', 'aimode', 'chatgpt', 'gemini', 'claude', 'perplexity']
 export function enginesOf(page, resolve = () => null) {
   const out = new Set()
   let unknown = false
   for (const e of page.engines ?? []) {
     if (e === 'aio') out.add('google')
+    else if (e === 'aimode') out.add('aimode')
     else if (e === 'ai') { const r = resolve(page.host); if (r?.length) r.forEach((x) => out.add(x)); else unknown = true }
     else if (e !== 'google' && NAMED.includes(e)) out.add(e)
   }
-  return { engines: [...out], unknown: unknown && out.size === 0 }
+  return { engines: [...out].sort((a, b) => NAMED.indexOf(a) - NAMED.indexOf(b)), unknown: unknown && out.size === 0 }
 }
 
 // R22 · Who you're up against (the Draft rail): ONE list for the request's competitors (names from settings) and the

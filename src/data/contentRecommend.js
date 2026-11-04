@@ -158,7 +158,9 @@ function citedPagesFor(row, family) {
     const rank = p.rank != null && p.rank > 10 ? null : p.rank // Google's organic top 10 only
     const nf = isOurs ? 1 + Math.floor(rnd(key, 'ownf') * 2) : 1 + Math.floor(rnd(key, `nf${i}`) * 2)
     const formats = [...new Set(Array.from({ length: nf }, (_, j) => pool[Math.floor(rnd(key, `f${i}${j}`) * pool.length)]))]
-    const engines = [...(rank != null && rank <= 10 ? ['google'] : []), ...(aiCited ? (rnd(key, `aio${i}`) < 0.5 ? ['aio'] : ['ai']) : [])]
+    // AI Overview's citing pages: AI Mode cites most of them too (PROPOSED 'aimode' tag, recommend.js R20); its own draw
+    const google = rnd(key, `aio${i}`) < 0.5 ? ['aio', ...(rnd(key, `aimode${i}`) < 0.6 ? ['aimode'] : [])] : ['ai']
+    const engines = [...(rank != null && rank <= 10 ? ['google'] : []), ...(aiCited ? google : [])]
     const title = isOurs ? `${cap(productOf(row.prompt))}: the Dermasuri guide` : titleFor(row.prompt, p.host, i)
     return { url: p.url, host: p.host, rank, engines, aiCited, formats, isOurs, title }
   })

@@ -29,6 +29,7 @@ don't port it until the line says approved.
 | c5a40a4 | Your data in v1 (§3a, §5a, §10) | Approved · queued |
 | 07c6b1f | A written draft reopens after a reload; list shows "Draft ready" (§9) | Owner-requested fix · queued |
 | c731327 | Prompt mix table: the no-result line + ⓘ, no brand tabs, no "won n new prompts" notice | Approved · ported (app develop 0a5c8f2) |
+| (this commit) | Google split into two engines, Google AI Overview (`aio` / prompt data `google`) and Google AI Mode (`aimode`), everywhere engines appear (Overview, Prompt Hub, drawers, Tracking/Sync, Sentiment, Insights, Reports, Content); new icons (G + square ≡ badge / round ✦ badge); see §11 | Waiting (screenshots: `screenshots/google-split/`) |
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
@@ -252,6 +253,15 @@ One module, each rule commented in the code:
   plan.
 - **Engines (R20):** `'google'` = organic rank only (no icon); `'aio'` = Google AI Overview; `'ai'` = resolved from the
   prompt's answers (which engines cite that host), else one neutral "AI" icon, "engine not specified".
+- **Google's two engines (PROPOSED backend value):** Google is split into Google AI Overview and Google AI Mode. In
+  `citedPages[].engines` the mock adds a new tag **`'aimode'`** = Google AI Mode cites the page (its own icon, after
+  AI Overview). Harsh's route doesn't return it today; until it does, nothing shows AI Mode on the Target ladder and
+  "Cited by" (no change for the app). Prompt rows (`row.platforms`) use `'google'` = AI Overview and `'aimode'` = AI
+  Mode. Labels: "Google AI Overview" / "Google AI Mode" in tooltips, "AI Overview" / "AI Mode" in sentences and chips
+  (`ENGINE_SHORT` in data/contentOpportunities.js); a bare "Google" only means the organic rank ("#3 on Google").
+  An engine with no result in the latest scan (the Overview's no-result state, `hasResult`) counts as neither missed
+  nor named: the header reads "Missed on n of 4" with that engine's ⓘ ("No result from Google AI Mode in the latest
+  scan"), and the payoff bar's "Named on n of 4" leaves it out (Workspace.jsx `answeredEngines`).
 - **Up against (R22, R26):** request competitors + non-own `citedPages`, merged by host, rank ascending, AI-only after.
 
 ## 5. Behind `?backend=full` (do NOT port now)
@@ -341,3 +351,18 @@ client-side only, never on the server. Its worker is a file from our own build (
 `pdfjs-dist/build/pdf.worker.min.mjs` into the build / `public` and point `GlobalWorkerOptions.workerSrc` at it), never
 a CDN. Documents open with `isEvalSupported: false`. `npm audit` (mock, 2026-11-04): nothing for pdfjs-dist; 4.10.38 is
 past the fix for CVE-2024-4367 (fixed in 4.2.67).
+
+## 11. Google split: AI Overview + AI Mode (2026-11-04)
+Five engines: Google AI Overview, Google AI Mode, Gemini, ChatGPT, Claude (Grok stays as it was).
+- **Ids:** dashboard `aio` (unchanged) and new `aimode`; prompt data `google` (unchanged, = AI Overview) and new `aimode`
+  (`brandViews.js` PLATFORM_ID / ENGINE_ORDER, `mock.js` PID_ORDER). Display order: AI Overview, AI Mode, Gemini,
+  ChatGPT, Claude, Grok. The app's data needs an `aimode` engine wherever it returns per-engine rows (the backend
+  question for Harsh: does the scan store AI Mode as its own engine today? It used to be a +1 call on the Google scan).
+- **Names:** full "Google AI Overview" / "Google AI Mode" in menus and drawer titles (`engineFullName`); short
+  "AI Overview" / "AI Mode" in tabs, chips and sentences. A bare "Google" only means the organic Google rank.
+- **Icons:** `icons.jsx` `GoogleEngineIcon` (via `PlatformIcon id="aio" | "aimode"`): the Google G with an ink badge
+  bottom-right: AI Overview = rounded square with two lines, AI Mode = circle with a sparkle; readable at 14–16px.
+- **No data:** the existing no-result state (`?noresult=aimode` previews it); Reports keep their "didn't run" row.
+- **Content:** proposed backend value `citedPages[].engines` `'aimode'` (§3 / recommend.js R20).
+- **Sync:** AI Mode is its own engine (1 call per prompt); sync-mode descriptions name both Google engines (wording
+  changed from the app's).

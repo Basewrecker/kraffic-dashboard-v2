@@ -3,11 +3,14 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cellState, columnKinds, fmtDay, initialPhase, listNames, matchPct, resultOf, shortEngine, syncsAfter, weeksDone } from './model.js'
 
-test('engine names: Google is short, lists read in plain English', () => {
-  assert.equal(shortEngine('google'), 'Google')
+test('engine names: Google\'s two engines by name, lists read in plain English', () => {
+  // Google's two engines by their own names, never a bare "Google"
+  assert.equal(shortEngine('google'), 'AI Overview')
+  assert.equal(shortEngine('aimode'), 'AI Mode')
   assert.equal(shortEngine('chatgpt'), 'ChatGPT')
-  assert.equal(listNames(['google', 'chatgpt']), 'Google and ChatGPT')
-  assert.equal(listNames(['google', 'chatgpt', 'claude']), 'Google, ChatGPT and Claude')
+  assert.equal(listNames(['google', 'chatgpt']), 'AI Overview and ChatGPT')
+  assert.equal(listNames(['google', 'aimode', 'chatgpt']), 'AI Overview, AI Mode and ChatGPT')
+  assert.equal(listNames(['google', 'chatgpt', 'claude']), 'AI Overview, ChatGPT and Claude')
   assert.equal(listNames(['gemini']), 'Gemini')
   assert.equal(listNames([]), '')
 })
@@ -52,7 +55,7 @@ test('a failed sync is a gap, never a miss; pending is its own state', () => {
 test('result: running until week 4, then improved or no change', () => {
   assert.deepEqual(resultOf(syncs, ['google']), { kind: 'running', date: 'Nov 2, 2026' })
   const done = syncs.map((s) => ({ ...s, pending: false, engines: s.engines ?? named }))
-  assert.deepEqual(resultOf(done, ['google', 'chatgpt']), { kind: 'improved', engines: ['google', 'chatgpt'], label: 'Google and ChatGPT' })
+  assert.deepEqual(resultOf(done, ['google', 'chatgpt']), { kind: 'improved', engines: ['google', 'chatgpt'], label: 'AI Overview and ChatGPT' })
   assert.deepEqual(resultOf(done, []), { kind: 'nochange' })
 })
 

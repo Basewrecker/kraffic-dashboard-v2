@@ -6,7 +6,7 @@
 // Paula’s Choice ≈3%), preferring prompts the mock already says they win.
 import {
   account, citedPages, citedPagesOther, extraCompetitors, history, historyEarlier, historySeries, kpis, missedPrompts, platforms as platformList,
-  platformStats, syncHistory, syncTotal, trackedPrompts, visiblePrompts,
+  platformStats, syncHistory, syncTotal, trackedPrompts, visiblePrompts, withAiMode,
 } from './mock.js'
 import { brandListName } from '../utils/brand.js'
 import { pointsBetween } from '../utils/syncChange.js'
@@ -57,7 +57,7 @@ export const appearances = (() => {
       visible,
       platforms: visible ? visibleById[p.id].platforms : [],
       cited: ci !== -1,
-      citedPlatforms: ci === -1 ? [] : ['google', ...(withChat.slice(0, 4).includes(p.id) ? ['chatgpt'] : []), ...(withGem.slice(0, 2).includes(p.id) ? ['gemini'] : [])],
+      citedPlatforms: ci === -1 ? [] : [...withAiMode(['google'], `cite${p.id}`, 0.4), ...(withChat.slice(0, 4).includes(p.id) ? ['chatgpt'] : []), ...(withGem.slice(0, 2).includes(p.id) ? ['gemini'] : [])],
       citedPage: ci === -1 ? null : pageSlots[ci] ?? '/',
     }
   })
@@ -70,13 +70,13 @@ export const appearances = (() => {
     const on = new Set([...fromMissed, ...fromVisible])
     trackedPrompts.forEach((p) => {
       const visible = on.has(p.id)
-      const plats = visible ? ['google', ...['gemini', 'chatgpt'].filter(() => r() < 0.45)] : []
+      const plats = visible ? withAiMode(['google', ...['gemini', 'chatgpt'].filter(() => r() < 0.45)], `${domain}|${p.id}`) : []
       const cited = visible && r() < 0.45
       table[p.id][domain] = {
         visible,
         platforms: plats,
         cited,
-        citedPlatforms: cited ? ['google'] : [],
+        citedPlatforms: cited ? withAiMode(['google'], `cite|${domain}|${p.id}`, 0.4) : [],
         citedPage: cited ? PAGES[domain][Math.floor(r() * PAGES[domain].length)] : null,
       }
     })
@@ -91,7 +91,7 @@ export const appearances = (() => {
       const cited = visible && rx() < 0.3
       table[p.id][c.domain] = {
         visible,
-        platforms: visible ? ['google', ...['gemini', 'chatgpt'].filter(() => rx() < 0.45)] : [],
+        platforms: visible ? withAiMode(['google', ...['gemini', 'chatgpt'].filter(() => rx() < 0.45)], `${c.domain}|${p.id}`) : [],
         cited,
         citedPlatforms: cited ? ['google'] : [],
         citedPage: cited ? ['/', '/products', '/blog'][Math.floor(rx() * 3)] : null,
@@ -104,7 +104,7 @@ export const appearances = (() => {
 // ------------------------------------------------------------------ helpers
 const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0)
 const weekly = [...historyEarlier, ...history]
-const PLATFORM_ID = { aio: 'google', gemini: 'gemini', chatgpt: 'chatgpt', claude: 'claude', grok: 'grok' }
+const PLATFORM_ID = { aio: 'google', aimode: 'aimode', gemini: 'gemini', chatgpt: 'chatgpt', claude: 'claude', grok: 'grok' }
 
 // all pages a brand is cited on (optionally on one engine), most cited first; deltas carried over from `prev`
 function citedAllOf(domain, pid, prev = []) {
@@ -159,7 +159,7 @@ function buildBrandView(domain) {
   const visibleList = own ? visiblePrompts : visibleRows.map((p, i) => ({
     id: p.id, prompt: p.prompt, discovery: 'google', platforms: appearances[p.id][focal.domain].platforms, firstVisible: SYNC_DATES[Math.floor(r() * SYNC_DATES.length)] ?? SYNC_DATES[i % 5],
   }))
-  const missedList = missedRows.map((p) => ({ id: p.id, prompt: p.prompt, topic: p.category, platforms: ['google', 'gemini', 'chatgpt'], winners: winnersOf(p) }))
+  const missedList = missedRows.map((p) => ({ id: p.id, prompt: p.prompt, topic: p.category, platforms: ['google', 'aimode', 'gemini', 'chatgpt'], winners: winnersOf(p) }))
   const rivalList = trackedPrompts
     .map((p) => ({ id: p.id, prompt: p.prompt, topic: p.category, winners: winnersOf(p), focalVisible: appearances[p.id][focal.domain].visible }))
     .filter((x) => x.winners.length)
@@ -233,11 +233,15 @@ function buildBrandView(domain) {
 }
 
 // ------------------------------------------------------------------ engine filter
-// One engine at a time ('all' | 'aio' | 'gemini' | 'chatgpt' | 'claude' | 'grok'). Card ids → prompt-data ids.
+// One engine at a time ('all' | 'aio' | 'aimode' | 'gemini' | 'chatgpt' | 'claude' | 'grok'). Card ids → prompt-data ids.
+// Google is two engines: 'aio' = Google AI Overview, 'aimode' = Google AI Mode (prompt data: 'google', 'aimode').
 // display order everywhere (header menu, Platform visibility columns): most-used engines first
-export const ENGINE_ORDER = ['aio', 'gemini', 'chatgpt', 'claude', 'grok']
-export const ENGINES = ENGINE_ORDER.map((id) => platformList.find((p) => p.id === id)).filter(Boolean).map((p) => ({ id: p.id, name: p.name }))
+export const ENGINE_ORDER = ['aio', 'aimode', 'gemini', 'chatgpt', 'claude', 'grok']
+// name: the short label (chips, rows, columns); full: menus and drawer titles ("Google AI Overview", "Google AI Mode")
+const FULL_NAME = { aio: 'Google AI Overview', aimode: 'Google AI Mode' }
+export const ENGINES = ENGINE_ORDER.map((id) => platformList.find((p) => p.id === id)).filter(Boolean).map((p) => ({ id: p.id, name: p.name, full: FULL_NAME[p.id] ?? p.name }))
 export const engineName = (id) => ENGINES.find((e) => e.id === id)?.name ?? 'All engines'
+export const engineFullName = (id) => ENGINES.find((e) => e.id === id)?.full ?? 'All engines'
 export const enginePid = (id) => PLATFORM_ID[id]
 
 // ?noresult=gemini (or a comma list): that engine's latest scan returned no result (it failed or didn't answer). Its

@@ -119,3 +119,33 @@ test('a null engine score renders as "—" with its ⓘ, never as 0', async () =
     await server.close()
   }
 })
+
+// Google is two engines (AI Overview, AI Mode): AI Mode with no result in the latest scan uses the same no-result state
+test('Google AI Mode with no result: the same no-result state, never 0', async () => {
+  const server = await createServer({ root, logLevel: 'silent', server: { port: 0, strictPort: false } })
+  await server.listen()
+  const { port } = server.httpServer.address()
+  let browser
+  try {
+    browser = await chromium.launch({ executablePath: chromePath() })
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    await page.goto(`http://localhost:${port}/overview?noresult=aimode&engine=aimode`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(400)
+    const t = await page.evaluate(() => ({
+      lines: ['visible-prompts', 'missed-prompts', 'prompt-mix'].map((id) => document.getElementById(id)?.querySelector('[data-no-result]')?.textContent.trim() ?? null),
+      main: document.querySelector('main').textContent,
+    }))
+    for (const l of t.lines) assert.equal(l, 'No AI Mode result in the latest scan')
+    assert.match(t.main, /AI Mode didn’t run this week/, 'Citations and Mentions names AI Mode as not run')
+    // the engine menu: AI Mode by its full name, with no prompt count (never "0 prompts")
+    await page.locator('main button[aria-label^="Engine"]').click()
+    const opt = page.getByRole('option', { name: /Google AI Mode/ })
+    await opt.waitFor()
+    const text = await opt.innerText()
+    assert.ok(!/\b0 prompts/.test(text), `the menu shows "${text}"`)
+    assert.equal(await page.getByRole('option', { name: /Google AI Overview/ }).count(), 1, 'AI Overview is listed separately')
+  } finally {
+    await browser?.close()
+    await server.close()
+  }
+})

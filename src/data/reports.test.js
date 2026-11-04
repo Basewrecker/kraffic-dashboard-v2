@@ -184,7 +184,7 @@ test('series runs: one per run of the schedule, newest first; the newest is the 
 
 
 // ---- the standard frame ------------------------------------------------------------------------------------------
-const ENGINE_NAME = { aio: 'AI Overview', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
+const ENGINE_NAME = { aio: 'AI Overview', aimode: 'AI Mode', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
 const FRAMES = (brand) => [{ kind: 'weekly', period: 'week' }, { kind: 'weekly', period: '30d', audience: 'client' }, { kind: 'ceo', period: '30d' }, { kind: 'rival', compare: [RIVAL[brand]] }, { kind: 'content' }]
 const words = (s) => s.split(/\s+/).length
 
@@ -230,7 +230,7 @@ test('weekly summary (frame): the KPIs, the 8-week chart, the net change by topi
   assert.equal(f.right.rows.reduce((a, x) => a + x.d, 0), d.flow.week.won - d.flow.week.lost, 'the topic changes add up to the net')
   assert.deepEqual(f.right.rows.filter((x) => x.d === 0).map((x) => x.label), ['Moisturising', 'Body wash'])
   assert.deepEqual(f.right.byEngine.rows.map((e) => e.text), ['AI Overview +6', 'ChatGPT +1 (3 won, 2 lost)'])
-  assert.deepEqual(f.right.byEngine.off, ['Gemini', 'Claude'])
+  assert.deepEqual(f.right.byEngine.off, ['AI Mode', 'Gemini', 'Claude'])
   assert.deepEqual(f.table.columns.map((c) => c.key), ['text', 'net', 'trend', 'engines', 'step'])
   assert.deepEqual(f.right.byEngine.rows.map((e) => [e.name, e.won, e.lost]), [['AI Overview', 6, 0], ['ChatGPT', 3, 2]])
   assert.deepEqual(f.kpis[1].columns.map((c) => c.won), d.wonSeries)
@@ -356,7 +356,7 @@ test('custom question (frame): the frame that answers it, one "How I read your q
   assert.equal(c.kind, 'custom')
   assert.equal(c.v3, true)
   assert.match(c.frame.read, /^How I read your question: Prompts where AI names Longbridge Financial/)
-  assert.match(c.frame.read, /vs Longbridge Financial · Sep 28 – Oct 26 · AI Overview, ChatGPT, Gemini$/)
+  assert.match(c.frame.read, /vs Longbridge Financial · Sep 28 – Oct 26 · AI Overview, AI Mode, ChatGPT, Gemini$/)
   assert.equal(c.frame.question, 'Show the answers where Longbridge is named')
   assert.equal(c.frame.right.kind, 'grid')
   assert.equal(c.frame.frequency, 'once')

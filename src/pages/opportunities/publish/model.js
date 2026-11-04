@@ -1,10 +1,10 @@
 // Step 5 (Publish and track): pure helpers, no React. Tested in model.test.js.
-import { ENGINES, ENGINE_NAME } from '../../../data/contentOpportunities.js'
+import { ENGINES, ENGINE_NAME, ENGINE_SHORT } from '../../../data/contentOpportunities.js'
 
-// short engine names for sentences ("now named on Google and ChatGPT")
-export const shortEngine = (e) => (e === 'google' ? 'Google' : ENGINE_NAME[e] ?? e)
+// short engine names for sentences ("now named on AI Overview and ChatGPT"): Google's two engines by their own names
+export const shortEngine = (e) => ENGINE_SHORT[e] ?? ENGINE_NAME[e] ?? e
 
-// ['google', 'chatgpt', 'gemini'] → "Google, ChatGPT and Gemini"
+// ['google', 'chatgpt', 'gemini'] → "AI Overview, ChatGPT and Gemini"
 export function listNames(engines) {
   const names = engines.filter((e) => ENGINES.includes(e)).map(shortEngine)
   if (names.length <= 1) return names[0] ?? ''

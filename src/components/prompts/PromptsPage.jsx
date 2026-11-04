@@ -513,7 +513,7 @@ function PromptHub() {
   const engineGroups = [{
     items: [
       { id: 'all', label: 'All engines' },
-      ...ENGINES.map((e) => ({ id: e.id, label: e.name, icon: <PlatformIcon id={e.id} size={16} /> })),
+      ...ENGINES.map((e) => ({ id: e.id, label: e.full, short: e.name, icon: <PlatformIcon id={e.id} size={16} /> })),
     ],
   }]
 

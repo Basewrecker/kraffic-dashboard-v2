@@ -7,6 +7,11 @@ import { PlatformIcon } from '../../components/dashboard/icons'
 import SiteLogo from '../../components/ui/SiteLogo'
 import { navigate } from '../../router'
 import { CO_BRAND, CO_BRANDS, ENGINES, ENGINE_NAME, coBrandName, engineIcon } from '../../data/contentOpportunities'
+import { hasResult } from '../../data/brandViews'
+
+// a page's engines (recommend.js enginesOf) without any engine that has no result in the latest scan (the no-result
+// state: it isn't shown citing anything either)
+export const withResults = (e) => ({ ...e, engines: e.engines.filter((id) => hasResult(engineIcon(id))) })
 
 export const LIST_PATH = '/opportunities/content'
 export const workspacePath = (id) => `${LIST_PATH}/${id}`

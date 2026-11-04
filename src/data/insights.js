@@ -10,7 +10,8 @@
 //   full = 6 syncs · small = 1–2 syncs · empty = a project with no prompts · none = prompts, but no data for this page yet.
 import { account, citedPages, citedPagesOther, competitors, trackedPrompts } from './mock.js'
 
-export const ENGINES = { aio: 'AI Overview', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
+// Google is two engines: 'aio' = Google AI Overview, 'aimode' = Google AI Mode
+export const ENGINES = { aio: 'AI Overview', aimode: 'AI Mode', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
 const SYNCS = ['2026-08-31', '2026-09-07', '2026-09-16', '2026-09-21', '2026-09-28', '2026-10-05']
 const visible = trackedPrompts.filter((p) => p.status === 'visible')
 const about = (re, n) => visible.filter((p) => re.test(p.prompt)).slice(0, n).map((p) => p.id)
@@ -25,6 +26,7 @@ const citeFull = {
   totals: { citations: 412, websites: 46, answersChecked: 608 },
   byEngine: [
     { engine: 'aio', you: 25, competitors: 21, other: 118 },
+    { engine: 'aimode', you: 9, competitors: 12, other: 64 },
     { engine: 'chatgpt', you: 4, competitors: 14, other: 92 },
     { engine: 'gemini', you: 1, competitors: 9, other: 77 },
     { engine: 'claude', you: 0, competitors: 6, other: 45 },
@@ -67,6 +69,7 @@ const sentFull = {
   answers: 115, previousAnswers: 108,
   byEngine: [ // platforms[] SentimentRow
     { engine: 'aio', positive: 26, neutral: 8, negative: 2 },
+    { engine: 'aimode', positive: 14, neutral: 5, negative: 2 },
     { engine: 'chatgpt', positive: 11, neutral: 5, negative: 3 },
     { engine: 'gemini', positive: 7, neutral: 4, negative: 1 },
     { engine: 'claude', positive: 0, neutral: 0, negative: 0 },
@@ -91,7 +94,7 @@ const sentFull = {
 const sentSmall = {
   series: [tone(SYNCS[4], 9, 5, 2), tone(SYNCS[5], 12, 4, 2)],
   answers: 32, previousAnswers: 27,
-  byEngine: [{ engine: 'aio', positive: 8, neutral: 2, negative: 1 }, { engine: 'chatgpt', positive: 3, neutral: 1, negative: 1 }, { engine: 'gemini', positive: 1, neutral: 1, negative: 0 }, { engine: 'claude', positive: 0, neutral: 0, negative: 0 }],
+  byEngine: [{ engine: 'aio', positive: 8, neutral: 2, negative: 1 }, { engine: 'aimode', positive: 4, neutral: 1, negative: 1 }, { engine: 'chatgpt', positive: 3, neutral: 1, negative: 1 }, { engine: 'gemini', positive: 1, neutral: 1, negative: 0 }, { engine: 'claude', positive: 0, neutral: 0, negative: 0 }],
   brands: [{ ...sentFull.brands[0], positive: 67, negative: 11, prevNet: null }], // competitors not read yet
   negative: sentFull.negative.slice(0, 2),
 }
@@ -132,7 +135,7 @@ const factsFull = [
 const factFull = {
   facts: factsFull,
   // platforms[].current {statementsChecked, inaccurateClaims, accuracy}
-  byEngine: [{ engine: 'aio', correct: 21, checked: 22 }, { engine: 'chatgpt', correct: 12, checked: 15 }, { engine: 'gemini', correct: 8, checked: 9 }, { engine: 'claude', correct: 0, checked: 0 }],
+  byEngine: [{ engine: 'aio', correct: 21, checked: 22 }, { engine: 'aimode', correct: 13, checked: 15 }, { engine: 'chatgpt', correct: 12, checked: 15 }, { engine: 'gemini', correct: 8, checked: 9 }, { engine: 'claude', correct: 0, checked: 0 }],
   // GAP: no source-domain attribution for wrong answers exists in production
   sources: [
     { domain: 'beautyprices.co', facts: 1, answers: 2, url: 'https://beautyprices.co/dermasuri-vitamin-c' },
@@ -142,7 +145,7 @@ const factFull = {
 }
 const factSmall = {
   facts: [factsFull[0], factsFull[3], factsFull[4], factsFull[7]].map((f) => (f.id === 'f1' ? { ...f, said: f.said.slice(0, 1) } : f)),
-  byEngine: [{ engine: 'aio', correct: 6, checked: 6 }, { engine: 'chatgpt', correct: 3, checked: 4 }, { engine: 'gemini', correct: 2, checked: 2 }, { engine: 'claude', correct: 0, checked: 0 }],
+  byEngine: [{ engine: 'aio', correct: 6, checked: 6 }, { engine: 'aimode', correct: 3, checked: 3 }, { engine: 'chatgpt', correct: 3, checked: 4 }, { engine: 'gemini', correct: 2, checked: 2 }, { engine: 'claude', correct: 0, checked: 0 }],
   sources: factFull.sources.slice(0, 1).map((s) => ({ ...s, answers: 1 })),
 }
 

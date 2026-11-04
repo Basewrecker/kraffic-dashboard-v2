@@ -109,6 +109,9 @@ import { enginesOf } from './recommend.js'
 test('R20: engine tags → icons: google = rank only, aio = Google, ai = resolved from the answers or unspecified', () => {
   assert.deepEqual(enginesOf({ host: 'a.com', engines: ['google'] }), { engines: [], unknown: false })
   assert.deepEqual(enginesOf({ host: 'a.com', engines: ['google', 'aio'] }), { engines: ['google'], unknown: false })
+  // AI Mode (PROPOSED 'aimode' tag): its own engine, after AI Overview
+  assert.deepEqual(enginesOf({ host: 'a.com', engines: ['google', 'aimode', 'aio'] }), { engines: ['google', 'aimode'], unknown: false })
+  assert.deepEqual(enginesOf({ host: 'a.com', engines: ['aimode'] }), { engines: ['aimode'], unknown: false })
   assert.deepEqual(enginesOf({ host: 'a.com', engines: ['ai'] }, (h) => (h === 'a.com' ? ['chatgpt', 'claude'] : null)), { engines: ['chatgpt', 'claude'], unknown: false })
   assert.deepEqual(enginesOf({ host: 'b.com', engines: ['ai'] }, () => null), { engines: [], unknown: true })
 })

@@ -16,7 +16,8 @@ const selectWidth = 'min-w-[140px] sm:min-w-[200px]'
 const EVERY = { daily: 'every day', weekly: 'every week', monthly: 'every month' }
 // what each engine is (performance lives on the dashboard's Platform visibility card)
 const ENGINE_INFO = {
-  aio: 'Google’s AI answers in search results',
+  aio: 'Google’s AI Overview above the search results',
+  aimode: 'Google’s AI Mode, its conversational search',
   gemini: 'Google’s AI assistant',
   chatgpt: 'OpenAI’s assistant',
   claude: 'Anthropic’s assistant',

@@ -142,7 +142,7 @@ export function capRows(list, expanded, cap = 5) {
 export const toggleOpen = (open, key) => (open === key ? null : key)
 
 // engines behind a theme's pages, in a fixed order
-export const themeEngines = (theme, order = ['google', 'chatgpt', 'claude']) => order.filter((e) => theme.pages.some((p) => p.engines.includes(e)))
+export const themeEngines = (theme, order = ['google', 'aimode', 'chatgpt', 'claude']) => order.filter((e) => theme.pages.some((p) => p.engines.includes(e)))
 
 // ---- Over time ----------------------------------------------------------------------------------------------------
 

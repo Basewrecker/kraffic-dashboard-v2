@@ -8,7 +8,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowRight, EyeOff, FileText, LineChart, TrendingUp } from 'lucide-react'
 import { PlatformIcon } from '../../../components/dashboard/icons'
-import { ENGINES, engineIcon } from '../../../data/contentOpportunities'
+import { ENGINES, ENGINE_SHORT as SHORT, engineIcon } from '../../../data/contentOpportunities'
 import { FLAGS } from '../../../data/contentOpportunities-proposed'
 import { Ring } from '../parts'
 import { useCountUp } from '../../../hooks/useBrandView'
@@ -39,8 +39,6 @@ function Sparkline({ draft }) {
   )
 }
 
-const SHORT = { google: 'Google', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
-
 // a small tooltip on hover / focus (no browser title tooltip)
 function Tip({ text, children, align = 'center' }) {
   return (
@@ -52,14 +50,15 @@ function Tip({ text, children, align = 'center' }) {
 }
 
 // Published & monitoring: the tracked engines' icons; the ones that named you this week in full colour, the others
-// greyed out (35%, greyscale). Tooltip per icon.
+// greyed out (35%, greyscale). Tooltip per icon. Five engines (Google is two): 14px with 4px gaps (86px), the width four
+// 16px icons took, so the row still fits the card at 1280 (Slot hides a visual that doesn't fit whole).
 function EnginesThisWeek({ rows }) {
   const named = new Set(rows.flatMap((r) => { const w = trackingFor(r.draft)[r.draft.week - 1]; return w?.engines ? Object.keys(w.engines).filter((e) => w.engines[e]) : [] }))
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex items-center gap-1">
       {ENGINES.map((e) => (
         <Tip key={e} text={named.has(e) ? `Named on ${SHORT[e]} this week` : `Not named on ${SHORT[e]} this week`}>
-          <span className={`flex transition-[opacity,filter] duration-150 ${named.has(e) ? '' : 'opacity-35 grayscale'}`}><PlatformIcon id={engineIcon(e)} size={16} /></span>
+          <span className={`flex transition-[opacity,filter] duration-150 ${named.has(e) ? '' : 'opacity-35 grayscale'}`}><PlatformIcon id={engineIcon(e)} size={14} /></span>
         </Tip>
       ))}
     </span>

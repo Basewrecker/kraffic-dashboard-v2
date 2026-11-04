@@ -9,7 +9,8 @@ import { liveFacts } from './live-facts.js'
 import { verdictTone } from './verdicts.js'
 import { cardStatus } from './cards.js'
 
-export const ENGINE_NAMES = { aio: 'AI Overview', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
+// Google is two engines: 'aio' = Google AI Overview, 'aimode' = Google AI Mode
+export const ENGINE_NAMES = { aio: 'AI Overview', aimode: 'AI Mode', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
 export const ENGINE_IDS = Object.keys(ENGINE_NAMES)
 
 // ---- options (the composer's chips) ------------------------------------------------------------------------------
@@ -40,7 +41,7 @@ const START = { week: 6, '30d': 3, quarter: 0, custom: 3 }
 
 const FOA = {
   id: 'foa', name: 'Finance of America', domain: 'financeofamerica.com', prompts: 113, lead: 'reverse mortgages',
-  ran: ['aio', 'chatgpt', 'gemini'],
+  ran: ['aio', 'aimode', 'chatgpt', 'gemini'],
   missing: { claude: 'Claude didn’t run in the Oct 26 sync, so it isn’t counted.' },
   notConnected: ['Marketplace and community data isn’t connected for Finance of America.'],
   series: {
@@ -60,15 +61,15 @@ const FOA = {
   // topics that moved: d > 0 won, d < 0 lost (|d| = its prompts)
   moved: {
     week: [
-      { ...P('Lender comparisons', ['best reverse mortgage lenders 2026', 'is Finance of America a good lender', 'Finance of America vs AAG reviews']), d: 3, engines: { aio: 2, gemini: 1 } },
+      { ...P('Lender comparisons', ['best reverse mortgage lenders 2026', 'is Finance of America a good lender', 'Finance of America vs AAG reviews']), d: 3, engines: { aio: 1, aimode: 1, gemini: 1 } },
       { ...P('HECM for purchase', ['how does a HECM for purchase work', 'HECM for purchase down payment']), d: 2, engines: { aio: 1, chatgpt: 1 } },
       { ...P('Home equity alternatives', ['reverse mortgage vs home equity loan for retirees']), d: 1, engines: { gemini: 1 } },
       { ...P('Calculators', ['HECM calculator']), d: -1, engines: { chatgpt: 1 } },
       { ...P('Eligibility', ['reverse mortgage age requirement']), d: -1, engines: { chatgpt: 1 } },
     ],
     '30d': [
-      { ...P('Lender comparisons', ['best reverse mortgage lenders 2026', 'is Finance of America a good lender', 'Finance of America vs AAG reviews', 'top rated reverse mortgage companies', 'Finance of America complaints']), d: 5, engines: { aio: 3, chatgpt: 1, gemini: 1 } },
-      { ...P('HECM for purchase', ['how does a HECM for purchase work', 'HECM for purchase down payment', 'buy a home with a reverse mortgage', 'HECM for purchase vs cash']), d: 4, engines: { aio: 2, chatgpt: 1, gemini: 1 } },
+      { ...P('Lender comparisons', ['best reverse mortgage lenders 2026', 'is Finance of America a good lender', 'Finance of America vs AAG reviews', 'top rated reverse mortgage companies', 'Finance of America complaints']), d: 5, engines: { aio: 2, aimode: 1, chatgpt: 1, gemini: 1 } },
+      { ...P('HECM for purchase', ['how does a HECM for purchase work', 'HECM for purchase down payment', 'buy a home with a reverse mortgage', 'HECM for purchase vs cash']), d: 4, engines: { aio: 1, aimode: 1, chatgpt: 1, gemini: 1 } },
       { ...P('Home equity alternatives', ['reverse mortgage vs home equity loan for retirees', 'HELOC or reverse mortgage at 65', 'home equity investment vs reverse mortgage']), d: 3, engines: { aio: 1, chatgpt: 1, gemini: 1 } },
       { ...P('Calculators', ['HECM calculator', 'reverse mortgage payout calculator']), d: -2, engines: { chatgpt: 2 } },
       { ...P('Eligibility', ['reverse mortgage age requirement']), d: -1, engines: { chatgpt: 1 } },
@@ -76,17 +77,18 @@ const FOA = {
   },
   // CEO: our lead in points of share, per topic (negative: a competitor leads it)
   topicLead: [
-    { theme: 'Lender comparisons', d: 18, prompts: 22, answers: 40, trend: [12, 13, 14, 15, 16, 16, 17, 18], shares: { foa: 44, longbridge: 26, aag: 18 }, byEngine: { aio: 20, chatgpt: 16, gemini: 17 } },
-    { theme: 'HECM for purchase', d: 14, prompts: 14, answers: 26, trend: [10, 11, 11, 12, 13, 13, 14, 14], shares: { foa: 40, longbridge: 26, aag: 20 }, byEngine: { aio: 16, chatgpt: 12, gemini: 13 } },
-    { theme: 'Home equity alternatives', d: 9, prompts: 13, answers: 24, trend: [5, 6, 6, 7, 8, 8, 9, 9], shares: { foa: 35, longbridge: 26, aag: 22 }, byEngine: { aio: 10, chatgpt: 8, gemini: 9 } },
-    { theme: 'Retirement income', d: 6, prompts: 11, answers: 20, trend: [4, 4, 5, 5, 5, 6, 6, 6], shares: { foa: 32, longbridge: 26, aag: 24 }, byEngine: { aio: 7, chatgpt: 5, gemini: 6 } },
-    { theme: 'Eligibility', d: -3, who: 'AAG', prompts: 15, answers: 28, trend: [-1, -1, -2, -2, -2, -3, -3, -3], shares: { foa: 28, longbridge: 24, aag: 31 }, byEngine: { aio: -2, chatgpt: -5, gemini: -2 } },
-    { theme: 'Jumbo loans', d: -11, who: 'Longbridge', prompts: 10, answers: 18, trend: [-8, -8, -9, -9, -10, -10, -11, -11], shares: { foa: 22, longbridge: 33, aag: 25 }, byEngine: { aio: -9, chatgpt: -14, gemini: -10 } },
-    { theme: 'Calculators', d: -22, who: 'Longbridge', prompts: 10, answers: 20, trend: [-18, -19, -19, -20, -21, -21, -22, -22], shares: { foa: 16, longbridge: 38, aag: 24 }, byEngine: { aio: -20, chatgpt: -26, gemini: -20 } },
+    { theme: 'Lender comparisons', d: 18, prompts: 22, answers: 40, trend: [12, 13, 14, 15, 16, 16, 17, 18], shares: { foa: 44, longbridge: 26, aag: 18 }, byEngine: { aio: 20, aimode: 17, chatgpt: 16, gemini: 17 } },
+    { theme: 'HECM for purchase', d: 14, prompts: 14, answers: 26, trend: [10, 11, 11, 12, 13, 13, 14, 14], shares: { foa: 40, longbridge: 26, aag: 20 }, byEngine: { aio: 16, aimode: 13, chatgpt: 12, gemini: 13 } },
+    { theme: 'Home equity alternatives', d: 9, prompts: 13, answers: 24, trend: [5, 6, 6, 7, 8, 8, 9, 9], shares: { foa: 35, longbridge: 26, aag: 22 }, byEngine: { aio: 10, aimode: 7, chatgpt: 8, gemini: 9 } },
+    { theme: 'Retirement income', d: 6, prompts: 11, answers: 20, trend: [4, 4, 5, 5, 5, 6, 6, 6], shares: { foa: 32, longbridge: 26, aag: 24 }, byEngine: { aio: 7, aimode: 4, chatgpt: 5, gemini: 6 } },
+    { theme: 'Eligibility', d: -3, who: 'AAG', prompts: 15, answers: 28, trend: [-1, -1, -2, -2, -2, -3, -3, -3], shares: { foa: 28, longbridge: 24, aag: 31 }, byEngine: { aio: -2, aimode: -3, chatgpt: -5, gemini: -2 } },
+    { theme: 'Jumbo loans', d: -11, who: 'Longbridge', prompts: 10, answers: 18, trend: [-8, -8, -9, -9, -10, -10, -11, -11], shares: { foa: 22, longbridge: 33, aag: 25 }, byEngine: { aio: -9, aimode: -10, chatgpt: -14, gemini: -10 } },
+    { theme: 'Calculators', d: -22, who: 'Longbridge', prompts: 10, answers: 20, trend: [-18, -19, -19, -20, -21, -21, -22, -22], shares: { foa: 16, longbridge: 38, aag: 24 }, byEngine: { aio: -20, aimode: -21, chatgpt: -26, gemini: -20 } },
   ],
   engines: {
     // now: % of prompts named · named: those prompts · week / 30d: [won, lost] in that period
-    aio: { now: 68, named: 77, series: [62, 63, 63, 64, 65, 66, 67, 68], week: [3, 0], '30d': [6, 0] },
+    aio: { now: 68, named: 77, series: [62, 63, 63, 64, 65, 66, 67, 68], week: [2, 0], '30d': [4, 0] },
+    aimode: { now: 57, named: 64, series: [49, 50, 52, 52, 54, 55, 55, 57], week: [1, 0], '30d': [2, 0] },
     chatgpt: { now: 61, named: 69, series: [55, 56, 57, 58, 59, 60, 63, 61], week: [1, 2], '30d': [3, 3] },
     gemini: { now: 52, named: 59, series: [44, 45, 46, 47, 48, 50, 50, 52], week: [2, 0], '30d': [3, 0] },
   },
@@ -104,7 +106,7 @@ const FOA = {
         P('Eligibility', ['can you lose your home with a reverse mortgage', 'HECM loan limits 2027', 'reverse mortgage age requirement', 'reverse mortgage with an existing mortgage', 'reverse mortgage credit requirements']),
         P('Property types', ['reverse mortgage for a condo', 'reverse mortgage on a manufactured home', 'FHA-approved condos for a reverse mortgage', 'reverse mortgage on a second home']),
       ],
-      engines: { aio: { n: 13, you: 64, neither: 36, series: [11, 11, 12, 12, 12, 13, 13, 13] }, chatgpt: { n: 7, you: 58, neither: 48, series: [5, 5, 5, 6, 6, 6, 6, 7] }, gemini: { n: 3, you: 50, neither: 60, series: [3, 3, 3, 3, 3, 3, 3, 3] } },
+      engines: { aio: { n: 8, you: 64, neither: 36, series: [6, 6, 7, 7, 7, 8, 8, 8] }, aimode: { n: 5, you: 57, neither: 44, series: [3, 3, 4, 4, 4, 5, 5, 5] }, chatgpt: { n: 7, you: 58, neither: 48, series: [5, 5, 5, 6, 6, 6, 6, 7] }, gemini: { n: 3, you: 50, neither: 60, series: [3, 3, 3, 3, 3, 3, 3, 3] } },
       citedThem: [{ path: '/reverse-mortgage-calculator', n: 11 }, { path: '/platinum-jumbo-reverse-mortgage', n: 6 }, { path: '/faq', n: 5 }],
       citedYou: [{ path: '/reverse-mortgage', n: 9 }, { path: '/resources/reverse-mortgage-faq', n: 3 }],
       citedNote: 'Their calculator and jumbo pages are cited more than anything of yours on these prompts.',
@@ -120,6 +122,8 @@ const FOA = {
         'best jumbo reverse mortgage lender': { engine: 'chatgpt' }, 'jumbo reverse mortgage rates': { engine: 'chatgpt', only: true },
         'reverse mortgage age requirement': { engine: 'chatgpt' }, 'reverse mortgage credit requirements': { engine: 'chatgpt' }, 'reverse mortgage for a condo': { engine: 'chatgpt' },
         'reverse mortgage amortization': { engine: 'gemini' }, 'non-FHA reverse mortgage': { engine: 'gemini' }, 'reverse mortgage on a second home': { engine: 'gemini' },
+        'how much equity do I need for a reverse mortgage': { engine: 'aimode' }, 'reverse mortgage estimate by age': { engine: 'aimode' },
+        'reverse mortgage for a high-value home': { engine: 'aimode' }, 'HECM loan limits 2027': { engine: 'aimode' }, 'reverse mortgage on a manufactured home': { engine: 'aimode' },
         'reverse mortgage calculator': { only: true }, 'HECM calculator': { only: true }, 'HECM line of credit calculator': { only: true },
         'proprietary jumbo reverse mortgage': { only: true }, 'reverse mortgage over $1 million': { only: true },
         'reverse mortgage with an existing mortgage': { only: true }, 'FHA-approved condos for a reverse mortgage': { only: true },
@@ -154,7 +158,7 @@ const FOA = {
 const DS = {
   id: 'dermasuri', name: 'Dermasuri', domain: 'dermasuri.com', prompts: 152, lead: 'body exfoliation',
   ran: ['aio', 'chatgpt'],
-  missing: { gemini: 'Gemini only runs with a full sync; none ran in this period.', claude: 'Claude only runs with a full sync; none ran in this period.' },
+  missing: { aimode: 'AI Mode only runs with a full sync; none ran in this period.', gemini: 'Gemini only runs with a full sync; none ran in this period.', claude: 'Claude only runs with a full sync; none ran in this period.' },
   notConnected: [],
   series: {
     score: [61, 62, 61, 64, 65, 64, 66, 70],
@@ -308,7 +312,9 @@ export function inferOpts(prompt, d) {
   else if (/client/.test(q)) out.audience = 'client'
   if (/one.?page|short|quick/.test(q)) out.length = 'one'
   else if (/detailed|deep dive|everything/.test(q)) out.length = 'detailed'
-  const eng = ENGINE_IDS.filter((e) => q.includes(ENGINE_NAMES[e].toLowerCase()) || (e === 'aio' && /google/.test(q)))
+  // "Google" alone means both Google engines (AI Overview and AI Mode); naming one of them picks just that one
+  const named = ENGINE_IDS.filter((e) => q.includes(ENGINE_NAMES[e].toLowerCase()))
+  const eng = /google/.test(q) && !named.some((e) => e === 'aio' || e === 'aimode') ? ENGINE_IDS.filter((e) => named.includes(e) || e === 'aio' || e === 'aimode') : named
   if (eng.length) out.engines = eng
   if (d) {
     const named = d.rivals.filter((r) => q.includes(r.key) || q.includes(brandName(r.domain).toLowerCase().split(' ')[0]))

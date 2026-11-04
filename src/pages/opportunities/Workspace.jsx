@@ -15,7 +15,9 @@ import { ArrowLeft } from 'lucide-react'
 import LogoStack from '../../components/dashboard/LogoStack'
 import { t2, textBtn } from '../../components/firstSetup/ui'
 import { useToast } from '../../components/dashboard/overlays'
-import { CO_BRAND, ENGINES, ENGINE_NAME, gscConnection } from '../../data/contentOpportunities'
+import { CO_BRAND, ENGINES, ENGINE_NAME, ENGINE_SHORT, engineIcon, gscConnection } from '../../data/contentOpportunities'
+import { hasResult } from '../../data/brandViews'
+import { NoResultHint } from '../../components/ui/NoResult'
 import { getAnswer } from '../../data/answers'
 import { brandName, domainForName } from '../../utils/brand'
 import { namedSummary, rankGrid } from './workspace/heroData'
@@ -54,8 +56,7 @@ const nf = new Intl.NumberFormat('en-US')
 const checkedLine = (at) => (!at ? 'not checked yet' : at.slice(0, 10) === NOW.slice(0, 10) ? 'checked today' : `checked ${new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)
 // this visit's progress per prompt (the step, the choices): reopening a prompt continues where it was
 const PROGRESS = new Map()
-// engines by their short names in sentences ("Google, Gemini and Claude")
-const ENGINE_SHORT = { google: 'Google', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
+// engines by their short names in sentences ("AI Overview, AI Mode and Claude"; data/contentOpportunities ENGINE_SHORT)
 const listOf = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`)
 const SC_FIXED = 456 // the Search Console column without the gap above its stats (SearchConsolePanel)
 const STEP_HEAD = ['Connect', 'Your pages', null, null, 'Your page'] // the left column's head per step (Your data has its own)
@@ -307,7 +308,7 @@ function Flow({ row }) {
 
   // ---- the payoff bar (and the dock): the reward for finishing this step, built from the data; its one action ----
   const [publishApi, setPublishApi] = useState(null) // PublishStep: { phase, checking, check }
-  const missedEngines = ENGINES.filter((e) => row.platforms.includes(e))
+  const missedEngines = answeredEngines().filter((e) => row.platforms.includes(e))
   const names = (es) => listOf(es.map((e) => ENGINE_SHORT[e]))
   const moreEngines = `${missedEngines.length} more ${missedEngines.length === 1 ? 'engine' : 'engines'}`
   const selected = target.kind === 'page' ? allCandidates.find((c) => c.url === target.url) : null
@@ -383,7 +384,7 @@ function Flow({ row }) {
       },
   ]
   // the bar's one stakes block: the engines that name the brand now (the rest are the missed ones)
-  const named = ENGINES.filter((e) => !row.platforms.includes(e))
+  const named = answeredEngines().filter((e) => !row.platforms.includes(e))
   // two things, kept apart: where the flow is (open: steps 1–5) and whether the focus panel is up (focus). The page's
   // layout never follows the flow past step 2: it shows step 1, else step 2's layout; steps 3–5 live only in the panel.
   // Only the page bar's content follows the flow: for steps 3–5, what they're doing (live) and Resume.
@@ -432,7 +433,7 @@ function Flow({ row }) {
         {/* the payoff bar: the step's reward, its progress and its one action; while steps 3–5 are under way (they live
             only in the focus panel), what they're doing, live, and Resume */}
         <PayoffBar barRef={barRef} current={current} open={open} values={values} onPick={pick} headingId="co-step-h"
-          headline={bar.headline} line={bar.line} busy={bar.busy} engines={ENGINES} named={named} engineName={(e) => ENGINE_NAME[e]}
+          headline={bar.headline} line={bar.line} busy={bar.busy} engines={answeredEngines()} named={named} engineName={(e) => ENGINE_NAME[e]}
           action={bar.action} secondary={bar.secondary} onClose={editing != null && onPage ? () => setEditing(null) : null} steps={steps} />
         {/* the page's step: step 1 (Search Console), else always step 2's layout, whatever the flow's step: the step (7/12),
             Search Console (5/12), 32px apart with a 1px line between */}
@@ -473,8 +474,15 @@ function Flow({ row }) {
 
 // the sticky header, one 64px row: Back to list · the prompt (18/600, morphs from the list row) · "Missed on n of 4"
 // with the missed engines in full colour · the brands named instead
+// The engines with a result in the latest scan. One without (data/brandViews hasResult; ?noresult= previews it) uses
+// the no-result state: it counts as neither missed nor named, and the header says so with the ⓘ.
+const answeredEngines = () => ENGINES.filter((e) => hasResult(engineIcon(e)))
+
 function Header({ row }) {
-  const missed = row.platforms.length
+  const engines = answeredEngines()
+  const noResult = ENGINES.filter((e) => !engines.includes(e))
+  const missedIds = engines.filter((e) => row.platforms.includes(e))
+  const missed = missedIds.length
   const named = uniqueDomains(row.competitors, [OWN_DOMAIN])
   return (
     <header data-sticky-header className="sticky top-14 z-30 -mx-4 border-b border-[var(--div)] bg-page px-4 md:-mx-6 md:px-6 lg:top-0 lg:-mt-8">
@@ -483,9 +491,10 @@ function Header({ row }) {
         <span className="h-5 w-px shrink-0 bg-line max-lg:hidden" aria-hidden />
         <h1 style={promptVT(row.id)} title={row.prompt} className="min-w-0 flex-1 truncate text-[18px] leading-6 font-semibold tracking-[-0.01em] text-stone-900 max-lg:order-last max-lg:basis-full">{row.prompt}</h1>
         <div className="flex shrink-0 items-center gap-3">
-          <span className="text-[13px] leading-[18px] text-stone-600 tabular-nums">Missed on {missed} of {ENGINES.length}</span>
+          <span className="text-[13px] leading-[18px] text-stone-600 tabular-nums">Missed on {missed} of {engines.length}</span>
           {/* the missed engines themselves, in full colour (they're the point of the label) */}
-          <Engines ids={ENGINES.filter((e) => row.platforms.includes(e))} engineName={(e) => ENGINE_NAME[e]} size={18} none="None" />
+          <Engines ids={missedIds} engineName={(e) => ENGINE_NAME[e]} size={18} none="None" />
+          {noResult.map((e) => <NoResultHint key={e} engine={engineIcon(e)} align="right" />)}
         </div>
         <span className="h-5 w-px shrink-0 bg-line max-sm:hidden" aria-hidden />
         <div className="flex shrink-0 items-center gap-3">

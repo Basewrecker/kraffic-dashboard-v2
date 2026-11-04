@@ -39,7 +39,7 @@ test('the comparison series lines up with the main one', () => {
 test('the prototype numbers: FoA vs Longbridge with the proposed fields', () => {
   const { v } = cases.find((c) => c.at === 'foa rival proposed')
   assert.equal(v.kpis.find((k) => k.id === 'wins').value, '23')
-  assert.deepEqual(v.blocks.find((b) => b.panel?.id === 'engines').panel.tabs[0].rows.filter((r) => !r.muted).map((r) => r.vals[1].v), [13, 7, 3])
+  assert.deepEqual(v.blocks.find((b) => b.panel?.id === 'engines').panel.tabs[0].rows.filter((r) => !r.muted).map((r) => r.vals[1].v), [8, 5, 7, 3])
   assert.deepEqual(v.steps.rows.map((r) => r.n), [8, 6, 5])
 })
 

@@ -2,9 +2,12 @@
 // The brands are the Overview's own sample set (Dermasuri and its competitors, the same logos); values are made up. What the page shows beyond these shapes is in
 // ./contentOpportunities-proposed.js, which the app can't supply yet.
 
-export const ENGINES = ['google', 'chatgpt', 'gemini', 'claude']
-export const ENGINE_NAME = { google: 'Google AI Overview', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
-export const engineIcon = (e) => (e === 'google' ? 'aio' : e) // PlatformIcon ids
+// Prompt-data engine ids (the app's row.platforms). Google is two engines: 'google' = Google AI Overview, 'aimode' =
+// Google AI Mode. In sentences and chips use ENGINE_SHORT ("AI Overview", "AI Mode"), never a bare "Google" for one.
+export const ENGINES = ['google', 'aimode', 'chatgpt', 'gemini', 'claude']
+export const ENGINE_NAME = { google: 'Google AI Overview', aimode: 'Google AI Mode', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
+export const ENGINE_SHORT = { google: 'AI Overview', aimode: 'AI Mode', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
+export const engineIcon = (e) => (e === 'google' ? 'aio' : e) // PlatformIcon ids ('aimode' is the same id)
 
 export const CO_BRAND = { name: 'Dermasuri', domain: 'dermasuri.com' } // the mock's own brand (data/mock.js account)
 // tracked competitors (brief.competitors are domains of these)
@@ -47,7 +50,12 @@ const historyFor = (streak) => SYNCS.map((_, i) => {
   return (i * 7 + streak) % 3 === 0 ? 'visible' : 'missed'
 })
 
-export const missedItems = P.map(([prompt, platforms, streak, competitors, sources], id) => ({
+// AI Mode in the sample rows: where AI Overview misses too, on a fixed hash of the prompt (about 2 in 3)
+const hashOf = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return (h >>> 0) / 4294967296 }
+const withAiMode = (prompt, list) => (list.includes('google') && hashOf(`aimode|${prompt}`) < 0.67 ? ['google', 'aimode', ...list.slice(1)] : list)
+
+export const missedItems = P.map(([prompt, basePlatforms, streak, competitors, sources], id) => ({ prompt, platforms: withAiMode(prompt, basePlatforms), streak, competitors, sources, id }))
+  .map(({ prompt, platforms, streak, competitors, sources, id }) => ({
   id,
   prompt,
   platforms,

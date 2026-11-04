@@ -95,7 +95,7 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
           aria-label={listLabel}
           aria-activedescendant={`${uid}-opt-${active}`}
           onKeyDown={onKey}
-          className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full z-30 mt-1 w-64 max-lg:left-0 max-lg:right-0 max-lg:w-auto rounded-lg border border-line bg-raised p-1 shadow-md outline-none`}
+          className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full z-30 mt-1 w-72 max-lg:left-0 max-lg:right-0 max-lg:w-auto rounded-lg border border-line bg-raised p-1 shadow-md outline-none`}
         >
           {groups.map((g, gi) => (
             <div key={g.label ?? gi} role="group" aria-label={g.label}>
@@ -116,7 +116,7 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
                     {selected ? <Check size={14} className="shrink-0 text-ink" aria-hidden /> : <span className="w-3.5 shrink-0" aria-hidden />}
                     {x.icon}
                     <span className={`flex-1 truncate ${selected ? 'font-medium' : ''}`}>{x.label}</span>
-                    {x.meta != null && <span className="text-[12px] leading-4 text-stone-500 tabular-nums">{x.meta}</span>}
+                    {x.meta != null && <span className="shrink-0 text-[12px] leading-4 text-stone-500 tabular-nums">{x.meta}</span>}
                   </div>
                 )
               })}
@@ -129,6 +129,7 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
   )
 }
 
+// w-72: the longest engine ("Google AI Overview" + "111 prompts") fits without an ellipsis
 // built when the header draws (not when the module loads), so the scores are the current ones
 const brandGroups = (engine) => [
   { label: 'Your brand', items: TRACKED_BRANDS.filter((b) => b.you) },
@@ -144,7 +145,7 @@ export default function PageHeader() {
   const engineGroups = [{
     items: [
       { id: 'all', label: 'All engines' },
-      ...ENGINES.map((e) => ({ id: e.id, label: e.name, icon: <PlatformIcon id={e.id} size={16} />, meta: hasResult(e.id) ? `${perEngine[e.id] ?? 0} prompts` : NO_SCORE })),
+      ...ENGINES.map((e) => ({ id: e.id, label: e.full, short: e.name, icon: <PlatformIcon id={e.id} size={16} />, meta: hasResult(e.id) ? `${perEngine[e.id] ?? 0} prompts` : NO_SCORE })),
     ],
   }]
 
@@ -167,7 +168,7 @@ export default function PageHeader() {
                 </button>
                 {tip && (
                   <span id="overview-hint" role="tooltip" className="absolute left-0 top-full z-20 mt-1 hidden w-72 rounded-md border border-line bg-raised px-2.5 py-2 text-[12px] leading-4 font-normal text-stone-700 shadow-md lg:block">
-                    Track how often {account.name} appears in AI answers across Google, ChatGPT, Gemini &amp; Claude.
+                    Track how often {account.name} appears in AI answers across Google AI Overview and AI Mode, ChatGPT, Gemini &amp; Claude.
                   </span>
                 )}
               </>
@@ -176,7 +177,7 @@ export default function PageHeader() {
           {/* the only competitor-view indicator: same line, same height (own brand: phones and tablets only) */}
           <p className={`mt-1 text-body font-normal text-stone-600 ${isOwnBrand ? 'lg:hidden' : ''}`}>
             {isOwnBrand ? (
-              <>Track how often {account.name} appears in AI answers across Google, ChatGPT, Gemini &amp; Claude.</>
+              <>Track how often {account.name} appears in AI answers across Google AI Overview and AI Mode, ChatGPT, Gemini &amp; Claude.</>
             ) : (
               <>
                 {focal.name}’s view · read-only ·{' '}

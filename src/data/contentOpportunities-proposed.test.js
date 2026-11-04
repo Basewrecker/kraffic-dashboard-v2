@@ -117,11 +117,12 @@ test('a page\'s 8-week trend: its last 4 weeks add up to its impressions; the 4 
 })
 
 test('who cites each source: a competitor\'s engines from the row, a publisher 1–3 engines; 1–2 formats', () => {
-  const engines = ['google', 'chatgpt', 'gemini', 'claude']
+  // the five engines: Google is two (AI Overview 'google', AI Mode 'aimode')
+  const engines = ['google', 'aimode', 'chatgpt', 'gemini', 'claude']
   for (const row of missedPrompts) {
     for (const s of row.sources) {
       const by = citedBy(row, s, engines)
-      assert.ok(by.length >= 1 && by.length <= 4 && by.every((e) => engines.includes(e)))
+      assert.ok(by.length >= 1 && by.length <= engines.length && by.every((e) => engines.includes(e)))
       const brand = row.brandsMentioned.find((b) => b.domain === s.domain)
       if (brand) assert.deepEqual(by, engines.filter((e) => brand.platforms.includes(e)))
       const f = formatsOf(row, s)

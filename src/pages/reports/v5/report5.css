@@ -97,6 +97,7 @@ html[data-theme="dark"] .r5{
 .r5 .row .n.up{color:var(--good)} .r5 .row .n.dn{color:var(--bad)}
 .r5 .fav{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:4px;font-size:9px;font-weight:700;flex:none;color:#fff;overflow:hidden}
 .r5 .fav img{width:16px;height:16px;display:block}
+.r5 .fav.eng{border-radius:0;overflow:visible}
 .r5 .rows.clip{max-height:262px;overflow:hidden}
 .r5 .rows.clip::after{content:"";position:absolute;left:0;right:0;bottom:0;height:76px;background:linear-gradient(to bottom,transparent,var(--card) 78%);pointer-events:none}
 .r5 .viewall{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;gap:6px;z-index:2}
@@ -561,3 +562,6 @@ html[data-theme="dark"] .r5{--rep-good:#4CC38A;--rep-bad:#FF6166}
 /* paths cut in the middle: a shorter cut in a narrow panel, never cut twice */
 .r5 .mid-short{display:none}
 @container (max-width:380px){.r5 .mid-long{display:none}.r5 .mid-short{display:inline}}
+/* engine marks (PlatformIcon) sit side by side, never stacked: the Google AI Overview and AI Mode badges must stay readable */
+.r5 .favs .fav.eng.eng{box-shadow:none;border-radius:0}
+.r5 .favs .fav.eng.eng + .fav.eng.eng{margin-left:4px}

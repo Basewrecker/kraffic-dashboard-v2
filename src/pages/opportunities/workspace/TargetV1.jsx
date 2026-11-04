@@ -27,7 +27,7 @@ import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import { PlatformIcon } from '../../../components/dashboard/icons'
 import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
 import { formatLabel } from '../../../data/contentRecommend'
-import { LogoPlate } from '../parts'
+import { LogoPlate, withResults } from '../parts'
 import { afterRow, draftPlan, draftPreview, enginesOf, formatMatrix, pageOf, rankLadder } from '../draft/recommend'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { RingDraw, TickDraw } from './ui'
@@ -54,7 +54,7 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
   const [pulse, setPulse] = useState(0) // bumps to replay the missing cell's pulse
   const hoverCol = (id) => { if (id !== col) { setCol(id); if (id) setPulse((p) => p + 1) } }
   // a page's engines: its citedPages entry (evidence rows carry no engines, so match by url), R20
-  const eng = (p) => enginesOf(res.citedPages.find((c) => c.url === p.url) ?? p, resolve)
+  const eng = (p) => withResults(enginesOf(res.citedPages.find((c) => c.url === p.url) ?? p, resolve))
   const yourEnd = T.sweep + m.columns.length * T.col + T.after
   const after = afterRow(res)
   const plan = draftPlan(res.recommendations).missing.map((x) => x.id)
@@ -110,7 +110,9 @@ function EngineIcons({ e, size = 16, stack = false, delay = null }) {
   const items = [...e.engines.map((id) => ({ id })), ...(e.unknown ? [{ id: 'ai' }] : [])]
   if (!items.length) return null
   return (
-    <span className={`flex items-center ${stack ? '-space-x-1' : 'gap-1'}`} style={delay != null ? anim('co-pop-in', delay, 220) : undefined}>
+    // stacked (on a ladder slot): side by side with a hairline gap, never overlapping, so the AI Overview / AI Mode
+    // corner badges (the only thing telling Google's two engines apart) stay visible
+    <span className={`flex items-center ${stack ? 'gap-px' : 'gap-1'}`} style={delay != null ? anim('co-pop-in', delay, 220) : undefined}>
       {items.map((x) => (
         <span key={x.id} title={x.id === 'ai' ? 'AI answers (engine not specified)' : ENGINE_NAME[x.id]}
           className={`grid place-items-center rounded-full bg-surface ${stack ? 'ring-[1.5px] ring-[var(--color-surface)]' : ''}`} style={{ width: size + (stack ? 2 : 0), height: size + (stack ? 2 : 0) }}>

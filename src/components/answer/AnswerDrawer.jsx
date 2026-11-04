@@ -7,7 +7,7 @@ import { brandName } from '../../utils/brand'
 import { PlatformIcon } from '../dashboard/icons'
 import SiteLogo from '../ui/SiteLogo'
 import { ANSWER_SYNCS, LATEST, compareAnswers, getAnswer, loadAnswerHistory } from '../../data/answers'
-import { OWN, brandByDomain, engineName, getBrandView } from '../../data/brandViews'
+import { OWN, brandByDomain, engineFullName, engineName, getBrandView } from '../../data/brandViews'
 import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
 
@@ -154,7 +154,7 @@ function AnswerTab({ a, focalDomain, onBrand }) {
   return (
     <div>
       <div className="mb-3 flex items-center gap-1.5 text-[13px] leading-[18px] font-medium text-stone-600">
-        <PlatformIcon id={a.engine} size={14} />{engineName(a.engine)}’s answer
+        <PlatformIcon id={a.engine} size={14} />{engineFullName(a.engine)}’s answer
       </div>
       <section aria-label="The answer"><AnswerText units={a.units} brands={a.brands} onBrand={onBrand} /></section>
       <section className="mt-8 border-t border-[var(--div)] pt-6">
@@ -418,7 +418,7 @@ function ChangesTab({ a, prevDate, setPrevDate, focalDomain, focalName, state, s
       <div className="flex flex-col items-center gap-2 py-12 text-center">
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-tint text-stone-600"><History size={18} aria-hidden /></span>
         <p className="text-[14px] leading-5 font-medium text-stone-900">Not enough history yet</p>
-        <p className="max-w-[44ch] text-[14px] leading-5 text-stone-600">This is the first answer stored for this prompt on {engineName(a.engine)}. Changes show here after the next sync.</p>
+        <p className="max-w-[44ch] text-[14px] leading-5 text-stone-600">This is the first answer stored for this prompt on {engineFullName(a.engine)}. Changes show here after the next sync.</p>
       </div>
     )
   }
