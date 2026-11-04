@@ -15,7 +15,8 @@ never `gray-*`, never `bg-white`.
 | Page | `--color-page` | `#fafaf9` | `#000000` |
 | Card surface | `--color-surface` | `#ffffff` | `#111111` |
 | Popovers, drawers | `--color-raised`, `--color-overlay` | `#ffffff` | `#1B1B1B` |
-| Hairline | `--color-line` | `#e7e5e4` | `#222222` |
+| Hairline | `--color-line` | `#DEDCDA` | `#2A2A2A` |
+| Section rule, hovered border | `--color-line-strong` | `#CFCCC9` | `#3D3D3D` |
 | Soft background (chips, active nav) | `--tint` | `#F5F5F4` | `#1A1A1A` |
 | Ink (text, primary buttons, your data) | `--ink` | `#171412` | `#ECECEC` |
 | Text steps | `--color-stone-900` … `--color-stone-500` | stone scale | remapped greys |
@@ -78,6 +79,56 @@ amber pair). Until one is picked, nothing below changes.
     (16px). The "Top share" pill text uses the darker gold `#A87700` (on gold at 12%) so it stays readable.
   - **Muted amber (`--caution`)** only for the dots of the softer report verdicts (Slower week, Slower month, Room to
     grow). The verdict's label stays neutral text. "No yellow" still applies everywhere else.
+
+- **Opportunities → Content (owner's spec, 2026-11-04):** green ✓ / red ✕ marks on engine icons, comparison cells and
+  key points (`--rep-up-fg` / `--negative`); a muted amber (`--caution`) marker on "Confirm with your team" lines and
+  the slim "Draft for client review" bar; the "Waiting for publish" dot pulses (`.status-pulse`, off under reduced
+  motion), the one looping animation besides the existing status dot.
+- **Content, round 3 (owner, 2026-11-04):** ink and grey only. The one colour is green (`--co-improved`, #16A34A) for
+  the "▲ Improved" status and ▲ improvement deltas. Logos are the brands' real ones (SiteLogo, as the Overview).
+- **Lines, round 4 (owner, 2026-11-04):** the hairlines were too faint in light mode, so `--color-line` and
+  `--color-line-strong` are stronger everywhere (table above; dark mode one step stronger too). Section rules use
+  `--color-line-strong`.
+- **Content workspace, rounds 5–7 (owner, 2026-11-04):** one accent from the brand palette, the indigo
+  (`BRAND_PALETTE[0]`, dark +8%), exposed as `--co-a` on the workspace root from `utils/brandColors.js`: the writing
+  checklist's turning ring and the draft's worked-example chart (the step deck that also used it is gone). The Search
+  Console chart uses Sentiment's own Mix tokens (ink and `--sent-track` grey, no red). Engine logos on the page show
+  only the engines that apply, in full colour (no greyed icons, no ✓ / ✕ under them), as in the Missed prompts table.
+  The step's action lives in the payoff bar (ink primary button) and, once it scrolls away, the dark action dock.
+- **Content workspace, focus mode, rounds 10–15 (owner, 2026-11-04):** steps 3–5 (Your data, Draft, Publish) render
+  only in a centred focus panel (`workspace/FocusPanel.jsx`, a dialog: 880px, 1200px for the Draft, each capped at
+  100vw − 48px; 32px from the top, as tall as its content up to 100vh − 64px; 16px radius, a soft 2-layer shadow in
+  light). The page never shows those steps: it shows step 1, else step 2's layout, and its payoff bar says what step
+  3–5 is doing, live, with Resume. Exceptions to §4, owner-requested and scoped to this workspace:
+  - **Blur**: the page behind the focus panel blurs (8px backdrop blur) and dims (`--page` at 55% light / 65% dark),
+    `.co-veil` in `index.css`. Focus mode only.
+  - **Looping motion while the draft is written**: the small turning ring before "Writing the draft…" on the page bar,
+    the writing view's current-step ring and its soft pulse, the outline's typing caret, the small rings on rows being
+    checked. Static (or absent) under reduced motion, where the writing view is skipped.
+  - **Spring travel**: the panel moves from the step band to the centre and back (FLIP, 450ms, ≤1% overshoot).
+  The page bar's middle is one stakes block, the 4 engines over "Named on n of 4" (named: full colour on a small ink
+  ring; missed: greyed, lit by the button). It replaces the "Engine logos show only the engines that apply" rule
+  above for the bar only.
+- **Content workspace, Draft step v1 (owner, 2026-11-04):** the workspace shows what `content-recommend` returns
+  (`src/data/contentRecommend.js`, derivations in `pages/opportunities/draft/recommend.js`): 3 steps, Target page
+  (pageRecommendation + its evidence) → Draft → Copy & publish. Search Console, Your data, Publish & track and the live
+  5-step writing view are behind `?backend=full`. While writing: one honest state (the app's two loading lines, a
+  shimmering outline skeleton: a loop, the owner's exception). The draft is our design, not the app drawer's: our type
+  scale, our rows and rail; flags tagged by label with the score as a number; comparisons with the same labels as a
+  plain grid, else short lists side by side; FAQ all open. Markdown is parsed to a text-only tree
+  (`draft/markdown.js`): no raw HTML, http/https links only with rel="noopener noreferrer".
+  Target page (v1): a Google page-1 rank ladder and a "what the winners have" format matrix (`workspace/TargetV1.jsx`),
+  with a ~1.2s load sequence and linked hover. Round 3: "The draft adds" lists only what the draft adds (R21); 16px
+  under its rows (the column ends where its content ends, nothing pinned): once a draft exists its preview (R27, Open
+  draft → the Draft step in focus), else a small secondary "Write the draft →" (the bar keeps the primary); under "Your page" an "After this draft" row (R28:
+  added formats as 40% ticks that draw in, a format the draft doesn't add stays a red ring). The bar's sub-line counts
+  flags checked, never the weighted points (those stay in the readiness ⓘ). Engine icons come from citedPages[].engines: 'google' = organic rank (no
+  icon), 'aio' = Google AI Overview, 'ai' = resolved from the prompt's answers, else a neutral "AI".
+  **Light-only contrast, Content workspace only (owner):** on `.co-ws` (and its focus-panel portal), light theme:
+  dividers #E3E3E3, section rules #CFCFCF, card borders #DDDDDD, muted text #6B6B6B (5.1:1), hover tint #F0F0F0, the
+  matrix's empty ring #B8B8B8, the ladder's empty slot #C4C4C4. Dark is unchanged. App-wide adoption is the owner's call.
+  The focus panel: min(880 | 1200px, viewport − 48px) wide, min(content, viewport − 48px) tall, centred by layout (a
+  fixed grid with 24px padding); nothing left on its transform after the FLIP.
 
 ## 4. Forbidden effects
 

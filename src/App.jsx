@@ -27,6 +27,7 @@ import TeamPage from './pages/team/TeamPage'
 import ReportsRouter from './pages/reports/ReportsPages'
 import EmptyBrand from './components/EmptyBrand'
 import InsightsRouter from './pages/insights/InsightsRouter'
+import ContentRouter from './pages/opportunities/ContentRouter'
 import { usePath } from './router'
 import { TrackingProvider } from './store/trackingSettings'
 import { account, appInitialTracking, appTracking, currentBrand, initialTracking, krafficTracking } from './data/mock'
@@ -87,12 +88,12 @@ const TrackingPage = () => <LlmSettingsPage {...(krafficBackend ? krafficTrackin
 
 export default function App() {
   const path = usePath()
-  const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/team': TeamPage, '/reports': ReportsRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter }
+  const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/team': TeamPage, '/reports': ReportsRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter, '/opportunities': ContentRouter }
   // /trends/:runId and /more-tools/<tool>[/…] are one page each (they read the rest of the path)
-  const route = path.startsWith('/reports/') ? '/reports' : path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/billing/') ? '/billing' : path
+  const route = path.startsWith('/opportunities/') ? '/opportunities' : path.startsWith('/reports/') ? '/reports' : path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/billing/') ? '/billing' : path
   // tool pages light up Toolkit; Reports: /reports/all and /reports/scheduled are themselves, writing a report is New report,
   // and a report (/reports/<id>, /reports/view) lights up All reports
-  const navPath = route.startsWith('/more-tools') ? '/more-tools'
+  const navPath = route === '/opportunities' ? '/opportunities/content' : route.startsWith('/more-tools') ? '/more-tools'
     : route === '/reports' ? (['/reports', '/reports/all', '/reports/scheduled'].includes(path) ? path : path === '/reports/new' ? '/reports' : '/reports/all')
       : route
   const setupNav = route === '/first-setup' ? setupGroups : undefined // setup mode: First-time setup, Prompt Hub, Trends

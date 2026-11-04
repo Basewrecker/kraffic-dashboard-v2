@@ -19,6 +19,8 @@ import {
 import { BAND, capStack, dotPlan, pageHref, groupThemes, layoutSwarm, lanesFor, matchIds, neighbour, scoreX, springEasing, staggerDelays, tellingSentence } from '../../utils/spectrum'
 import { ENGINE_NAME, SCORING_UPDATED_TIP, SENTIMENT_ENGINES, heroTone, scoringChangedAt, scoreCardDocked, scoreChangeLine, sortAllPages, syncColumns, syncScoreChange, tipLeft, alsoSaidOnSites, changedCount, compareCsv, compareCsvRow, compareEntries, compareFilename, compareList, compareMarks, enginesIn, evenColumns, filterSyncPages, newPageIds, sourceColumns, sourceLead, syncCsv, syncFilename, syncMarks, toneById, turnedNegative } from '../../utils/sentimentSections'
 import { fmtDay, lineBtn, t2, t3 } from './parts'
+import { CrossFade, GLIDE, Seg, useCountUp, useWidth } from '../../components/ui/motion'
+import { stackSegments } from '../../utils/mixBars'
 
 // /sentiment: one visual page about how third-party pages talk about the brand.
 //   Header · the spectrum (every page a dot, placed by tone; hover for a quote, click for its drawer; split by engine)
@@ -175,51 +177,6 @@ function InfoTip({ text }) {
 }
 
 // ---- motion helpers (page-local; the shared Segmented in components/dashboard is left as it is)
-const GLIDE = 'cubic-bezier(.2,.8,.2,1)'
-// Segmented's look and keys, with the white pill sliding to the picked option (transform + width, 220ms)
-function Seg({ label, value, onChange, options, size = 'md', className = '', full = false, progress = null }) {
-  const refs = useRef([])
-  const box = useRef(null)
-  const ready = useRef(false)
-  const [pill, setPill] = useState(null)
-  const idx = options.findIndex((o) => o.value === value)
-  useLayoutEffect(() => {
-    const measure = () => { const el = refs.current[idx]; if (el) setPill({ x: el.offsetLeft, w: el.offsetWidth }) }
-    measure()
-    const ro = new ResizeObserver(measure)
-    if (box.current) ro.observe(box.current)
-    const t = requestAnimationFrame(() => { ready.current = true })
-    return () => { ro.disconnect(); cancelAnimationFrame(t) }
-  }, [idx, options.map((o) => o.label).join('|')]) // eslint-disable-line react-hooks/exhaustive-deps
-  const onKey = (e) => {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
-    if (!step) return
-    e.preventDefault()
-    const next = (idx + step + options.length) % options.length
-    onChange(options[next].value)
-    refs.current[next]?.focus()
-  }
-  const glide = ready.current && !reduced() ? `transform 220ms ${GLIDE}, width 220ms ${GLIDE}` : 'none'
-  return (
-    <div ref={box} role="radiogroup" aria-label={label} onKeyDown={onKey} className={`relative ${full ? 'flex w-full' : 'inline-flex'} ${size === 'sm' ? 'h-8' : 'h-9'} shrink-0 items-center rounded-lg bg-tint p-1 ${className}`}>
-      {pill && (
-        <span aria-hidden className="absolute bottom-1 left-0 top-1 rounded-md bg-raised shadow-sm" style={{ transform: `translateX(${pill.x}px)`, width: pill.w, transition: glide }}>
-          {/* a 2px line under the active option that fills while an automatic switch counts down (Over time) */}
-          {progress && <span className="absolute inset-x-2 bottom-0 h-[2px] overflow-hidden rounded-full">{progress}</span>}
-        </span>
-      )}
-      {options.map((o, i) => {
-        const on = i === idx
-        return (
-          <button key={o.value} ref={(el) => (refs.current[i] = el)} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} onClick={() => onChange(o.value)}
-            className={`relative inline-flex ${size === 'sm' ? 'h-6' : 'h-7'} ${full ? 'flex-1' : ''} items-center justify-center whitespace-nowrap rounded-md px-3 text-small font-medium outline-none transition-colors duration-150 focus:outline-none focus:ring-0 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'text-ink' : 'text-stone-600 hover:text-stone-900'}`}>
-            {o.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
 function AutoProgress({ running, ms, onDone, cycle }) {
   const el = useRef(null)
   const done = useRef(onDone)
@@ -234,29 +191,6 @@ function AutoProgress({ running, ms, onDone, cycle }) {
   return <span ref={el} className="block h-full origin-left bg-[var(--ink)] opacity-60" style={{ transform: 'scaleX(0)' }} />
 }
 
-// a number that counts to its new value (300ms); reduced motion: it changes at once. start (a number) counts in
-// from it on the first render (the hero's score and its change, on load)
-function useCountUp(value, dur = 300, start = undefined) {
-  const first = start !== undefined && value != null && typeof window !== 'undefined' && !reduced()
-  const [shown, setShown] = useState(first ? start : value)
-  const from = useRef(first ? start : value)
-  useEffect(() => {
-    const a = from.current
-    if (value == null || a == null || a === value || reduced()) { from.current = value; setShown(value); return undefined }
-    const t0 = performance.now()
-    let raf
-    const step = (t) => {
-      const k = Math.min(1, (t - t0) / dur)
-      const v = Math.round(a + (value - a) * (1 - (1 - k) ** 3))
-      from.current = v
-      setShown(v)
-      if (k < 1) raf = requestAnimationFrame(step)
-    }
-    raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
-  }, [value, dur])
-  return shown
-}
 // a list's fade when the engine changes (180ms), without re-mounting it: the animation's name alternates so it restarts
 function useEngineFade(engine) {
   const n = useRef(0)
@@ -950,20 +884,6 @@ function Fav({ domain }) {
 }
 
 // the width of an element, kept up to date
-function useWidth() {
-  const ref = useRef(null)
-  const [w, setW] = useState(0)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return undefined
-    const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width)))
-    ro.observe(el)
-    setW(Math.round(el.getBoundingClientRect().width))
-    return () => ro.disconnect()
-  }, [])
-  return [ref, w]
-}
-
 // a small popover under its button (Compare, Engines): Esc or a click outside closes it
 function Pop({ label, icon: Icon = ChevronDown, children, align = 'right', width = 320, dialog = 'Options', onOpen }) {
   const [open, setOpen] = useState(false)
@@ -1026,24 +946,6 @@ function useEased(target, dur = 300) {
   return v
 }
 // a card's contents crossfading when the sync it shows changes (150ms)
-function CrossFade({ k, children }) {
-  const [items, setItems] = useState([{ k, node: children }])
-  const latest = useRef(children)
-  latest.current = children
-  useEffect(() => {
-    setItems((xs) => (xs.at(-1).k === k ? xs.map((x, i) => (i === xs.length - 1 ? { k, node: latest.current } : x)) : [xs.at(-1), { k, node: latest.current }]))
-    const t = setTimeout(() => setItems((xs) => xs.slice(-1)), 160)
-    return () => clearTimeout(t)
-  }, [k, children])
-  const still = typeof window !== 'undefined' && reduced()
-  return (
-    <div className="grid">
-      {items.map((it, i) => (
-        <div key={it.k} style={{ gridArea: '1 / 1', animation: still || items.length < 2 ? undefined : `${i === items.length - 1 ? 'fade-in' : 'sent-fade-out'} 150ms ease-out both` }} aria-hidden={i < items.length - 1 || undefined}>{it.node}</div>
-      ))}
-    </div>
-  )
-}
 function SyncChart({ cols, view, docked = false, hidden, pickedId, onPick, plotH, tips, label, focusTone = null }) {
   const [ref, width] = useWidth()
   // Score shows the latest sync's card only while the section is idle (docked: utils/sentimentSections.js
@@ -1114,23 +1016,14 @@ function SyncChart({ cols, view, docked = false, hidden, pickedId, onPick, plotH
           {/* Mix: every tone always drawn (0 tall when hidden or absent), so a new engine's values animate */}
           <g style={fade(view === 'mix')} aria-hidden={view !== 'mix'}>
             {cols.map((c, i) => {
-              const shown = MIX_ORDER.filter((t) => !hidden.has(t) && c.pct[t])
-              const topTone = shown.at(-1)
-              let acc = 0
               const x0 = x(i) - colW / 2
               const enter = still ? undefined : { transformBox: 'fill-box', transformOrigin: 'bottom', animation: `rep-grow 300ms ease-out ${i * 30}ms both` }
+              // the column's segments (utils/mixBars.js, shared with Content's Search Console Mix): a 2px page-colour gap
+              // under every segment but the lowest one shown, the top one rounded
+              const segs = stackSegments(MIX_ORDER, (t) => (!hidden.has(t) && c.pct[t] ? c.pct[t] : 0), y)
               return (
                 <g key={`${c.r.id}-${runs.mix}`} style={enter}>
-                  {MIX_ORDER.map((t) => {
-                    const on = shown.includes(t)
-                    const from = acc
-                    if (on) acc += c.pct[t]
-                    const yTop = y(on ? acc : from)
-                    // a 2px page-colour gap under every segment but the lowest one shown
-                    const yBot = y(from) - (on && t !== shown[0] ? 2 : 0)
-                    const h = Math.max(0, yBot - yTop)
-                    const isTop = t === topTone
-                    const r = isTop ? Math.min(3, h) : 0
+                  {segs.map(({ key: t, yTop, h, r }) => {
                     // the picked bar under a tone filter or a This sync preview: that segment ringed, the others at 50%
                     const focusHere = focusTone && c.r.id === pickedId
                     return (
