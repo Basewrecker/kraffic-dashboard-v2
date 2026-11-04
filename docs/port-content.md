@@ -39,6 +39,7 @@ don't port it until the line says approved.
 | 5a4e1b0 | AI Mode split marker (`?aimode=new`: "Scoring updated <day>" on the score card + Visibility history, AI Overview / All engines only) and accounts without AI Mode (`?aimode=off`: hidden) | Owner rules (mirrors the app) |
 | 655650b | Visibility history insight: no rise / fall across a scoring marker between the last two points (the AI Mode split included; `VisibilityHistory.jsx` insight `crossed`) | Matches the app |
 | d98233f | Visibility history markers: "Scoring updated" / "Setup changed" labels stack by their real spans (18px apart), never overlap; `ScoringMarker` `avoidLabel`; getHistory `setup` (`?setup=1` preview) | Owner fix |
+| 208bd43 | Overview: "Cited pages by folder" replaces Top cited pages (donut + legend, hover, History since / one-sync states) and its drawer (FolderDrawer: engine chips, Citations · Cited pages · Folders, 5 folder lines, pages grouped by folder, weekly list, Export CSV); `utils/citedFolders.js` grouping; `utils/brand.js` displayName for competitor names in the Mentions and citations drawer. Needs per-citation URL rows (prompt × engine × raw URL) from the app | Waiting (screenshots: `screenshots/cited-folders/`) |
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
