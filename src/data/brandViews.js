@@ -9,6 +9,7 @@ import {
   platformStats, syncHistory, syncTotal, trackedPrompts, visiblePrompts,
 } from './mock.js'
 import { brandListName } from '../utils/brand.js'
+import { pointsBetween } from '../utils/syncChange.js'
 
 export const TRACKED_BRANDS = [
   { domain: account.domain, key: 'dermasuri', name: account.name, you: true },
@@ -239,6 +240,20 @@ export const ENGINES = ENGINE_ORDER.map((id) => platformList.find((p) => p.id ==
 export const engineName = (id) => ENGINES.find((e) => e.id === id)?.name ?? 'All engines'
 export const enginePid = (id) => PLATFORM_ID[id]
 
+// ?noresult=gemini (or a comma list): that engine's latest scan returned no result (it failed or didn't answer). Its
+// score in that scan is unknown: null, shown as "—", never 0 (CLAUDE.md §3). The All-engines score is unchanged (it
+// averages the engines that answered). Tests set it with setNoResult.
+let noResultOverride
+export const noResultEngines = () => {
+  if (noResultOverride !== undefined) return noResultOverride
+  try { return (new URLSearchParams(window.location.search).get('noresult') || '').split(',').filter((id) => ENGINE_ORDER.includes(id)) } catch { return [] }
+}
+export const setNoResult = (list) => { noResultOverride = list; cache.clear() }
+// did this engine's latest scan answer? ('all' always has a score: it averages the engines that did)
+export const hasResult = (engine) => !engine || engine === 'all' || !noResultEngines().includes(engine)
+// the latest sync's day for the history chart: a gap there (null), never a drop to 0
+export const engineGaps = (engine) => (hasResult(engine) ? [] : [weekly.at(-1).iso])
+
 const mentions = (domain, pid) => trackedPrompts.filter((p) => appearances[p.id][domain].platforms.includes(pid))
 // a brand's share on one engine relative to its share on any engine: scales its weekly history
 export function engineRatio(domain, engine) {
@@ -278,9 +293,12 @@ function applyEngine(base, engine) {
     changes: r.changes && { ...r.changes, gained: r.changes.gained.filter((g) => visIds.has(g.id)) },
   }))
   // the latest row is the score the card shows on this engine; an engine that never shows the brand loses nothing
-  if (syncRows[0]) syncRows[0].visibility = pct(onEngine.size, TOTAL)
+  // the latest scan on this engine with no result: that row's numbers are unknown (null), never 0 of 152
+  const answered = hasResult(engine)
+  if (syncRows[0]) syncRows[0].visibility = answered ? pct(onEngine.size, TOTAL) : null
+  if (syncRows[0] && !answered) Object.assign(syncRows[0], { visible: null, missed: null, cited: null })
   if (!ratio) syncRows.forEach((r) => { if (r.changes) r.changes = { ...r.changes, lost: [] } })
-  syncRows.forEach((r, i) => { r.delta = i < syncRows.length - 1 ? r.visibility - syncRows[i + 1].visibility : Math.round(r.delta * ratio) })
+  syncRows.forEach((r, i) => { r.delta = i < syncRows.length - 1 ? pointsBetween(r.visibility, syncRows[i + 1].visibility) : Math.round(r.delta * ratio) })
 
   // top cited pages on this engine
   const counts = {}
@@ -294,14 +312,15 @@ function applyEngine(base, engine) {
   return {
     ...base,
     engine,
-    kpis: {
+    // no result from this engine's latest scan: its score and counts are unknown (null, "—"), never 0
+    kpis: answered ? {
       score: pct(onEngine.size, TOTAL),
       scoreDelta: scaled.at(-1) - scaled.at(-2),
       visible: onEngine.size,
       missed: TOTAL - onEngine.size, // not picked up by this engine
       total: TOTAL,
       citedSources: citedOn.length,
-    },
+    } : { score: null, scoreDelta: null, visible: null, missed: null, total: TOTAL, citedSources: null },
     visiblePrompts: visibleList,
     missedPrompts: missedList,
     syncHistory: syncRows,

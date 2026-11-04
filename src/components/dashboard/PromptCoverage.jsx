@@ -5,7 +5,9 @@ import Insight, { hl, hlOpacity, useExplain } from '../ui/Insight'
 import SiteLogo from '../ui/SiteLogo'
 import Pie from '../ui/Pie'
 import { sourceLine } from './insights'
-import { OWN, TRACKED_BRANDS, appearances, brandByDomain, enginePid, getBrandView } from '../../data/brandViews'
+import { OWN, TRACKED_BRANDS, appearances, brandByDomain, enginePid, getBrandView, hasResult } from '../../data/brandViews'
+import { NO_SCORE } from '../../utils/score'
+import NoResult from '../ui/NoResult'
 import { trackedPrompts } from '../../data/mock'
 import { useBrandView } from '../../hooks/useBrandView'
 import { navigate } from '../../router'
@@ -54,7 +56,9 @@ export default function PromptCoverage() {
   const own = domain === OWN.domain
   const brandColor = (b) => brandColors[b.domain]?.css ?? OTHER_COLOR
   const colorOf = (b) => (b.domain === domain || top.includes(b) ? brandColor(b) : rest.includes(b) ? OTHER_COLOR : 'transparent')
-  const rows = [focal, ...others].map((b) => ({ ...b, share: shown[counts.indexOf(b)], color: colorOf(b) }))
+  // no result from this engine's latest scan: every share is unknown ("—"), never 0%; an empty pie, no insight
+  const noResult = !hasResult(engine)
+  const rows = [focal, ...others].map((b) => ({ ...b, share: noResult ? null : shown[counts.indexOf(b)], color: colorOf(b) }))
   // the list by place (most appearances first), each with its medal; the selected brand stays in view
   const ranked = rankShares(rows)
   const rankOf = (d) => ranked.find((r) => r.domain === d) ?? null
@@ -106,7 +110,7 @@ export default function PromptCoverage() {
   const hero = (r) => (
     <>
       {/* the medal only for #1, with a gold "Top share" pill beside it (darker gold #A87700 text on gold 12%) */}
-      <div className="flex items-center gap-2 text-[32px] leading-none font-semibold text-stone-900 tabular-nums">{r.share}%{topShare(rankOf(r.domain)) && <span className="flex items-center gap-1"><Medal medal={MEDALS[1]} size={medalSize(rankOf(r.domain))} /><span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] leading-4 font-semibold" style={{ color: TOP_TEXT, background: TOP_TINT }}>Top share</span></span>}</div>
+      <div className="flex items-center gap-2 text-[32px] leading-none font-semibold text-stone-900 tabular-nums">{r.share == null ? <NoResult engine={engine} /> : `${r.share}%`}{topShare(rankOf(r.domain)) && <span className="flex items-center gap-1"><Medal medal={MEDALS[1]} size={medalSize(rankOf(r.domain))} /><span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] leading-4 font-semibold" style={{ color: TOP_TEXT, background: TOP_TINT }}>Top share</span></span>}</div>
       <div className="mt-1.5 line-clamp-2 break-words text-[13px] leading-[18px] text-stone-600">{r.domain === OWN.domain ? 'your share' : r.domain === 'other' ? 'other brands’ share' : `${r.name}’s share`}</div>
     </>
   )
@@ -121,7 +125,11 @@ export default function PromptCoverage() {
 
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="mt-4 flex items-center gap-6">
-          <Pie
+          {noResult ? (
+            <svg width={140} height={140} viewBox="0 0 140 140" role="img" aria-label="Share of brand appearances: no result" className="shrink-0">
+              <circle cx={70} cy={70} r={62} fill="var(--data-track)" />
+            </svg>
+          ) : <Pie
             radius={62} // a 140px box (62 + 8px push-out room, each side)
             labels={false}
             separator={2}
@@ -132,7 +140,7 @@ export default function PromptCoverage() {
             onHover={preview}
             onSelect={(d) => d !== 'other' && navigate(promptsLink(d, engine))}
             dim={(d) => hlOpacity(explain, `brand:${d}`)}
-          />
+          />}
           <div className="grid min-w-0 flex-1" aria-live="polite">
             <div className={`[grid-area:1/1] min-w-0 transition-opacity duration-150 ease-out ${hovered ? 'opacity-0' : 'opacity-100'}`}>{hero(rows[0])}</div>
             <div className={`[grid-area:1/1] min-w-0 transition-opacity duration-150 ease-out ${hovered ? 'opacity-100' : 'opacity-0'}`} aria-hidden={!hovered}>{hovered && hero(hovered)}</div>
@@ -152,7 +160,7 @@ export default function PromptCoverage() {
                   onFocus={() => preview(r.domain)}
                   onBlur={() => preview(null)}
                   onClick={() => navigate(promptsLink(r.domain, engine))}
-                  aria-label={`${r.medal ? `${r.medal.name}, ` : ''}${r.name}: ${r.share}%. View prompts`}
+                  aria-label={`${r.medal ? `${r.medal.name}, ` : ''}${r.name}: ${r.share == null ? 'no result' : `${r.share}%`}. View prompts`}
                   style={first ? { '--row-bg': TOP_TINT } : undefined}
                   className={`relative -mx-2 flex min-h-9 w-[calc(100%+16px)] items-center gap-3 rounded-lg px-2 py-1 text-left outline-none transition-[opacity,background-color] duration-200 ease-out focus-visible:ring-2 focus-visible:ring-focus hover:bg-[var(--tint)] ${first ? 'bg-[var(--row-bg)]' : ''} ${hover && hover !== r.domain && !explain.on ? 'opacity-50' : ''}`}
                 >
@@ -163,7 +171,7 @@ export default function PromptCoverage() {
                   <span className={`min-w-0 break-words text-[14px] leading-5 ${r.domain === OWN.domain ? 'font-semibold text-ink' : first ? 'font-semibold text-stone-900' : 'font-medium text-stone-900'}`}>{r.name}</span>
                   {/* the slice-colour dot is the row's only link to the pie */}
                   <span className={`ml-auto flex shrink-0 items-center justify-end gap-1.5 text-[14px] leading-5 text-ink tabular-nums ${first ? 'font-semibold' : 'font-medium'}`}>
-                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: r.color }} aria-hidden />{r.share}%
+                    {r.share == null ? <span className="text-stone-500">{NO_SCORE}</span> : <><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: r.color }} aria-hidden />{r.share}%</>}
                   </span>
                 </button>
               </li>
@@ -179,10 +187,10 @@ export default function PromptCoverage() {
             </li>
           )}
         </ul>
-        {noBrand > 0 && <p className="mt-2 text-[13px] leading-[18px] text-stone-500 tabular-nums">{Math.round((noBrand / Math.max(1, trackedPrompts.length)) * 100)}% of prompts mention no brand</p>}
+        {noBrand > 0 && !noResult && <p className="mt-2 text-[13px] leading-[18px] text-stone-500 tabular-nums">{Math.round((noBrand / Math.max(1, trackedPrompts.length)) * 100)}% of prompts mention no brand</p>}
       </div>
 
-      <div className="mt-auto pb-3 pt-2"><Insight explain={explain} {...insight} wrap /></div>
+      {!noResult && <div className="mt-auto pb-3 pt-2"><Insight explain={explain} {...insight} wrap /></div>}
     </Card>
   )
 }

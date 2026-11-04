@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, Info } from 'lucide-react'
 import { account } from '../../data/mock'
-import { ENGINES, OWN, TRACKED_BRANDS, getBrandView } from '../../data/brandViews'
+import { ENGINES, OWN, TRACKED_BRANDS, getBrandView, hasResult } from '../../data/brandViews'
+import { NO_SCORE, fmtScore } from '../../utils/score'
 import { PlatformIcon } from './icons'
 import { PlatformFilterPill } from './PlatformFilter'
 import { useBrandView } from '../../hooks/useBrandView'
@@ -26,7 +27,8 @@ export function HeaderIconButton({ label, icon: Icon, onClick, children, tipAlig
   )
 }
 
-const score = (domain) => getBrandView(domain).kpis.score
+// each brand's score on the engine shown (the KPI ring's number); "—" when that engine's latest scan had no result
+const score = (domain, engine) => fmtScore(getBrandView(domain, engine).kpis.score, '%')
 // header selects: full width, 40px tall below lg; exactly the old h-8 trigger from lg
 const MOBILE_TRIGGER = `${triggerClass('sm')} max-lg:h-10 max-lg:w-full max-lg:rounded-lg max-lg:text-[14px] [&>svg:last-child]:max-lg:ml-auto`
 
@@ -128,10 +130,10 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
 }
 
 // built when the header draws (not when the module loads), so the scores are the current ones
-const brandGroups = () => [
+const brandGroups = (engine) => [
   { label: 'Your brand', items: TRACKED_BRANDS.filter((b) => b.you) },
   { label: 'View as a competitor', items: TRACKED_BRANDS.filter((b) => !b.you) },
-].map((g) => ({ ...g, items: g.items.map((b) => ({ id: b.domain, label: b.name, meta: `${score(b.domain)}%` })) }))
+].map((g) => ({ ...g, items: g.items.map((b) => ({ id: b.domain, label: b.name, meta: score(b.domain, engine) })) }))
 
 export default function PageHeader() {
   const tracking = useTracking()
@@ -142,7 +144,7 @@ export default function PageHeader() {
   const engineGroups = [{
     items: [
       { id: 'all', label: 'All engines' },
-      ...ENGINES.map((e) => ({ id: e.id, label: e.name, icon: <PlatformIcon id={e.id} size={16} />, meta: `${perEngine[e.id] ?? 0} prompts` })),
+      ...ENGINES.map((e) => ({ id: e.id, label: e.name, icon: <PlatformIcon id={e.id} size={16} />, meta: hasResult(e.id) ? `${perEngine[e.id] ?? 0} prompts` : NO_SCORE })),
     ],
   }]
 
@@ -198,7 +200,7 @@ export default function PageHeader() {
             prefix="Viewing as"
             value={focal.domain}
             onChange={setView}
-            groups={brandGroups()}
+            groups={brandGroups(engine)}
             listLabel="View the dashboard as"
             title="See the dashboard from a competitor’s point of view"
           />

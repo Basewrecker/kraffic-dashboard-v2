@@ -18,7 +18,7 @@
 // Previews (?cmMock=): loading (skeleton) · empty (one week: the empty state) · due (this week's scan is due) ·
 //   notrun (Claude didn't run this week) · nodata (3 weeks with no data) · approx (3 older weeks from the daily counts)
 //   · fail (the weeks don't load: the error with Retry; Retry loads them)
-import { ENGINE_ORDER, OWN, appearances, engineDetail, engineName, getBrandView } from './brandViews.js'
+import { ENGINE_ORDER, OWN, appearances, engineDetail, engineName, getBrandView, hasResult, noResultEngines } from './brandViews.js'
 import { syncChanges } from './syncChanges.js'
 import { citationsMentions, citedPages, citedPagesOther, trackedPrompts, uncitedPages } from './mock.js'
 
@@ -78,7 +78,7 @@ const APPROX = [7, 8, 9] // ?cmMock=approx: weeks from the daily counts
 // empty?, weeksSpanned? }], syncs }
 export function citationWeeks(domain) {
   const mock = historyMock()
-  const k = `${domain}|${mock}|${nowIso}`
+  const k = `${domain}|${mock}|${nowIso}|${noResultEngines().join()}`
   if (cache.has(k)) return cache.get(k)
   const syncs = getBrandView(domain).syncHistory
   const now = citationsMentions[domain] ?? {}
@@ -89,7 +89,8 @@ export function citationWeeks(domain) {
     const detail = {}
     for (const e of ENGINE_ORDER) {
       // didn't run / no data / failed: null (left out, named); never 0
-      if ((FAILED[e] ?? []).includes(i) || (mock === 'notrun' && i === 0 && e === 'claude') || (mock === 'nodata' && NO_DATA.includes(i))) {
+      // ?noresult=<engine> (brandViews.hasResult): that engine's latest scan had no result
+      if ((FAILED[e] ?? []).includes(i) || (i === 0 && !hasResult(e)) || (mock === 'notrun' && i === 0 && e === 'claude') || (mock === 'nodata' && NO_DATA.includes(i))) {
         engines[e] = null; detail[e] = null; continue
       }
       const [m0 = 0, c0 = 0] = now[e] ?? []

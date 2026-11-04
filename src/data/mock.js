@@ -187,12 +187,17 @@ const dermasuriHistory = () => ({
   scoring: null,
 })
 // dataset: { weekly, monthly, series: [{ key, label, share }], scoring: { label, weekly: {after, frac}, monthly } | null }
-export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null, dataset = null } = {}) {
+// gaps: the weekly syncs' days (iso) whose scan had no result on the engine shown (brandViews.engineGaps): every
+// series is null there (a gap in the line, "—" in the tooltip), and so is a month whose every sync had no result
+export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null, dataset = null, gaps = [] } = {}) {
   const ds = dataset ?? dermasuriHistory()
   const historySeries = ds.series
   const gran = granularity === 'monthly' ? 'monthly' : 'weekly'
-  const raw = gran === 'monthly' ? ds.monthly : ds.weekly
-  const scaled = !scale ? raw : raw.map((p) => ({ ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, Math.round(p[s.key] * (scale[s.key] ?? 1))])) }))
+  const gapMonths = new Set(gaps.map((iso) => iso.slice(0, 7)).filter((m) => ds.weekly.filter((w) => w.iso?.startsWith(m)).every((w) => gaps.includes(w.iso))))
+  const isGap = (p) => !!p.iso && (gran === 'monthly' ? gapMonths.has(p.iso.slice(0, 7)) : gaps.includes(p.iso))
+  const raw = (gran === 'monthly' ? ds.monthly : ds.weekly).map((p) => (isGap(p) ? { ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, null])) } : p))
+  // a missing value stays missing (null × a scale is 0 in JS: a gap must never become a drop to 0)
+  const scaled = !scale ? raw : raw.map((p) => ({ ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, p[s.key] == null ? null : Math.round(p[s.key] * (scale[s.key] ?? 1))])) }))
   // ?history=single: a brand with one sync so far (the chart's first-sync state)
   // ?history=empty: nothing on record yet (no sync, or every day at 0%)
   // ?history=short: three weekly syncs (two months)
@@ -216,7 +221,7 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
   const scoringIdx = mark ? all.findIndex((p) => p.date === mark.after) : -1
   const points = all.slice(start).map((p, i) => {
     const prev = all[start + i - 1] // the period before the window, when it exists
-    const deltas = Object.fromEntries(historySeries.map((s) => [s.key, prev ? p[s.key] - prev[s.key] : null]))
+    const deltas = Object.fromEntries(historySeries.map((s) => [s.key, prev && p[s.key] != null && prev[s.key] != null ? p[s.key] - prev[s.key] : null]))
     const prevs = Object.fromEntries(historySeries.map((s) => [s.key, prev ? prev[s.key] : null]))
     return { ...p, delta: deltas[focal], deltas, prevs, beforeScoring: scoringIdx !== -1 && start + i <= scoringIdx }
   })

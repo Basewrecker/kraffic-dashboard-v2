@@ -15,7 +15,8 @@ import { useBrandView } from '../../hooks/useBrandView'
 import Insight, { hlOpacity, useExplain } from '../ui/Insight'
 import { sourceLine } from './insights'
 import { useTracking } from '../../store/trackingSettings'
-import { engineName, engineScale } from '../../data/brandViews'
+import { engineGaps, engineName, engineScale, hasResult } from '../../data/brandViews'
+import NoResult from '../ui/NoResult'
 import { useBrandColors } from '../../hooks/useBrandColors' // one colour per brand, the same as Share of voice
 
 // colours follow the slots, set once per render by the card: the focal brand ("Viewing as") is ink; the 3 competitors
@@ -534,7 +535,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   // the chart reads ONLY this. Brands not picked are left out like hidden ones.
   // engine filter: every series is that engine's share
   const h = useMemo(
-    () => getHistory({ ...view, hidden: [...view.hidden, ...notDrawn], focal: YOU, dataset, scale: engine === 'all' ? null : engineScale(engine) }),
+    () => getHistory({ ...view, hidden: [...view.hidden, ...notDrawn], focal: YOU, dataset, scale: engine === 'all' ? null : engineScale(engine), gaps: dataset ? [] : engineGaps(engine) }),
     [view, notDrawn.join(','), YOU, engine, dataset], // eslint-disable-line react-hooks/exhaustive-deps
   )
   // switching brand: the new focal brand is never hidden; nothing left to compare → Compare off
@@ -888,7 +889,8 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
       {!compact && <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${compare ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`} aria-hidden={compare}>
         <div className="overflow-hidden">
           <div className="flex flex-wrap gap-x-8 gap-y-2 pt-3">
-            <Stat label="Current">{stats.current == null ? '—' : val(stats.current)}</Stat>
+            {/* the engine shown had no result in the latest scan: "—" muted with the ⓘ (and no Change) */}
+            <Stat label="Current">{stats.current != null ? val(stats.current) : !dataset && !hasResult(engine) ? <NoResult engine={engine} /> : '—'}</Stat>
             <Stat label="Change">
               {stats.change != null && (
                 <>
