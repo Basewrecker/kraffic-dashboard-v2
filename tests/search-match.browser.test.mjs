@@ -61,7 +61,7 @@ test('Search Console: one target page everywhere, the connect step, skip, the cr
     await page.goto(`${base}/opportunities/content/0`, { waitUntil: 'networkidle' })
     const create = sc().locator('[data-sc-chain="create"]')
     assert.ok((await create.innerText()).includes('Create a new page'))
-    assert.match(await create.innerText(), /No query matches this prompt well enough yet \(best \d+%\)/)
+    assert.match(await create.innerText(), /No query matches this prompt well enough yet \(best \d+%\)|None of your queries has this prompt’s specific words/)
     const newPath = await create.locator('p').filter({ hasText: /^\// }).first().innerText()
     assert.equal(await updatePath(), newPath, 'the Update column = the new page')
 

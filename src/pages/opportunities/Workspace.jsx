@@ -116,7 +116,9 @@ function Flow({ row }) {
   const page = useMemo(() => {
     const p = pageOf(res.pageRecommendation)
     if (!choice) return { ...p, source: 'route' }
-    return { ...p, action: choice.action, path: choice.path, url: choiceUrl, href: choice.action === 'update' ? choiceUrl : null, source: scPick ? 'pick' : 'sc' }
+    // the route's reason is about its own page ("that path redirects to the homepage…"): another page gets the general line
+    const reason = choice.path === p.path ? p.reason : 'Page-1 and AI-cited pages already publish these formats; the draft adds them to this page.'
+    return { ...p, action: choice.action, path: choice.path, url: choiceUrl, href: choice.action === 'update' ? choiceUrl : null, reason, source: scPick ? 'pick' : 'sc' }
   }, [res, choice?.path, choice?.action, scPick]) // eslint-disable-line react-hooks/exhaustive-deps
   const saved = useMemo(() => draftFor(row.id, row), [row])
   const [gsc, setGsc] = useState(() => kept?.gsc ?? gscStatus()) // 'connected' | 'declined' | 'new' | 'skipped' (continued without it)

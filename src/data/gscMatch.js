@@ -13,11 +13,14 @@
 //
 // Preview states (?co=): gsc-new = not connected · gsc-reconnect · gsc-nodomain · gsc-nodata (connected, no data).
 //
-// Intent fit (PROPOSED, owner 2026-11-04 "the best query follows the prompt's intent"; the mock's rule, to confirm):
-// a prompt and a query each read as a question / how-to, a comparison (best, top, vs, review) or a shopping search
-// (price, buy, deal, sale, coupon, near me, a store). A query whose kind clashes with the prompt's (a question or how-to
-// prompt vs a shopping query; a comparison prompt vs a how-to query) is scored ×0.7 (`intentFit: false`) and can't be
-// the Best query while a query that fits, with ≥ 10 impressions, exists.
+// Intent (owner, 2026-11-04; the app's matcher feat/content-page 4385c8e): a query can be the Best query only if it
+// matches the prompt's core intent term(s), the words that make the question specific ("breakouts" in "can
+// pigmentation serum cause breakouts"), not just the topic words. Topic words = the prompt's key terms found in at least
+// half of its matching queries (TOPIC_SHARE); intent words = its other key terms, without the local / account marker
+// words (those keep their half-score tag). Synonyms count as one: breakout(s) = acne = purging = pimples; cost = fees =
+// price; grow = growth = increase. Each query gets intentMatch (true when the prompt has no intent words); the list
+// sorts intent matches first, then by rank (adjusted × log10(impr + 1)); topic-only queries keep their score. Best:
+// an intent match with ≥ 10 impressions that isn't a site query; none → no Best (never a topic-only one).
 import { CO_BRAND, CO_BRANDS } from './contentOpportunities.js'
 import { coStates, gscKeywordsFor, newPageFor, promptWords } from './contentOpportunities-proposed.js'
 import { RM_BRAND } from './contentRecommendRm.js'
@@ -25,7 +28,7 @@ import { RM_BRAND } from './contentRecommendRm.js'
 export const MATCH_WEIGHTS = { coverage: 55, precision: 20, phrase: 25 }
 export const PAGE_WEIGHTS = { query: 45, volume: 20, rank: 15, url: 15, cited: 5 }
 export const INTENT_PENALTY = { account: 0.5, local: 0.5, site: 0.5 }
-export const MISFIT = 0.7 // a query whose kind clashes with the prompt's (intentFit: false)
+export const TOPIC_SHARE = 0.5
 export const BEST_MIN_IMPRESSIONS = 10
 export const CREATE_BELOW = 30
 export const LAG_NOTE = 'Search Console data is about 2 days behind.'
@@ -56,29 +59,27 @@ export function matchOf(prompt, query) {
   const phrase = q.slice(1).some((w, i) => pairs.has(`${q[i]} ${w}`)) ? 1 : 0
   return Math.round(MATCH_WEIGHTS.coverage * coverage + MATCH_WEIGHTS.precision * precision + MATCH_WEIGHTS.phrase * phrase)
 }
-// the kind of search: 'shop' (price, buy, deal, sale, coupon, near me, a store) · 'question' (how / what / why / can /
-// is …, how to) · 'compare' (best, top, vs, review) · null
-const SHOP = /\b(price|prices|buy|deal|deals|sale|coupon|discount|cheap|near me|shop|store|amazon|walmart|ulta|sephora|in stock)\b/
-const COMPARE = /\b(vs|versus|best|top|compare|comparison|review|reviews|rated)\b/
-const QUESTION = /^(how|what|why|can|is|are|does|do|should|when|which|will)\b|\bhow to\b/
-export const searchKind = (s) => { const t = String(s).toLowerCase(); return SHOP.test(t) ? 'shop' : QUESTION.test(t) ? 'question' : COMPARE.test(t) ? 'compare' : null }
-// does a query's kind fit the prompt's? (a question prompt vs a shopping query, or a comparison prompt vs a how-to: no)
-export const intentFits = (prompt, query) => {
-  const p = searchKind(prompt), q = searchKind(query)
-  if (p === 'question' && q === 'shop') return false
-  if (p === 'compare' && q === 'question') return false
-  return true
+// one word per meaning: synonyms (owner's list) and a plain plural → the same key
+const SYN = [['breakout', 'breakouts', 'acne', 'purging', 'pimple', 'pimples'], ['cost', 'costs', 'fee', 'fees', 'price', 'prices', 'pricing'], ['grow', 'grows', 'growth', 'increase', 'increases']]
+const SYN_OF = new Map(SYN.flatMap((g) => g.map((w) => [w, g[0]])))
+export const canon = (w) => SYN_OF.get(w) ?? (w.length > 4 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)
+const canonWords = (s) => new Set(promptWords(s).map(canon))
+// the local / account markers aren't intent words (they keep their own half-score tag)
+const MARKER = (w) => ACCOUNT.test(w) || LOCAL.test(w) || w === 'near' || w === 'me'
+// the prompt's intent words, from its matching queries: its key terms that fewer than half of them contain
+export function intentTerms(prompt, queries) {
+  const terms = [...new Set(promptWords(prompt).map(canon))].filter((w) => !MARKER(w))
+  if (!queries.length) return terms
+  const sets = queries.map((q) => canonWords(q.query))
+  return terms.filter((t) => sets.filter((ws) => ws.has(t)).length / sets.length < TOPIC_SHARE)
 }
-const adjustedOf = (match, intent, fit = true) => Math.round(match * (intent ? INTENT_PENALTY[intent] : 1) * (fit ? 1 : MISFIT))
-// kind: the prompt's searchKind. Tiers: a well-matched query (≥ 30) of the prompt's own kind, else any query that fits,
-// else (none fits) the rest; within a tier the highest adjusted × log10(impr + 1)
-const bestOf = (queries, kind = null) => {
-  const top = (list) => list.reduce((b, q) => (!b || q.adjusted * Math.log10(q.impressions + 1) > b.adjusted * Math.log10(b.impressions + 1) ? q : b), null)
-  const eligible = queries.filter((q) => q.impressions >= BEST_MIN_IMPRESSIONS && q.intent !== 'site')
-  const fitting = eligible.filter((q) => q.intentFit !== false)
-  const same = kind ? fitting.filter((q) => searchKind(q.query) === kind && q.adjusted >= CREATE_BELOW) : []
-  return top(same.length ? same : fitting.length ? fitting : eligible)
-}
+export const intentMatchOf = (query, intent) => !intent.length || [...canonWords(query)].some((w) => intent.includes(w))
+const adjustedOf = (match, intent) => Math.round(match * (intent ? INTENT_PENALTY[intent] : 1))
+const rank = (q) => q.adjusted * Math.log10(q.impressions + 1)
+// Best: an intent match with ≥ 10 impressions, not a site query, the highest rank; none → null
+const bestOf = (queries) => queries
+  .filter((q) => q.impressions >= BEST_MIN_IMPRESSIONS && q.intent !== 'site' && q.intentMatch !== false)
+  .reduce((b, q) => (!b || rank(q) > rank(b) ? q : b), null)
 const pathOf = (url) => { try { return new URL(url).pathname.replace(/\/$/, '') || '/' } catch { return url } }
 
 // FNV-1a: the same prompt always gets the same numbers
@@ -93,11 +94,14 @@ export function analyzeRows(prompt, rows, { suggestedPath, cited = () => false, 
   const all = rows.map((r) => {
     const match = matchOf(prompt, r.keyword)
     const intent = intentOf(r.keyword, site)
-    const fit = intentFits(prompt, r.keyword)
-    return { query: r.keyword, match, adjusted: adjustedOf(match, intent, fit), intent, intentFit: fit, impressions: r.impressions, clicks: r.clicks, position: r.position, best: false, topPage: { url: r.url, path: pathOf(r.url), share: shareOf(r) } }
+    return { query: r.keyword, match, adjusted: adjustedOf(match, intent), intent, impressions: r.impressions, clicks: r.clicks, position: r.position, best: false, topPage: { url: r.url, path: pathOf(r.url), share: shareOf(r) } }
   })
-  const matching = all.filter((q) => q.match > 0).sort((a, b) => b.impressions - a.impressions)
-  const best = bestOf(matching, searchKind(prompt))
+  const found = all.filter((q) => q.match > 0)
+  const intentTermsOf = intentTerms(prompt, found)
+  // intent matches first, then by rank
+  const matching = found.map((q) => ({ ...q, intentMatch: intentMatchOf(q.query, intentTermsOf) }))
+    .sort((a, b) => (a.intentMatch === b.intentMatch ? 0 : a.intentMatch ? -1 : 1) || rank(b) - rank(a))
+  const best = bestOf(matching)
   const queries = matching.slice(0, 5).map((q) => ({ ...q, best: q === best }))
   if (best && !queries.some((q) => q.best)) queries.splice(4, 1, { ...best, best: true })
   const bestQuery = best ? { ...best, best: true } : null
@@ -132,7 +136,7 @@ export function analyzeRows(prompt, rows, { suggestedPath, cited = () => false, 
     const domain = (() => { try { return new URL(p.url).hostname.replace(/^www\./, '') } catch { return '' } })()
     return { url: p.url, path: p.path, key: `${domain}${p.path}`, score, parts, impressions, clicks, position, queries: p.qs.length, cited: Boolean(parts.cited) }
   }).sort((a, b) => b.score - a.score)
-  return { prompt, terms, queries, matchingQueries: matching.length, bestQuery, publishOn, topQueryPages, pages }
+  return { prompt, terms, intentTerms: intentTermsOf, queries, matchingQueries: matching.length, bestQuery, publishOn, topQueryPages, pages }
 }
 
 // the skincare list: the mock's sample queries for the prompt (gscKeywordsFor), plus, for some prompts, one account or
@@ -153,28 +157,35 @@ function dermasuriRows(row) {
     return base.filter((k) => matchOf(prompt, k.keyword) < 20).slice(0, 6)
       .concat([{ keyword: `${promptWords(prompt)[0] ?? 'skincare'} tips`, clicks: 1, impressions: 40, ctr: 2.5, position: 38.2, url: `https://${CO_BRAND.domain}/blog/skincare-basics` }])
   }
-  // the prompt's own kind of search, as people type it (a question prompt: the question, shorter; a comparison: "best
-  // X" / "X reviews"), among the busiest heads: the best query follows the prompt's intent
+  // a query with the prompt's intent words, as people type it, among the busiest heads ("can X cause breakouts" →
+  // "does X cause acne", a synonym; "best X for Y" → "X for Y"; "how to use X in a routine" → "X routine"; "X review"
+  // → "X reviews"), so the Best query follows the prompt's intent
   const own = (() => {
     const p = prompt.toLowerCase()
     const m = p.match(/^can (.+) cause (.+)$/) ?? null
-    if (m) return `does ${m[1]} cause ${m[2]}`
+    if (m) return `does ${m[1]} cause ${m[2] === 'breakouts' ? 'acne' : m[2]}`
     const use = p.match(/^how to use (.+?) in a routine$/)
-    if (use) return `how to use ${use[1]}`
-    const best = p.match(/^best (.+?)(?: for .+)?$/)
-    if (best) return `best ${best[1]}`
+    if (use) return `${use[1]} routine`
+    const best = p.match(/^best (.+?) for (.+)$/)
+    if (best) return `${best[1]} for ${best[2]}`
     const rev = p.match(/^(.+) review$/)
     if (rev) return `${rev[1]} reviews`
-    return null
+    // any other prompt: its topic plus the words that make it specific ("niacinamide serum for humid weather" →
+    // "niacinamide serum humid weather"), never the prompt word for word
+    const w = promptWords(prompt)
+    return w.length > 2 ? `${core} ${w.slice(2).join(' ')}` : null
   })()
+  // the extra (local / account / site) query carries the prompt's specific word too, like the app's sample's
+  // "…growth on my statement": tagged and scored at half, but an intent match, so it shows among the heads
+  const tail = promptWords(prompt).slice(2).at(-1) ?? ''
   const ownRow = own && !base.some((k) => k.keyword.toLowerCase() === own)
     ? [{ keyword: own, clicks: Math.round((heads[1] ?? 300) * 0.9 * 0.025), impressions: Math.round(((heads[1] ?? 300) * 0.9) / 10) * 10, ctr: 2.5, position: 8.4, url: url0 }]
     : []
   const extra = r < 0.55
-    ? { keyword: `${core} near me`, clicks: Math.round(extraImpr * 0.02), impressions: extraImpr, ctr: 2, position: 22.4, url: url0 }
-    : r < 0.75 ? { keyword: `my ${CO_BRAND.name.toLowerCase()} ${core} order`, clicks: Math.round(extraImpr * 0.03), impressions: extraImpr, ctr: 3, position: 9.8, url: `https://${CO_BRAND.domain}/account/orders` }
+    ? { keyword: `${core} ${tail} near me`.replace(/\s+/g, ' '), clicks: Math.round(extraImpr * 0.02), impressions: extraImpr, ctr: 2, position: 22.4, url: url0 }
+    : r < 0.75 ? { keyword: `my ${CO_BRAND.name.toLowerCase()} ${core} ${tail} order`.replace(/\s+/g, ' '), clicks: Math.round(extraImpr * 0.03), impressions: extraImpr, ctr: 3, position: 9.8, url: `https://${CO_BRAND.domain}/account/orders` }
       // a site query among the heads: a forum or a competitor by name (the "site" tag; never the Best query)
-      : { keyword: rnd(prompt, 'site') < 0.5 ? `${core} reddit` : `cerave ${core}`, clicks: Math.round(extraImpr * 0.02), impressions: Math.round(extraImpr * 1.6 / 10) * 10, ctr: 2, position: 14.6, url: url0 }
+      : { keyword: rnd(prompt, 'site') < 0.5 ? `${core} ${tail} reddit`.replace(/\s+/g, ' ') : `cerave ${core} ${tail}`.replace(/\s+/g, ' '), clicks: Math.round(extraImpr * 0.02), impressions: Math.round(extraImpr * 1.6 / 10) * 10, ctr: 2, position: 14.6, url: url0 }
   return [...base.filter((k) => norm(k.keyword) !== norm(extra.keyword)), ...ownRow, extra]
 }
 
@@ -184,21 +195,26 @@ const rmUrl = (path) => `https://www.${RM_BRAND.domain}${path}/`
 const RM_QUERY = (query, match, adjusted, intent, impressions, clicks, position, best, path, share) => ({ query, match, adjusted, intent, impressions, clicks, position, best, topPage: { url: rmUrl(path), path, share } })
 const RM_ANALYSIS = (() => {
   const LOC = '/learn/reverse-mortgage-line-of-credit'
+  // the owner's intent rule (the app's matcher): "grow" and "time" make this prompt specific (growth = grow), so the
+  // intent matches come first and the Best is "…growth rate"; the topic-only "reverse mortgage line of credit" ranks
+  // below them though it's busier
+  const Q = (...a) => ({ ...RM_QUERY(...a.slice(0, 10)), intentMatch: a[10] })
   const queries = [
-    RM_QUERY('reverse mortgage line of credit', 60, 60, null, 1220, 34, 19.5, true, LOC, 0.8032786885245902),
-    RM_QUERY('reverse mortgage line of credit growth rate', 75, 75, null, 210, 4, 9.6, false, LOC, 1),
-    RM_QUERY('hecm line of credit growth', 80, 80, null, 120, 2, 12.2, false, LOC, 1),
-    RM_QUERY('how does a reverse mortgage line of credit grow', 80, 80, null, 64, 1, 7.9, false, '/learn/how-reverse-mortgages-work', 1),
-    RM_QUERY('reverse mortgage line of credit growth on my statement', 75, 38, 'account', 40, 0, 31, false, '/account/statements', 1),
+    Q('reverse mortgage line of credit growth rate', 75, 75, null, 210, 4, 9.6, true, LOC, 1, true),
+    Q('hecm line of credit growth', 80, 80, null, 120, 2, 12.2, false, LOC, 1, true),
+    Q('how does a reverse mortgage line of credit grow', 80, 80, null, 64, 1, 7.9, false, '/learn/how-reverse-mortgages-work', 1, true),
+    Q('reverse mortgage line of credit growth on my statement', 75, 38, 'account', 40, 0, 31, false, '/account/statements', 1, true),
+    Q('reverse mortgage line of credit', 60, 60, null, 1220, 34, 19.5, false, LOC, 0.8032786885245902, false),
   ]
   const bestQuery = queries[0]
   return {
     prompt: RM_PROMPT,
     terms: ['hecm', 'loc', 'grow', 'time'],
+    intentTerms: ['grow', 'time'],
     queries,
     matchingQueries: 6,
     bestQuery,
-    publishOn: { action: 'update', url: rmUrl(LOC), path: LOC, share: bestQuery.topPage.share, match: 60, query: bestQuery.query, reason: 'several-queries', lowVolume: false },
+    publishOn: { action: 'update', url: rmUrl(LOC), path: LOC, share: bestQuery.topPage.share, match: 75, query: bestQuery.query, reason: 'several-queries', lowVolume: false },
     topQueryPages: queries.slice(0, 3).map((q) => ({ query: q.query, url: q.topPage.url, path: q.topPage.path, share: q.topPage.share })),
     pages: [
       { url: rmUrl(LOC), path: LOC, key: `${RM_BRAND.domain}${LOC}`, score: 76, parts: { query: 0.8, volume: 1, rank: 0.46896551724137936, url: 0.5, cited: 1 }, impressions: 1310, clicks: 37, position: 16.4, queries: 3, cited: true },

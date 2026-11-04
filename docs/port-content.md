@@ -42,7 +42,7 @@ don't port it until the line says approved.
 | 208bd43 | Overview: "Cited pages by folder" replaces Top cited pages (donut + legend, hover, History since / one-sync states) and its drawer (FolderDrawer: engine chips, Citations · Cited pages · Folders, 5 folder lines, pages grouped by folder, weekly list, Export CSV); `utils/citedFolders.js` grouping; `utils/brand.js` displayName for competitor names in the Mentions and citations drawer. Needs per-citation URL rows (prompt × engine × raw URL) from the app | Approved · ported by the app |
 | 8d2d9d2 | Cited pages by folder: the donut centre shows only the % (no name, count or mini trend, at rest or on hover); `CitedFolders.jsx` | Owner fix · port with 208bd43 |
 | 9416ecd | Sentiment grid: dots scattered organically per quadrant (`utils/spectrum.js` quadrantScatter, seeded by page URL; 10px apart, 24px clear of edges / cross / labels; drift-in entrance); grid min 248px | Approved · port it (with the scatter tweak) |
-| 424d55b | Content: Search Console access (Connect step before the ladder, connecting spinner, "Connected · <domain> · Change" chip, skipped row, list banner), ONE target page everywhere (Workspace `page`: pick ?? Publish on ?? the route's page → Update column, payoff bar, Copy & publish, targetUrl), best query follows the prompt's intent (`intentFit`, ×0.7; PROPOSED rule, owner to confirm) | Owner request · waiting for screenshot review |
+| 424d55b | Content: Search Console access (Connect step before the ladder, connecting spinner, "Connected · <domain> · Change" chip, skipped row, list banner), ONE target page everywhere (Workspace `page`: pick ?? Publish on ?? the route's page → Update column, payoff bar, Copy & publish, targetUrl), best query follows the prompt's intent (replaced by the owner's rule: see the next commit) | Owner request · waiting for screenshot review |
 | de2f86d | Sentiment scatter tweak: 24px clear of the cross's two lines and the edges (dot edge + badge, from a line's far side; badge inside the dot's corner; `EDGE = 25`) | Owner tweak · port with 9416ecd |
 
 ## 1. Routes and navigation
@@ -433,13 +433,16 @@ Search Console property). Reconnect / no-domain / no-data keep their rows inside
 connected (never asked or skipped), a one-line banner over the KPI cards "Connect Search Console to find the best page
 for every prompt · Connect" (Connect → the same round trip; the Best page column fills in).
 
-**Intent fit (PROPOSED rule, to confirm with the owner):** each prompt and query reads as a question / how-to, a
-comparison (best, top, vs, review) or a shopping search (price, buy, deal, sale, coupon, near me, a store)
-(`searchKind`). A query whose kind clashes with the prompt's (question prompt vs shopping query; comparison prompt vs
-how-to query) gets `intentFit: false` and ×0.7 (`MISFIT`); Best is chosen first among well-matched (≥ 30) queries of
-the prompt's own kind, then among queries that fit, and only if none fits, among the rest. The sample gives each
-question / comparison prompt a query of its own kind ("does X cause breakouts", "how to use X", "best X", "X
-reviews"), so every such prompt's best query follows its intent. `intentFit` is a PROPOSED field on each query.
+**Intent (the owner's rule, 2026-11-04; the app's matcher feat/content-page 4385c8e):** a query can be the Best query
+only if it matches the prompt's core intent term(s), the words that make the question specific ("breakouts" in "can
+pigmentation serum cause breakouts"), not just the topic words. Topic words = the prompt's key terms present in ≥ 50% of
+its matching queries (`TOPIC_SHARE`); intent words = its other key terms, without local / account marker words (those
+keep their half-score tag). Synonyms: breakout(s) = acne = purging = pimples; cost = fees = price; grow = growth =
+increase (`canon`). Each query has `intentMatch` (true when the prompt has no intent words); the list sorts intent
+matches first, then by rank (adjusted × log10(impr + 1)); topic-only queries keep their score (no penalty). Best: an
+intent match with ≥ 10 impressions, not a site query; none → no Best (never a topic-only one), so publish on falls back
+to create. analyzePrompt returns `intentTerms`. Sample: rm-1's Best is "reverse mortgage line of credit growth rate";
+"can pigmentation serum cause breakouts" → "does pigmentation serum cause acne".
 
 **Content list "Best page"** (`ContentList.jsx` column via `MissedPrompts` `extraColumns`, 248px): the path
 (middle-truncated) + match %, or "New page" (muted) when `action === 'create'`; hover / focus: the full URL and

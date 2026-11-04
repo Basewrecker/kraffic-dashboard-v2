@@ -159,7 +159,10 @@ const UseButton = ({ using, label, onClick }) => (
 // the query-first chain: the best query → the page to publish on → the action. Publish on IS the target page unless
 // the user picked another one in Your pages ("Using this page"); then the button takes it back.
 function Chain({ gsc, page, onPick }) {
-  const q = gsc.bestQuery
+  // no Best (no query has the prompt's specific words, the owner's intent rule): the closest one, about the topic only
+  const q = gsc.bestQuery ?? (gsc.publishOn.action === 'create' ? gsc.queries[0] ?? null : null)
+  const topicOnly = !gsc.bestQuery && Boolean(q)
+  const words = (gsc.intentTerms ?? []).map((w) => `“${w}”`).join(', ')
   const p = gsc.publishOn
   const create = p.action === 'create'
   const onPage = create ? 0 : gsc.queries.filter((x) => x.topPage.path === p.path).length
@@ -179,7 +182,8 @@ function Chain({ gsc, page, onPick }) {
         <p className="mt-0.5 break-all text-[17px] leading-6 font-semibold text-stone-900">{create ? p.suggestedPath : p.path}</p>
         <p className={`mt-0.5 ${META}`}>
           {create
-            ? (q ? `No query matches this prompt well enough yet (best ${q.adjusted}%).` : 'None of your pages gets impressions for this prompt’s queries yet.')
+            ? (topicOnly ? `None of your queries has this prompt’s specific words${words ? ` (${words})` : ''} yet; they’re about the topic only.`
+              : q ? `No query matches this prompt well enough yet (best ${q.adjusted}%).` : 'None of your pages gets impressions for this prompt’s queries yet.')
             : <>Gets {pct(p.share)} of that query’s impressions{onPage >= 2 && <> · {onPage} of the top queries land here</>}</>}
         </p>
         {!create && p.lowVolume && <p className={`mt-0.5 ${META}`}>Few searches so far: every match is under 10 impressions.</p>}

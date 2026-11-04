@@ -31,16 +31,21 @@ test('intent: account and local queries are tagged and scored at half', () => {
   assert.equal(a.queries[0].adjusted, Math.round(a.queries[0].match * 0.5))
 })
 
-test('best query: the highest adjusted × log10(impressions + 1), only with ≥ 10 impressions', () => {
+test('best query: an intent match with ≥ 10 impressions, the highest adjusted × log10(impressions + 1); none → no Best', () => {
+  // topic: niacinamide, serum (in most queries); intent: dry, skin
   const a = analyzeRows('niacinamide serum dry skin', [
-    ROW('niacinamide serum dry skin routine', 9), // a full match, but too few impressions to be best
+    ROW('niacinamide serum dry skin routine', 9), // the only intent match, too few impressions
     ROW('niacinamide serum', 900, 'https://ex.com/b/'),
     ROW('niacinamide', 2000, 'https://ex.com/c/'),
   ], { suggestedPath: '/x' })
-  assert.ok(a.bestQuery.impressions >= BEST_MIN_IMPRESSIONS)
+  assert.equal(a.bestQuery, null, 'never a topic-only Best')
+  const b = analyzeRows('niacinamide serum dry skin', [
+    ROW('niacinamide serum for dry skin', 40), ROW('niacinamide serum dry skin review', 30), ROW('niacinamide serum', 900, 'https://ex.com/b/'), ROW('niacinamide', 2000, 'https://ex.com/c/'),
+  ], { suggestedPath: '/x' })
   const score = (q) => q.adjusted * Math.log10(q.impressions + 1)
-  for (const q of a.queries.filter((x) => x.impressions >= BEST_MIN_IMPRESSIONS)) assert.ok(score(a.bestQuery) >= score(q))
-  assert.equal(a.queries.filter((q) => q.best).length, 1)
+  assert.equal(b.bestQuery.intentMatch, true)
+  for (const q of b.queries.filter((x) => x.intentMatch && x.impressions >= BEST_MIN_IMPRESSIONS)) assert.ok(score(b.bestQuery) >= score(q))
+  assert.equal(b.queries.filter((q) => q.best).length, 1)
 })
 
 test('publish on: update the best query\'s page; create (with the suggested path) when the best match is under 30', () => {
@@ -64,11 +69,13 @@ test('the sample list: some prompts create a new page, some show account / local
 
 test('rm-1: the app\'s sample chain on the account\'s made-up domain; bestPageFor; the states', () => {
   const r = gscMatchFor(RM_ROW, { state: 'connected' })
-  assert.equal(r.bestQuery.query, 'reverse mortgage line of credit')
+  assert.equal(r.bestQuery.query, 'reverse mortgage line of credit growth rate', 'grow = growth: the intent match is Best')
+  assert.deepEqual(r.intentTerms, ['grow', 'time'])
+  assert.equal(r.queries.at(-1).query, 'reverse mortgage line of credit', 'the topic-only head ranks below the intent matches')
   assert.equal(r.publishOn.path, '/learn/reverse-mortgage-line-of-credit')
   assert.match(r.siteUrl, /harborlinehome\.com/)
   assert.ok(!JSON.stringify(r).includes('example-lender'))
-  assert.deepEqual(bestPageFor(RM_ROW, { state: 'connected' }), { prompt: RM_ROW.prompt, action: 'update', path: '/learn/reverse-mortgage-line-of-credit', url: r.publishOn.url, match: 60, query: 'reverse mortgage line of credit' })
+  assert.deepEqual(bestPageFor(RM_ROW, { state: 'connected' }), { prompt: RM_ROW.prompt, action: 'update', path: '/learn/reverse-mortgage-line-of-credit', url: r.publishOn.url, match: 75, query: 'reverse mortgage line of credit growth rate' })
   assert.deepEqual(gscMatchFor(RM_ROW, { state: 'new' }), { connected: false })
   assert.equal(gscMatchFor(RM_ROW, { state: 'reconnect' }).reason, 'reconnect')
   assert.equal(gscMatchFor(RM_ROW, { state: 'no-domain' }).reason, 'no-domain')
@@ -93,30 +100,32 @@ test('site queries (a forum, a store, a competitor by name or domain): tagged "s
   assert.equal(a.publishOn.path, '/products/face-mist', 'and never decides where to publish')
 })
 
-test('the best query follows the prompt\'s intent (PROPOSED rule): a clashing kind is ×0.7 and never Best while one that fits exists', async () => {
-  const { MISFIT, intentFits, searchKind } = await import('./gscMatch.js')
-  assert.equal(searchKind('how to use tinted sunscreen in a routine'), 'question')
-  assert.equal(searchKind('best face mist for dry skin'), 'compare')
-  assert.equal(searchKind('tinted sunscreen price'), 'shop')
-  assert.equal(intentFits('how to use tinted sunscreen in a routine', 'tinted sunscreen deal'), false)
-  assert.equal(intentFits('best face mist for dry skin', 'how to apply face mist'), false)
-  assert.equal(intentFits('best face mist for dry skin', 'face mist'), true)
-  // a question prompt: the busy shopping query clashes, scored ×0.7, and the how-to query is Best
-  const a = analyzeRows('how to use tinted sunscreen in a routine', [
-    ROW('buy tinted sunscreen deal', 9000, 'https://ex.com/products/tinted/'),
-    ROW('how to use tinted sunscreen', 300, 'https://ex.com/blog/tinted-routine/'),
-    ROW('tinted sunscreen', 4000, 'https://ex.com/products/tinted/'),
+test('owner\'s intent rule: topic words are in ≥ half the matching queries, the rest are intent words; synonyms count as one', async () => {
+  const { canon, intentTerms, intentMatchOf } = await import('./gscMatch.js')
+  for (const [a, b] of [['breakouts', 'acne'], ['purging', 'pimples'], ['cost', 'fees'], ['price', 'cost'], ['grow', 'growth'], ['increase', 'grow']]) assert.equal(canon(a), canon(b), `${a} = ${b}`)
+  const prompt = 'can pigmentation serum cause breakouts'
+  const qs = ['pigmentation serum', 'pigmentation serum benefits', 'does pigmentation serum cause acne', 'best pigmentation serum'].map((query) => ({ query }))
+  assert.deepEqual(intentTerms(prompt, qs), ['breakout'], 'pigmentation and serum are topic words')
+  assert.equal(intentMatchOf('does pigmentation serum cause acne', ['breakout']), true, 'acne = breakouts')
+  assert.equal(intentMatchOf('pigmentation serum', ['breakout']), false)
+  // local / account markers are never intent words
+  assert.ok(!intentTerms('face mist near me', [{ query: 'face mist' }]).includes('near'))
+  // topic-only queries keep their score (no penalty) but rank below every intent match, and are never Best
+  const a = analyzeRows(prompt, [
+    { keyword: 'pigmentation serum', impressions: 3000, clicks: 60, position: 6, url: 'https://ex.com/a/' },
+    { keyword: 'does pigmentation serum cause acne', impressions: 120, clicks: 3, position: 11, url: 'https://ex.com/b/' },
+    { keyword: 'pigmentation serum benefits', impressions: 800, clicks: 9, position: 9, url: 'https://ex.com/a/' },
   ], { suggestedPath: '/x' })
-  const shop = a.queries.find((q) => q.query === 'buy tinted sunscreen deal')
-  assert.equal(shop.intentFit, false)
-  assert.equal(shop.adjusted, Math.round(shop.match * MISFIT))
-  assert.equal(a.bestQuery.query, 'how to use tinted sunscreen', 'the prompt\'s own kind wins when it matches well')
-  assert.equal(a.publishOn.path, '/blog/tinted-routine')
-  // the sample: every question / comparison prompt with a page to update has a best query of its own kind
-  for (const r of missedPrompts) {
-    const g = gscMatchFor(r, { state: 'connected' })
-    const kind = searchKind(r.prompt)
-    if (!kind || g.publishOn.action !== 'update') continue
-    assert.equal(searchKind(g.bestQuery.query), kind, `${r.prompt} → ${g.bestQuery.query}`)
-  }
+  assert.equal(a.bestQuery.query, 'does pigmentation serum cause acne')
+  assert.equal(a.queries[0].intentMatch, true)
+  assert.ok(a.queries.slice(1).every((q) => !q.intentMatch))
+  const topic = a.queries.find((q) => q.query === 'pigmentation serum')
+  assert.equal(topic.adjusted, topic.match, 'no penalty on topic-only queries')
+})
+
+test('the sample follows the rule: every Best is an intent match; the synonym case shows', () => {
+  const all = missedPrompts.map((r) => gscMatchFor(r, { state: 'connected' }))
+  for (const a of all) if (a.bestQuery) assert.equal(a.bestQuery.intentMatch, true, a.prompt)
+  const p = all.find((a) => /cause breakouts/.test(a.prompt))
+  assert.match(p.bestQuery.query, /acne/)
 })
