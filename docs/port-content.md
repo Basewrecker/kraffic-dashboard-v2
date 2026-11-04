@@ -310,3 +310,18 @@ The draft is model output that includes text scraped from third-party pages, so:
 | Focus panel centring | `focus-centred-{1440,1920}-light.png` |
 
 Only these final shots are committed; the earlier rounds' screenshots weren't kept in the repo.
+
+## 9. Saved draft after a reload (fix, 2026-11-04)
+The brief saved in this browser (`auden:content-brief:v1:<domain>:<prompt>`) now also keeps `written: true` once a
+draft exists and `sent` (the userFacts it was written with). Reopening the prompt after a reload opens on the Draft
+step with that draft (no writing state); the list shows such a prompt as "Draft ready" and opening it lands on the
+draft (the app's "Draft ready can't be opened" bug). In the app, keep the route's response in the saved brief (as the
+app's brief already does) rather than re-requesting it. Test: `tests/saved-draft.browser.test.mjs` (fails without the
+fix: after the reload the draft isn't there).
+
+## 10. pdfjs-dist (owner-approved conditions)
+Pinned to the exact version `4.10.38` (no caret). Loaded only when a PDF is added (dynamic `import('pdfjs-dist')`),
+client-side only, never on the server. Its worker is a file from our own build (Vite `?url`; in Next, copy
+`pdfjs-dist/build/pdf.worker.min.mjs` into the build / `public` and point `GlobalWorkerOptions.workerSrc` at it), never
+a CDN. Documents open with `isEvalSupported: false`. `npm audit` (mock, 2026-11-04): nothing for pdfjs-dist; 4.10.38 is
+past the fix for CVE-2024-4367 (fixed in 4.2.67).

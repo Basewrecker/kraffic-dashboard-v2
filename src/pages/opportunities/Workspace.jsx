@@ -75,20 +75,22 @@ function Flow({ row }) {
   const full = useMemo(() => backendFull(), [])
   const steps = useMemo(() => stepsFor(full), [full])
   const kept = PROGRESS.get(row.id) // this visit's progress on the prompt, if it was opened before
+  // the saved brief in this browser (the app's localStorage key): ticks, last copy, when, and whether a draft was
+  // written, with the userFacts it was written with, so reopening the prompt after a reload shows that draft again
+  const store = storageKey(CO_BRAND.domain, row.prompt)
+  const stored = useMemo(() => { try { return JSON.parse(window.localStorage.getItem(store) ?? 'null') ?? {} } catch { return {} } }, [store])
   // the userFacts sent with the draft request (v1): taken when the writing starts (and on Regenerate); null = none
-  const [sent, setSent] = useState(() => kept?.sent ?? null)
+  const [sent, setSent] = useState(() => kept?.sent ?? stored.sent ?? null)
   const request = useMemo(() => requestFor(row, sent), [row, sent]) // the (mock) request: userFacts only when non-empty
   const res = useMemo(() => contentRecommendFor(row, request.userFacts), [row, request]) // the route's response (the mock's)
   // the response before any userFacts: its flags are Your data's questions (they stay put once answered)
   const baseRes = useMemo(() => contentRecommendFor(row), [row])
   const competitors = row.competitors ?? [] // the request's competitors
   const page = useMemo(() => pageOf(res.pageRecommendation), [res])
-  // the user's ticks and the last copy, in this browser only (the app's localStorage key)
-  const store = storageKey(CO_BRAND.domain, row.prompt)
-  const stored = useMemo(() => { try { return JSON.parse(window.localStorage.getItem(store) ?? 'null') ?? {} } catch { return {} } }, [store])
   const saved = useMemo(() => draftFor(row.id, row), [row])
   const [gsc, setGsc] = useState(() => kept?.gsc ?? gscStatus()) // 'connected' | 'declined' | 'new' | 'skipped' (continued without it)
-  const start = useMemo(() => startOf(saved, gscStatus()), [saved])
+  // a draft written earlier in this browser opens on the Draft step, ready (no writing state)
+  const start = useMemo(() => (!saved && stored.written ? { current: DRAFT, ready: true } : startOf(saved, gscStatus())), [saved, stored])
   const [current, setCurrent] = useState(() => Math.max(kept?.current ?? 0, full ? start.current : Math.max(1, start.current)))
   const [editing, setEditing] = useState(null) // a done step reopened from the progress pills
   const [ready, setReady] = useState(() => kept?.ready ?? start.ready) // a draft exists: step 4 skips its generating view
@@ -145,8 +147,10 @@ function Flow({ row }) {
   // nothing and the writing goes on in the background (draft/model.js draftSession)
   const [ds, setDs] = useState(() => kept?.ds ?? newSession(start.ready, { savedAt: res.analyzedAt, ...stored }))
   useEffect(() => {
-    try { window.localStorage.setItem(store, JSON.stringify({ ticked: ds.ticked, copiedAt: ds.copiedAt, savedAt: ds.savedAt })) } catch { /* private mode */ }
-  }, [store, ds.ticked, ds.copiedAt, ds.savedAt])
+    // written: a draft exists (stays true through a Regenerate); sent: the userFacts it was written with
+    const written = ds.phase === 'draft' || !!stored.written
+    try { window.localStorage.setItem(store, JSON.stringify({ ticked: ds.ticked, copiedAt: ds.copiedAt, savedAt: ds.savedAt, written, sent: written ? sent : null })) } catch { /* private mode */ }
+  }, [store, ds.ticked, ds.copiedAt, ds.savedAt, ds.phase, sent]) // eslint-disable-line react-hooks/exhaustive-deps
   // keep the progress for this visit (reopening the prompt picks it up; the mock has no store)
   useEffect(() => { PROGRESS.set(row.id, { gsc, current, ready, target, data, dataSkipped, ds, sent }) })
   // the writing starts when step 4 is first reached

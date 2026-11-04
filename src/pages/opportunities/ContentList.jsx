@@ -12,10 +12,21 @@ import { CO_BRAND } from '../../data/contentOpportunities'
 import { draftFor } from '../../data/contentOpportunities-proposed'
 import { productName } from '../../store/workspace'
 import { goTo, promptVT, workspacePath } from './parts'
+import { storageKey } from './draft/recommend'
 import KpiCards from './list/KpiCards'
 import RowTip from './list/RowTip'
 import StatusCell, { STATUS_WIDTH } from './list/StatusCell'
 import { statusText, tabById, withStage } from './list/model'
+
+// A draft written in this browser (the brief saved under the app's key, `written`) shows as "Draft ready" and opens
+// on its Draft step; the sample states (proposed data) take precedence.
+function savedDraftFor(row) {
+  try {
+    const b = JSON.parse(window.localStorage.getItem(storageKey(CO_BRAND.domain, row.prompt)) ?? 'null')
+    return b?.written ? { stage: 'draft', week: 0, gained: [], target_url: null, updated_at: b.savedAt ?? null } : null
+  } catch { return null }
+}
+const stateFor = (id, row) => draftFor(id, row) ?? savedDraftFor(row)
 
 // "Create content" everywhere: PenLine, 14px, 1.5 stroke, the label's colour (owner, 2026-11-04)
 const PenIcon = (props) => <PenLine {...props} size={14} strokeWidth={1.5} />
@@ -30,7 +41,7 @@ function writeTab(id) {
 
 export default function ContentList() {
   useEffect(() => { document.title = `Content · ${productName()}` }, [])
-  const all = useMemo(() => withStage(missedPrompts, draftFor), [])
+  const all = useMemo(() => withStage(missedPrompts, stateFor), [])
   const byId = useMemo(() => new Map(all.map((r) => [r.id, r])), [all])
   const [tab, setTabState] = useState(readTab)
   const open = (r) => goTo(workspacePath(r.id))
