@@ -37,6 +37,7 @@ don't port it until the line says approved.
 | f63c186 | Search Console: "Search Console for this prompt" on the v1 Target page (best query → publish on → Update this page, other top queries, Your pages, 4 states) and the Content list's Best page column (§12) | Approved with fixes · port with the fixes commit |
 | 896422f | Search Console owner fixes: `site` tag (half score, never Best), Google page 1 ladder with no gaps (sample citedPages lists every page-1 result), Your pages without "Not cited" | Owner fixes · port with the Search Console commit |
 | 5a4e1b0 | AI Mode split marker (`?aimode=new`: "Scoring updated <day>" on the score card + Visibility history, AI Overview / All engines only) and accounts without AI Mode (`?aimode=off`: hidden) | Owner rules (mirrors the app) |
+| 655650b | Visibility history insight: no rise / fall across a scoring marker between the last two points (the AI Mode split included; `VisibilityHistory.jsx` insight `crossed`) | Matches the app |
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
