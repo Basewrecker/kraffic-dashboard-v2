@@ -58,7 +58,9 @@ test('DOCX: <w:t> runs, a line per paragraph, tabs and breaks, entities decoded'
 })
 
 test('DOCX deflated (as Word writes it): the browser\'s DecompressionStream', { skip: !deflateRaw && 'this Node has no deflate-raw (the browser test covers it)' }, async () => {
-  const t = await docxText(makeDocx(['Deflated text reads too.']).buffer)
+  // the exact bytes, as the browser's File.arrayBuffer() gives: a small Node Buffer's .buffer is the shared pool
+  const buf = makeDocx(['Deflated text reads too.'])
+  const t = await docxText(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength))
   assert.equal(t.trim(), 'Deflated text reads too.')
 })
 
