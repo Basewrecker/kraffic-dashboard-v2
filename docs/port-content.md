@@ -40,6 +40,7 @@ don't port it until the line says approved.
 | 655650b | Visibility history insight: no rise / fall across a scoring marker between the last two points (the AI Mode split included; `VisibilityHistory.jsx` insight `crossed`) | Matches the app |
 | d98233f | Visibility history markers: "Scoring updated" / "Setup changed" labels stack by their real spans (18px apart), never overlap; `ScoringMarker` `avoidLabel`; getHistory `setup` (`?setup=1` preview) | Owner fix |
 | 208bd43 | Overview: "Cited pages by folder" replaces Top cited pages (donut + legend, hover, History since / one-sync states) and its drawer (FolderDrawer: engine chips, Citations · Cited pages · Folders, 5 folder lines, pages grouped by folder, weekly list, Export CSV); `utils/citedFolders.js` grouping; `utils/brand.js` displayName for competitor names in the Mentions and citations drawer. Needs per-citation URL rows (prompt × engine × raw URL) from the app | Waiting (screenshots: `screenshots/cited-folders/`) |
+| 8d2d9d2 | Cited pages by folder: the donut centre shows only the % (no name, count or mini trend, at rest or on hover); `CitedFolders.jsx` | Owner fix · port with 208bd43 |
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
