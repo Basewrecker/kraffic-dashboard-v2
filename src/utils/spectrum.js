@@ -415,3 +415,119 @@ export function quadrantPack(items, { width, height, r, gap = 8, rows = 2, label
 }
 // the smallest grid height that still fits two rows of dots in every quadrant
 export const quadrantMinH = (r, { gap = 8, rows = 2, label = 20, inset = 4 } = {}) => 2 * (label + rows * 2 * r + (rows - 1) * gap + 2 * inset)
+
+// ---- the tone grid, scattered (owner, 2026-11-04): each quadrant's dots sit at organic-looking spots that mean nothing
+// (purely visual), the same on every load. A jittered hex lattice per quadrant: dots keep `edge` px clear of the
+// quadrant's edges (so of the cross too) and of its corner label, and at least `gap` px between each other (the
+// jitter is capped by the lattice's slack, so they can't touch). Each dot's slot comes from a hash of its seed (the
+// page URL), so a dot keeps its spot when others come and go; 1–2 dots take the slots nearest the centre. More than
+// fit → the two slots farthest from the label become one "+n more" pill.
+// items: [{ key, tone, seed }] → { pos: { key: { x, y } }, more: { tone: { n, x, y, w } } }
+const seed01 = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return (h >>> 0) / 4294967296 }
+export function quadrantScatter(items, { width, height, r, gap = 10, edge = 24, labelW = {}, labelH = 18 }) {
+  const qw = width / 2, qh = height / 2, d = 2 * r + gap
+  const pos = {}, more = {}
+  for (const [tone, [cx, cy]] of Object.entries(QUADRANT)) {
+    const list = items.filter((it) => it.tone === tone)
+    if (!list.length) continue
+    const x0 = cx * qw + edge + r, x1 = (cx + 1) * qw - edge - r
+    const y0 = cy * qh + edge + r, y1 = (cy + 1) * qh - edge - r
+    const rows = Math.max(1, Math.floor(Math.max(0, y1 - y0) / (d * 0.866)) + 1)
+    const maxCols = Math.max(1, Math.floor(Math.max(0, x1 - x0) / d) + 1)
+    // only as many columns as the dots need (with a third spare, so the seeds have a choice): wider spacing, more
+    // room for each dot to wander
+    const cols = Math.min(maxCols, Math.max(2, Math.ceil((list.length * 1.35 + 2) / rows)))
+    const dx = cols > 1 ? (x1 - x0) / (cols - 1) : 0
+    const dy = rows > 1 ? (y1 - y0) / (rows - 1) : 0
+    // the corner label's box, grown by `edge` (top-left / top-right / bottom-left / bottom-right)
+    const lw = (labelW[tone] ?? 80) + edge, lh = labelH + edge
+    const lx0 = cx ? (cx + 1) * qw - lw : cx * qw, ly0 = cy ? (cy + 1) * qh - lh : cy * qh
+    const clearOfLabel = (x, y) => x + r <= lx0 || x - r >= lx0 + lw || y + r <= ly0 || y - r >= ly0 + lh
+    const slots = []
+    for (let i = 0; i < rows; i++) {
+      const odd = rows > 1 && i % 2 === 1
+      const n = odd && cols > 1 ? cols - 1 : cols
+      for (let j = 0; j < n; j++) {
+        const x = cols > 1 ? x0 + (odd ? dx / 2 : 0) + j * dx : (x0 + x1) / 2
+        const y = rows > 1 ? y0 + i * dy : (y0 + y1) / 2
+        if (clearOfLabel(x, y)) slots.push({ x, y, row: i })
+      }
+    }
+    // how far a dot may wander from its slot and still never come within `gap` of a neighbour
+    const near = Math.min(cols > 1 ? dx : Infinity, rows > 1 ? Math.hypot(cols > 1 ? dx / 2 : 0, dy) : Infinity)
+    const jit = Number.isFinite(near) ? Math.max(0, (near - d) / 2) : Math.min((x1 - x0) / 2, (y1 - y0) / 2)
+    const mid = { x: cx * qw + qw / 2, y: cy * qh + qh / 2 }
+    const over = list.length > slots.length
+    let free = [...slots]
+    if (over) {
+      // "+n more": two neighbouring slots in the row by the cross (farthest from the label), next to the middle; any
+      // slot within `gap` of the pill is left empty too
+      const rowY = cy ? Math.min(...free.map((s) => s.y)) : Math.max(...free.map((s) => s.y))
+      const row = free.filter((s) => s.y === rowY).sort((a, b) => a.x - b.x)
+      const i = Math.max(0, row.reduce((bi, s, k) => (Math.abs(s.x - mid.x) < Math.abs(row[bi].x - mid.x) ? k : bi), 0))
+      const a = row[i], b = row[i + 1] ?? row[i - 1] ?? null
+      const px = b ? (a.x + b.x) / 2 : a.x
+      const w = b ? Math.abs(b.x - a.x) + 2 * r : 2 * r
+      const m = { n: 0, x: px, y: a.y, w }
+      const hits = (s) => Math.abs(s.x - m.x) < m.w / 2 + r + gap && Math.abs(s.y - m.y) < 2 * r + gap
+      free = free.filter((s) => !hits(s))
+      more[tone] = { ...m, n: list.length - free.length }
+    }
+    // 1–2 dots: near the centre (side by side for two), each nudged a little by its seed, never a corner
+    if (list.length <= 2) {
+      const cxm = Math.min(x1, Math.max(x0, mid.x)), cym = Math.min(y1, Math.max(y0, mid.y))
+      list.forEach((it, i) => {
+        const s = it.seed ?? it.key
+        const off = list.length === 2 ? (i ? 1 : -1) * (d / 2 + 4 + seed01(`${s}|a`) * 8) : (seed01(`${s}|a`) - 0.5) * 16
+        pos[it.key] = { x: Math.min(x1, Math.max(x0, cxm + off)), y: Math.min(y1, Math.max(y0, cym + (seed01(`${s}|m`) - 0.5) * 12)) }
+      })
+      continue
+    }
+    const shown = list.slice(0, free.length)
+    const taken = new Set()
+    const clamp = (p) => ({ x: Math.min(x1, Math.max(x0, p.x)), y: Math.min(y1, Math.max(y0, p.y)) })
+    const placed = shown.map((it) => {
+      const s = it.seed ?? it.key
+      // the slot its seed points at; taken → the next free one along
+      let k = Math.floor(seed01(s) * free.length)
+      while (taken.has(k)) k = (k + 1) % free.length
+      taken.add(k)
+      return { it, s, slot: free[k] }
+    })
+    // organic: a seeded nudge of up to 14px, then a few deterministic passes push apart any two dots closer than d;
+    // if a pair is still too close, the safe nudge (capped by the lattice's slack) is used instead
+    const loose = placed.map(({ s, slot }) => { const a = seed01(`${s}|a`) * Math.PI * 2, m = seed01(`${s}|m`) * Math.max(jit, 14); return clamp({ x: slot.x + Math.cos(a) * m, y: slot.y + Math.sin(a) * m }) })
+    for (let pass = 0; pass < 40; pass++) {
+      let moved = false
+      for (let i = 0; i < loose.length; i++) for (let j = i + 1; j < loose.length; j++) {
+        const p = loose[i], q = loose[j], dist = Math.hypot(p.x - q.x, p.y - q.y)
+        if (dist >= d) continue
+        moved = true
+        const ux = dist ? (p.x - q.x) / dist : 1, uy = dist ? (p.y - q.y) / dist : 0, push = (d - dist) / 2 + 0.01
+        loose[i] = clamp({ x: p.x + ux * push, y: p.y + uy * push })
+        loose[j] = clamp({ x: q.x - ux * push, y: q.y - uy * push })
+      }
+      // the "+n more" pill is an obstacle too: a dot on it moves away up or down
+      const pill = more[tone]
+      if (pill) for (let i = 0; i < loose.length; i++) {
+        const p = loose[i]
+        if (Math.abs(p.x - pill.x) < pill.w / 2 + r + gap && Math.abs(p.y - pill.y) < 2 * r + gap) {
+          moved = true
+          loose[i] = clamp({ x: p.x, y: pill.y + (p.y >= pill.y ? 1 : -1) * (2 * r + gap + 0.01) })
+        }
+      }
+      if (!moved) break
+    }
+    const pill = more[tone]
+    const offPill = (p) => !pill || !(Math.abs(p.x - pill.x) < pill.w / 2 + r + gap - 0.01 && Math.abs(p.y - pill.y) < 2 * r + gap - 0.01)
+    const ok = loose.every(offPill) && loose.every((p, i) => loose.every((q, j) => j <= i || Math.hypot(p.x - q.x, p.y - q.y) >= d - 0.01))
+    placed.forEach(({ it, s, slot }, i) => {
+      if (ok) { pos[it.key] = loose[i]; return }
+      const a = seed01(`${s}|a`) * Math.PI * 2, m = seed01(`${s}|m`) * jit
+      pos[it.key] = clamp({ x: slot.x + Math.cos(a) * m, y: slot.y + Math.sin(a) * m })
+    })
+  }
+  return { pos, more }
+}
+// the grid height that gives every quadrant two staggered rows of dots, `edge` clear all round
+export const scatterMinH = (r, { gap = 10, edge = 24 } = {}) => 2 * Math.ceil(2 * edge + 2 * r + (2 * r + gap) * 0.866)

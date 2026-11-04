@@ -16,7 +16,7 @@ import { useIsMobile, useMedia } from '../../hooks/useMedia'
 import {
   TONES, TONE_LABEL, countTones, heroLine, runPages, scoredLine, scoreInfo, unscoredNote, scoreOf, sentimentFor, sentimentInsight, shareTrendLine, sortPages, sourceCloud, tonePercents, withScores,
 } from '../../data/sentiment'
-import { BAND, QUADRANT, capStack, dotPlan, pageHref, groupThemes, matchIds, neighbour, quadrantMinH, quadrantPack, springEasing, staggerDelays, tellingSentence } from '../../utils/spectrum'
+import { BAND, QUADRANT, capStack, dotPlan, pageHref, groupThemes, matchIds, neighbour, quadrantScatter, scatterMinH, springEasing, staggerDelays, tellingSentence } from '../../utils/spectrum'
 import { ENGINE_NAME, SCORING_UPDATED_TIP, SENTIMENT_ENGINES, heroTone, scoringChangedAt, scoreCardDocked, scoreChangeLine, sortAllPages, syncColumns, syncScoreChange, tipLeft, alsoSaidOnSites, changedCount, compareCsv, compareCsvRow, compareEntries, compareFilename, compareList, compareMarks, enginesIn, evenColumns, filterSyncPages, newPageIds, sourceColumns, sourceLead, syncCsv, syncFilename, syncMarks, toneById, turnedNegative } from '../../utils/sentimentSections'
 import { fmtDay, lineBtn, t2, t3 } from './parts'
 import { CrossFade, GLIDE, Seg, useCountUp, useWidth } from '../../components/ui/motion'
@@ -525,7 +525,8 @@ const QUAD_TINT = { negative: 'color-mix(in srgb, var(--negative) 4%, transparen
 const QUAD_ORDER = ['neutral', 'positive', 'negative', 'mixed']
 
 // ---- the tone grid: 2×2 by tone (Neutral · Positive over Negative · Mixed), every page a dot in its tone's quadrant,
-// packed in rows (utils/spectrum quadrantPack). "Split by engine": one dot per citing engine, each with its engine's
+// scattered organically (utils/spectrum quadrantScatter: seeded by the page URL, so the same spots on every load; 10px
+// apart, 24px clear of the edges, the cross and the labels; position means nothing). "Split by engine": one dot per citing engine, each with its engine's
 // badge (pages carry one tone, so a page's engine dots share its quadrant). Dots move between quadrants with FLIP on
 // transform / opacity (Web Animations API), from wherever they are now, so an engine switch or another sync mid-move
 // reverses smoothly. No React state changes per frame.
@@ -574,7 +575,8 @@ function Spectrum({ pages: listed, lit, engine, split, onDot = (p) => openDrawer
   const r = mobile ? 12 : 18
   const W = Math.max(160, w)
   // about 240px; in the hero as tall as the score column (both end level), never shorter than two rows need
-  const H = Math.max(quadrantMinH(r), fitH ?? 240)
+  // about 240px, as tall as the score column (both end level); never less than two staggered rows of dots need
+  const H = Math.max(scatterMinH(r), fitH ?? 240)
   const { c, tone, setTone, explain } = filter || {}
   const counts = c ?? countTones(pages)
 
@@ -582,7 +584,9 @@ function Spectrum({ pages: listed, lit, engine, split, onDot = (p) => openDrawer
   const byId = new Map(pages.map((p) => [p.id, p]))
   const plan = dotPlan(pages, ENGINES, split).map((d) => ({ ...d, page: byId.get(d.pageId) }))
   const isActive = (d) => d.shown && (split ? engine === 'all' || d.lane === engine : engine === 'all' || d.page.engines.includes(engine))
-  const pack = (list) => quadrantPack(list.map((d) => ({ key: d.key, tone: d.page.tone })), { width: W, height: H, r })
+  // each corner label's width (13px medium, "Neutral 10"), for the 24px clearance around it
+  const labelW = Object.fromEntries(QUAD_ORDER.map((k) => [k, Math.ceil(`${TONE_LABEL[k]} ${counts[k] ?? 0}`.length * 7.4) + 12]))
+  const pack = (list) => quadrantScatter(list.map((d) => ({ key: d.key, tone: d.page.tone, seed: `${d.page.url ?? d.page.id}#${d.lane}` })), { width: W, height: H, r, labelW })
   const live = pack(plan.filter(isActive))
   const every = pack(plan.filter((d) => d.shown)) // where a dot that's off the grid fades out (its last place)
   const placed = plan.map((d) => {
@@ -615,7 +619,16 @@ function Spectrum({ pages: listed, lit, engine, split, onDot = (p) => openDrawer
     const order = [...placed].sort((a, b) => a.y - b.y || a.x - b.x)
     const delays = staggerDelays(order.length, engineOnly ? { step: 6, cap: 90 } : MOVE)
     let end = 0
-    order.forEach((d, i) => { end = Math.max(end, moveTo(els.current[d.key], `translate(${d.x - r}px, ${d.y - r}px)`, d.o, { delay: delays[i], first, ...(engineOnly ? { dur: 300 } : {}) })) })
+    order.forEach((d, i) => {
+      const el = els.current[d.key], t = `translate(${d.x - r}px, ${d.y - r}px)`
+      end = Math.max(end, moveTo(el, t, d.o, { delay: delays[i], first, ...(engineOnly ? { dur: 300 } : {}) }))
+      // the entrance: each dot fades in and drifts ~8px down into its spot, staggered (reduced motion: just there)
+      if (first && el && d.o > 0 && !reduced()) {
+        const delay = Math.min(i, 30) * 22
+        el.animate([{ transform: `translate(${d.x - r}px, ${d.y - r - 8}px)`, opacity: 0 }, { transform: t, opacity: d.o }], { duration: 420, delay, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' })
+        end = Math.max(end, delay + 420)
+      }
+    })
     if (end) { movingUntil.current = performance.now() + end; setHover(null) }
   }, [sig]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -664,7 +677,7 @@ function Spectrum({ pages: listed, lit, engine, split, onDot = (p) => openDrawer
               style={{ width: 2 * r, height: 2 * r, willChange: 'transform' }}>
               {/* tone ring · a sliver of surface · a white plate, so dark logos show in both themes */}
               <span className="dot-in grid h-full w-full place-items-center rounded-full border-2 bg-surface transition-opacity duration-150"
-                style={{ borderColor: RING[d.page.tone], opacity: dim ? 0.3 : 1, animation: d.copy ? undefined : `dot-in 420ms cubic-bezier(.2,.8,.2,1) ${Math.min(n, 30) * 22}ms both` }}>
+                style={{ borderColor: RING[d.page.tone], opacity: dim ? 0.3 : 1 }}>
                 <span className="grid h-[calc(100%-4px)] w-[calc(100%-4px)] place-items-center rounded-full"
                   style={{ background: d.page.tone === 'negative' ? 'color-mix(in srgb, var(--negative) 14%, #fff)' : '#fff' }}>
                   <SiteLogo domain={d.page.domain} name={d.page.domain} className={`${mobile ? 'h-3.5 w-3.5' : 'h-5 w-5'} rounded-full !border-0 !bg-transparent`} initialClass="text-[9px] !text-[#44403c]" />

@@ -64,7 +64,7 @@ test('the insight line runs full width under the dot plot, on one line (owner, 2
 test('the tone grid is about 240px and as tall as the score column (fitH), never below two rows of dots', () => {
   assert.match(hero, /const measure = \(\) => setColH\(colTop\.current\?\.offsetHeight \?\? 0\)/)
   assert.match(hero, /<Spectrum [^>]*fitH=\{fitH\}/)
-  assert.match(spectrum, /const H = Math\.max\(quadrantMinH\(r\), fitH \?\? 240\)/)
+  assert.match(spectrum, /const H = Math\.max\(scatterMinH\(r\), fitH \?\? 240\)/)
   assert.match(page, /const CHART_CHROME = 26 /, 'no axis under the grid: only the label row above it')
 })
 
@@ -75,7 +75,8 @@ test('the tone grid: a faint --line-strong cross, a faint red only on Negative (
   assert.match(page, /const CORNER = \{ neutral: 'left-0 top-0', positive: 'right-0 top-0', negative: 'left-0 bottom-0', mixed: 'right-0 bottom-0' \}/)
   assert.match(page, /const QUAD_TEXT = \{ positive: 'text-ink', negative: 'text-negative', neutral: t3, mixed: t3 \}/)
   assert.doesNotMatch(spectrum, />Overall<|>Even</, 'no Overall marker, no Even label')
-  assert.match(spectrum, /quadrantPack\(/, 'dots packed by utils/spectrum quadrantPack (tested there)')
+  assert.match(spectrum, /quadrantScatter\(/, 'dots scattered by utils/spectrum quadrantScatter (tested there)')
+  assert.match(spectrum, /seed: `\$\{d\.page\.url \?\? d\.page\.id\}#\$\{d\.lane\}`/, 'seeded by the page URL (and the engine when split)')
   assert.match(spectrum, /\+\{m\.n\} more/, '"+n more" past two rows')
   assert.match(hero, /onMore=\{\(t\) => \{ setParams\(\{ ptone: t \}\); openDrawer\('syncpages', col\.r\.id\) \}\}/, '"+n more" opens the pages drawer on that tone')
 })
@@ -89,7 +90,9 @@ test('one engine switch on the page (the header\'s); Split by engine stays; no b
 
 test('the 2×2 is by tone only: no positioning matrix, no two-axis scatter (both reverted 2026-11-03)', () => {
   assert.doesNotMatch(page, /Niche players|Leaders|Laggers|Controversial/i)
-  assert.doesNotMatch(page, /citation reach|scatter/i)
+  // the reverted scatter was two-axis (position meant something); today's dots are scattered only for looks (owner,
+  // 2026-11-04), so no axis words and no reach axis
+  assert.doesNotMatch(page, /citation reach|two-axis|x-axis|y-axis/i)
   assert.match(page, /const QUAD_ORDER = \['neutral', 'positive', 'negative', 'mixed'\]/)
 })
 
