@@ -68,10 +68,10 @@ test('the tone grid is about 240px and as tall as the score column (fitH), never
   assert.match(page, /const CHART_CHROME = 26 /, 'no axis under the grid: only the label row above it')
 })
 
-test('the tone grid: a faint --line-strong cross, tint only on Positive and Negative, labels in the outer corners', () => {
+test('the tone grid: a faint --line-strong cross, a faint red only on Negative (no fill on Positive), labels in the outer corners', () => {
   assert.equal((spectrum.match(/border-line-strong/g) || []).length, 2, 'one vertical and one horizontal line, no boxes')
   assert.doesNotMatch(spectrum, /border-\[var\(--div\)\]/)
-  assert.match(page, /const QUAD_TINT = \{ positive: 'color-mix\(in srgb, var\(--ink\) 3%, transparent\)', negative: 'color-mix\(in srgb, var\(--negative\) 4%, transparent\)' \}/)
+  assert.match(page, /const QUAD_TINT = \{ negative: 'color-mix\(in srgb, var\(--negative\) 4%, transparent\)' \}/)
   assert.match(page, /const CORNER = \{ neutral: 'left-0 top-0', positive: 'right-0 top-0', negative: 'left-0 bottom-0', mixed: 'right-0 bottom-0' \}/)
   assert.match(page, /const QUAD_TEXT = \{ positive: 'text-ink', negative: 'text-negative', neutral: t3, mixed: t3 \}/)
   assert.doesNotMatch(spectrum, />Overall<|>Even</, 'no Overall marker, no Even label')

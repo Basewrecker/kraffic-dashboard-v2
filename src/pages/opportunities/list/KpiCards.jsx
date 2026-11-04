@@ -90,14 +90,16 @@ function FilterCard({ label, icon: Icon, selected, onClick, number, children, as
   return (
     <Card role="button" tabIndex={0} aria-pressed={selected} aria-label={`${label}: show these prompts`}
       onClick={onClick} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
-      className={`group flex cursor-pointer flex-col px-5 py-[18px] outline-none transition-[border-color,transform] duration-[160ms] ease-out hover:-translate-y-px active:translate-y-0 focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transform-none motion-reduce:transition-none ${
+      className={`@container group flex cursor-pointer flex-col px-5 py-[18px] outline-none transition-[border-color,transform] duration-[160ms] ease-out hover:-translate-y-px active:translate-y-0 focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transform-none motion-reduce:transition-none ${
         selected ? '!border-ink' : 'hover:border-[var(--color-line-strong)]'}`}>
       <div className="flex h-5 items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-1 text-[14px] leading-5 text-stone-500">
+        {/* the label keeps its full width: the hover arrow overlays after it (no space of its own), and the icon tile
+            steps aside in a narrow card (1280 with four cards), so "Published & monitoring" is never cut */}
+        <span className="relative flex min-w-0 items-center text-[14px] leading-5 text-stone-500">
           <span className="truncate">{label}</span>
-          <ArrowRight size={14} aria-hidden className="shrink-0 -translate-x-1 opacity-0 transition-[opacity,transform] duration-[160ms] ease-out group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 motion-reduce:transition-none" />
+          <ArrowRight size={14} aria-hidden className="pointer-events-none absolute left-full ml-1 shrink-0 -translate-x-1 opacity-0 transition-[opacity,transform] duration-[160ms] ease-out group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 motion-reduce:transition-none" />
         </span>
-        <span className="-my-1.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-tint text-stone-600" aria-hidden><Icon size={16} /></span>
+        <span className="-my-1.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-tint text-stone-600 @max-[224px]:hidden" aria-hidden><Icon size={16} /></span>
       </div>
       {/* number + context take the width they need (never cut off); the visual gets what's left, right-aligned, and
           hides when it can't fit whole (round 9) */}

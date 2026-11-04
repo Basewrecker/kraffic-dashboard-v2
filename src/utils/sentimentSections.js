@@ -4,10 +4,9 @@
 // The app keeps this file as lib/sentiment-sections.js (same function names). Tested in sentimentSections.test.js.
 import { TONES, TONE_LABEL, countTones, freshPageIds, scoreOf, sortPages, tonePercents } from '../data/sentiment.js'
 
-// the engines a sentiment scan runs (no Gemini), and their names everywhere on the page and in the CSVs. Google is two
-// engines: 'google' = Google AI Overview, 'aimode' = Google AI Mode.
-export const SENTIMENT_ENGINES = ['google', 'aimode', 'chatgpt', 'claude']
-export const ENGINE_NAME = { google: 'AI Overview', aimode: 'AI Mode', chatgpt: 'ChatGPT', claude: 'Claude' }
+// the engines a sentiment scan runs (no Gemini), and their names everywhere on the page and in the CSVs
+export const SENTIMENT_ENGINES = ['google', 'chatgpt', 'claude']
+export const ENGINE_NAME = { google: 'Google', chatgpt: 'ChatGPT', claude: 'Claude' }
 
 // ---- New: the one rule behind the chip, "New only" and the tooltip's "n new pages" -----------------------------------
 // A page is New on a sync when its address was never cited for the brand in ANY earlier sync, on any engine. Pages are

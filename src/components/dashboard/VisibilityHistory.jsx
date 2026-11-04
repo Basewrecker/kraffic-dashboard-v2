@@ -268,10 +268,10 @@ function TopValueLabel({ x, y, width = 0, value }) {
 }
 
 // the legend chips show every name in full (no ellipsis). Wider screens: 14px labels; if they don't fit on one
-// line, 13px; if they still don't, the row wraps to a second line (the chart takes the height that's left). Measured
+// line, 13px; then 13px with tighter padding and gaps (1280 with 4 brands); if they still don't, the row wraps to a second line (the chart takes the height that's left). Measured
 // from off-screen copies at both sizes, again on resize and once the web fonts load. Phones: the chips scroll
 // sideways, with a soft fade on the side(s) that have more. The "All N brands" menu stays at the end either way.
-const CHIP_GAP = { md: 16, sm: 12 }
+const CHIP_GAP = { md: 16, sm: 12, xs: 6 }
 function ChipRow({ mobile, items, chip, menu, measureKey }) {
   const box = useRef(null)
   const probe = useRef(null)
@@ -289,12 +289,14 @@ function ChipRow({ mobile, items, chip, menu, measureKey }) {
       const span = (w, size) => w.reduce((a, b) => a + b, 0) + CHIP_GAP[size] * Math.max(0, w.length - 1)
       const md = widths('md')
       const sm = widths('sm')
+      const xs = widths('xs')
       const more = menuRef.current ? menuRef.current.getBoundingClientRect().width + CHIP_GAP.sm : 0
       const avail = el.clientWidth - more
       // whole names always: 14px, else 13px, else the row wraps to a second line (never cut)
       const next = span(md, 'md') <= avail ? { size: 'md', wrap: false }
         : span(sm, 'sm') <= avail ? { size: 'sm', wrap: false }
-          : { size: 'sm', wrap: true }
+          : span(xs, 'xs') <= avail ? { size: 'xs', wrap: false }
+            : { size: 'sm', wrap: true }
       setFit((f) => (f.size === next.size && f.wrap === next.wrap ? f : next))
     }
     measure()
@@ -319,10 +321,10 @@ function ChipRow({ mobile, items, chip, menu, measureKey }) {
   const fade = mobile && (edges.left || edges.right)
     ? `linear-gradient(to right, ${edges.left ? 'transparent' : '#000'}, #000 24px, #000 calc(100% - 24px), ${edges.right ? 'transparent' : '#000'})`
     : undefined
-  const small = mobile ? false : fit.size !== 'md'
+  const small = mobile ? false : fit.size === 'xs' ? 'xs' : fit.size !== 'md'
   return (
     <div ref={box} style={fade ? { maskImage: fade, WebkitMaskImage: fade } : undefined}
-      className={`relative flex min-h-9 min-w-0 flex-1 items-center ${small ? 'gap-x-3' : 'gap-x-4'} ${mobile ? 'overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : fit.wrap ? 'flex-wrap gap-y-1' : ''}`}>
+      className={`relative flex min-h-9 min-w-0 flex-1 items-center ${small === 'xs' ? 'gap-x-1.5' : small ? 'gap-x-3' : 'gap-x-4'} ${mobile ? 'overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : fit.wrap ? 'flex-wrap gap-y-1' : ''}`}>
       {items.map((s) => chip(s, small))}
       {menu && <span ref={menuRef} className="inline-flex shrink-0">{menu}</span>}
       {/* off-screen copies at both sizes, for the widths; clipped, so they never widen the page */}
@@ -331,6 +333,7 @@ function ChipRow({ mobile, items, chip, menu, measureKey }) {
           <div ref={probe} inert="" className="invisible absolute left-0 top-0 flex w-max whitespace-nowrap">
             {items.map((s) => <span key={`md-${s.key}`} data-probe="md" className="inline-flex">{chip(s, false, true)}</span>)}
             {items.map((s) => <span key={`sm-${s.key}`} data-probe="sm" className="inline-flex">{chip(s, true, true)}</span>)}
+            {items.map((s) => <span key={`xs-${s.key}`} data-probe="xs" className="inline-flex">{chip(s, 'xs', true)}</span>)}
           </div>
         </div>
       )}
@@ -804,7 +807,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
     const lastOne = shown && series.length === 1 // the last visible series can't be hidden
     if (probe) {
       return (
-        <span key={s.key} className={`inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap ${isLine ? 'px-2' : 'px-3'} font-medium ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'}`}>
+        <span key={s.key} className={`inline-flex h-8 shrink-0 items-center ${small === 'xs' ? 'gap-1.5 px-1' : `gap-2 ${isLine ? 'px-2' : 'px-3'}`} whitespace-nowrap font-medium ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'}`}>
           {marker(s, shown)}{brandName(s.label)}
         </span>
       )
@@ -821,10 +824,10 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
                 onFocus={() => shown && setHovered(s.key)}
                 onBlur={() => setHovered(null)}
                 className={isLine
-                  ? `inline-flex h-8 min-w-0 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
+                  ? `inline-flex h-8 min-w-0 shrink-0 items-center whitespace-nowrap rounded-md ${small === 'xs' ? 'gap-1.5 px-1' : 'gap-2 px-2'} ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'font-medium text-stone-900' : 'font-normal text-stone-600'
                   }`
-                  : `inline-flex h-8 min-w-0 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
+                  : `inline-flex h-8 min-w-0 shrink-0 items-center whitespace-nowrap rounded-full ${small === 'xs' ? 'gap-1.5 px-2' : 'gap-2 px-3'} ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'bg-tint font-medium text-stone-900' : 'bg-transparent font-medium text-stone-600/60 hover:text-stone-600'
                   }`}
                 aria-label={`${brandName(s.label)}: ${shown ? 'shown' : 'hidden'}`}

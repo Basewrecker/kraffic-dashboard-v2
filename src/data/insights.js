@@ -69,7 +69,6 @@ const sentFull = {
   answers: 115, previousAnswers: 108,
   byEngine: [ // platforms[] SentimentRow
     { engine: 'aio', positive: 26, neutral: 8, negative: 2 },
-    { engine: 'aimode', positive: 14, neutral: 5, negative: 2 },
     { engine: 'chatgpt', positive: 11, neutral: 5, negative: 3 },
     { engine: 'gemini', positive: 7, neutral: 4, negative: 1 },
     { engine: 'claude', positive: 0, neutral: 0, negative: 0 },
@@ -94,7 +93,7 @@ const sentFull = {
 const sentSmall = {
   series: [tone(SYNCS[4], 9, 5, 2), tone(SYNCS[5], 12, 4, 2)],
   answers: 32, previousAnswers: 27,
-  byEngine: [{ engine: 'aio', positive: 8, neutral: 2, negative: 1 }, { engine: 'aimode', positive: 4, neutral: 1, negative: 1 }, { engine: 'chatgpt', positive: 3, neutral: 1, negative: 1 }, { engine: 'gemini', positive: 1, neutral: 1, negative: 0 }, { engine: 'claude', positive: 0, neutral: 0, negative: 0 }],
+  byEngine: [{ engine: 'aio', positive: 8, neutral: 2, negative: 1 }, { engine: 'chatgpt', positive: 3, neutral: 1, negative: 1 }, { engine: 'gemini', positive: 1, neutral: 1, negative: 0 }, { engine: 'claude', positive: 0, neutral: 0, negative: 0 }],
   brands: [{ ...sentFull.brands[0], positive: 67, negative: 11, prevNet: null }], // competitors not read yet
   negative: sentFull.negative.slice(0, 2),
 }

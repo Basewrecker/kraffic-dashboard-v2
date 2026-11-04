@@ -32,7 +32,7 @@ import { stackSegments } from '../../utils/mixBars'
 // States: ?mock=never | running | nopages | error | one (first run) | calm (no negative pages).
 // Fallbacks: ?themes=unlinked (themes not linked to pages) · ?quotes=none (pages analysed before quotes were kept).
 
-const ENGINES = SENTIMENT_ENGINES.map((id) => ({ id, name: ENGINE_NAME[id], short: ENGINE_NAME[id], icon: id === 'google' ? 'aio' : id })) // 'aimode' is its own PlatformIcon
+const ENGINES = SENTIMENT_ENGINES.map((id) => ({ id, name: ENGINE_NAME[id], short: ENGINE_NAME[id], icon: id }))  // the reputation scan covers Google (one engine), ChatGPT and Claude: the plain Google mark
 const engineName = (id) => ENGINES.find((e) => e.id === id)?.name
 const EngineIcon = ({ id, size = 14 }) => <PlatformIcon id={ENGINES.find((e) => e.id === id)?.icon ?? id} size={size} />
 const EngineMarks = ({ ids, size = 14 }) => (
@@ -520,7 +520,8 @@ const CHART_CHROME = 26 // the chart column above the grid: the label row (18 + 
 // dots (again: all), elsewhere they're plain text
 const CORNER = { neutral: 'left-0 top-0', positive: 'right-0 top-0', negative: 'left-0 bottom-0', mixed: 'right-0 bottom-0' }
 const QUAD_TEXT = { positive: 'text-ink', negative: 'text-negative', neutral: t3, mixed: t3 }
-const QUAD_TINT = { positive: 'color-mix(in srgb, var(--ink) 3%, transparent)', negative: 'color-mix(in srgb, var(--negative) 4%, transparent)' }
+// a faint red on Negative only; Positive has no fill (a grey fill read as a box, owner 2026-11-04)
+const QUAD_TINT = { negative: 'color-mix(in srgb, var(--negative) 4%, transparent)' }
 const QUAD_ORDER = ['neutral', 'positive', 'negative', 'mixed']
 
 // ---- the tone grid: 2×2 by tone (Neutral · Positive over Negative · Mixed), every page a dot in its tone's quadrant,
@@ -624,7 +625,7 @@ function Spectrum({ pages: listed, lit, engine, split, onDot = (p) => openDrawer
   return (
     <div ref={box} className="relative [overflow-x:clip] [overflow-clip-margin:24px]" onMouseLeave={() => setHover(null)}>
       <div className="relative" style={{ height: H }} {...(filter ? hl(explain, 'tones') : {})}>
-        {/* the quadrants: a faint cross, a tint only on Positive and Negative, no boxes */}
+        {/* the quadrants: a faint cross, a faint red only on Negative, no boxes */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
           {Object.entries(QUAD_TINT).map(([k, bg]) => {
             const [cx, cy] = QUADRANT[k]
@@ -1581,7 +1582,7 @@ function SyncPageRow({ p, change = null }) {
 // site's numbers ("negative in 5 of 6 syncs"). Rows: favicon | domain ⌄ | bar | syncs | engines. Hover: the site's
 // quote (or its tone in every sync); click: the row opens in place (quotes, tone across syncs, its pages); several can
 // be open. A column more than a row longer shows "+n more" (the drawer with all of them).
-// the engines column fits all four marks (AI Overview, AI Mode, ChatGPT, Claude: 4 × 14px + 3 × 6px gaps)
+// the engines column fits the three marks (Google, ChatGPT, Claude) with room to spare
 const SRC_GRID = 'grid grid-cols-[20px_minmax(0,1fr)_120px_48px_76px] items-center gap-x-3'
 function Sources({ runs, pagesOf, engine, brand, latestPages, swot }) {
   const columns = useMemo(() => syncColumns(runs, pagesOf, engine), [runs, engine]) // eslint-disable-line react-hooks/exhaustive-deps

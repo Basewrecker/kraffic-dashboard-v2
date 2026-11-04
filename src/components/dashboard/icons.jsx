@@ -57,6 +57,8 @@ const marks = {
 // Platform marks: 16px, no background square.
 export function PlatformIcon({ id, size = 16 }) {
   if (id === 'aio' || id === 'aimode') return <GoogleEngineIcon mode={id} size={size} />
+  // plain Google (Sentiment's reputation scan: Google as one engine, not split)
+  if (id === 'google') return <GoogleIcon size={size} />
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden className="shrink-0">
       {marks[id]}

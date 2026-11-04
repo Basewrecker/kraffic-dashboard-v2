@@ -63,7 +63,7 @@ test('compare CSV: the columns in order, the brand on every row, quotes and comm
   const [head, line] = csv.trim().split('\n')
   assert.equal(head, 'url,title,domain,engines,tone_from,tone_to,change,brand')
   assert.deepEqual(CSV_COLUMNS, head.split(','))
-  assert.equal(line, 'https://a.com/a,"Say ""hi"", ok",a.com,AI Overview,positive,,dropped,Finance of America', 'engines by name: AI Overview, not Google search')
+  assert.equal(line, 'https://a.com/a,"Say ""hi"", ok",a.com,Google,positive,,dropped,Finance of America', 'engines by name: Google, not Google search')
   assert.equal(compareFilename('Finance of America', '2026-10-28', '2026-10-31'), 'sentiment-finance-of-america-2026-10-28-vs-2026-10-31.csv')
 })
 
@@ -170,7 +170,7 @@ test('sync CSV: what the list shows (filters applied), engines by name, the tone
   const csv = syncCsv(shown, { brand: 'FoA', fresh, prevTones: toneById(oct28) }).trim().split('\n')
   assert.deepEqual(csv[0].split(','), SYNC_CSV_COLUMNS)
   assert.equal(csv.length, 3, 'header + the two neutral pages only')
-  assert.equal(csv[1], 'https://a.com/a,Title a.com,a.com,AI Overview,neutral,,FoA')
+  assert.equal(csv[1], 'https://a.com/a,Title a.com,a.com,Google,neutral,,FoA')
   assert.equal(csv[2], 'https://d.com/a,Title d.com,d.com,ChatGPT,neutral,yes,FoA')
   assert.ok(!csv[0].includes('tone_before') && CSV_COLUMNS.includes('tone_from') && CSV_COLUMNS.includes('tone_to'), 'tone_from / tone_to in the Compare CSV only')
   assert.equal(syncFilename('Finance of America', '2026-10-28'), 'sentiment-finance-of-america-2026-10-28.csv')
@@ -293,7 +293,7 @@ test('This sync: Positive · Mixed · Neutral · Negative add up to 100%, Not sc
   assert.equal(p.mixed, 6) // 1 of the 17 scored pages, not of 18
   assert.equal(unscoredNote(col.counts), '1 page not scored')
   const csv = syncCsv(col.pages, { brand: 'Acme' })
-  assert.match(csv, /^https:\/\/site2-0\.example\/a,Title site2-0\.example,site2-0\.example,AI Overview,mixed,,Acme$/m)
+  assert.match(csv, /^https:\/\/site2-0\.example\/a,Title site2-0\.example,site2-0\.example,Google,mixed,,Acme$/m)
   assert.match(csv, /,unscored,,Acme$/m)
 })
 

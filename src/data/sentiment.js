@@ -300,7 +300,7 @@ const RUN_TIMES = [
 // every page cited for the brand in any run. tones: the page's tone in each run above, one letter per run
 // (P positive · N neutral · M mixed · G negative · U Not scored, the page couldn't be read · . not cited that run).
 // Older runs (before Nov 2) have no Mixed or Not scored pages: the old scoring stored both as neutral.
-// engines: Google AI Overview ('google'), Google AI Mode ('aimode', AI_MODE below), ChatGPT and Claude. Pages analysed before quotes were kept, and pages that couldn't be
+// engines: Google search, ChatGPT and Claude only. Pages analysed before quotes were kept, and pages that couldn't be
 // read, have none (noQuote): they show their title and "Quote appears after the next analysis".
 const S = (text, tone) => ({ text, tone, mark: null })
 const CATALOGUE = [
@@ -363,9 +363,6 @@ const CATALOGUE = [
     S('Two of our testers broke out within a week of starting the Dermasuri serum.', 'negative')] },
 ]
 const TONE_CODE = { P: 'positive', N: 'neutral', M: 'mixed', G: 'negative', U: 'unscored' }
-// Google is two engines: the pages AI Mode also cites (all of them pages AI Overview cites too), listed after 'google'
-const AI_MODE = new Set(['p1', 'p2', 'p3', 'p5', 'p10', 'p13', 'p16', 'p19', 'p23'])
-CATALOGUE.forEach((p) => { if (AI_MODE.has(p.id)) p.engines = p.engines.flatMap((e) => (e === 'google' ? ['google', 'aimode'] : [e])) })
 
 // each run's own pages, as production stores them: run id → [page]
 const BY_RUN = new Map(RUN_TIMES.map(([id], i) => [id, CATALOGUE

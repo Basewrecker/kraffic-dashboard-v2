@@ -41,9 +41,9 @@ test('engine filter and per-engine rows', () => {
   assert.ok(pagesOn(PAGES, 'claude').every((p) => p.engines.includes('claude')))
 })
 
-test('engines: Google AI Overview, Google AI Mode, ChatGPT and Claude (what production splits by)', () => {
+test('engines: only Google search, ChatGPT and Claude (what production splits by)', () => {
   const ids = new Set(PAGES.flatMap((p) => p.engines))
-  assert.deepEqual([...ids].sort(), ['aimode', 'chatgpt', 'claude', 'google'])
+  assert.deepEqual([...ids].sort(), ['chatgpt', 'claude', 'google'])
 })
 
 test('themes: the four SWOT groups, each with themes', () => {
@@ -242,7 +242,7 @@ test('the mock covers every tone, the scoring change, new and dropped pages, and
   // the score moves up, down and not at all between runs (the arrow and the "since …" line)
   const scores = withScores(RUNS).map((r) => r.delta).filter((d) => d != null)
   assert.ok(scores.some((d) => d > 0) && scores.some((d) => d < 0) && scores.some((d) => d === 0))
-  assert.deepEqual([...new Set(PAGES.flatMap((p) => p.engines))].sort(), ['aimode', 'chatgpt', 'claude', 'google'])
+  assert.deepEqual([...new Set(PAGES.flatMap((p) => p.engines))].sort(), ['chatgpt', 'claude', 'google'])
   assert.ok(PAGES.some((p) => p.url === null), 'a page with no stored URL (no link)')
   assert.ok(PAGES.some((p) => p.noQuote), 'a page with no quote')
 })
