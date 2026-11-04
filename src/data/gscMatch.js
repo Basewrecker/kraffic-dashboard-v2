@@ -118,12 +118,15 @@ export function analyzeRows(prompt, rows, { suggestedPath, cited = () => false, 
   const found = all.filter((q) => q.match > 0)
   const intentTermsOf = intentTerms(prompt, found)
   // intent matches first, then by rank
-  const matching = found.map((q) => ({ ...q, intentCount: intentCountOf(q.query, intentTermsOf), opposite: oppositeOf(prompt, q.query), intentMatch: intentMatchOf(q.query, intentTermsOf, prompt) }))
-    // eligible queries first (by intent words, then impressions), then the rest by rank
-    .sort((a, b) => (a.intentMatch === b.intentMatch ? (a.intentMatch ? byIntent(a, b) : rank(b) - rank(a)) : a.intentMatch ? -1 : 1))
-  const best = bestOf(matching)
+  // the list order (owner, 2026-11-04; as the app): queries with 10+ impressions first, the under-10 ones (lowVolume)
+  // below them; within each, eligible queries first (by intent words, then impressions), the rest by rank; then the
+  // Best query moves to the first row (so a site query never sits above it)
+  const sorted = found.map((q) => ({ ...q, intentCount: intentCountOf(q.query, intentTermsOf), opposite: oppositeOf(prompt, q.query), intentMatch: intentMatchOf(q.query, intentTermsOf, prompt), lowVolume: q.impressions < BEST_MIN_IMPRESSIONS }))
+    .sort((a, b) => (a.lowVolume !== b.lowVolume ? (a.lowVolume ? 1 : -1)
+      : a.intentMatch === b.intentMatch ? (a.intentMatch && intentTermsOf.length ? byIntent(a, b) : rank(b) - rank(a)) : a.intentMatch ? -1 : 1))
+  const best = bestOf(sorted)
+  const matching = best ? [best, ...sorted.filter((q) => q !== best)] : sorted
   const queries = matching.slice(0, 5).map((q) => ({ ...q, best: q === best }))
-  if (best && !queries.some((q) => q.best)) queries.splice(4, 1, { ...best, best: true })
   const bestQuery = best ? { ...best, best: true } : null
   // publish on (the app's lib/gsc-match.js): only strong eligible queries count (adjusted ≥ 30, a top page,
   // intentMatch); the Best if it's one, else (every strong eligible one is under 10 impressions) the first of them,
@@ -222,7 +225,7 @@ const RM_ANALYSIS = (() => {
   // the owner's intent rule (the app's matcher): "grow" and "time" make this prompt specific (growth = grow), so the
   // intent matches come first and the Best is "…growth rate"; the topic-only "reverse mortgage line of credit" ranks
   // below them though it's busier
-  const Q = (...a) => ({ ...RM_QUERY(...a.slice(0, 10)), intentMatch: a[10] })
+  const Q = (...a) => ({ ...RM_QUERY(...a.slice(0, 10)), intentMatch: a[10], lowVolume: a[4] < BEST_MIN_IMPRESSIONS })
   const queries = [
     Q('reverse mortgage line of credit growth rate', 75, 75, null, 210, 4, 9.6, true, LOC, 1, true),
     Q('hecm line of credit growth', 80, 80, null, 120, 2, 12.2, false, LOC, 1, true),

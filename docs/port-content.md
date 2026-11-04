@@ -461,6 +461,11 @@ intentMatch, not a site query). The Best if it's one; else, when every strong el
 the first of them with `lowVolume: true` (the low-volume note); none → create (the topic-only chain). Previews:
 `?co=gsc-lowvolume` (low volume) and prompt 0 (create, topic-only).
 
+**List order (owner, 2026-11-04; as the app):** queries with 10+ impressions first, the under-10 ones (`lowVolume:
+true` on each query row) below them, muted with a small neutral "low volume" tag (the same Tag as account / local /
+site); within each group eligible queries first (by intent words, then impressions), the rest by rank; the Best query
+always moves to the first row. Shared case 2 in `gscMatchCases.js` checks it (`firstRow`, `lowVolume`).
+
 **Content list "Best page"** (`ContentList.jsx` column via `MissedPrompts` `extraColumns`, 248px): the path
 (middle-truncated) + match %, or "New page" (muted) when `action === 'create'`; hover / focus: the full URL and
 "Best query “…” · 72% match". Not connected → "—" and the header ⓘ "Connect Search Console in a prompt’s Target page…".

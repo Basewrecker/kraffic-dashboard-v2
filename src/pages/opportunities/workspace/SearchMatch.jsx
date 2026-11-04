@@ -214,12 +214,14 @@ function OtherQueries({ gsc }) {
           <span role="columnheader">Page</span>
         </div>
         {rows.map((q) => (
-          <div role="row" key={q.query} data-intent={q.intent ?? undefined} className={`${QROW} h-11 border-t border-[var(--div)] tabular-nums`}>
+          <div role="row" key={q.query} data-intent={q.intent ?? undefined} data-low-volume={q.lowVolume || undefined} className={`${QROW} h-11 border-t border-[var(--div)] tabular-nums`}>
             <span role="cell" className="flex min-w-0 items-center gap-1.5">
-              <span title={q.query} className={`truncate ${q.intent ? 'text-stone-500' : 'font-medium text-stone-900'}`}>{q.query}</span>
+              {/* tagged (account / local / site) and low-volume (under 10 impressions, listed last) rows are muted */}
+              <span title={q.query} className={`truncate ${q.intent || q.lowVolume ? 'text-stone-500' : 'font-medium text-stone-900'}`}>{q.query}</span>
               {q.intent && <Tag intent={q.intent} />}
+              {q.lowVolume && <Tag intent="low volume" />}
             </span>
-            <span role="cell" className={`flex items-center justify-end gap-0.5 ${q.intent ? 'text-stone-500' : 'text-stone-900'}`}>
+            <span role="cell" className={`flex items-center justify-end gap-0.5 ${q.intent || q.lowVolume ? 'text-stone-500' : 'text-stone-900'}`}>
               {q.adjusted}%
               {q.intent && <Tip label={`Scored at half: ${INTENT_WHY[q.intent]}`} width={220}>Scored at half: {INTENT_WHY[q.intent]}. Its match before that: {q.match}%.</Tip>}
             </span>

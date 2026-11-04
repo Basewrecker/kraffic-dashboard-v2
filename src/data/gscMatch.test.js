@@ -137,6 +137,14 @@ test('shared case (mock and app): "best face mist for dry skin" picks a "dry ski
     const a = analyzeRows(c.prompt, c.rows, { suggestedPath: '/new' })
     assert.equal(a.bestQuery?.query, c.best, c.name)
     if (c.publishOn) assert.equal(a.publishOn.path, c.publishOn, `${c.name}: publish on`)
+    if (c.firstRow) {
+      // the whole list (not just the 5 shown): analyzeRows keeps every match in order via matchingQueries; check the shown rows
+      assert.equal(a.queries[0].query, c.firstRow, `${c.name}: the Best is the first row`)
+      const all = a.queries
+      const lastTen = all.map((q) => q.lowVolume).lastIndexOf(false), firstLow = all.findIndex((q) => q.lowVolume)
+      assert.ok(firstLow === -1 || firstLow > lastTen, `${c.name}: 10+ impressions before the under-10 ones`)
+      for (const q of all) assert.equal(q.lowVolume, q.impressions < 10, `${q.query}: lowVolume`)
+    }
     assert.ok(a.bestQuery.query.includes(c.bestIncludes), c.name)
     for (const n of c.never) {
       assert.notEqual(a.bestQuery.query, n)
