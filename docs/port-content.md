@@ -34,7 +34,9 @@ don't port it until the line says approved.
 | 2355b11 | Sentiment keeps one Google engine (the split comes off Sentiment); tone grid: no fill on Positive; 1280 fixes: Visibility history chips (third 'xs' step), Content list KPI label (arrow overlays, icon tile hides in a narrow card) | Owner fixes · port it |
 | c9d33cc | Your data: no draft yet → the five first-visit questions (credentials, locations, fees, reviews, contact, by flag score); a draft's flags replace them; first-visit subline (`userFacts.js` FIRST_VISIT, `questionsFor(…, { drafted })`, `DataStep` `drafted`) | Owner rule (relayed by the app) · mirrors the app |
 | 46ce1f0 | Your data privacy note: "Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team." (`DataStep.jsx`) | Owner wording (relayed by the app) |
-| f63c186 | Search Console: "Search Console for this prompt" on the v1 Target page (best query → publish on → Update this page, other top queries, Your pages, 4 states) and the Content list's Best page column (§12) | Waiting (screenshots: `screenshots/content-gsc/`) |
+| f63c186 | Search Console: "Search Console for this prompt" on the v1 Target page (best query → publish on → Update this page, other top queries, Your pages, 4 states) and the Content list's Best page column (§12) | Approved with fixes · port with the fixes commit |
+| 896422f | Search Console owner fixes: `site` tag (half score, never Best), Google page 1 ladder with no gaps (sample citedPages lists every page-1 result), Your pages without "Not cited" | Owner fixes · port with the Search Console commit |
+| 5a4e1b0 | AI Mode split marker (`?aimode=new`: "Scoring updated <day>" on the score card + Visibility history, AI Overview / All engines only) and accounts without AI Mode (`?aimode=off`: hidden) | Owner rules (mirrors the app) |
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
