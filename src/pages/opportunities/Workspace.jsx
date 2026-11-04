@@ -24,7 +24,7 @@ import { namedSummary, rankGrid } from './workspace/heroData'
 import { missedPrompts } from '../../data/mock'
 import { FACTS, QUESTIONS, UPLOADS, coStates, dataEmpty, NOW, candidatesFor, citedBy, draftFor, enginesCitingPage, genHold, genStepsFor, gscStatus, newPageFor, setDraftState, winningPageFor } from '../../data/contentOpportunities-proposed'
 import { LOADING_LINES, LOADING_SWITCH_MS, RESPONSE_MS, SAMPLE_ROWS, backendFull, competitorName, contentRecommendFor, requestFor } from '../../data/contentRecommend'
-import { SAMPLE_DATA, buildUserFacts, dataKey, fromStored, toStored, userDataSummary } from './data/userFacts'
+import { SAMPLE_DATA, buildUserFacts, dataKey, fromStored, questionsFor, toStored, userDataSummary } from './data/userFacts'
 import { copyPayloads, exportName, liveDataOf, pageOf, readinessOf, storageKey } from './draft/recommend'
 import { download, writeClipboard } from './draft/clipboard'
 import TargetV1 from './workspace/TargetV1'
@@ -119,7 +119,8 @@ function Flow({ row }) {
   }
 
   // Your data. v1: kept in this browser per brand + prompt (data/userFacts.js dataKey: facts, answers, pasted text and the
-  // read files' text, never the files), the questions from this response's flags; ?co=data-sample preloads the fixture.
+  // read files' text, never the files), the questions from the draft's flags, or before any draft the first-visit set
+  // (userFacts FIRST_VISIT); ?co=data-sample preloads the fixture.
   // ?backend=full: the proposal's sample (?co=data-empty: nothing added yet)
   const dataStore = dataKey(CO_BRAND.domain, row.prompt)
   const [data, setData] = useState(() => {
@@ -127,7 +128,7 @@ function Flow({ row }) {
     if (!full) {
       let s = null
       try { s = coStates().has('data-sample') ? SAMPLE_DATA : JSON.parse(window.localStorage.getItem(dataStore) ?? 'null') } catch { /* private mode */ }
-      return fromStored(s, baseRes.flags)
+      return fromStored(s, baseRes.flags, { drafted: start.ready })
     }
     return dataEmpty()
       ? { uploads: [], facts: [], questions: QUESTIONS.map((q) => ({ ...q, answer: '' })), pasted: '', dismissed: [] }
@@ -152,6 +153,14 @@ function Flow({ row }) {
     const written = ds.phase === 'draft' || !!stored.written
     try { window.localStorage.setItem(store, JSON.stringify({ ticked: ds.ticked, copiedAt: ds.copiedAt, savedAt: ds.savedAt, written, sent: written ? sent : null })) } catch { /* private mode */ }
   }, [store, ds.ticked, ds.copiedAt, ds.savedAt, ds.phase, sent]) // eslint-disable-line react-hooks/exhaustive-deps
+  // the first draft arrives: its real flags replace the first-visit questions, answers kept by flag id
+  useEffect(() => {
+    if (full || ds.phase !== 'draft') return
+    setData((d) => {
+      const next = questionsFor(baseRes.flags, d.questions.filter((q) => q.answer.trim()).map((q) => ({ flagId: q.flag ?? q.id, answer: q.answer })))
+      return next.map((q) => q.id).join() === d.questions.map((q) => q.id).join() ? d : { ...d, questions: next }
+    })
+  }, [full, ds.phase, baseRes]) // eslint-disable-line react-hooks/exhaustive-deps
   // keep the progress for this visit (reopening the prompt picks it up; the mock has no store)
   useEffect(() => { PROGRESS.set(row.id, { gsc, current, ready, target, data, dataSkipped, ds, sent }) })
   // the writing starts when step 4 is first reached
@@ -278,7 +287,7 @@ function Flow({ row }) {
       : <TargetV1 res={res} named={named} resolve={resolveAi}
         draft={ds.phase === 'draft' ? { open: review.open, onOpen: openDraft } : null}
         write={current < DATA ? { label: 'Add your data', onClick: advance } : current < DRAFT ? { label: 'Write the draft', onClick: advance } : writing ? { label: 'Resume', onClick: openDraft } : null} />,
-    <div data-step="data"><DataStep data={data} update={updateData} v1={!full} cap={cap} /></div>,
+    <div data-step="data"><DataStep data={data} update={updateData} v1={!full} cap={cap} drafted={start.ready || ds.phase === 'draft'} /></div>,
     <div data-step="draft"><DraftStep res={res} competitors={competitors} session={ds} setSession={setDs} full={full} steps={genSteps} live={liveData} onCopy={copyContent} onCopyHtml={copyHtml} onExport={exportMd} onRecheck={recheck} savedAt={ds.savedAt} resolve={resolveAi} inPanel={focus} /></div>,
     full
       ? <div data-step="publish"><PublishStep row={row} draft={draft ?? { stage: 'waiting', target_url: targetUrl }} onEditDraft={() => { setReady(true); setEditing(DRAFT) }} onApi={setPublishApi} /></div>

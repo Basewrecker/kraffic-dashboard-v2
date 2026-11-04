@@ -68,9 +68,15 @@ export const QUESTION_FOR = {
   contact: { label: 'Public phone or contact page', placeholder: 'e.g. +1 415 555 0142, /contact' },
   trademark: { label: 'Trademark wording', placeholder: 'e.g. which names are registered (®)' },
 }
+// Before the first draft there are no flags yet (the target stage returns none), so a first visit asks a standard set:
+// the draft check's own flag ids, by their flag score, so an answer clears that flag when the draft is written
+// (owner, 2026-11-04). Once a draft exists, its real flags replace them.
+export const FIRST_VISIT = [
+  { id: 'credentials', score: 8 }, { id: 'locations', score: 6 }, { id: 'fees', score: 5 }, { id: 'reviews', score: 5 }, { id: 'contact', score: 4 },
+]
 // flags (the response's, before any userFacts) → [{ id, flag, label, placeholder, answer }], by score as in the rail;
-// answers: [{ flagId, answer }] (kept in this browser)
-export const questionsFor = (flags = [], answers = []) => flags
+// answers: [{ flagId, answer }] (kept in this browser); drafted: false = no draft yet → the first-visit set
+export const questionsFor = (flags = [], answers = [], { drafted = true } = {}) => (drafted ? flags : FIRST_VISIT)
   .filter((fl) => QUESTION_FOR[fl.id])
   .slice().sort((a, b) => b.score - a.score)
   .map((fl) => ({ id: fl.id, flag: fl.id, ...QUESTION_FOR[fl.id], answer: answers.find((a) => a.flagId === fl.id)?.answer ?? '' }))
@@ -86,10 +92,10 @@ export const toStored = ({ uploads = [], facts = [], questions = [], pasted = ''
   pasted,
   documents: uploads.filter((u) => u.status === 'read').map((u) => ({ name: u.name, kind: u.type, bytes: u.bytes, words: u.words, text: u.text.slice(0, CAP + 1) })),
 })
-export const fromStored = (s, flags) => ({
+export const fromStored = (s, flags, { drafted = true } = {}) => ({
   uploads: (s?.documents ?? []).map((d, i) => ({ id: `s${i}`, name: d.name, type: d.kind, bytes: d.bytes, status: 'read', words: d.words, text: d.text })),
   facts: s?.facts ?? [],
-  questions: questionsFor(flags, s?.answers ?? []),
+  questions: questionsFor(flags, s?.answers ?? [], { drafted }),
   pasted: s?.pasted ?? '',
   dismissed: [],
 })

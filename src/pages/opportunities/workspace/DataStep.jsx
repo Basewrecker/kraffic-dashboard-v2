@@ -47,7 +47,8 @@ const SHOW = 4 // suggestions shown before "Show n more"
 let nextId = 100
 
 // v1: the browser reads the files (see above) · cap: buildUserFacts' result ({ over, cut, unused }), v1 only
-export default function DataStep({ data, update, v1 = false, cap = null }) {
+// drafted: a draft exists, so the questions are its flags; before that they're the first-visit set (userFacts FIRST_VISIT)
+export default function DataStep({ data, update, v1 = false, cap = null, drafted = true }) {
   const { uploads, facts, questions, pasted, dismissed = [] } = data
   const [pasting, setPasting] = useState(false)
   const [draftText, setDraftText] = useState(pasted)
@@ -199,7 +200,7 @@ export default function DataStep({ data, update, v1 = false, cap = null }) {
         </Task>
 
         <Task n={3} title={<>Answer what you can<span className="ml-2 text-[15px] font-normal tabular-nums text-stone-500">{answered} of {questions.length}</span></>}
-          why="The draft flagged these. Answers remove the flags." status={answered ? `${answered} answered` : null}>
+          why={drafted ? 'The draft flagged these. Answers remove the flags.' : 'Drafts are often flagged for these. Answers go into the draft.'} status={answered ? `${answered} answered` : null}>
           {questions.length === 0 && <p className="text-[14px] leading-5 text-stone-500">Nothing to answer: the draft check found no missing brand info.</p>}
           <ul>
             {questions.map((q) => {

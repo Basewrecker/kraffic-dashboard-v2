@@ -128,3 +128,17 @@ test('answers clear their flags on every prompt (the proposed rule); Expert revi
   const res = contentRecommendFor(row, { facts: [], answers: [{ flagId: 'fees', answer: 'From $24' }, { flagId: 'expert_review', answer: 'done' }], documentsText: '' })
   assert.deepEqual(res.flags.map((f) => f.id), ['expert_review', 'reviews'])
 })
+
+test('before the first draft: the five first-visit questions by flag score; a draft\'s flags replace them, answers kept', async () => {
+  const { FIRST_VISIT } = await import('./userFacts.js')
+  const first = questionsFor([], [{ flagId: 'locations', answer: 'Manchester' }], { drafted: false })
+  assert.deepEqual(first.map((q) => q.flag), ['credentials', 'locations', 'fees', 'reviews', 'contact'])
+  assert.deepEqual(FIRST_VISIT.map((f) => f.score), [8, 6, 5, 5, 4])
+  assert.equal(first.find((q) => q.flag === 'locations').answer, 'Manchester')
+  assert.ok(first.every((q) => q.label && q.placeholder), 'labels and placeholders from QUESTION_FOR')
+  assert.equal(questionsFor([], [], { drafted: true }).length, 0, 'a draft with no answerable flags asks nothing')
+  const later = questionsFor([{ id: 'fees', score: 5 }, { id: 'locations', score: 6 }], [{ flagId: 'locations', answer: 'Manchester' }])
+  assert.deepEqual(later.map((q) => q.flag), ['locations', 'fees'])
+  assert.equal(later[0].answer, 'Manchester')
+  assert.deepEqual(fromStored(null, [], { drafted: false }).questions.map((q) => q.flag), first.map((q) => q.flag))
+})
