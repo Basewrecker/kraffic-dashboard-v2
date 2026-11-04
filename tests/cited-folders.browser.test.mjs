@@ -32,10 +32,20 @@ test('Cited pages by folder: the card, hover, and the drawer on one folder', asy
     // percentages add up to 100
     const pcts = (await card.locator('[data-folder]').allInnerTexts()).map((t) => Number(/(\d+)%/.exec(t)[1]))
     assert.equal(pcts.reduce((a, b) => a + b, 0), 100)
-    // hover a row: the centre reads that folder
+    // the centre shows ONLY the percentage (owner, 2026-11-04), at rest and on hover; the folder is for screen readers
+    const centre = card.locator('[aria-live="polite"]')
+    const seen = () => centre.evaluate((el) => ({
+      text: [...el.querySelectorAll('*')].filter((n) => !n.closest('.sr-only') && n.childNodes.length).flatMap((n) => [...n.childNodes].filter((c) => c.nodeType === 3).map((c) => c.textContent)).join('').trim(),
+      svg: el.querySelectorAll('svg').length,
+    }))
+    assert.match((await seen()).text, /^\d+%$/, 'at rest: only the %')
+    // hover a row: the centre reads that folder (its % shows; its name is for screen readers)
     await rows.nth(1).hover()
     await page.waitForTimeout(400)
-    assert.match(await card.locator('[aria-live="polite"]').innerText(), /\/products\//)
+    assert.match(await centre.innerText(), /\/products\//)
+    const h = await seen()
+    assert.match(h.text, /^\d+%$/, 'on hover: only the %, no name, count or trend')
+    assert.equal(h.svg, 0, 'no mini trend in the centre')
 
     // click: the drawer on that folder
     await rows.nth(0).click()

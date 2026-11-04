@@ -18,8 +18,10 @@ import { OTHER, folderChange, folderInsight, folderLabel, otherChange, topFolder
 // path segment (utils/citedFolders.js: no query string or #anchor, "/" = Homepage, PDFs together), the top 6 folders
 // and "Other n folders". A donut (200px; Share of voice's palette by rank, solid fills, 2px card-colour gaps), its
 // centre the biggest folder's share, a legend (dot · folder · citations · % · change vs the sync before) and the
-// insight line. Hover a slice or a row: that slice springs out 6px, the others dim to 35%, the row highlights, the
-// centre counts to that folder's share and a 10-week trend fades in under it. Click: the drawer on that folder.
+// insight line. The centre is ONLY the percentage (owner, 2026-11-04: a name, a count and a trend made it cramped;
+// the legend row carries the name and count, the drawer the trend). Hover a slice or a row: that slice springs out
+// 6px, the others dim to 35%, the row highlights, the centre counts to that folder's share (250ms); leaving: back to
+// the biggest folder's. Click: the drawer on that folder.
 const HOVER_DELAY = 60 // ms: sweeping across slices doesn't flicker through each one
 const SIZE = 200, C = 100, R = 92, HOLE = 62, PUSH = 6
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -44,25 +46,7 @@ export function FolderDelta({ d, className = 'text-[12px] leading-4' }) {
   return <span className={`${className} whitespace-nowrap font-medium tabular-nums ${d > 0 ? 'text-[var(--rep-up-fg)]' : 'text-negative'}`}>{d > 0 ? '▲' : '▼'}{Math.abs(d)}</span>
 }
 
-// a folder's 10 weeks as a small line (oldest → newest), in its slice colour
-export function Trend({ values, color, w = 72, h = 18 }) {
-  const v = values.map((x) => x ?? null)
-  const nums = v.filter((x) => x != null)
-  if (nums.length < 2) return null
-  const lo = Math.min(...nums), hi = Math.max(...nums)
-  const y = (x) => (hi === lo ? h / 2 : h - 2 - ((x - lo) / (hi - lo)) * (h - 4))
-  const step = w / (v.length - 1)
-  const pts = v.map((x, i) => (x == null ? null : `${(i * step).toFixed(1)},${y(x).toFixed(1)}`)).filter(Boolean).join(' ')
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden className="overflow-visible">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={(v.length - 1) * step} cy={y(nums.at(-1))} r={2.25} fill={color} />
-    </svg>
-  )
-}
-
-// the card's model, shared with the drawer: the latest sync's folders, the slices (top 6 + Other), whole %, changes,
-// each slice's 10-week trend
+// the card's model, shared with the drawer: the latest sync's folders, the slices (top 6 + Other), whole %, changes
 export function folderModel(domain, engine) {
   const weeks = folderWeeks(domain, engine)
   const now = weeks[0]?.groups ?? null
@@ -73,8 +57,6 @@ export function folderModel(domain, engine) {
   slices.forEach((s, i) => {
     s.pct = pct[i]
     s.change = s.key === OTHER ? otherChange(s, now, prev) : folderChange(s.key, now, prev)
-    const keys = s.key === OTHER ? s.folders : [s.key]
-    s.trend = [...weeks].reverse().map((w) => (w.groups ? w.groups.folders.filter((f) => keys.includes(f.key)).reduce((n, f) => n + f.count, 0) : null))
   })
   return { weeks, now, prev, slices, pct }
 }
@@ -158,16 +140,10 @@ export default function CitedFolders() {
                 )
               })}
             </svg>
-            {/* the centre: the biggest folder, or the hovered one (its share counts there; its trend fades in) */}
+            {/* the centre: only the share of the biggest folder, or of the hovered one (it counts there); the folder's
+                name and count are in its legend row. Screen readers still hear which folder the number is. */}
             <div className="pointer-events-none absolute inset-0 grid place-items-center" aria-live="polite">
-              <div className="flex w-[116px] flex-col items-center text-center @max-[520px]:w-[100px]">
-                <span className="text-[32px] leading-9 font-semibold text-stone-900 tabular-nums">{shownPct ?? '—'}%</span>
-                <span className="mt-0.5 w-full truncate text-[12px] leading-4 text-stone-600" title={shown.label}>{shown.label}</span>
-                <span className="text-[12px] leading-4 text-stone-500 tabular-nums">{shown.count} of {total}</span>
-                <span className={`mt-1 h-[18px] transition-opacity duration-200 ease-out ${hovered ? 'opacity-100' : 'opacity-0'}`}>
-                  {hovered && <Trend values={hovered.trend} color={hovered.color} />}
-                </span>
-              </div>
+              <span className="text-[32px] leading-9 font-semibold text-stone-900 tabular-nums">{shownPct ?? '—'}%<span className="sr-only">, {shown.label}: {shown.count} of {total} citations</span></span>
             </div>
           </div>
 
