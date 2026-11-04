@@ -14,6 +14,22 @@ v1 steps: **Target page → Your data → Draft → Copy & publish** (4 pills; `
 Not in this port: the sidebar density / 232px width / Beta pill restyle / brand-card text, and the brand-menu portal
 fix. Those are separate (develop a5b2318 for the menu; the sidebar is on its own branch).
 
+## 0. Port log (mock develop → app, oldest first)
+After each commit on develop that changes the design, the mock session adds a line here and messages the app session
+with the hash and a one-line summary. Port in this order. "Waiting" = the owner hasn't approved the screenshots yet:
+don't port it until the line says approved.
+
+| Hash | What to port | Status |
+|---|---|---|
+| aa5622b | Opportunities → Content (list + workspace, v1) | Approved · ported |
+| 1b79186 | Sidebar nav density | Approved · ported |
+| a4f95de | No-result state for engine scores | Approved · ported |
+| 5d2e847 | No-result follow-ups (prompt tables, Growth gap, failed scan "—") | Approved · ported |
+| 6a13be7 | Target page: format matrix left (8/12), Update column right (4/12) | Approved · queued |
+| c5a40a4 | Your data in v1 (§3a, §5a, §10) | Approved · queued |
+| 07c6b1f | A written draft reopens after a reload; list shows "Draft ready" (§9) | Owner-requested fix · queued |
+| c731327 | Prompt mix table: the no-result line + ⓘ, no brand tabs, no "won n new prompts" notice | Waiting (screenshots: `screenshots/no-result/prompt-mix-noresult-1440-{light,dark}.png`) |
+
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
   prompt's id; `rm-1` is the mock-only reverse-mortgage sample, don't port it as a route).
