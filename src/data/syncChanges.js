@@ -1,6 +1,7 @@
 // Sync history → "Changes on Sep 28" drawer: the prompts a sync gained / lost for a brand, with which engine
 // changed and what happened instead. Built from the sync row's change lists + the prompt-level appearances table.
 import { ENGINE_ORDER, TRACKED_BRANDS, appearances, engineName, enginePid } from './brandViews.js'
+import { displayName } from '../utils/brand.js'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 // "Sep 28, 2026" ↔ "2026-09-28" (URL) ↔ "sep-28" (/tracker?sync=)
@@ -31,7 +32,7 @@ export function syncChanges(row, domain) {
     const engines = ENGINE_ORDER.filter((e) => ['aio', 'aimode', 'gemini', 'chatgpt'].includes(e))
     const engine = engines[hash(key) % engines.length]
     const instead = rivals.find((b) => appearances[key]?.[b.domain]?.platforms.includes(enginePid(engine))) ?? rivals.find((b) => appearances[key]?.[b.domain]?.visible)
-    return { key, prompt: p.prompt, engine, meta: `Was visible on ${engineName(engine)} · ${instead ? `now ${instead.name} shows instead` : 'now no tracked brand shows'}` }
+    return { key, prompt: p.prompt, engine, meta: `Was visible on ${engineName(engine)} · ${instead ? `now ${displayName(instead)} shows instead` : 'now no tracked brand shows'}` }
   })
   return { lost: build('lost'), gained: build('gained') }
 }

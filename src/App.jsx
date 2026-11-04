@@ -11,7 +11,7 @@ import MarketplacePrompts from './components/dashboard/MarketplacePrompts'
 import { PlatformFilterProvider } from './components/dashboard/PlatformFilter'
 import { VisiblePromptsTable, MissedPromptsTable, CompetitorPromptsTable } from './components/dashboard/PromptTables'
 import SyncHistory from './components/dashboard/SyncHistory'
-import TopCitedPages from './components/dashboard/TopCitedPages'
+import CitedFolders from './components/dashboard/CitedFolders'
 import PromptsPage from './components/prompts/PromptsPage'
 import SetupPage from './components/setup/SetupPage'
 import LlmSettingsPage from './components/llm/LlmSettingsPage'
@@ -36,6 +36,7 @@ import AnswerDrawer from './components/answer/AnswerDrawer'
 import EngineDrawer from './components/answer/EngineDrawer'
 import SyncDrawer from './components/answer/SyncDrawer'
 import CitationsDrawer from './components/answer/CitationsDrawer'
+import FolderDrawer from './components/answer/FolderDrawer'
 import MarketplaceDrawer from './components/answer/MarketplaceDrawer'
 import { AppLoading, PageError, PageLoading, PageNotFound } from './components/ui/PageState'
 import { CardGate } from './components/ui/CardState'
@@ -68,12 +69,13 @@ function DashboardPage() {
           {account.features.ecommerce && <div className="max-lg:order-5"><CardGate card="marketplacePrompts" height="h-[987px] lg:h-[649px]" label="Loading marketplace prompts"><MarketplacePrompts /></CardGate></div>}
           <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-2 max-lg:order-1">
             <CardGate card="syncHistory" height="h-[367px] lg:h-[415px]" label="Loading sync history"><SyncHistory /></CardGate>
-            <CardGate card="citedPages" height="h-[407px] lg:h-[415px]" label="Loading top cited pages"><TopCitedPages /></CardGate>
+            <CardGate card="citedPages" height="h-[407px] lg:h-[415px]" label="Loading cited pages by folder"><CitedFolders /></CardGate>
           </div>
           <AnswerDrawer />
           <EngineDrawer />
           <SyncDrawer />
           <CitationsDrawer />
+          <FolderDrawer />
           <MarketplaceDrawer />
           </PlatformFilterProvider>
           </DashboardViewProvider>

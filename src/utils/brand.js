@@ -73,7 +73,12 @@ export function brandListName(stored, domain) {
   return tidy || resolveBrandName(names, host)
 }
 
-// ---- the product's own name (ported from the app's lib/brand-icon.js, 2026-11-04) ---------------------------------
+// a tracked brand's name as the UI shows it: Brand Setup's / competitor settings' name, never a domain or a slug of it
+// ({ name: 'Longbridge-financial', domain: 'longbridge-financial.com' } → "Longbridge Financial"). Every place that names
+// a competitor (the Mentions and citations drawer's Compare with, its tooltip and CSV, "now X shows instead") uses this.
+export const displayName = (brand) => (brand ? brandListName([brand.name], brand.domain) : '')
+
+// ---- the product's own name (ported from the app's lib/brand-icon.js, 2026-11-04)---------------------------------
 // A white-label workspace (a host brand whose slug isn't "kraffic") is sold under its own name; Kraffic stays Kraffic.
 // UI copy that needs the product's name reads it from here, never a hard-coded "Kraffic".
 export const isWhiteLabel = (host) => Boolean(host?.slug && host.slug !== 'kraffic')
