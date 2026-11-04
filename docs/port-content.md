@@ -30,7 +30,7 @@ fix. Those are separate (develop a5b2318 for the menu; the sidebar is on its own
 | `src/pages/opportunities/Workspace.jsx` | the workspace: header, payoff bar, steps, focus mode, draft session state |
 | `src/pages/opportunities/workspace/PayoffBar.jsx` | the bar under the header (pills, reward headline, named engines, primary button) |
 | `src/pages/opportunities/workspace/ActionDock.jsx` | the dark dock when the bar scrolls away |
-| `src/pages/opportunities/workspace/TargetV1.jsx` | step 1 "Target page" (v1): rank ladder, format matrix, recommendation column, draft preview |
+| `src/pages/opportunities/workspace/TargetV1.jsx` | step 1 "Target page" (v1): rank ladder on top; below it the format matrix LEFT (8/12) and the Update column RIGHT (4/12: path, Open page, missing formats, "The draft adds", draft preview), divider between; below 1100px they stack, matrix first |
 | `src/pages/opportunities/workspace/FocusPanel.jsx` | the centred dialog (Draft and Copy & publish happen inside it) |
 | `src/pages/opportunities/workspace/PanelHeader.jsx` | the panel's sticky header |
 | `src/pages/opportunities/workspace/CopyPublish.jsx` | step 3 "Copy & publish" (v1) |

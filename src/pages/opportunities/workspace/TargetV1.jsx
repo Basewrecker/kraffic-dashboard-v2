@@ -7,7 +7,7 @@
 //      the row (never over its neighbours) with the domain, the title, the formats and the engines by name.
 //   2. "What the winners have that you don't": a format matrix. Rows (52px): the route's winning pages
 //      (pageRecommendation.evidence) with "Cited by" (their engines' icons), then "Your page" under a stronger rule
-//      (the engines that name you now, or "None yet"). Format columns 120px, centred, "3 of 5" under each header.
+//      (the engines that name you now, or "None yet"). Format columns up to 120px (76px when space is tight), centred, "3 of 5" under each header.
 //      Cells: ink dot = has it, faint ring = doesn't; your page: green tick = you have it, red dashed ring = missing.
 //   Left of the matrix (top-aligned with its header): Update / Create · the path (18/600) · Open page ↗ · "Missing 2
 //   formats the winners use" (+ the route's reason, muted) · "The draft adds" rows (format, winners, score; only the
@@ -64,9 +64,12 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
   return (
     <div className="flex flex-col gap-8">
       <Ladder ladder={ladder} eng={eng} host={host} setHost={setHost} />
-      <div className="grid grid-cols-1 gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:items-start">
-        {/* the recommendation, compact, top-aligned with the matrix's header; the draft (or Write the draft) under its rows */}
-        <section aria-labelledby="co-target-h" className="lg:border-r lg:border-line lg:pr-10">
+      {/* the format matrix left (8/12), the Update column right (4/12), owner 2026-11-04; stacked below 1100px, matrix first */}
+      <div className="grid grid-cols-1 gap-x-10 gap-y-8 min-[1100px]:grid-cols-[minmax(0,8fr)_minmax(0,4fr)] min-[1100px]:items-start">
+        <Matrix m={m} path={page.path} eng={eng} named={named} host={host} setHost={setHost} col={col} hoverCol={hoverCol} pulse={pulse} yourEnd={yourEnd} after={after.show ? after.cells : null} />
+        {/* right (≥1100px): the recommendation, compact, top-aligned with the matrix's header; the draft (or Write the draft)
+            under its rows; ends where its content ends. Below 1100px it stacks under the matrix. */}
+        <section aria-labelledby="co-target-h" className="min-[1100px]:border-l min-[1100px]:border-line min-[1100px]:pl-10">
           <p id="co-target-h" className="text-[13px] leading-[18px] font-semibold text-stone-500">{page.action === 'update' ? 'Update' : 'Create'}</p>
           <p className="mt-0.5 break-all text-[18px] leading-[26px] font-semibold text-stone-900">{page.path}</p>
           {page.action === 'update' && page.href && (
@@ -97,7 +100,6 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
           {draft ? <DraftPreview p={draftPreview(res.contentMarkdown)} open={draft.open} onOpen={draft.onOpen} />
             : write && <button type="button" onClick={write.onClick} className={`${lineBtn} mt-4`}>{write.label}<ArrowRight size={14} aria-hidden /></button>}
         </section>
-        <Matrix m={m} path={page.path} eng={eng} named={named} host={host} setHost={setHost} col={col} hoverCol={hoverCol} pulse={pulse} yourEnd={yourEnd} after={after.show ? after.cells : null} />
       </div>
     </div>
   )
@@ -182,7 +184,8 @@ function Slot({ page, e, ours = false, i, host, setHost }) {
 
 // ---- 2. the format matrix -------------------------------------------------------------------------------------
 function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, yourEnd, after }) {
-  const cols = `minmax(0,1fr) 84px repeat(${m.columns.length}, 120px)`
+  // the page column keeps room for its names (168px+); format columns give way first (120px, down to 76px)
+  const cols = `minmax(168px,1fr) 84px repeat(${m.columns.length}, minmax(76px,120px))`
   const tint = (id) => (col === id ? 'bg-tint' : '')
   const sweep = (c) => anim('co-sweep', T.sweep + c * T.col, 420, 'ease-out')
   return (
