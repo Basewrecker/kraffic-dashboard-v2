@@ -1,0 +1,78 @@
+// Run with: npm test. The Search Console match sample (data/gscMatch.js): the app's lib/gsc-match.js shapes and rules.
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { missedPrompts } from './mock.js'
+import { RM_ROW } from './contentRecommendRm.js'
+import { BEST_MIN_IMPRESSIONS, CREATE_BELOW, analyzeRows, bestPageFor, gscMatchFor, intentOf, matchOf } from './gscMatch.js'
+
+const ROW = (keyword, impressions, url = 'https://ex.com/a/', position = 10) => ({ keyword, impressions, clicks: Math.round(impressions / 50), position, url })
+
+test('the route response has the app\'s fields and units', () => {
+  const r = gscMatchFor(missedPrompts[1], { state: 'connected' })
+  for (const k of ['connected', 'siteUrl', 'range', 'fetchedAt', 'lagNote', 'cached', 'totals', 'weeks', 'prompt', 'terms', 'queries', 'matchingQueries', 'bestQuery', 'publishOn', 'topQueryPages', 'pages']) assert.ok(k in r, k)
+  assert.equal(r.lagNote, 'Search Console data is about 2 days behind.')
+  for (const q of r.queries) {
+    assert.ok(Number.isInteger(q.match) && q.match >= 0 && q.match <= 100)
+    assert.ok(Number.isInteger(q.adjusted))
+    assert.ok(q.topPage.share > 0 && q.topPage.share <= 1)
+    assert.ok([null, 'account', 'local'].includes(q.intent))
+  }
+  for (const p of r.pages) assert.ok(Number.isInteger(p.score) && p.score <= 100 && typeof p.position === 'number')
+  assert.ok(r.queries.length <= 5)
+})
+
+test('intent: account and local queries are tagged and scored at half', () => {
+  assert.equal(intentOf('my dermasuri serum order'), 'account')
+  assert.equal(intentOf('reverse mortgage statement login'), 'account')
+  assert.equal(intentOf('serum near me'), 'local')
+  assert.equal(intentOf('dermatologist houston'), 'local')
+  assert.equal(intentOf('best niacinamide serum'), null)
+  const a = analyzeRows('niacinamide serum dry skin', [ROW('niacinamide serum near me', 300)], { suggestedPath: '/x' })
+  assert.equal(a.queries[0].adjusted, Math.round(a.queries[0].match * 0.5))
+})
+
+test('best query: the highest adjusted × log10(impressions + 1), only with ≥ 10 impressions', () => {
+  const a = analyzeRows('niacinamide serum dry skin', [
+    ROW('niacinamide serum dry skin routine', 9), // a full match, but too few impressions to be best
+    ROW('niacinamide serum', 900, 'https://ex.com/b/'),
+    ROW('niacinamide', 2000, 'https://ex.com/c/'),
+  ], { suggestedPath: '/x' })
+  assert.ok(a.bestQuery.impressions >= BEST_MIN_IMPRESSIONS)
+  const score = (q) => q.adjusted * Math.log10(q.impressions + 1)
+  for (const q of a.queries.filter((x) => x.impressions >= BEST_MIN_IMPRESSIONS)) assert.ok(score(a.bestQuery) >= score(q))
+  assert.equal(a.queries.filter((q) => q.best).length, 1)
+})
+
+test('publish on: update the best query\'s page; create (with the suggested path) when the best match is under 30', () => {
+  const up = analyzeRows('niacinamide serum dry skin', [ROW('niacinamide serum dry skin', 500, 'https://ex.com/serum/'), ROW('niacinamide serum for dry skin reviews', 200, 'https://ex.com/serum/')], { suggestedPath: '/new' })
+  assert.equal(up.publishOn.action, 'update')
+  assert.equal(up.publishOn.path, '/serum')
+  assert.equal(up.publishOn.reason, 'several-queries')
+  const create = analyzeRows('niacinamide serum dry skin', [ROW('gift cards', 900), ROW('niacinamide tips', 40)], { suggestedPath: '/new' })
+  assert.ok(!create.bestQuery || create.bestQuery.adjusted < CREATE_BELOW)
+  assert.deepEqual(create.publishOn, { action: 'create', suggestedPath: '/new' })
+})
+
+test('the sample list: some prompts create a new page, some show account / local queries, the rest update', () => {
+  const all = missedPrompts.map((r) => gscMatchFor(r, { state: 'connected' }))
+  assert.ok(all.some((a) => a.publishOn.action === 'create'))
+  assert.ok(all.some((a) => a.publishOn.action === 'update'))
+  assert.ok(all.some((a) => a.queries.some((q) => q.intent === 'account')))
+  assert.ok(all.some((a) => a.queries.some((q) => q.intent === 'local')))
+  assert.equal(matchOf('kojic acid soap benefits', 'kojic acid soap benefits'), 100)
+})
+
+test('rm-1: the app\'s sample chain on the account\'s made-up domain; bestPageFor; the states', () => {
+  const r = gscMatchFor(RM_ROW, { state: 'connected' })
+  assert.equal(r.bestQuery.query, 'reverse mortgage line of credit')
+  assert.equal(r.publishOn.path, '/learn/reverse-mortgage-line-of-credit')
+  assert.match(r.siteUrl, /harborlinehome\.com/)
+  assert.ok(!JSON.stringify(r).includes('example-lender'))
+  assert.deepEqual(bestPageFor(RM_ROW, { state: 'connected' }), { prompt: RM_ROW.prompt, action: 'update', path: '/learn/reverse-mortgage-line-of-credit', url: r.publishOn.url, match: 60, query: 'reverse mortgage line of credit' })
+  assert.deepEqual(gscMatchFor(RM_ROW, { state: 'new' }), { connected: false })
+  assert.equal(gscMatchFor(RM_ROW, { state: 'reconnect' }).reason, 'reconnect')
+  assert.equal(gscMatchFor(RM_ROW, { state: 'no-domain' }).reason, 'no-domain')
+  const none = gscMatchFor(RM_ROW, { state: 'no-data' })
+  assert.equal(none.connected, true); assert.equal(none.bestQuery, null); assert.equal(none.publishOn.action, 'create')
+  assert.equal(bestPageFor(RM_ROW, { state: 'new' }), null)
+})

@@ -31,6 +31,7 @@ import { LogoPlate, withResults } from '../parts'
 import { afterRow, draftPlan, draftPreview, enginesOf, formatMatrix, pageOf, rankLadder } from '../draft/recommend'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { RingDraw, TickDraw } from './ui'
+import SearchMatch from './SearchMatch'
 
 const H = 'text-[18px] leading-[26px] font-semibold text-stone-900'
 const HEAD = 'flex items-end justify-between gap-3 border-b border-line-strong pb-2'
@@ -44,9 +45,12 @@ const anim = (name, delay, ms = 260, easing = 'cubic-bezier(.2,.8,.2,1)') => (re
 
 // resolve: the 'ai' tag's engines for a host (from the prompt's answers) · named: the engines that name the brand now ·
 // draft: null (no draft yet) | { open: unticked flags, onOpen: opens the Draft step in focus } · write: the payoff bar's
-// action for the no-draft state ({ label, onClick }), null to leave the button out
-export default function TargetV1({ res, resolve, named = [], draft = null, write = null }) {
-  const page = pageOf(res.pageRecommendation)
+// action for the no-draft state ({ label, onClick }), null to leave the button out · sc: Search Console
+// ({ gsc, domain, connecting, onConnect, pick, onPick }; SearchMatch), null to leave the section out. sc.pick (a page
+// chosen there) replaces the route's page in the Update column, with a way back to the suggested one.
+export default function TargetV1({ res, resolve, named = [], draft = null, write = null, sc = null }) {
+  const suggested = pageOf(res.pageRecommendation)
+  const page = sc?.pick ? { ...suggested, action: sc.pick.action, path: sc.pick.path, href: sc.pick.url ?? null, reason: suggested.reason } : suggested
   const ladder = rankLadder(res.citedPages)
   const m = formatMatrix(res)
   const [host, setHost] = useState(null) // linked hover: a page
@@ -64,6 +68,10 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
   return (
     <div className="flex flex-col gap-8">
       <Ladder ladder={ladder} eng={eng} host={host} setHost={setHost} />
+      {sc && <SearchMatch {...sc} enginesFor={(path) => {
+        const c = res.citedPages.find((x) => { try { return new URL(x.url).pathname.replace(/\/$/, '') === path } catch { return false } })
+        return c ? eng(c) : { engines: [], unknown: false }
+      }} />}
       {/* the format matrix left (8/12), the Update column right (4/12), owner 2026-11-04; stacked below 1100px, matrix first */}
       <div className="grid grid-cols-1 gap-x-10 gap-y-8 min-[1100px]:grid-cols-[minmax(0,8fr)_minmax(0,4fr)] min-[1100px]:items-start">
         <Matrix m={m} path={page.path} eng={eng} named={named} host={host} setHost={setHost} col={col} hoverCol={hoverCol} pulse={pulse} yourEnd={yourEnd} after={after.show ? after.cells : null} />
@@ -72,6 +80,11 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
         <section aria-labelledby="co-target-h" className="min-[1100px]:border-l min-[1100px]:border-line min-[1100px]:pl-10">
           <p id="co-target-h" className="text-[13px] leading-[18px] font-semibold text-stone-500">{page.action === 'update' ? 'Update' : 'Create'}</p>
           <p className="mt-0.5 break-all text-[18px] leading-[26px] font-semibold text-stone-900">{page.path}</p>
+          {sc?.pick && (
+            <p className={`mt-0.5 ${META}`} data-sc-pick>
+              From Search Console · <button type="button" onClick={() => sc.onPick(null)} className="rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Use the suggested page</button>
+            </p>
+          )}
           {page.action === 'update' && page.href && (
             <a href={page.href} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 rounded text-[14px] font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">
               Open page<ArrowUpRight size={14} aria-hidden />

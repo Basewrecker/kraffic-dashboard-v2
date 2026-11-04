@@ -11,8 +11,10 @@ import { missedPrompts } from '../../data/mock'
 import { CO_BRAND } from '../../data/contentOpportunities'
 import { draftFor } from '../../data/contentOpportunities-proposed'
 import { productName } from '../../store/workspace'
-import { goTo, promptVT, workspacePath } from './parts'
+import { MidText, goTo, promptVT, workspacePath } from './parts'
 import { storageKey } from './draft/recommend'
+import { bestPageFor, gscMatchState } from '../../data/gscMatch'
+import { Tip } from './workspace/SearchMatch'
 import KpiCards from './list/KpiCards'
 import RowTip from './list/RowTip'
 import StatusCell, { STATUS_WIDTH } from './list/StatusCell'
@@ -88,6 +90,32 @@ export default function ContentList() {
     csv: (r) => statusText(byId.get(r.id) ?? r),
     cell: (r) => <StatusCell row={byId.get(r.id) ?? r} onOpen={open} />,
   }
+  // Best page (Search Console, the app's bestPageFor): the page to publish on and its match, or "New page"; hover /
+  // focus: the full URL and its best query. Not connected: "—", the header's ⓘ says where to connect.
+  const scOn = gscMatchState() === 'connected' || gscMatchState() === 'no-data'
+  const bestPageColumn = {
+    key: 'bestPage',
+    label: scOn ? 'Best page' : <span className="inline-flex items-center gap-0.5">Best page<Tip label="Connect Search Console" align="left" width={220}>Connect Search Console in a prompt’s Target page to see its best page.</Tip></span>,
+    mobile: false,
+    width: 248,
+    skeleton: '120px',
+    csv: scOn ? (r) => { const b = bestPageFor(r); return b ? (b.action === 'update' ? `${b.path} (${b.match}%)` : 'New page') : '' } : false,
+    cell: (r) => {
+      const b = scOn ? bestPageFor(r) : null
+      if (!b) return <span className="text-small text-stone-400">—</span>
+      if (b.action === 'create') return <span className="text-small text-stone-500" title={`No page matches well enough: a new page at ${b.suggestedPath}`}>New page</span>
+      return (
+        <span className="group/bp relative flex min-w-0 items-center gap-1.5 text-small" tabIndex={0} aria-label={`${b.url}, best query “${b.query}”, ${b.match}% match`}>
+          <MidText text={b.path} tip={false} className="text-stone-700" />
+          <span className="shrink-0 tabular-nums text-stone-500">{b.match}%</span>
+          <span role="tooltip" className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-[280px] rounded-md border border-line bg-raised px-3 py-2 text-[12px] leading-4 text-stone-700 opacity-0 shadow-md transition-opacity duration-150 group-hover/bp:opacity-100 group-focus/bp:opacity-100">
+            <span className="block break-all font-medium text-stone-900">{b.url}</span>
+            <span className="mt-1 block">Best query “{b.query}” · {b.match}% match</span>
+          </span>
+        </span>
+      )
+    },
+  }
   const bulkExtra = (rows, clear) => {
     const todo = rows.filter((r) => (byId.get(r.id)?.stage ?? 'none') === 'none')
     if (!todo.length) return null
@@ -102,7 +130,7 @@ export default function ContentList() {
       </div>
       <KpiCards rows={all} value={tab} onChange={setTab} />
       <div ref={box} className="min-w-0 scroll-mt-4" aria-label={`Missed prompts for ${CO_BRAND.name}`}>
-        <MissedPrompts statusColumn={statusColumn} onOpen={open} bulkExtra={bulkExtra} rowFilter={rowFilter} onRowHover={onRowHover} promptStyle={(r) => promptVT(r.id)} bulkOnly />
+        <MissedPrompts statusColumn={statusColumn} extraColumns={[bestPageColumn]} omit={["missedBy"]} onOpen={open} bulkExtra={bulkExtra} rowFilter={rowFilter} onRowHover={onRowHover} promptStyle={(r) => promptVT(r.id)} bulkOnly />
       </div>
       <RowTip tip={tip} />
     </>

@@ -65,8 +65,9 @@ const csvColumns = [
 //   statusColumn: a column that replaces Status · onOpen(row): a row click opens this instead of the sheet ·
 //   bulkExtra(rows, clear): an extra bulk action, first in the bulk bar · rowFilter(row): keep only these rows ·
 //   onRowHover(row | null, element) · promptStyle(row): a style for the prompt text (Content: its view-transition-name) ·
-//   bulkOnly: the bulk bar is just the count, bulkExtra and Clear, sliding up from the table's bottom
-export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilter, onRowHover, promptStyle, bulkOnly = false } = {}) {
+//   bulkOnly: the bulk bar is just the count, bulkExtra and Clear, sliding up from the table's bottom ·
+//   extraColumns: columns placed before Status (Content: Best page) · omit: column keys to leave out (Content: missedBy)
+export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilter, onRowHover, promptStyle, bulkOnly = false, extraColumns = [], omit = [] } = {}) {
   const [statuses, setStatuses] = useState(() => Object.fromEntries(missedPrompts.map((r) => [r.id, r.status])))
   const [topic, setTopic] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
@@ -154,6 +155,7 @@ export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilt
       skeleton: '56px',
       cell: (r) => <LogoStack domains={alsoMissing(`m${r.id}`, r.competitors)} />,
     },
+    ...extraColumns,
     statusColumn ?? {
       key: 'status',
       label: 'Status',
@@ -165,6 +167,7 @@ export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilt
       cell: (r) => <StatusControl status={r.status} onChange={(s) => setStatus([r.id], s)} onCreate={() => openBrief([r])} />,
     },
   ]
+  const shownColumns = columns.filter((c) => !omit.includes(c.key))
 
   const chip = (active) =>
     `inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-small font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
@@ -214,7 +217,7 @@ export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilt
         subtitle={`Prompts where ${account.name} doesn't appear yet`}
         count={missedPrompts.length}
         rows={rows}
-        columns={columns}
+        columns={shownColumns}
         csvName="missed-prompts.csv"
         loading={loading}
         sort={sort}

@@ -33,6 +33,7 @@ don't port it until the line says approved.
 | 27a649c | Sentiment: the dot plot becomes a 2×2 tone grid (Neutral · Positive / Negative · Mixed), "+n more" past two rows, engine badges when split; `SentimentPage.jsx` Spectrum + `utils/spectrum.js` quadrantPack | Waiting (screenshots: `screenshots/sentiment-grid/`) |
 | c9d33cc | Your data: no draft yet → the five first-visit questions (credentials, locations, fees, reviews, contact, by flag score); a draft's flags replace them; first-visit subline (`userFacts.js` FIRST_VISIT, `questionsFor(…, { drafted })`, `DataStep` `drafted`) | Owner rule (relayed by the app) · mirrors the app |
 | 46ce1f0 | Your data privacy note: "Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team." (`DataStep.jsx`) | Owner wording (relayed by the app) |
+| (pending) | Search Console: "Search Console for this prompt" on the v1 Target page (best query → publish on → Update this page, other top queries, Your pages, 4 states) and the Content list's Best page column (§12) | Waiting (screenshots: `screenshots/content-gsc/`) |
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
@@ -369,3 +370,40 @@ Five engines: Google AI Overview, Google AI Mode, Gemini, ChatGPT, Claude (Grok 
 - **Content:** proposed backend value `citedPages[].engines` `'aimode'` (§3 / recommend.js R20).
 - **Sync:** AI Mode is its own engine (1 call per prompt); sync-mode descriptions name both Google engines (wording
   changed from the app's).
+
+## 12. Search Console match (v1, 2026-11-04)
+The app's `GET …/gsc-match` (lib/gsc-match.js `analyzePrompt` + the route's states) and `bestPageFor`, mirrored in
+`src/data/gscMatch.js` (sample data only: the skincare list is derived from the mock's own sample queries; rm-1 uses
+the app's invented-lender sample renamed to the made-up harborlinehome.com; never client Search Console data). Units
+as the app's: match / adjusted / score 0–100 integers, share 0–1, position a float, intent 'account' | 'local' | null
+(×0.5), best = highest adjusted × log10(impr + 1) with ≥ 10 impressions, create when the best adjusted < 30.
+
+**Target page** (`workspace/SearchMatch.jsx`, rendered by `TargetV1` between the ladder and the matrix / Update grid;
+same header style; meta "Last 8 weeks · {range.startDate} – {range.endDate}" + ⓘ `lagNote` + "Totals run slightly
+low: Google hides rare queries."):
+| Element | Reads |
+|---|---|
+| Best query (or "Closest query" when creating) · "60% match · 1,220 impressions · position 19.5" | `bestQuery.query / adjusted / impressions / position` |
+| Publish on · path · "Gets 80% of that query’s impressions · 3 of the top queries land here" | `publishOn.path`, `publishOn.share`, count of `queries[].topPage.path === publishOn.path` (shown when ≥ 2; `reason: 'several-queries'`) |
+| "Few searches so far…" | `publishOn.lowVolume` |
+| Create a new page · suggested path · "No query matches this prompt well enough yet (best 22%)" | `publishOn.action === 'create'`, `suggestedPath`, `bestQuery.adjusted` (no bestQuery → "None of your pages gets impressions…") |
+| Update this page / Create this page → "Using this page" | sets the workspace's `scPick` (below) |
+| Other top queries: query (account / local: muted + tag, ⓘ "Scored at half…"), Match, Impr., Clicks, Pos., Page | `queries[]` without `best`, first 4: `adjusted`, `match`, `intent`, `impressions`, `clicks`, `position`, `topPage.path` |
+| Your pages: path · "Best match" (only the publishOn page) · Match {score}% + ⓘ its matching queries · engines that cite it (else the "AI" mark when `cited`, else "Not cited") · impressions bar + number | `pages[]` (by score, first 5): `path`, `score`, `cited`, `impressions`; engines from content-recommend `citedPages` with that path |
+
+**States** (`?co=` previews): `gsc-new` → "Connect Search Console to rank your pages by real search traffic." + Connect
+(`{ connected: false }`); `gsc-reconnect` → "Search Console needs reconnecting…" + Reconnect (`reason: 'reconnect'`);
+`gsc-nodomain` → "Search Console has no property for {domain}…" (`reason: 'no-domain'`); `gsc-nodata` → "Connected. No
+search data for this prompt’s queries yet." + the suggested new page (connected, `queries: []`). The ladder and the
+matrix render in every state. In the mock, Connect / Reconnect flips to connected after 900ms.
+
+**The override:** `scPick` (`{ action, path, url }` | null) lives in Workspace (kept for the visit). It replaces the
+route's page everywhere the workspace shows "the page" (Update column, payoff bar line, Copy & publish's "Paste it
+into…"); the Update column says "From Search Console · Use the suggested page" (back to null). The app should send the
+picked page with the draft request if the route accepts a target; today the route picks its own, so tell Harsh.
+
+**Content list "Best page"** (`ContentList.jsx` column via `MissedPrompts` `extraColumns`, 248px): the path
+(middle-truncated) + match %, or "New page" (muted) when `action === 'create'`; hover / focus: the full URL and
+"Best query “…” · 72% match". Not connected → "—" and the header ⓘ "Connect Search Console in a prompt’s Target page…".
+To keep the prompt readable at 1280 the Content list drops "Missed by" (`omit={['missedBy']}`); the Overview keeps it.
+Tests: `src/data/gscMatch.test.js`, `tests/search-match.browser.test.mjs`.
