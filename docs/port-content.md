@@ -405,12 +405,39 @@ low: Google hides rare queries."):
 search data for this prompt’s queries yet." + the suggested new page (connected, `queries: []`). The ladder and the
 matrix render in every state. In the mock, Connect / Reconnect flips to connected after 900ms.
 
-**The override:** `scPick` (`{ action, path, url }` | null) lives in Workspace (kept for the visit). It replaces the
-route's page everywhere the workspace shows "the page" (Update column, payoff bar line, Copy & publish's "Paste it
-into…"); the Update column says "From Search Console · Use the suggested page" (back to null). The app should send the
-picked page with the draft request: content-recommend takes optional `targetUrl` + `targetAction` ('update' default |
-'create'), validated to the brand's own domain, never the homepage, and it replaces the route's own page on the draft
-(done in the app, feat/content-page 22b3a36). The mock's `requestFor(row, userFacts, pick)` sends them when picked.
+**ONE target page (owner, 2026-11-04; the earlier `scPick`-only override is replaced):** Workspace derives `page` once:
+the user's pick (`scPick`: a Your pages row, or Create this page in the no-data state) ?? Search Console's Publish on
+(connected, with data: `publishOn` update path / create suggestedPath) ?? content-recommend's `pageRecommendation`
+(not connected, skipped, no data). `page.source` = 'pick' | 'sc' | 'route'. That one value is the Update column (with
+"From Search Console", or "Your pick · Use the suggested page" back to Search Console's), the payoff bar line, the
+matrix's "Your page", Copy & publish's "Paste it into…" (`CopyPublish` now takes `page`; it used to re-derive the
+route's page, which was the bug) and the draft request's `targetUrl` + `targetAction` (sent whenever the page isn't the
+route's own; content-recommend takes them since the app's 22b3a36). In the chain, Publish on reads "Using this page"
+while it's the target; after a Your pages pick its button says "Update this page" and takes it back. Your pages is one
+radio group (`role="radio"`, the selected row tinted with an ink ring); picking Search Console's own page = no pick.
+
+**Ask for access (owner, 2026-11-04):** the brand's connection is shared by the list and every prompt
+(`gscMatch.js` `brandScState` / `setBrandScState`: 'connected' | 'new' never asked | 'skipped' | the route states;
+in memory per brand for the visit in the mock, so the `?co=` previews always open in their state; the app keeps the
+real connection server-side). Never connected (`?co=gsc-new`): the Target page opens with the Connect step FIRST, above
+the Google page-1 ladder (`SearchMatch.jsx` `ConnectSearchConsole`): the plain Google G, "Connect Google Search
+Console", "Read-only. We use it to find which of your pages already gets search traffic for this prompt, so the content
+goes on the right page.", a primary "Connect Search Console" (a spinner + "Connecting…" during the OAuth round trip;
+900ms in the mock) and the text link "Skip, we’ll suggest a page". Success: the step goes and the Search Console section
+animates in (`card-in`, 360ms; none under reduced motion). Skipped: the route's page stands and a slim row "Connect
+Search Console for a better match · Connect" sits where the step was (`SkippedRow`). Connected: a chip by the section
+title "✓ Connected · <brand domain> · Change"; Change reopens the connect step (where the app would offer another
+Search Console property). Reconnect / no-domain / no-data keep their rows inside the section. Content list: when not
+connected (never asked or skipped), a one-line banner over the KPI cards "Connect Search Console to find the best page
+for every prompt · Connect" (Connect → the same round trip; the Best page column fills in).
+
+**Intent fit (PROPOSED rule, to confirm with the owner):** each prompt and query reads as a question / how-to, a
+comparison (best, top, vs, review) or a shopping search (price, buy, deal, sale, coupon, near me, a store)
+(`searchKind`). A query whose kind clashes with the prompt's (question prompt vs shopping query; comparison prompt vs
+how-to query) gets `intentFit: false` and ×0.7 (`MISFIT`); Best is chosen first among well-matched (≥ 30) queries of
+the prompt's own kind, then among queries that fit, and only if none fits, among the rest. The sample gives each
+question / comparison prompt a query of its own kind ("does X cause breakouts", "how to use X", "best X", "X
+reviews"), so every such prompt's best query follows its intent. `intentFit` is a PROPOSED field on each query.
 
 **Content list "Best page"** (`ContentList.jsx` column via `MissedPrompts` `extraColumns`, 248px): the path
 (middle-truncated) + match %, or "New page" (muted) when `action === 'create'`; hover / focus: the full URL and

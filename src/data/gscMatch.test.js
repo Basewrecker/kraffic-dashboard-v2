@@ -92,3 +92,31 @@ test('site queries (a forum, a store, a competitor by name or domain): tagged "s
   assert.equal(a.bestQuery.query, 'face mist for dry skin', 'the busier site query is never Best')
   assert.equal(a.publishOn.path, '/products/face-mist', 'and never decides where to publish')
 })
+
+test('the best query follows the prompt\'s intent (PROPOSED rule): a clashing kind is ×0.7 and never Best while one that fits exists', async () => {
+  const { MISFIT, intentFits, searchKind } = await import('./gscMatch.js')
+  assert.equal(searchKind('how to use tinted sunscreen in a routine'), 'question')
+  assert.equal(searchKind('best face mist for dry skin'), 'compare')
+  assert.equal(searchKind('tinted sunscreen price'), 'shop')
+  assert.equal(intentFits('how to use tinted sunscreen in a routine', 'tinted sunscreen deal'), false)
+  assert.equal(intentFits('best face mist for dry skin', 'how to apply face mist'), false)
+  assert.equal(intentFits('best face mist for dry skin', 'face mist'), true)
+  // a question prompt: the busy shopping query clashes, scored ×0.7, and the how-to query is Best
+  const a = analyzeRows('how to use tinted sunscreen in a routine', [
+    ROW('buy tinted sunscreen deal', 9000, 'https://ex.com/products/tinted/'),
+    ROW('how to use tinted sunscreen', 300, 'https://ex.com/blog/tinted-routine/'),
+    ROW('tinted sunscreen', 4000, 'https://ex.com/products/tinted/'),
+  ], { suggestedPath: '/x' })
+  const shop = a.queries.find((q) => q.query === 'buy tinted sunscreen deal')
+  assert.equal(shop.intentFit, false)
+  assert.equal(shop.adjusted, Math.round(shop.match * MISFIT))
+  assert.equal(a.bestQuery.query, 'how to use tinted sunscreen', 'the prompt\'s own kind wins when it matches well')
+  assert.equal(a.publishOn.path, '/blog/tinted-routine')
+  // the sample: every question / comparison prompt with a page to update has a best query of its own kind
+  for (const r of missedPrompts) {
+    const g = gscMatchFor(r, { state: 'connected' })
+    const kind = searchKind(r.prompt)
+    if (!kind || g.publishOn.action !== 'update') continue
+    assert.equal(searchKind(g.bestQuery.query), kind, `${r.prompt} → ${g.bestQuery.query}`)
+  }
+})

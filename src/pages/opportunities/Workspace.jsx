@@ -28,7 +28,7 @@ import { SAMPLE_DATA, buildUserFacts, dataKey, fromStored, questionsFor, toStore
 import { copyPayloads, exportName, liveDataOf, pageOf, readinessOf, storageKey } from './draft/recommend'
 import { download, writeClipboard } from './draft/clipboard'
 import TargetV1 from './workspace/TargetV1'
-import { gscMatchFor, gscMatchState } from '../../data/gscMatch'
+import { brandScState, gscMatchFor, setBrandScState } from '../../data/gscMatch'
 import { RM_BRAND } from '../../data/contentRecommendRm'
 import CopyPublish from './workspace/CopyPublish'
 import { BRAND_PALETTE, BRAND_PALETTE_DARK, cssColor } from '../../utils/brandColors'
@@ -84,30 +84,40 @@ function Flow({ row }) {
   const stored = useMemo(() => { try { return JSON.parse(window.localStorage.getItem(store) ?? 'null') ?? {} } catch { return {} } }, [store])
   // the userFacts sent with the draft request (v1): taken when the writing starts (and on Regenerate); null = none
   const [sent, setSent] = useState(() => kept?.sent ?? stored.sent ?? null)
-  // Search Console's "Update this page": the page the user picked (sent as the request's targetUrl / targetAction)
-  const [scPick, setScPick] = useState(() => kept?.scPick ?? null)
-  const request = useMemo(() => requestFor(row, sent, scPick), [row, sent, scPick]) // the (mock) request: userFacts only when non-empty; the picked page
+  // Search Console (v1): the brand's connection (shared with the Content list, per brand for the visit:
+  // data/gscMatch.js brandScState) and the app's gsc-match route for this prompt. 'new' (never asked): the Connect step
+  // opens the Target page; Connect is the mock's OAuth round trip (900ms); 'skipped': the route's suggested page.
+  const scDomain = row.id === 'rm-1' ? RM_BRAND.domain : CO_BRAND.domain
+  const [scState, setScStateRaw] = useState(() => brandScState(scDomain))
+  const setScState = (s) => { setBrandScState(scDomain, s); setScStateRaw(s) }
+  const [scConnecting, setScConnecting] = useState(false)
+  const [scJustConnected, setScJustConnected] = useState(false) // the section animates in once, right after Connect
+  const scTimer = useRef(null)
+  useEffect(() => () => clearTimeout(scTimer.current), [])
+  const connectSc = () => { setScConnecting(true); scTimer.current = setTimeout(() => { setScConnecting(false); setScJustConnected(true); setScState('connected') }, 900) }
+  const gscRes = useMemo(() => gscMatchFor(row, { state: scState }), [row, scState])
+  // THE target page, one value everywhere (the Update column, the payoff bar, Copy & publish, the draft request):
+  // the user's pick (a Your pages row, a Create this page), else Search Console's Publish on (connected, with data),
+  // else the route's own page (not connected, skipped, no data). scPick: { action, path, url? } | null
+  const [scPick, setScPickRaw] = useState(() => kept?.scPick ?? null)
+  const scChoice = gscRes.connected && gscRes.queries?.length
+    ? (gscRes.publishOn.action === 'create' ? { action: 'create', path: gscRes.publishOn.suggestedPath } : { action: 'update', path: gscRes.publishOn.path, url: gscRes.publishOn.url })
+    : null
+  // picking Search Console's own page is no pick at all (it's the default)
+  const setScPick = (p) => setScPickRaw(p && scChoice && p.path === scChoice.path && p.action === scChoice.action ? null : p)
+  const choice = scPick ?? scChoice // null: the route's page
+  const choiceUrl = choice ? choice.url ?? `https://${scDomain}${choice.path}` : null
+  const request = useMemo(() => requestFor(row, sent, choice ? { action: choice.action, url: choiceUrl } : null), [row, sent, choice?.path, choice?.action]) // eslint-disable-line react-hooks/exhaustive-deps
   const res = useMemo(() => contentRecommendFor(row, request.userFacts), [row, request]) // the route's response (the mock's)
   // the response before any userFacts: its flags are Your data's questions (they stay put once answered)
   const baseRes = useMemo(() => contentRecommendFor(row), [row])
   const competitors = row.competitors ?? [] // the request's competitors
-  // Search Console (v1, the Target page's "Search Console for this prompt"): the app's gsc-match route for this prompt
-  // (data/gscMatch.js); Connect / Reconnect is the mock's OAuth round trip (900ms). scPick: a page chosen there, shown in
-  // the Update column instead of the route's (null = the route's)
-  const [scState, setScState] = useState(() => kept?.scState ?? gscMatchState())
-  const [scConnecting, setScConnecting] = useState(false)
-  const scTimer = useRef(null)
-  useEffect(() => () => clearTimeout(scTimer.current), [])
-  const connectSc = () => { setScConnecting(true); scTimer.current = setTimeout(() => { setScConnecting(false); setScState('connected') }, 900) }
-  const gscRes = useMemo(() => gscMatchFor(row, { state: scState }), [row, scState])
-
-  // the page the draft is for: the route's, or the one picked in Search Console (scPick)
+  // source: 'pick' (the user's) · 'sc' (Search Console's Publish on) · 'route' (content-recommend's suggestion)
   const page = useMemo(() => {
     const p = pageOf(res.pageRecommendation)
-    if (!scPick) return p
-    const url = scPick.url ?? `https://${row.id === 'rm-1' ? RM_BRAND.domain : CO_BRAND.domain}${scPick.path}`
-    return { ...p, action: scPick.action, path: scPick.path, url, href: scPick.action === 'update' ? url : null }
-  }, [res, scPick]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!choice) return { ...p, source: 'route' }
+    return { ...p, action: choice.action, path: choice.path, url: choiceUrl, href: choice.action === 'update' ? choiceUrl : null, source: scPick ? 'pick' : 'sc' }
+  }, [res, choice?.path, choice?.action, scPick]) // eslint-disable-line react-hooks/exhaustive-deps
   const saved = useMemo(() => draftFor(row.id, row), [row])
   const [gsc, setGsc] = useState(() => kept?.gsc ?? gscStatus()) // 'connected' | 'declined' | 'new' | 'skipped' (continued without it)
   // a draft written earlier in this browser opens on the Draft step, ready (no writing state)
@@ -182,7 +192,7 @@ function Flow({ row }) {
     })
   }, [full, ds.phase, baseRes]) // eslint-disable-line react-hooks/exhaustive-deps
   // keep the progress for this visit (reopening the prompt picks it up; the mock has no store)
-  useEffect(() => { PROGRESS.set(row.id, { gsc, current, ready, target, data, dataSkipped, ds, sent, scState, scPick }) })
+  useEffect(() => { PROGRESS.set(row.id, { gsc, current, ready, target, data, dataSkipped, ds, sent, scPick }) })
   // the writing starts when step 4 is first reached
   useEffect(() => {
     if (current >= DRAFT && ds.phase === 'generating' && ds.startedAt == null) setDs((s) => ({ ...s, startedAt: performance.now() }))
@@ -306,13 +316,14 @@ function Flow({ row }) {
       ? <TargetStep candidates={candidates} newPage={newPage} target={target} onTarget={setTarget} onPreview={setPreviewUrl} citing={(url, rank) => enginesCitingPage(row, url, rank)} />
       : <TargetV1 res={res} named={named} resolve={resolveAi}
         draft={ds.phase === 'draft' ? { open: review.open, onOpen: openDraft } : null}
-        sc={{ gsc: gscRes, domain: row.id === 'rm-1' ? RM_BRAND.domain : CO_BRAND.domain, connecting: scConnecting, onConnect: connectSc, pick: scPick, onPick: setScPick }}
+        page={page}
+        sc={{ gsc: gscRes, state: scState, domain: scDomain, connecting: scConnecting, justConnected: scJustConnected, onConnect: connectSc, onSkip: () => setScState('skipped'), onChange: () => { setScJustConnected(false); setScState('new') }, page, choice: scChoice, onPick: setScPick }}
         write={current < DATA ? { label: 'Add your data', onClick: advance } : current < DRAFT ? { label: 'Write the draft', onClick: advance } : writing ? { label: 'Resume', onClick: openDraft } : null} />,
     <div data-step="data"><DataStep data={data} update={updateData} v1={!full} cap={cap} drafted={start.ready || ds.phase === 'draft'} /></div>,
     <div data-step="draft"><DraftStep res={res} competitors={competitors} session={ds} setSession={setDs} full={full} steps={genSteps} live={liveData} onCopy={copyContent} onCopyHtml={copyHtml} onExport={exportMd} onRecheck={recheck} savedAt={ds.savedAt} resolve={resolveAi} inPanel={focus} /></div>,
     full
       ? <div data-step="publish"><PublishStep row={row} draft={draft ?? { stage: 'waiting', target_url: targetUrl }} onEditDraft={() => { setReady(true); setEditing(DRAFT) }} onApi={setPublishApi} /></div>
-      : <div data-step="publish"><CopyPublish res={res} ticked={ds.ticked} copiedAt={ds.copiedAt} onCopyHtml={copyHtml} onExport={exportMd} onBack={() => setEditing(DRAFT)} /></div>,
+      : <div data-step="publish"><CopyPublish res={res} page={page} ticked={ds.ticked} copiedAt={ds.copiedAt} onCopyHtml={copyHtml} onExport={exportMd} onBack={() => setEditing(DRAFT)} /></div>,
   ][i]
 
   // the right column: Search Console for the page hovered in Your pages (a preview), else the target page (the selected

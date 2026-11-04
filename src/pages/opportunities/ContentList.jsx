@@ -13,7 +13,8 @@ import { draftFor } from '../../data/contentOpportunities-proposed'
 import { productName } from '../../store/workspace'
 import { MidText, goTo, promptVT, workspacePath } from './parts'
 import { storageKey } from './draft/recommend'
-import { bestPageFor, gscMatchState } from '../../data/gscMatch'
+import { GoogleIcon } from '../../components/dashboard/icons'
+import { bestPageFor as bestPageForRow, brandScState, setBrandScState } from '../../data/gscMatch'
 import { Tip } from './workspace/SearchMatch'
 import KpiCards from './list/KpiCards'
 import RowTip from './list/RowTip'
@@ -90,9 +91,17 @@ export default function ContentList() {
     csv: (r) => statusText(byId.get(r.id) ?? r),
     cell: (r) => <StatusCell row={byId.get(r.id) ?? r} onOpen={open} />,
   }
+  // Search Console: the brand's connection (shared with every prompt's workspace, data/gscMatch.js brandScState). Not
+  // connected (never asked, or skipped): a one-line banner over the list; Connect is the mock's round trip (~900ms).
+  const [scState, setScStateRaw] = useState(() => brandScState(CO_BRAND.domain))
+  const [scConnecting, setScConnecting] = useState(false)
+  const scTimer = useRef(null)
+  useEffect(() => () => clearTimeout(scTimer.current), [])
+  const connectSc = () => { setScConnecting(true); scTimer.current = setTimeout(() => { setScConnecting(false); setBrandScState(CO_BRAND.domain, 'connected'); setScStateRaw('connected') }, 900) }
   // Best page (Search Console, the app's bestPageFor): the page to publish on and its match, or "New page"; hover /
   // focus: the full URL and its best query. Not connected: "—", the header's ⓘ says where to connect.
-  const scOn = gscMatchState() === 'connected' || gscMatchState() === 'no-data'
+  const scOn = scState === 'connected' || scState === 'no-data'
+  const bestPageFor = (r) => bestPageForRow(r, { state: scState })
   const bestPageColumn = {
     key: 'bestPage',
     label: scOn ? 'Best page' : <span className="inline-flex items-center gap-0.5">Best page<Tip label="Connect Search Console" align="left" width={220}>Connect Search Console in a prompt’s Target page to see its best page.</Tip></span>,
@@ -128,6 +137,15 @@ export default function ContentList() {
         <h1 className="text-[28px] leading-[34px] font-semibold tracking-[-0.02em] text-stone-900">Content</h1>
         <p className="mt-1 text-body text-stone-600">Draft a page for each missed prompt, then track it engine by engine.</p>
       </div>
+      {(scState === 'new' || scState === 'skipped') && (
+        <div data-sc-banner role="status" className="mb-1 flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg bg-tint px-4 py-2.5">
+          <span className="flex min-w-0 items-center gap-2.5 text-[14px] leading-5 text-stone-700"><GoogleIcon size={16} />Connect Search Console to find the best page for every prompt</span>
+          <button type="button" onClick={connectSc} disabled={scConnecting} aria-busy={scConnecting}
+            className="rounded text-[14px] leading-5 font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus disabled:no-underline disabled:opacity-70">
+            {scConnecting ? 'Connecting…' : 'Connect'}
+          </button>
+        </div>
+      )}
       <KpiCards rows={all} value={tab} onChange={setTab} />
       <div ref={box} className="min-w-0 scroll-mt-4" aria-label={`Missed prompts for ${CO_BRAND.name}`}>
         <MissedPrompts statusColumn={statusColumn} extraColumns={[bestPageColumn]} omit={["missedBy"]} onOpen={open} bulkExtra={bulkExtra} rowFilter={rowFilter} onRowHover={onRowHover} promptStyle={(r) => promptVT(r.id)} bulkOnly />

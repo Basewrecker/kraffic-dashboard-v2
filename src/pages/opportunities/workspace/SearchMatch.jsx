@@ -13,8 +13,8 @@
 //   States: not connected (Connect) · reconnect (Reconnect) · no property for the domain · connected with no data yet
 //   (the new page it would suggest). The ladder and the matrix render in every state.
 // Stacked below 1100px (the chain, then Your pages).
-import { ArrowDown, Check, Info } from 'lucide-react'
-import { PlatformIcon } from '../../../components/dashboard/icons'
+import { ArrowDown, Check, Info, Loader2 } from 'lucide-react'
+import { GoogleIcon, PlatformIcon } from '../../../components/dashboard/icons'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
 import { MidText } from '../parts'
@@ -42,16 +42,61 @@ const Chip = ({ children }) => <span className="inline-flex h-5 shrink-0 items-c
 const Tag = ({ intent }) => <span className="inline-flex h-[18px] shrink-0 items-center rounded border border-line px-1.5 text-[11px] leading-none font-medium text-stone-500">{intent}</span>
 const INTENT_WHY = { account: 'an account question (the reader’s own account, not the topic)', local: 'a local search (a place)', site: 'it names a site or a brand, not the topic; never the best query' }
 
-// gsc: the route's response · domain: the brand's domain · state: gscMatchState() · connecting: the mock's OAuth wait ·
-// onConnect() · enginesFor(path) → { engines, unknown } · pick: the Update column's page from here ({ action, path, url })
-// or null · onPick(pick | null)
-export default function SearchMatch({ gsc, domain, connecting = false, onConnect, enginesFor = () => ({ engines: [], unknown: false }), pick = null, onPick = () => {} }) {
+const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+const ink = 'inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-ink px-3.5 text-[14px] font-medium text-on-ink outline-none transition-colors duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-80'
+const textLink = 'rounded text-[14px] leading-5 font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus'
+
+// The ask, first on the Target page while the brand has never connected Search Console (owner, 2026-11-04): the Google
+// mark, what it's for (read-only), Connect (the mock's OAuth round trip: a spinner, ~900ms) or Skip (the route's
+// suggested page). On success the Search Console section takes its place.
+export function ConnectSearchConsole({ connecting = false, onConnect, onSkip }) {
+  return (
+    <section aria-labelledby="co-sc-ask" data-sc-ask className="flex flex-wrap items-center gap-x-6 gap-y-4 rounded-xl border border-line bg-surface px-6 py-5">
+      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-line bg-surface" aria-hidden><GoogleIcon size={26} /></span>
+      <div className="min-w-0 flex-1 basis-[320px]">
+        <h3 id="co-sc-ask" className="text-[17px] leading-6 font-semibold text-stone-900">Connect Google Search Console</h3>
+        <p className="mt-0.5 max-w-[620px] text-[14px] leading-5 text-stone-600">Read-only. We use it to find which of your pages already gets search traffic for this prompt, so the content goes on the right page.</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-4">
+        {!connecting && <button type="button" onClick={onSkip} className={textLink}>Skip, we’ll suggest a page</button>}
+        <button type="button" onClick={onConnect} disabled={connecting} aria-busy={connecting} className={ink}>
+          {connecting ? <><Loader2 size={15} aria-hidden className="motion-safe:animate-spin" />Connecting…</> : 'Connect Search Console'}
+        </button>
+      </div>
+    </section>
+  )
+}
+
+// skipped: the route's suggested page stands; one slim row keeps the way back
+export function SkippedRow({ onConnect }) {
+  return (
+    <div data-sc-skipped className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg bg-tint px-4 py-2.5">
+      <span className="flex min-w-0 items-center gap-2.5 text-[14px] leading-5 text-stone-700"><GoogleIcon size={16} />Connect Search Console for a better match</span>
+      <button type="button" onClick={onConnect} className={textLink}>Connect</button>
+    </div>
+  )
+}
+
+// gsc: the route's response · domain: the brand's domain · state: brandScState · connecting: the mock's OAuth wait ·
+// justConnected: animate in once after Connect · onConnect() · onChange(): reopens the connect step (where the app
+// would let the user pick another Search Console property) · enginesFor(path) → { engines, unknown } · page: THE target
+// page (source 'pick' | 'sc' | 'route') · choice: Search Console's own page ({ action, path, url }) or null ·
+// onPick(pick | null): null = back to Search Console's page
+export default function SearchMatch({ gsc, domain, connecting = false, justConnected = false, onConnect, onChange = null, enginesFor = () => ({ engines: [], unknown: false }), page = null, onPick = () => {} }) {
   const connected = gsc?.connected
   const hasData = connected && gsc.queries.length > 0
   return (
-    <section aria-labelledby="co-sc-h" data-search-match>
+    <section aria-labelledby="co-sc-h" data-search-match style={justConnected && !reducedMotion() ? { animation: 'card-in 360ms cubic-bezier(.2,.8,.2,1) both' } : undefined}>
       <div className={HEAD}>
-        <h3 id="co-sc-h" className={H}>Search Console for this prompt</h3>
+        <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <h3 id="co-sc-h" className={H}>Search Console for this prompt</h3>
+          {connected && (
+            <span data-sc-connected className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line px-2.5 text-[12px] leading-4 text-stone-600">
+              <Check size={12} aria-hidden className="text-stone-500" />Connected · <span className="font-medium text-stone-900">{domain}</span>
+              {onChange && <> · <button type="button" onClick={onChange} className="rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-2 outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Change</button></>}
+            </span>
+          )}
+        </span>
         {connected && (
           <span className={`flex items-center gap-1 ${META}`}>
             Last 8 weeks · {day(gsc.range.startDate)} – {day(gsc.range.endDate)}
@@ -60,14 +105,14 @@ export default function SearchMatch({ gsc, domain, connecting = false, onConnect
         )}
       </div>
       {!connected ? <NotConnected gsc={gsc} domain={domain} connecting={connecting} onConnect={onConnect} />
-        : !hasData ? <NoData gsc={gsc} pick={pick} onPick={onPick} />
+        : !hasData ? <NoData gsc={gsc} page={page} onPick={onPick} />
           : (
             <div className="grid grid-cols-1 gap-x-10 gap-y-8 pt-5 min-[1100px]:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] min-[1100px]:items-start">
               <div className="min-w-0">
-                <Chain gsc={gsc} pick={pick} onPick={onPick} />
+                <Chain gsc={gsc} page={page} onPick={onPick} />
                 <OtherQueries gsc={gsc} />
               </div>
-              <YourPages gsc={gsc} enginesFor={enginesFor} />
+              <YourPages gsc={gsc} enginesFor={enginesFor} page={page} onPick={onPick} />
             </div>
           )}
     </section>
@@ -91,9 +136,9 @@ function NotConnected({ gsc, domain, connecting, onConnect }) {
   )
 }
 
-function NoData({ gsc, pick, onPick }) {
+function NoData({ gsc, page, onPick }) {
   const p = gsc.publishOn
-  const using = pick?.action === 'create' && pick.path === p.suggestedPath
+  const using = page?.action === 'create' && page.path === p.suggestedPath
   return (
     <div className="flex min-h-[64px] flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-[var(--div)] py-3" data-sc-state="no-data">
       <div className="min-w-0">
@@ -111,13 +156,14 @@ const UseButton = ({ using, label, onClick }) => (
   </button>
 )
 
-// the query-first chain: the best query → the page to publish on → the action
-function Chain({ gsc, pick, onPick }) {
+// the query-first chain: the best query → the page to publish on → the action. Publish on IS the target page unless
+// the user picked another one in Your pages ("Using this page"); then the button takes it back.
+function Chain({ gsc, page, onPick }) {
   const q = gsc.bestQuery
   const p = gsc.publishOn
   const create = p.action === 'create'
   const onPage = create ? 0 : gsc.queries.filter((x) => x.topPage.path === p.path).length
-  const using = pick && pick.path === (create ? p.suggestedPath : p.path)
+  const using = page?.source === 'sc' && page.path === (create ? p.suggestedPath : p.path)
   return (
     <div data-sc-chain={p.action}>
       {q && (
@@ -138,8 +184,8 @@ function Chain({ gsc, pick, onPick }) {
         </p>
         {!create && p.lowVolume && <p className={`mt-0.5 ${META}`}>Few searches so far: every match is under 10 impressions.</p>}
         <div className="mt-3">
-          <UseButton using={using} label={create ? 'Create this page' : 'Update this page'}
-            onClick={() => onPick(using ? null : create ? { action: 'create', path: p.suggestedPath } : { action: 'update', path: p.path, url: p.url })} />
+          {/* using: it's already the target (nothing to do); else back to it from the user's own pick */}
+          <UseButton using={using} label={create ? 'Create this page' : 'Update this page'} onClick={() => { if (!using) onPick(null) }} />
         </div>
       </div>
     </div>
@@ -184,19 +230,25 @@ function OtherQueries({ gsc }) {
   )
 }
 
-// the brand's pages that the matching queries land on, by score
-function YourPages({ gsc, enginesFor }) {
+// the brand's pages that the matching queries land on, by score. One radio group: picking a row makes it THE target page
+// (the Update column, the payoff bar, the draft); picking Search Console's own page is the default again.
+function YourPages({ gsc, enginesFor, page = null, onPick = () => {} }) {
   const pages = gsc.pages.slice(0, 5)
   const max = Math.max(1, ...pages.map((p) => p.impressions))
+  const pick = (p) => onPick(gsc.publishOn.action === 'update' && p.path === gsc.publishOn.path ? null : { action: 'update', path: p.path, url: p.url })
   return (
     <div className="min-w-0 min-[1100px]:border-l min-[1100px]:border-line min-[1100px]:pl-10">
       <p className={`border-b border-line pb-1.5 ${LABEL}`}>Your pages</p>
-      <ul>
+      <ul role="radiogroup" aria-label="The page to update">
         {pages.map((p) => {
           const e = enginesFor(p.path)
           const qs = gsc.queries.filter((q) => q.topPage.path === p.path)
+          const on = page?.action === 'update' && page.path === p.path
           return (
-            <li key={p.path} className="flex h-[64px] flex-col justify-center gap-1.5 border-b border-[var(--div)]">
+            <li key={p.path} role="radio" aria-checked={on} tabIndex={0} data-your-page={p.path}
+              onClick={(ev) => { if (!ev.target.closest('[role="tooltip"],[aria-label^="Why"]')) pick(p) }}
+              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(p) } }}
+              className={`-mx-2 flex h-[64px] cursor-pointer flex-col justify-center gap-1.5 rounded-lg border-b border-[var(--div)] px-2 outline-none transition-[background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'bg-tint shadow-[inset_0_0_0_1px_var(--ink)]' : 'hover:bg-[color-mix(in_srgb,var(--tint)_60%,transparent)]'}`}>
               <span className="flex min-w-0 items-center gap-2">
                 <MidText text={p.path} className="flex-1 text-[14px] leading-5 font-medium text-stone-900" />
                 {gsc.publishOn.action === 'update' && p.path === gsc.publishOn.path && <Chip>Best match</Chip>}

@@ -12,6 +12,12 @@
 // Range: the last 8 weeks (56 days) ending 2 days ago; lagNote is fixed text.
 //
 // Preview states (?co=): gsc-new = not connected · gsc-reconnect · gsc-nodomain · gsc-nodata (connected, no data).
+//
+// Intent fit (PROPOSED, owner 2026-11-04 "the best query follows the prompt's intent"; the mock's rule, to confirm):
+// a prompt and a query each read as a question / how-to, a comparison (best, top, vs, review) or a shopping search
+// (price, buy, deal, sale, coupon, near me, a store). A query whose kind clashes with the prompt's (a question or how-to
+// prompt vs a shopping query; a comparison prompt vs a how-to query) is scored ×0.7 (`intentFit: false`) and can't be
+// the Best query while a query that fits, with ≥ 10 impressions, exists.
 import { CO_BRAND, CO_BRANDS } from './contentOpportunities.js'
 import { coStates, gscKeywordsFor, newPageFor, promptWords } from './contentOpportunities-proposed.js'
 import { RM_BRAND } from './contentRecommendRm.js'
@@ -19,6 +25,7 @@ import { RM_BRAND } from './contentRecommendRm.js'
 export const MATCH_WEIGHTS = { coverage: 55, precision: 20, phrase: 25 }
 export const PAGE_WEIGHTS = { query: 45, volume: 20, rank: 15, url: 15, cited: 5 }
 export const INTENT_PENALTY = { account: 0.5, local: 0.5, site: 0.5 }
+export const MISFIT = 0.7 // a query whose kind clashes with the prompt's (intentFit: false)
 export const BEST_MIN_IMPRESSIONS = 10
 export const CREATE_BELOW = 30
 export const LAG_NOTE = 'Search Console data is about 2 days behind.'
@@ -49,10 +56,29 @@ export function matchOf(prompt, query) {
   const phrase = q.slice(1).some((w, i) => pairs.has(`${q[i]} ${w}`)) ? 1 : 0
   return Math.round(MATCH_WEIGHTS.coverage * coverage + MATCH_WEIGHTS.precision * precision + MATCH_WEIGHTS.phrase * phrase)
 }
-const adjustedOf = (match, intent) => Math.round(match * (intent ? INTENT_PENALTY[intent] : 1))
-const bestOf = (queries) => queries
-  .filter((q) => q.impressions >= BEST_MIN_IMPRESSIONS && q.intent !== 'site')
-  .reduce((b, q) => (!b || q.adjusted * Math.log10(q.impressions + 1) > b.adjusted * Math.log10(b.impressions + 1) ? q : b), null)
+// the kind of search: 'shop' (price, buy, deal, sale, coupon, near me, a store) · 'question' (how / what / why / can /
+// is …, how to) · 'compare' (best, top, vs, review) · null
+const SHOP = /\b(price|prices|buy|deal|deals|sale|coupon|discount|cheap|near me|shop|store|amazon|walmart|ulta|sephora|in stock)\b/
+const COMPARE = /\b(vs|versus|best|top|compare|comparison|review|reviews|rated)\b/
+const QUESTION = /^(how|what|why|can|is|are|does|do|should|when|which|will)\b|\bhow to\b/
+export const searchKind = (s) => { const t = String(s).toLowerCase(); return SHOP.test(t) ? 'shop' : QUESTION.test(t) ? 'question' : COMPARE.test(t) ? 'compare' : null }
+// does a query's kind fit the prompt's? (a question prompt vs a shopping query, or a comparison prompt vs a how-to: no)
+export const intentFits = (prompt, query) => {
+  const p = searchKind(prompt), q = searchKind(query)
+  if (p === 'question' && q === 'shop') return false
+  if (p === 'compare' && q === 'question') return false
+  return true
+}
+const adjustedOf = (match, intent, fit = true) => Math.round(match * (intent ? INTENT_PENALTY[intent] : 1) * (fit ? 1 : MISFIT))
+// kind: the prompt's searchKind. Tiers: a well-matched query (≥ 30) of the prompt's own kind, else any query that fits,
+// else (none fits) the rest; within a tier the highest adjusted × log10(impr + 1)
+const bestOf = (queries, kind = null) => {
+  const top = (list) => list.reduce((b, q) => (!b || q.adjusted * Math.log10(q.impressions + 1) > b.adjusted * Math.log10(b.impressions + 1) ? q : b), null)
+  const eligible = queries.filter((q) => q.impressions >= BEST_MIN_IMPRESSIONS && q.intent !== 'site')
+  const fitting = eligible.filter((q) => q.intentFit !== false)
+  const same = kind ? fitting.filter((q) => searchKind(q.query) === kind && q.adjusted >= CREATE_BELOW) : []
+  return top(same.length ? same : fitting.length ? fitting : eligible)
+}
 const pathOf = (url) => { try { return new URL(url).pathname.replace(/\/$/, '') || '/' } catch { return url } }
 
 // FNV-1a: the same prompt always gets the same numbers
@@ -67,10 +93,11 @@ export function analyzeRows(prompt, rows, { suggestedPath, cited = () => false, 
   const all = rows.map((r) => {
     const match = matchOf(prompt, r.keyword)
     const intent = intentOf(r.keyword, site)
-    return { query: r.keyword, match, adjusted: adjustedOf(match, intent), intent, impressions: r.impressions, clicks: r.clicks, position: r.position, best: false, topPage: { url: r.url, path: pathOf(r.url), share: shareOf(r) } }
+    const fit = intentFits(prompt, r.keyword)
+    return { query: r.keyword, match, adjusted: adjustedOf(match, intent, fit), intent, intentFit: fit, impressions: r.impressions, clicks: r.clicks, position: r.position, best: false, topPage: { url: r.url, path: pathOf(r.url), share: shareOf(r) } }
   })
   const matching = all.filter((q) => q.match > 0).sort((a, b) => b.impressions - a.impressions)
-  const best = bestOf(matching)
+  const best = bestOf(matching, searchKind(prompt))
   const queries = matching.slice(0, 5).map((q) => ({ ...q, best: q === best }))
   if (best && !queries.some((q) => q.best)) queries.splice(4, 1, { ...best, best: true })
   const bestQuery = best ? { ...best, best: true } : null
@@ -126,12 +153,29 @@ function dermasuriRows(row) {
     return base.filter((k) => matchOf(prompt, k.keyword) < 20).slice(0, 6)
       .concat([{ keyword: `${promptWords(prompt)[0] ?? 'skincare'} tips`, clicks: 1, impressions: 40, ctr: 2.5, position: 38.2, url: `https://${CO_BRAND.domain}/blog/skincare-basics` }])
   }
+  // the prompt's own kind of search, as people type it (a question prompt: the question, shorter; a comparison: "best
+  // X" / "X reviews"), among the busiest heads: the best query follows the prompt's intent
+  const own = (() => {
+    const p = prompt.toLowerCase()
+    const m = p.match(/^can (.+) cause (.+)$/) ?? null
+    if (m) return `does ${m[1]} cause ${m[2]}`
+    const use = p.match(/^how to use (.+?) in a routine$/)
+    if (use) return `how to use ${use[1]}`
+    const best = p.match(/^best (.+?)(?: for .+)?$/)
+    if (best) return `best ${best[1]}`
+    const rev = p.match(/^(.+) review$/)
+    if (rev) return `${rev[1]} reviews`
+    return null
+  })()
+  const ownRow = own && !base.some((k) => k.keyword.toLowerCase() === own)
+    ? [{ keyword: own, clicks: Math.round((heads[1] ?? 300) * 0.9 * 0.025), impressions: Math.round(((heads[1] ?? 300) * 0.9) / 10) * 10, ctr: 2.5, position: 8.4, url: url0 }]
+    : []
   const extra = r < 0.55
     ? { keyword: `${core} near me`, clicks: Math.round(extraImpr * 0.02), impressions: extraImpr, ctr: 2, position: 22.4, url: url0 }
     : r < 0.75 ? { keyword: `my ${CO_BRAND.name.toLowerCase()} ${core} order`, clicks: Math.round(extraImpr * 0.03), impressions: extraImpr, ctr: 3, position: 9.8, url: `https://${CO_BRAND.domain}/account/orders` }
       // a site query among the heads: a forum or a competitor by name (the "site" tag; never the Best query)
       : { keyword: rnd(prompt, 'site') < 0.5 ? `${core} reddit` : `cerave ${core}`, clicks: Math.round(extraImpr * 0.02), impressions: Math.round(extraImpr * 1.6 / 10) * 10, ctr: 2, position: 14.6, url: url0 }
-  return [...base.filter((k) => norm(k.keyword) !== norm(extra.keyword)), extra]
+  return [...base.filter((k) => norm(k.keyword) !== norm(extra.keyword)), ...ownRow, extra]
 }
 
 // the rm-1 account: the app's sample (an invented lender), renamed to the account's made-up domain
@@ -170,6 +214,14 @@ const RECONNECT = { connected: false, reason: 'reconnect' }
 const NO_DOMAIN = { connected: false, reason: 'no-domain' }
 const routeBase = (domain) => ({ connected: true, siteUrl: `https://www.${domain}/`, range: RANGE, fetchedAt: FETCHED_AT, lagNote: LAG_NOTE, cached: false, weeks: [] })
 
+// The brand's Search Console connection for this visit, shared by the Content list and every prompt's workspace:
+// 'connected' | 'new' (never asked) | 'skipped' (asked and skipped: the route's suggested page) | the route's own states
+// 'reconnect' / 'no-domain' / 'no-data' (?co=). Kept in memory per brand domain (not localStorage), so the ?co= previews
+// always open in their state; the app keeps the real connection on the server (gsc_tokens).
+const BRAND_SC = new Map()
+export const brandScState = (domain) => BRAND_SC.get(domain) ?? gscMatchState()
+export const setBrandScState = (domain, state) => { BRAND_SC.set(domain, state) }
+
 // 'connected' | 'new' | 'reconnect' | 'no-domain' | 'no-data' (this browser's preview: ?co=)
 export function gscMatchState() {
   const co = coStates()
@@ -178,7 +230,7 @@ export function gscMatchState() {
 
 // GET …/gsc-match for one prompt: the route's response. row: the missed-prompt row; cited(path): AI engines cite it
 export function gscMatchFor(row, { state = gscMatchState(), cited = () => false } = {}) {
-  if (state === 'new') return NOT_CONNECTED
+  if (state === 'new' || state === 'skipped') return NOT_CONNECTED
   if (state === 'reconnect') return RECONNECT
   if (state === 'no-domain') return NO_DOMAIN
   const rm = row?.id === 'rm-1'

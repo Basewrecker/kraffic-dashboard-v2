@@ -14,8 +14,10 @@ import { savedLabel } from '../DraftStep'
 const H = 'border-b border-line-strong pb-2 text-[17px] leading-6 font-semibold text-stone-900'
 const META = 'text-[13px] leading-[18px] text-stone-500'
 
-export default function CopyPublish({ res, ticked, copiedAt, onCopyHtml, onExport, onBack }) {
-  const page = pageOf(res.pageRecommendation)
+// page: THE target page (Workspace: the user's pick, else Search Console's Publish on, else the route's page), the same
+// one the Target page and the payoff bar show; the route's own when not given
+export default function CopyPublish({ res, page: given = null, ticked, copiedAt, onCopyHtml, onExport, onBack }) {
+  const page = given ?? pageOf(res.pageRecommendation)
   const sections = draftSections(res.contentMarkdown).shown.map((s) => s.title)
   const open = sortedFlags(res.flags).filter((f) => !ticked.includes(f.id))
   return (

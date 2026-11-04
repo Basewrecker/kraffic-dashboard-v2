@@ -31,7 +31,7 @@ import { LogoPlate, withResults } from '../parts'
 import { afterRow, draftPlan, draftPreview, enginesOf, formatMatrix, pageOf, rankLadder } from '../draft/recommend'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { RingDraw, TickDraw } from './ui'
-import SearchMatch from './SearchMatch'
+import SearchMatch, { ConnectSearchConsole, SkippedRow } from './SearchMatch'
 
 const H = 'text-[18px] leading-[26px] font-semibold text-stone-900'
 const HEAD = 'flex items-end justify-between gap-3 border-b border-line-strong pb-2'
@@ -45,12 +45,14 @@ const anim = (name, delay, ms = 260, easing = 'cubic-bezier(.2,.8,.2,1)') => (re
 
 // resolve: the 'ai' tag's engines for a host (from the prompt's answers) · named: the engines that name the brand now ·
 // draft: null (no draft yet) | { open: unticked flags, onOpen: opens the Draft step in focus } · write: the payoff bar's
-// action for the no-draft state ({ label, onClick }), null to leave the button out · sc: Search Console
-// ({ gsc, domain, connecting, onConnect, pick, onPick }; SearchMatch), null to leave the section out. sc.pick (a page
-// chosen there) replaces the route's page in the Update column, with a way back to the suggested one.
-export default function TargetV1({ res, resolve, named = [], draft = null, write = null, sc = null }) {
-  const suggested = pageOf(res.pageRecommendation)
-  const page = sc?.pick ? { ...suggested, action: sc.pick.action, path: sc.pick.path, href: sc.pick.url ?? null, reason: suggested.reason } : suggested
+// action for the no-draft state ({ label, onClick }), null to leave the button out · page: THE target page (Workspace:
+// the user's pick, else Search Console's Publish on, else the route's; source 'pick' | 'sc' | 'route'), shown in the
+// Update column · sc: Search Console ({ gsc, state, domain, connecting, justConnected, onConnect, onSkip, onChange,
+// page, choice, onPick }), null to leave it out. Not connected and never asked: the Connect step comes FIRST, before
+// the ladder; skipped: a slim "Connect Search Console for a better match" row there instead.
+export default function TargetV1({ res, resolve, named = [], draft = null, write = null, sc = null, page: given = null }) {
+  const page = given ?? { ...pageOf(res.pageRecommendation), source: 'route' }
+  const asking = sc && (sc.state === 'new' || (sc.connecting && sc.state !== 'reconnect'))
   const ladder = rankLadder(res.citedPages)
   const m = formatMatrix(res)
   const [host, setHost] = useState(null) // linked hover: a page
@@ -67,8 +69,10 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
   const adds = m.missing.filter((c) => plan.includes(c.id))
   return (
     <div className="flex flex-col gap-8">
+      {asking && <ConnectSearchConsole connecting={sc.connecting} onConnect={sc.onConnect} onSkip={sc.onSkip} />}
+      {sc?.state === 'skipped' && !sc.connecting && <SkippedRow onConnect={sc.onConnect} />}
       <Ladder ladder={ladder} eng={eng} host={host} setHost={setHost} />
-      {sc && <SearchMatch {...sc} enginesFor={(path) => {
+      {sc && !asking && sc.state !== 'skipped' && <SearchMatch {...sc} enginesFor={(path) => {
         const c = res.citedPages.find((x) => { try { return new URL(x.url).pathname.replace(/\/$/, '') === path } catch { return false } })
         return c ? eng(c) : { engines: [], unknown: false }
       }} />}
@@ -79,10 +83,12 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
             under its rows; ends where its content ends. Below 1100px it stacks under the matrix. */}
         <section aria-labelledby="co-target-h" className="min-[1100px]:border-l min-[1100px]:border-line min-[1100px]:pl-10">
           <p id="co-target-h" className="text-[13px] leading-[18px] font-semibold text-stone-500">{page.action === 'update' ? 'Update' : 'Create'}</p>
-          <p className="mt-0.5 break-all text-[18px] leading-[26px] font-semibold text-stone-900">{page.path}</p>
-          {sc?.pick && (
-            <p className={`mt-0.5 ${META}`} data-sc-pick>
-              From Search Console · <button type="button" onClick={() => sc.onPick(null)} className="rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Use the suggested page</button>
+          <p className="mt-0.5 break-all text-[18px] leading-[26px] font-semibold text-stone-900" data-target-path>{page.path}</p>
+          {/* where the page comes from: Search Console's Publish on, or the user's own pick (with the way back) */}
+          {page.source === 'sc' && <p className={`mt-0.5 ${META}`} data-sc-source="sc">From Search Console</p>}
+          {page.source === 'pick' && (
+            <p className={`mt-0.5 ${META}`} data-sc-source="pick">
+              Your pick · <button type="button" onClick={() => sc?.onPick(null)} className="rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">{sc?.choice ? 'Use the suggested page' : 'Use the route’s page'}</button>
             </p>
           )}
           {page.action === 'update' && page.href && (
