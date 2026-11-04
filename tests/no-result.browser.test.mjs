@@ -82,7 +82,7 @@ test('a null engine score renders as "—" with its ⓘ, never as 0', async () =
     assert.ok(!/pts?|No change/.test(sep7.after), `Sep 16 has a change line against the failed scan: "${sep7.after}"`)
 
     // the prompt tables: one muted line + ⓘ instead of the list, and no count badge (never 0)
-    for (const id of ['visible-prompts', 'missed-prompts']) {
+    for (const id of ['visible-prompts', 'missed-prompts', 'prompt-mix']) {
       const t = await page.evaluate((id) => {
         const card = document.getElementById(id)
         return {
@@ -91,6 +91,7 @@ test('a null engine score renders as "—" with its ⓘ, never as 0', async () =
           rows: card ? card.querySelectorAll('tbody tr').length : -1,
           badge: card?.querySelector('h2')?.nextElementSibling?.textContent.trim() ?? null,
           zeros: /Showing 0|of 0\b/.test(card?.textContent ?? ''),
+          text: card?.textContent ?? '',
         }
       }, id)
       assert.equal(t.line, 'No Gemini result in the latest scan', `${id}: the no-result line`)
@@ -98,6 +99,7 @@ test('a null engine score renders as "—" with its ⓘ, never as 0', async () =
       assert.equal(t.rows, 1, `${id}: only the line, no prompt rows`)
       assert.equal(t.badge, null, `${id}: no count badge (was "${t.badge}")`)
       assert.ok(!t.zeros, `${id}: no "Showing 0–0 of 0" footer`)
+      assert.ok(!/new prompts? since/.test(t.text), `${id}: no "won n new prompts" notice`)
     }
 
     // Growth view: the period with no result is an empty slot whose tooltip reads "—", never a 0 bar
