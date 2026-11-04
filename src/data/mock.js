@@ -190,7 +190,8 @@ const dermasuriHistory = () => ({
 // gaps: the weekly syncs' days (iso) whose scan had no result on the engine shown (brandViews.engineGaps): every
 // series is null there (a gap in the line, "—" in the tooltip), and so is a month whose every sync had no result
 // scoring: a scoring change to mark on the dashboard's own history (the AI Mode split, brandViews aiModeSplit)
-export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null, dataset = null, gaps = [], scoring = null } = {}) {
+// setup: a Brand Setup change ({ label, weekly: { after, frac }, monthly }), marked the same way (?setup=1 previews one)
+export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null, dataset = null, gaps = [], scoring = null, setup = null } = {}) {
   const ds = dataset ?? (scoring ? { ...dermasuriHistory(), scoring } : dermasuriHistory())
   const historySeries = ds.series
   const gran = granularity === 'monthly' ? 'monthly' : 'weekly'
@@ -264,6 +265,7 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
     since,
     points,
     scoring: mark ? { label: ds.scoring.label, tip: ds.scoring.tip ?? null, at: scoringPosition(points.map((p) => p.date), mark) } : null,
+    setupChange: setup?.[gran] ? { label: setup.label, at: scoringPosition(points.map((p) => p.date), setup[gran]) } : null,
     series,
     youHidden,
     ...axis,

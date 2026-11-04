@@ -15,7 +15,7 @@ import { useBrandView } from '../../hooks/useBrandView'
 import Insight, { hlOpacity, useExplain } from '../ui/Insight'
 import { sourceLine } from './insights'
 import { useTracking } from '../../store/trackingSettings'
-import { aiModeSplit, engineGaps, engineName, engineScale, hasResult } from '../../data/brandViews'
+import { aiModeSplit, engineGaps, engineName, engineScale, hasResult, setupPreview } from '../../data/brandViews'
 import NoResult from '../ui/NoResult'
 import { useBrandColors } from '../../hooks/useBrandColors' // one colour per brand, the same as Share of voice
 
@@ -419,7 +419,9 @@ function BrandsMenu({ brands, focalKey, drawn, onPick }) {
 // "Scoring updated Oct 21": a dashed line on the x axis where the scoring changed, its label in the plot's top margin
 // (left of the line near the right edge). `at` is in point-index units (3.29 = between the 4th and 5th dates).
 // hovering the line or its label opens the explanation (onHover gets its position, or null)
-function ScoringMarker({ at, dates, label, onHover, avoidAt = null }) {
+// a 12px label's width (Manrope, tabular figures), close enough to decide whether two labels collide
+const labelW = (text) => Math.ceil(text.length * 6.6) + 4
+function ScoringMarker({ at, dates, label, onHover, avoidAt = null, avoidLabel = '' }) {
   const scale = useXAxisScale()
   const plot = usePlotArea()
   if (at == null || !scale || !plot) return null
@@ -438,9 +440,11 @@ function ScoringMarker({ at, dates, label, onHover, avoidAt = null }) {
     const a1 = scale(dates[j + 1], { position: 'middle' })
     return a0 == null ? null : a1 == null ? plot.x + plot.width - 1 : a0 + (a1 - a0) * (avoidAt - j)
   })()
-  // both labels always show; when the two markers are close, this one's label sits a line higher (stacked)
-  const stacked = otherX != null && Math.abs(otherX - x) <= 170
-  const labelY = plot.y - 8 - (stacked ? 16 : 0)
+  // both labels always show; when they'd touch (their spans, each drawn toward the plot's middle), this one's label
+  // sits a line higher (stacked), at every width
+  const span = (cx, text) => { const w = labelW(text); return cx > plot.x + plot.width * 0.6 ? [cx - 6 - w, cx - 6] : [cx + 6, cx + 6 + w] }
+  const stacked = otherX != null && (() => { const [a0, a1] = span(x, label), [b0, b1] = span(otherX, avoidLabel || label); return a0 < b1 + 12 && b0 < a1 + 12 })()
+  const labelY = plot.y - 8 - (stacked ? 18 : 0) // 18: a 12px label's full box, so stacked labels never touch
   const enter = () => onHover?.({ x, y: plot.y, right, kind: 'scoring' })
   const leave = () => onHover?.(null)
   return (
@@ -449,7 +453,7 @@ function ScoringMarker({ at, dates, label, onHover, avoidAt = null }) {
       <text className="pointer-events-none num" x={right ? x - 6 : x + 6} y={labelY} textAnchor={right ? 'end' : 'start'} fontSize={12} fill="var(--color-stone-500)">{label}</text>
       {/* hover targets: a strip along the line and the label */}
       <rect x={x - 6} y={plot.y - 4} width={12} height={plot.height + 4} fill="transparent" style={{ pointerEvents: 'all' }} onMouseEnter={enter} onMouseLeave={leave} />
-      <rect x={right ? x - 150 : x} y={labelY - 14} width={150} height={18} fill="transparent" style={{ pointerEvents: 'all' }} onMouseEnter={enter} onMouseLeave={leave} />
+      <rect x={right ? x - labelW(label) - 6 : x} y={labelY - 14} width={labelW(label) + 6} height={18} fill="transparent" style={{ pointerEvents: 'all' }} onMouseEnter={enter} onMouseLeave={leave} />
     </g>
   )
 }
@@ -539,7 +543,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   // the chart reads ONLY this. Brands not picked are left out like hidden ones.
   // engine filter: every series is that engine's share
   const h = useMemo(
-    () => getHistory({ ...view, hidden: [...view.hidden, ...notDrawn], focal: YOU, dataset, scale: engine === 'all' ? null : engineScale(engine), gaps: dataset ? [] : engineGaps(engine), scoring: dataset ? null : aiModeSplit(engine)?.scoring ?? null }),
+    () => getHistory({ ...view, hidden: [...view.hidden, ...notDrawn], focal: YOU, dataset, scale: engine === 'all' ? null : engineScale(engine), gaps: dataset ? [] : engineGaps(engine), scoring: dataset ? null : aiModeSplit(engine)?.scoring ?? null, setup: dataset ? setupPreview(dataset.weekly, dataset.monthly) : setupPreview() }),
     [view, notDrawn.join(','), YOU, engine, dataset], // eslint-disable-line react-hooks/exhaustive-deps
   )
   // switching brand: the new focal brand is never hidden; nothing left to compare → Compare off
@@ -613,7 +617,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
     <Tooltip key="tip" cursor={cursor} content={tooltip} filterNull={false} {...(markerTip ? { active: false } : {})} />,
     scoringAt != null && <ScoringMarker key="scoring" at={scoringAt} dates={dates} label={mobile ? scoring.label.replace('Scoring updated', 'Scoring') : scoring.label} onHover={setMarkerTip} />,
     // a Brand Setup change (it applies from the next scan; earlier points stay as they were scored)
-    h.setupChange && <ScoringMarker key="setup" at={h.setupChange.at ?? dates.length - 1} dates={dates} label={mobile ? h.setupChange.label.replace('Setup changed', 'Setup') : h.setupChange.label} onHover={(t) => setMarkerTip(t && { ...t, kind: 'setup' })} avoidAt={scoringAt} />,
+    h.setupChange && <ScoringMarker key="setup" at={h.setupChange.at ?? dates.length - 1} dates={dates} label={mobile ? h.setupChange.label.replace('Setup changed', 'Setup') : h.setupChange.label} onHover={(t) => setMarkerTip(t && { ...t, kind: 'setup' })} avoidAt={scoringAt} avoidLabel={scoring ? (mobile ? scoring.label.replace('Scoring updated', 'Scoring') : scoring.label) : ''} />,
   ].filter(Boolean)
   // Line view: label inside the plot, right-aligned above the line. Bar/Growth: the last column reaches the right edge,
   // so the label sits just outside the plot at the end of the line (a right gutter is reserved for it).
@@ -635,7 +639,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   // the same margins in every view, so Trend, Share and Growth draw the same plot height; the top margin holds the
   // value labels above a first sync's bars / growth bars and the scoring marker's label
   // room for two stacked marker labels when the scoring and setup changes sit close together
-  const margin = { top: scoring && h.setupChange ? 40 : 24, right: compact ? 112 : 8, bottom: 0, left: 0 }
+  const margin = { top: scoring && h.setupChange ? 42 : 24, right: compact ? 112 : 8, bottom: 0, left: 0 }
   // lines lying on top of each other (within 1 point at every point, so only one would show): each one in the
   // group redrawn on top in turn-taking dashes (its colour, then the next one's), so every colour shows
   const overlaps = (() => {

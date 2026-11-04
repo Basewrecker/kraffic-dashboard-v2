@@ -242,6 +242,16 @@ export const ENGINE_ORDER = ['aio', 'aimode', 'gemini', 'chatgpt', 'claude', 'gr
 // <day>" with this ⓘ in place of its change line while the latest sync is that first one, and Visibility history
 // marks the day (the same dashed marker as a scoring change). The split day comes from the data (the earliest AI
 // Mode day); the mock's sample has AI Mode from the start, so only ?aimode=new shows it (the latest sync).
+// ?setup=1: a Brand Setup change 3 days before the latest sync (Visibility history's "Setup changed <day>" marker;
+// next to the AI Mode split or a scoring change the two labels stack). weekly / monthly: the chart's points.
+export function setupPreview(weeklyPts = weekly, monthlyPts = historyMonthly) {
+  try { if (new URLSearchParams(window.location.search).get('setup') !== '1') return null } catch { return null }
+  const prev = weeklyPts.at(-2), mb = monthlyPts.at(-2)
+  if (!prev) return null
+  return { label: `Setup changed ${addDays(prev.date, 4)}`, weekly: { after: prev.date, frac: 4 / 7 }, monthly: mb ? { after: mb.date, frac: 0.9 } : null }
+}
+// "Sep 28" + 4 → "Oct 2" (the mock's short dates, 2026)
+const addDays = (d, n) => { const t = new Date(`${d}, 2026 12:00`); t.setDate(t.getDate() + n); return t.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
 export const AIMODE_SPLIT_TIP = 'Google AI Mode is now counted separately, so Google AI Overview no longer includes AI Mode results.'
 export function aiModeSplit(engine) {
   if (aiModePreview() !== 'new' || !(engine === 'all' || engine === 'aio')) return null
