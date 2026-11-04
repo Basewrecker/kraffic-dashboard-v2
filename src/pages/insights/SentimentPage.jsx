@@ -16,7 +16,7 @@ import { useIsMobile, useMedia } from '../../hooks/useMedia'
 import {
   TONES, TONE_LABEL, countTones, heroLine, runPages, scoredLine, scoreInfo, unscoredNote, scoreOf, sentimentFor, sentimentInsight, shareTrendLine, sortPages, sourceCloud, tonePercents, withScores,
 } from '../../data/sentiment'
-import { BAND, capStack, dotPlan, pageHref, groupThemes, layoutSwarm, lanesFor, matchIds, neighbour, scoreX, springEasing, staggerDelays, tellingSentence } from '../../utils/spectrum'
+import { BAND, QUADRANT, capStack, dotPlan, pageHref, groupThemes, matchIds, neighbour, quadrantMinH, quadrantPack, springEasing, staggerDelays, tellingSentence } from '../../utils/spectrum'
 import { ENGINE_NAME, SCORING_UPDATED_TIP, SENTIMENT_ENGINES, heroTone, scoringChangedAt, scoreCardDocked, scoreChangeLine, sortAllPages, syncColumns, syncScoreChange, tipLeft, alsoSaidOnSites, changedCount, compareCsv, compareCsvRow, compareEntries, compareFilename, compareList, compareMarks, enginesIn, evenColumns, filterSyncPages, newPageIds, sourceColumns, sourceLead, syncCsv, syncFilename, syncMarks, toneById, turnedNegative } from '../../utils/sentimentSections'
 import { fmtDay, lineBtn, t2, t3 } from './parts'
 import { CrossFade, GLIDE, Seg, useCountUp, useWidth } from '../../components/ui/motion'
@@ -505,7 +505,8 @@ function Hero({ heroRef, col, change: sync, brand, run, isLatest, onLatest, page
             </span>
             <Switch checked={split} onChange={setSplit} spring>Split by engine</Switch>
           </div>
-          <Spectrum pages={pages} lit={lit} engine={engine} split={split} score={score} onDot={onDot} themeFor={themeFor} filter={{ c, tone, setTone, explain }} fitH={fitH} />
+          <Spectrum pages={pages} lit={lit} engine={engine} split={split} onDot={onDot} themeFor={themeFor} filter={{ c, tone, setTone, explain }} fitH={fitH}
+            onMore={(t) => { setParams({ ptone: t }); openDrawer('syncpages', col.r.id) }} />
         </div>
       </div>
       {text && <div className="mt-6"><Insight explain={explain} text={text} evidence={{ keys: ['tones'], calc: `Scored pages in the ${fmtDay(run.date)} run. Score = 50 + (positive − negative) ÷ scored pages × 50. Unreadable pages are not scored and are not part of the score.` }} /></div>}
@@ -513,37 +514,20 @@ function Hero({ heroRef, col, change: sync, brand, run, isLatest, onLatest, page
   )
 }
 
-const CHART_CHROME = 26 + 36 // the chart column around the plot: the label row (18 + mb-2) and the axis (mt-2 + h-7)
+const CHART_CHROME = 26 // the chart column above the grid: the label row (18 + mb-2)
 
-// the axis under the spectrum: three bands, "Negative 4 · Neutral 6 · Positive 4". With tone filtering (the hero), each
-// label filters the dots (again: all); elsewhere the labels are plain.
-const AXIS = [['negative', 'Negative', 1 / 8], ['neutral', 'Neutral', 3 / 8], ['mixed', 'Mixed', 5 / 8], ['positive', 'Positive', 7 / 8]]
-function Axis({ plotW, filter }) {
-  const { c, tone, setTone, explain } = filter || {}
-  return (
-    <div {...(filter ? hl(explain, 'tones') : {})} className="relative mt-2 h-7 border-t border-line-strong text-[12px] leading-4 tabular-nums"
-      {...(filter ? { role: 'group', 'aria-label': 'Filter by tone' } : { 'aria-hidden': true })}>
-      {AXIS.map(([k, label, at]) => {
-        const pos = { left: plotW * at }
-        const text = <>{label}{filter && <> <span className="font-normal">{c[k]}</span></>}</>
-        if (!filter) return <span key={k} className={`absolute top-1.5 -translate-x-1/2 whitespace-nowrap font-medium ${TONE_TEXT[k]}`} style={pos}>{text}</span>
-        return (
-          <button key={k} type="button" aria-pressed={tone === k} onClick={() => setTone(tone === k ? null : k)} style={pos}
-            className={`absolute top-0.5 -translate-x-1/2 whitespace-nowrap rounded px-1 py-1 font-medium outline-none transition-opacity duration-200 focus-visible:ring-2 focus-visible:ring-focus ${TONE_TEXT[k]} ${tone && tone !== k ? 'opacity-40' : ''} ${tone === k ? 'underline decoration-2 underline-offset-4' : 'hover:underline underline-offset-4'}`}>
-            {text}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
+// the tone grid's four labels, each in its quadrant's outer corner; with tone filtering (the hero) each one filters the
+// dots (again: all), elsewhere they're plain text
+const CORNER = { neutral: 'left-0 top-0', positive: 'right-0 top-0', negative: 'left-0 bottom-0', mixed: 'right-0 bottom-0' }
+const QUAD_TEXT = { positive: 'text-ink', negative: 'text-negative', neutral: t3, mixed: t3 }
+const QUAD_TINT = { positive: 'color-mix(in srgb, var(--ink) 3%, transparent)', negative: 'color-mix(in srgb, var(--negative) 4%, transparent)' }
+const QUAD_ORDER = ['neutral', 'positive', 'negative', 'mixed']
 
-// ---- the spectrum itself: one swarm, or three engine lanes ("Split by engine"). The same elements serve both layouts:
-// every page has one dot per citing engine (copies hide under the original when merged), plus three score markers and
-// three lane labels. Moving between layouts is FLIP on transform / opacity only, with the Web Animations API: each
-// element animates from wherever it is NOW (its computed transform, also mid-animation) to its new target, so a
-// toggle mid-way reverses smoothly. No React state changes per frame.
-const LABEL_H = 26 // a lane's label row (split)
+// ---- the tone grid: 2×2 by tone (Neutral · Positive over Negative · Mixed), every page a dot in its tone's quadrant,
+// packed in rows (utils/spectrum quadrantPack). "Split by engine": one dot per citing engine, each with its engine's
+// badge (pages carry one tone, so a page's engine dots share its quadrant). Dots move between quadrants with FLIP on
+// transform / opacity (Web Animations API), from wherever they are now, so an engine switch or another sync mid-move
+// reverses smoothly. No React state changes per frame.
 const MOVE = { dur: 550, step: 8, cap: 250, height: 450 }
 let EASE = null // the spring easing, if the browser takes linear(); else a cubic with a small overshoot
 const ease = () => {
@@ -568,17 +552,15 @@ function moveTo(el, t, o, { delay = 0, dur = MOVE.dur, easing = ease(), first = 
   return (sameT ? 0 : delay) + d
 }
 
-function Spectrum({ pages: listed, lit, engine, split, score, onDot = (p) => openDrawer('page', p.id), themeFor = () => null, filter = null, fitH = null }) {
-  // only pages with a tone are placed: Not scored pages are listed (Pages, drawer), never on this scale. A Not scored
-  // page has no band, so it had no position and the page crashed ("Cannot read properties of undefined (reading 'x')")
+function Spectrum({ pages: listed, lit, engine, split, onDot = (p) => openDrawer('page', p.id), themeFor = () => null, filter = null, fitH = null, onMore = null }) {
+  // only pages with a tone are placed: Not scored pages are listed (Pages, drawer), never on the grid
   const pages = useMemo(() => listed.filter((p) => p.tone in BAND), [listed])
   const box = useRef(null)
-  const stage = useRef(null)
   const mobile = useIsMobile()
   const [w, setW] = useState(800)
   const [hover, setHover] = useState(null) // { page, x, y }
   const [focusId, setFocusId] = useState(null)
-  const els = useRef({}) // key → element (dots 'p1#0', markers 'mk:google', labels 'lab:google', …)
+  const els = useRef({}) // key → dot element ('p1#0', …)
   const movingUntil = useRef(0)
   const firstPaint = useRef(true)
   useLayoutEffect(() => {
@@ -589,55 +571,27 @@ function Spectrum({ pages: listed, lit, engine, split, score, onDot = (p) => ope
     return () => ro.disconnect()
   }, [])
   const r = mobile ? 12 : 18
-  const plotW = Math.max(120, w)
+  const W = Math.max(160, w)
+  // about 240px; in the hero as tall as the score column (both end level), never shorter than two rows need
+  const H = Math.max(quadrantMinH(r), fitH ?? 240)
+  const { c, tone, setTone, explain } = filter || {}
+  const counts = c ?? countTones(pages)
 
-  // both layouts, always: the swarm (with the engine filter's re-settle) and the lanes
-  const merged = useMemo(() => {
-    const all = layoutSwarm(pages, { width: plotW, r })
-    const on = engine === 'all' ? all : layoutSwarm(pages.filter((p) => p.engines.includes(engine)), { width: plotW, r })
-    const need = 2 * Math.max(all.extent, on.extent) + 28
-    // fitH (the hero, two columns): the plot is as tall as the score column, or as its dots need if that's more
-    const H = fitH != null ? Math.max(need, fitH) : Math.max(mobile ? 200 : 236, need)
-    return { all, on, H }
-  }, [pages, plotW, r, engine, mobile, fitH])
-  const lanes = useMemo(() => {
-    let top = 0
-    const laid = lanesFor(pages, ENGINES).map((l) => {
-      const lay = layoutSwarm(l.pages, { width: plotW, r })
-      // fitH: a lane is only as tall as its dots need, and the lanes share what's left of the score column's height
-      return { l, lay, H: LABEL_H + (fitH != null ? 2 * lay.extent + 16 : Math.max(mobile ? 80 : 92, 2 * lay.extent + 16)) }
-    })
-    const spare = fitH != null && laid.length ? Math.max(0, fitH - laid.reduce((n, x) => n + x.H, 0)) / laid.length : 0
-    return laid.map(({ l, lay, H: h }) => {
-      const H = h + spare
-      const lane = { ...l, lay, top, H }
-      top += H
-      return lane
-    })
-  }, [pages, plotW, r, mobile, fitH])
-  const laneBy = Object.fromEntries(lanes.map((l) => [l.id, l]))
-  const splitH = lanes.reduce((n, l) => n + l.H, 0)
-  const totalH = split ? splitH : merged.H
-
-  // every dot element and its target
+  // every dot (one per page; split: one per citing engine) and which are on the grid now
   const byId = new Map(pages.map((p) => [p.id, p]))
-  const placed = dotPlan(pages, ENGINES, split).map((d) => {
-    const page = byId.get(d.pageId)
-    const active = engine === 'all' || (split ? d.lane === engine : page.engines.includes(engine))
-    let x, y
-    if (split && laneBy[d.lane]) {
-      const l = laneBy[d.lane], pos = l.lay.pos[page.id]
-      x = pos.x; y = l.top + LABEL_H + (l.H - LABEL_H) / 2 + pos.y
-    } else {
-      const pos = (active ? merged.on.pos[page.id] : null) ?? merged.all.pos[page.id]
-      x = pos.x; y = merged.H / 2 + pos.y
-    }
-    const on = d.shown && active && lit.has(page.id)
-    const o = !d.shown ? 0 : !active && split ? 0.22 : on ? 1 : 0.12
-    return { ...d, page, x, y, o, on }
+  const plan = dotPlan(pages, ENGINES, split).map((d) => ({ ...d, page: byId.get(d.pageId) }))
+  const isActive = (d) => d.shown && (split ? engine === 'all' || d.lane === engine : engine === 'all' || d.page.engines.includes(engine))
+  const pack = (list) => quadrantPack(list.map((d) => ({ key: d.key, tone: d.page.tone })), { width: W, height: H, r })
+  const live = pack(plan.filter(isActive))
+  const every = pack(plan.filter((d) => d.shown)) // where a dot that's off the grid fades out (its last place)
+  const placed = plan.map((d) => {
+    const on = isActive(d) && Boolean(live.pos[d.key])
+    const at = live.pos[d.key] ?? every.pos[d.key] ?? every.pos[`${d.pageId}#0`] ?? live.pos[`${d.pageId}#0`] ?? { x: W / 2, y: H / 2 }
+    const lit_ = on && lit.has(d.page.id)
+    return { ...d, x: at.x, y: at.y, o: !on ? 0 : lit_ ? 1 : 0.12, on: lit_ }
   })
   const usable = placed.filter((d) => d.on)
-  const tabKey = usable.some((d) => d.key === focusId) ? focusId : [...usable].sort((a, b) => a.x - b.x)[0]?.key
+  const tabKey = usable.some((d) => d.key === focusId) ? focusId : [...usable].sort((a, b) => a.y - b.y || a.x - b.x)[0]?.key
   const onKey = (e, d) => {
     if (e.key === 'Escape') { setHover(null); return }
     if (!e.key.startsWith('Arrow')) return
@@ -649,11 +603,7 @@ function Spectrum({ pages: listed, lit, engine, split, score, onDot = (p) => ope
   // no hover card while dots are travelling
   const show = (d) => { if (performance.now() >= movingUntil.current) setHover({ page: d.page, x: d.x, y: d.y }) }
 
-  // targets for the markers (one per lane; merged they sit together on the overall score) and the lane labels
-  const markerT = (l) => (split
-    ? `translate(${scoreX(l.score ?? 50, plotW) - 1}px, ${l.top + LABEL_H}px) scaleY(${(l.H - LABEL_H) / 100})`
-    : `translate(${scoreX(score ?? 50, plotW) - 1}px, 0px) scaleY(${merged.H / 100})`)
-  const sig = `${split}|${engine}|${plotW}|${pages.map((p) => p.id + p.tone).join()}|${[...lit].join()}|${score}`
+  const sig = `${split}|${engine}|${W}|${H}|${pages.map((p) => p.id + p.tone).join()}|${[...lit].join()}`
   const lastMode = useRef({ engine, split })
   useLayoutEffect(() => {
     const first = firstPaint.current
@@ -661,80 +611,81 @@ function Spectrum({ pages: listed, lit, engine, split, score, onDot = (p) => ope
     // an engine switch alone moves the dots in 300ms with a slight stagger (fading as they leave or join)
     const engineOnly = !first && lastMode.current.engine !== engine && lastMode.current.split === split
     lastMode.current = { engine, split }
-    const order = [...placed].sort((a, b) => a.x - b.x)
+    const order = [...placed].sort((a, b) => a.y - b.y || a.x - b.x)
     const delays = staggerDelays(order.length, engineOnly ? { step: 6, cap: 90 } : MOVE)
     let end = 0
     order.forEach((d, i) => { end = Math.max(end, moveTo(els.current[d.key], `translate(${d.x - r}px, ${d.y - r}px)`, d.o, { delay: delays[i], first, ...(engineOnly ? { dur: 300 } : {}) })) })
-    lanes.forEach((l, i) => {
-      const faded = split && engine !== 'all' && engine !== l.id
-      end = Math.max(end, moveTo(els.current[`mk:${l.id}`], markerT(l), l.score == null ? 0 : faded ? 0.3 : 1, { first }))
-      // labels slide in from the left half way through the dots' move (60ms apart); out at once on merge
-      end = Math.max(end, moveTo(els.current[`lab:${l.id}`], `translate(${split ? 0 : -14}px, ${l.top}px)`, split ? (faded ? 0.4 : 1) : 0,
-        { first, delay: split ? MOVE.dur / 2 + i * 60 : 0, dur: split ? 320 : 200, easing: 'cubic-bezier(.2,.8,.2,1)' }))
-      end = Math.max(end, moveTo(els.current[`sep:${l.id}`], `translate(0px, ${l.top + l.H}px)`, split && i < lanes.length - 1 ? 1 : 0, { first, dur: 300 }))
-    })
-    end = Math.max(end, moveTo(els.current.overall, `translate(${scoreX(score ?? 50, plotW) + 8}px, -4px)`, split || score == null ? 0 : 1, { first, dur: 250 }))
-    end = Math.max(end, moveTo(els.current.even, `translate(${(score ?? 50) >= 50 ? plotW / 2 - 6 : plotW / 2 + 6}px, ${merged.H - 16}px)`, split ? 0 : 1, { first, dur: 250 }))
-    // the hero's height: grows / shrinks smoothly (content below moves with it, never jumps)
-    const el = stage.current
-    if (el) {
-      const to = `${totalH}px`
-      if (first || reduced()) { el.style.height = to } else if (el.style.height !== to) {
-        const from = `${el.getBoundingClientRect().height}px`
-        el.getAnimations().forEach((a) => a.cancel())
-        el.style.height = to
-        const dur = engineOnly ? 240 : MOVE.height
-        el.animate([{ height: from }, { height: to }], { duration: dur, easing: 'cubic-bezier(.2,.8,.2,1)' })
-        end = Math.max(end, dur)
-      }
-    }
     if (end) { movingUntil.current = performance.now() + end; setHover(null) }
-  }, [sig, totalH]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sig]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reg = (key) => (el) => { if (el) els.current[key] = el; else delete els.current[key] }
+  // split: hovering one dot highlights the page's other dots (the rest step back)
+  const peerOf = split && hover ? hover.page.id : null
   return (
     <div ref={box} className="relative [overflow-x:clip] [overflow-clip-margin:24px]" onMouseLeave={() => setHover(null)}>
-      <div ref={stage} className="relative">
-        {/* the bands and the even line run the full height in both layouts, so nothing here moves */}
+      <div className="relative" style={{ height: H }} {...(filter ? hl(explain, 'tones') : {})}>
+        {/* the quadrants: a faint cross, a tint only on Positive and Negative, no boxes */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
-          <div className="absolute inset-y-0 border-l border-line-strong" style={{ left: plotW / 3 }} />
-          <div className="absolute inset-y-0 border-l border-line-strong" style={{ left: (2 * plotW) / 3 }} />
-          <div className="absolute inset-y-0 border-l border-dashed" style={{ left: plotW / 2, borderColor: 'var(--color-stone-400)' }} />
-          {lanes.map((l) => <div key={l.id} ref={reg(`sep:${l.id}`)} className="absolute inset-x-0 top-0 border-b border-line-strong" />)}
-          {lanes.map((l) => <div key={l.id} ref={reg(`mk:${l.id}`)} className="absolute left-0 top-0 h-[100px] w-0.5 origin-top rounded-full bg-ink" />)}
-          <span ref={reg('overall')} className="absolute left-0 top-0 whitespace-nowrap text-[12px] leading-4 font-medium text-ink">Overall</span>
-          <span ref={reg('even')} className="absolute left-0 top-0"><span className={`block whitespace-nowrap text-[12px] leading-4 ${t3} ${(score ?? 50) >= 50 ? '-translate-x-full' : ''}`}>Even</span></span>
-          {lanes.map((l) => (
-            <span key={l.id} ref={reg(`lab:${l.id}`)} className="absolute left-0 top-0 flex h-[26px] items-center gap-2">
-              <EngineIcon id={l.id} size={16} />
-              <span className="text-[13px] leading-[18px] font-medium text-stone-900">{l.name}</span>
-              <span className="text-[15px] leading-5 font-semibold text-stone-900 tabular-nums">{l.score ?? '—'}</span>
-            </span>
-          ))}
+          {Object.entries(QUAD_TINT).map(([k, bg]) => {
+            const [cx, cy] = QUADRANT[k]
+            return <div key={k} className={`absolute ${cy ? 'rounded-bl-xl' : 'rounded-tr-xl'}`} style={{ left: cx * W / 2, top: cy * H / 2, width: W / 2, height: H / 2, background: bg }} />
+          })}
+          <div className="absolute inset-y-0 border-l border-line-strong" style={{ left: W / 2 }} />
+          <div className="absolute inset-x-0 border-t border-line-strong" style={{ top: H / 2 }} />
+        </div>
+        <div className="absolute inset-0" {...(filter ? { role: 'group', 'aria-label': 'Filter by tone' } : {})}>
+          {QUAD_ORDER.map((k) => {
+            const [cx, cy] = QUADRANT[k]
+            const text = <>{TONE_LABEL[k]} <span className="tabular-nums">{counts[k] ?? 0}</span></>
+            const at = { left: cx * W / 2, top: cy * H / 2, width: W / 2, height: H / 2 }
+            const cls = `absolute ${CORNER[k]} whitespace-nowrap text-[13px] leading-[18px] font-medium ${QUAD_TEXT[k]}`
+            return (
+              <div key={k} className="pointer-events-none absolute" style={at}>
+                {filter
+                  ? <button type="button" aria-pressed={tone === k} onClick={() => setTone(tone === k ? null : k)}
+                      className={`${cls} pointer-events-auto m-0.5 rounded px-1 outline-none transition-opacity duration-200 focus-visible:ring-2 focus-visible:ring-focus ${tone && tone !== k ? 'opacity-40' : ''} ${tone === k ? 'underline decoration-2 underline-offset-4' : 'hover:underline underline-offset-4'}`}>{text}</button>
+                  : <span className={`${cls} m-0.5 px-1`}>{text}</span>}
+              </div>
+            )
+          })}
         </div>
 
-        {/* the dots (copies too: hidden under their original until the split) */}
-        {placed.map((d, n) => (
-          <button key={d.key} ref={reg(d.key)} type="button"
-            tabIndex={d.on && d.key === tabKey ? 0 : -1} aria-hidden={!d.on}
-            aria-label={`${d.page.title}, ${d.page.domain}: ${TONE_LABEL[d.page.tone].toLowerCase()}. ${themeFor(d.page) ? `Open “${themeFor(d.page).theme}” below` : 'Open its quotes'}`}
-            onClick={(e) => { setHover(null); onDot(d.page); e.currentTarget.blur() }}
-            onMouseEnter={() => d.on && show(d)} onFocus={() => { setFocusId(d.key); show(d) }} onBlur={() => setHover(null)} onKeyDown={(e) => onKey(e, d)}
-            className={`absolute left-0 top-0 grid place-items-center rounded-full bg-surface outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${d.on ? 'z-[2] hover:z-[3]' : 'pointer-events-none'} ${d.copy ? 'z-[1]' : ''}`}
-            style={{ width: 2 * r, height: 2 * r, willChange: 'transform' }}>
-            {/* tone ring · a sliver of surface · a white plate, so dark logos show in both themes */}
-            <span className="dot-in grid h-full w-full place-items-center rounded-full border-2 bg-surface"
-              style={{ borderColor: RING[d.page.tone], animation: d.copy ? undefined : `dot-in 420ms cubic-bezier(.2,.8,.2,1) ${Math.min(n, 30) * 22}ms both` }}>
-              <span className="grid h-[calc(100%-4px)] w-[calc(100%-4px)] place-items-center rounded-full"
-                style={{ background: d.page.tone === 'negative' ? 'color-mix(in srgb, var(--negative) 14%, #fff)' : '#fff' }}>
-                <SiteLogo domain={d.page.domain} name={d.page.domain} className={`${mobile ? 'h-3.5 w-3.5' : 'h-5 w-5'} rounded-full !border-0 !bg-transparent`} initialClass="text-[9px] !text-[#44403c]" />
+        {/* the dots (split copies hide under their page's dot until the split) */}
+        {placed.map((d, n) => {
+          const dim = peerOf && d.page.id !== peerOf
+          return (
+            <button key={d.key} ref={reg(d.key)} type="button"
+              tabIndex={d.on && d.key === tabKey ? 0 : -1} aria-hidden={!d.on}
+              aria-label={`${d.page.title}, ${d.page.domain}${split && d.lane !== 'all' ? ` on ${ENGINES.find((e) => e.id === d.lane)?.name ?? d.lane}` : ''}: ${TONE_LABEL[d.page.tone].toLowerCase()}. ${themeFor(d.page) ? `Open “${themeFor(d.page).theme}” below` : 'Open its quotes'}`}
+              onClick={(e) => { setHover(null); onDot(d.page); e.currentTarget.blur() }}
+              onMouseEnter={() => d.on && show(d)} onFocus={() => { setFocusId(d.key); show(d) }} onBlur={() => setHover(null)} onKeyDown={(e) => onKey(e, d)}
+              className={`absolute left-0 top-0 grid place-items-center rounded-full bg-surface outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${d.on ? 'z-[2] hover:z-[3]' : 'pointer-events-none'}`}
+              style={{ width: 2 * r, height: 2 * r, willChange: 'transform' }}>
+              {/* tone ring · a sliver of surface · a white plate, so dark logos show in both themes */}
+              <span className="dot-in grid h-full w-full place-items-center rounded-full border-2 bg-surface transition-opacity duration-150"
+                style={{ borderColor: RING[d.page.tone], opacity: dim ? 0.3 : 1, animation: d.copy ? undefined : `dot-in 420ms cubic-bezier(.2,.8,.2,1) ${Math.min(n, 30) * 22}ms both` }}>
+                <span className="grid h-[calc(100%-4px)] w-[calc(100%-4px)] place-items-center rounded-full"
+                  style={{ background: d.page.tone === 'negative' ? 'color-mix(in srgb, var(--negative) 14%, #fff)' : '#fff' }}>
+                  <SiteLogo domain={d.page.domain} name={d.page.domain} className={`${mobile ? 'h-3.5 w-3.5' : 'h-5 w-5'} rounded-full !border-0 !bg-transparent`} initialClass="text-[9px] !text-[#44403c]" />
+                </span>
               </span>
-            </span>
-          </button>
+              {split && d.lane !== 'all' && (
+                <span aria-hidden className="absolute -bottom-1 -right-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-surface ring-1 ring-line transition-opacity duration-150" style={{ opacity: dim ? 0.3 : 1 }}>
+                  <EngineIcon id={d.lane} size={12} />
+                </span>
+              )}
+            </button>
+          )
+        })}
+        {/* more than two rows in a quadrant: "+n more" opens the pages drawer on that tone */}
+        {Object.entries(live.more).map(([k, m]) => (
+          <button key={k} type="button" onClick={() => (onMore ? onMore(k) : null)} disabled={!onMore}
+            aria-label={`${m.n} more ${TONE_LABEL[k].toLowerCase()} ${split ? 'dots' : 'pages'}`}
+            className={`absolute z-[2] grid place-items-center rounded-full border border-line bg-surface text-[13px] leading-[18px] font-medium tabular-nums outline-none transition-colors hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus ${t2}`}
+            style={{ left: m.x - m.w / 2, top: m.y - r, width: m.w, height: 2 * r }}>+{m.n} more</button>
         ))}
         {hover && <HoverCard hover={hover} w={w} r={r} theme={themeFor(hover.page)} />}
       </div>
-      <Axis plotW={plotW} filter={filter} />
     </div>
   )
 }
@@ -789,7 +740,7 @@ function RunningHero({ brand, pages, stuck, onDone }) {
           <span className={`text-[13px] leading-[18px] ${t2}`}>{shown.length} of {pages.length} scored</span>
           <RunningLine label="Paid run" since={since} />
         </div>
-        <div className="min-w-0"><Spectrum pages={shown} lit={new Set(shown.map((p) => p.id))} engine="all" split={false} score={null} /></div>
+        <div className="min-w-0"><Spectrum pages={shown} lit={new Set(shown.map((p) => p.id))} engine="all" split={false} /></div>
       </div>
     </section>
   )

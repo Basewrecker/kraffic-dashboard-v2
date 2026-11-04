@@ -1,6 +1,7 @@
 // Run with: npm test. The Sentiment page's wiring that no pure helper can show: the score change and the line under it
 // read one helper, the dot plot's lines, the insight under the plot, one engine switch, Score's docked card, the Sources
-// link, Mixed's own colour, and the 2×2 quadrant and two-axis scatter staying out (both tried and reverted, 2026-11-03).
+// link, Mixed's own colour, the 2×2 tone grid (owner, 2026-11-04), and the positioning matrix and two-axis scatter
+// staying out (both tried and reverted, 2026-11-03).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -9,7 +10,6 @@ const page = readFileSync(new URL('./SentimentPage.jsx', import.meta.url), 'utf8
 const block = (start, end) => page.slice(page.indexOf(start), page.indexOf(end, page.indexOf(start)))
 const hero = block('function Hero(', '\n}\n')
 const spectrum = block('function Spectrum(', '\n}\n')
-const axis = block('function Axis(', '\n}\n')
 
 test('the score change: one helper for the hero and the Over time tooltip; the line under the score is coloured by direction', () => {
   assert.match(page, /const change = syncScoreChange\(cols, runs\.indexOf\(run\)\)/)
@@ -61,17 +61,23 @@ test('the insight line runs full width under the dot plot, on one line (owner, 2
   assert.match(hero, /\{text && <div className="mt-6"><Insight explain=\{explain\} text=\{text\} evidence=/)
 })
 
-test('the plot is only as tall as the score column (fitH), never below what its dots need', () => {
+test('the tone grid is about 240px and as tall as the score column (fitH), never below two rows of dots', () => {
   assert.match(hero, /const measure = \(\) => setColH\(colTop\.current\?\.offsetHeight \?\? 0\)/)
   assert.match(hero, /<Spectrum [^>]*fitH=\{fitH\}/)
-  assert.match(spectrum, /fitH != null \? Math\.max\(need, fitH\)/)
+  assert.match(spectrum, /const H = Math\.max\(quadrantMinH\(r\), fitH \?\? 240\)/)
+  assert.match(page, /const CHART_CHROME = 26 /, 'no axis under the grid: only the label row above it')
 })
 
-test('light mode lines: the axis, the column dividers and the lane separators use --line-strong', () => {
-  assert.match(axis, /border-t border-line-strong/)
-  assert.equal((spectrum.match(/border-l border-line-strong/g) || []).length, 2)
-  assert.match(spectrum, /sep:\$\{l\.id\}`\)\} className="[^"]*border-line-strong/)
+test('the tone grid: a faint --line-strong cross, tint only on Positive and Negative, labels in the outer corners', () => {
+  assert.equal((spectrum.match(/border-line-strong/g) || []).length, 2, 'one vertical and one horizontal line, no boxes')
   assert.doesNotMatch(spectrum, /border-\[var\(--div\)\]/)
+  assert.match(page, /const QUAD_TINT = \{ positive: 'color-mix\(in srgb, var\(--ink\) 3%, transparent\)', negative: 'color-mix\(in srgb, var\(--negative\) 4%, transparent\)' \}/)
+  assert.match(page, /const CORNER = \{ neutral: 'left-0 top-0', positive: 'right-0 top-0', negative: 'left-0 bottom-0', mixed: 'right-0 bottom-0' \}/)
+  assert.match(page, /const QUAD_TEXT = \{ positive: 'text-ink', negative: 'text-negative', neutral: t3, mixed: t3 \}/)
+  assert.doesNotMatch(spectrum, />Overall<|>Even</, 'no Overall marker, no Even label')
+  assert.match(spectrum, /quadrantPack\(/, 'dots packed by utils/spectrum quadrantPack (tested there)')
+  assert.match(spectrum, /\+\{m\.n\} more/, '"+n more" past two rows')
+  assert.match(hero, /onMore=\{\(t\) => \{ setParams\(\{ ptone: t \}\); openDrawer\('syncpages', col\.r\.id\) \}\}/, '"+n more" opens the pages drawer on that tone')
 })
 
 test('one engine switch on the page (the header\'s); Split by engine stays; no brand menu on the page', () => {
@@ -81,10 +87,17 @@ test('one engine switch on the page (the header\'s); Split by engine stays; no b
   assert.doesNotMatch(page, /MenuSelect|prefix="Brand"/)
 })
 
-test('the dot plot stays the column one: no 2×2 quadrant, no two-axis scatter (both reverted)', () => {
-  assert.doesNotMatch(page, /Niche players|Leaders|Laggers|Controversial|quadrant/i)
+test('the 2×2 is by tone only: no positioning matrix, no two-axis scatter (both reverted 2026-11-03)', () => {
+  assert.doesNotMatch(page, /Niche players|Leaders|Laggers|Controversial/i)
   assert.doesNotMatch(page, /citation reach|scatter/i)
-  assert.match(page, /const AXIS = \[\['negative', 'Negative', 1 \/ 8\], \['neutral', 'Neutral', 3 \/ 8\], \['mixed', 'Mixed', 5 \/ 8\], \['positive', 'Positive', 7 \/ 8\]\]/)
+  assert.match(page, /const QUAD_ORDER = \['neutral', 'positive', 'negative', 'mixed'\]/)
+})
+
+test('Split by engine on the grid: an engine badge on each dot; hovering one highlights the page\'s other dots', () => {
+  assert.match(spectrum, /\{split && d\.lane !== 'all' && \(/)
+  assert.match(spectrum, /<EngineIcon id=\{d\.lane\} size=\{12\} \/>/)
+  assert.match(spectrum, /const peerOf = split && hover \? hover\.page\.id : null/)
+  assert.match(spectrum, /const dim = peerOf && d\.page\.id !== peerOf/)
 })
 
 test('Over time: Score\'s card docks only while the section is idle; in use, the full chart comes back', () => {

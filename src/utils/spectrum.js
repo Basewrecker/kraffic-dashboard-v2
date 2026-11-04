@@ -377,3 +377,41 @@ export function chartLayout({ width, n, up, down, L = 64, R = 8, minCol = 96, pi
   const H = dotsBottom + dates + change + pad
   return { scroll: !fits, colW, plotW, contentW: L + plotW + R, base, dotsBottom, H, scoreY: base - gap - up * pitch - 8 }
 }
+
+// ---- the tone grid (2×2): Neutral · Positive over Negative · Mixed. Each quadrant's dots are packed left to right in
+// rows (centred, `gap` apart, never overlapping), at most `rows` rows; more than fit → the last two slots become one
+// "+n more" button. A quadrant's label row sits on its outer edge (top for the top row, bottom for the bottom row), so
+// the dots use the rest of its height, centred.
+// items: [{ key, tone }] in placing order → { pos: { key: { x, y } }, more: { tone: { n, x, y, w } }, perRow }
+export const QUADRANT = { neutral: [0, 0], positive: [1, 0], negative: [0, 1], mixed: [1, 1] } // [column, row]
+export function quadrantPack(items, { width, height, r, gap = 8, rows = 2, label = 20, pad = 8 }) {
+  const qw = width / 2, qh = height / 2, d = 2 * r, pitch = d + gap
+  const perRow = Math.max(2, Math.floor((qw - 2 * pad + gap) / pitch))
+  const cap = perRow * rows
+  const pos = {}, more = {}
+  for (const [tone, [cx, cy]] of Object.entries(QUADRANT)) {
+    const list = items.filter((it) => it.tone === tone)
+    if (!list.length) continue
+    const over = list.length > cap
+    const shown = over ? list.slice(0, cap - 2) : list
+    const slots = shown.length + (over ? 2 : 0)
+    const nRows = Math.min(rows, Math.ceil(slots / perRow))
+    const areaTop = cy * qh + (cy === 0 ? label : 0)
+    const blockH = nRows * d + (nRows - 1) * gap
+    const y0 = areaTop + (qh - label - blockH) / 2 + r
+    const slotAt = (i) => {
+      const row = Math.floor(i / perRow)
+      const inRow = Math.min(perRow, slots - row * perRow)
+      const rowW = inRow * d + (inRow - 1) * gap
+      return { x: cx * qw + (qw - rowW) / 2 + (i % perRow) * pitch + r, y: y0 + row * pitch }
+    }
+    shown.forEach((it, i) => { pos[it.key] = slotAt(i) })
+    if (over) {
+      const a = slotAt(cap - 2), b = slotAt(cap - 1)
+      more[tone] = { n: list.length - shown.length, x: (a.x + b.x) / 2, y: a.y, w: 2 * d + gap }
+    }
+  }
+  return { pos, more, perRow }
+}
+// the smallest grid height that still fits two rows of dots in every quadrant
+export const quadrantMinH = (r, { gap = 8, rows = 2, label = 20, inset = 4 } = {}) => 2 * (label + rows * 2 * r + (rows - 1) * gap + 2 * inset)
