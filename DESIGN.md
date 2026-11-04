@@ -125,9 +125,17 @@ amber pair). Until one is picked, nothing below changes.
   ring; missed: greyed, lit by the button). It replaces the "Engine logos show only the engines that apply" rule
   above for the bar only.
 - **Content workspace, Draft step v1 (owner, 2026-11-04):** the workspace shows what `content-recommend` returns
-  (`src/data/contentRecommend.js`, derivations in `pages/opportunities/draft/recommend.js`): 3 steps, Target page
-  (pageRecommendation + its evidence) → Draft → Copy & publish. Search Console, Your data, Publish & track and the live
-  5-step writing view are behind `?backend=full`. While writing: one honest state (the app's two loading lines, a
+  (`src/data/contentRecommend.js`, derivations in `pages/opportunities/draft/recommend.js`): 4 steps, Target page
+  (pageRecommendation + its evidence) → Your data → Draft → Copy & publish. Search Console, Publish & track and the live
+  5-step writing view are behind `?backend=full`.
+  **Your data, v1 (owner, 2026-11-04):** the round-4 design (three numbered blocks, all optional, Skip always there), in
+  the focus panel (880px). Files are read in the browser (PDF, DOCX, CSV, TXT; 10 MB each, 5 files; nothing uploaded):
+  a row says "Read · ~1,200 words", or "Couldn't read this file" / why it can't be added in `--negative` red (an error).
+  One muted 13px line under the intro, once for the step: "Sent with your draft, not stored". Everything becomes one
+  `userFacts` payload capped at 20k characters (`pages/opportunities/data/userFacts.js`); over it, a 13px line with an
+  ⓘ under the files: "Too long, the first 20k characters will be used." + the file cut and where. No "Suggested from
+  your files" in v1, so the facts table drops its source column and the value takes it. The reading bar eases to 90%
+  once and waits (`.co-read-wait`, not a loop; static under reduced motion). While writing: one honest state (the app's two loading lines, a
   shimmering outline skeleton: a loop, the owner's exception). The draft is our design, not the app drawer's: our type
   scale, our rows and rail; flags tagged by label with the score as a number; comparisons with the same labels as a
   plain grid, else short lists side by side; FAQ all open. Markdown is parsed to a text-only tree

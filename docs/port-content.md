@@ -4,8 +4,12 @@ For the app session. Source: branch `design/content-opportunities` (see the comm
 session never edits the app; this doc says what to copy, what to wire, and what to leave out.
 
 **Port v1 only.** v1 is everything built on what Harsh's `POST /api/missed-prompts/content-recommend` returns today
-(branch `fix/demo-qa-stability`, audited in the app's `docs/content-data-audit.md`). Everything else is behind
-`?backend=full` in the mock and stays out of the app until its backend exists.
+(branch `fix/demo-qa-stability`, audited in the app's `docs/content-data-audit.md`), plus **Your data** (step 2,
+§3a): read in the browser and sent with the draft request as a new optional `userFacts` field, which **needs a backend
+change by Harsh** before it does anything in the app. Everything else is behind `?backend=full` in the mock and stays
+out of the app until its backend exists.
+
+v1 steps: **Target page → Your data → Draft → Copy & publish** (4 pills; `workspace/flow.js` `stepsFor(false)`).
 
 Not in this port: the sidebar density / 232px width / Beta pill restyle / brand-card text, and the brand-menu portal
 fix. Those are separate (develop a5b2318 for the menu; the sidebar is on its own branch).
@@ -31,10 +35,13 @@ fix. Those are separate (develop a5b2318 for the menu; the sidebar is on its own
 | `src/pages/opportunities/workspace/PayoffBar.jsx` | the bar under the header (pills, reward headline, named engines, primary button) |
 | `src/pages/opportunities/workspace/ActionDock.jsx` | the dark dock when the bar scrolls away |
 | `src/pages/opportunities/workspace/TargetV1.jsx` | step 1 "Target page" (v1): rank ladder on top; below it the format matrix LEFT (8/12) and the Update column RIGHT (4/12: path, Open page, missing formats, "The draft adds", draft preview), divider between; below 1100px they stack, matrix first |
-| `src/pages/opportunities/workspace/FocusPanel.jsx` | the centred dialog (Draft and Copy & publish happen inside it) |
+| `src/pages/opportunities/workspace/DataStep.jsx` | step 2 "Your data" (v1 with `v1` prop): Upload documents · Add key facts · Answer what you can; real in-browser reading, the 20k-cap line |
+| `src/pages/opportunities/data/extract.js` (+ test) | reads PDF / DOCX / CSV / TXT in the browser; the limits; "~1,200 words" |
+| `src/pages/opportunities/data/userFacts.js` (+ test) | the ONE `userFacts` payload + the 20k cap, the questions from the flags, the localStorage shape |
+| `src/pages/opportunities/workspace/FocusPanel.jsx` | the centred dialog (Your data, Draft and Copy & publish happen inside it) |
 | `src/pages/opportunities/workspace/PanelHeader.jsx` | the panel's sticky header |
 | `src/pages/opportunities/workspace/CopyPublish.jsx` | step 3 "Copy & publish" (v1) |
-| `src/pages/opportunities/workspace/flow.js` (+ test) | which steps exist (v1: 3; full: 5), focus-mode state |
+| `src/pages/opportunities/workspace/flow.js` (+ test) | which steps exist (v1: 4; full: 5), focus-mode state, `backLabel` ("Back to step n" counted among the visible steps) |
 | `src/pages/opportunities/workspace/ui.jsx` | small indicators: GreenTick, DashedRing, TickDraw, RingDraw, Collapse, Pills |
 | `src/pages/opportunities/DraftStep.jsx` | step 2 "Draft": writing state → draft view, footer (Copy content, More ▾, Regenerate) |
 | `src/pages/opportunities/draft/Writing.jsx` | the honest writing state (skeleton of the real headings, the app's two messages, a timer) |
@@ -76,7 +83,8 @@ fix. Those are separate (develop a5b2318 for the menu; the sidebar is on its own
 Response (`content-recommend`, 200): `ok, analyzedAt, brandDomain, brandName, prompt, coverage, ourFormats,
 formats[], recommendations[], angles[], citedPages[], pageRecommendation, contentMarkdown, contentSource,
 contentComplete, contentIssues[], expertReview, brandFactsAvailable, flags[], reviewScore`.
-Request: `{ prompt, brandDomain, brandName, competitors, sources, targetUserId }`.
+Request: `{ prompt, brandDomain, brandName, competitors, sources, targetUserId }`, plus the PROPOSED optional
+`userFacts` (§3a), sent only when Your data has something in it (`requestFor(row, userFacts)` in the mock).
 
 ### Target page (step 1)
 | Element | Field(s) | Rule |
@@ -92,7 +100,87 @@ Request: `{ prompt, brandDomain, brandName, competitors, sources, targetUserId }
 | "After this draft" row (40% ticks for what the draft adds) | `ourFormats` + draft plan | R25, R28 |
 | Draft preview (H1, direct answer, section chips, "n flags to check", Open draft →) | `contentMarkdown`, `flags[]` + browser ticks | R27, R8 |
 
-### Draft (step 2)
+### 3a. Your data (step 2, v1; optional, Skip always there)
+Opens in the focus panel (880px) from the Target bar's **Add your data** (or **Skip to draft**). The round-4 design:
+three numbered blocks, all optional. Under the intro, once for the step (not under each block, where it would repeat
+three times): **"Sent with your draft, not stored"**.
+- **① Upload documents.** PDF, DOCX, CSV, TXT; up to 10 MB each, 5 files (checked by extension AND MIME type; an
+  unknown or `octet-stream` MIME is accepted on the extension). Read **in the browser**: nothing is uploaded or stored
+  on a server. Each row: icon · name · size · `Read · ~1,200 words` (exact under 100, then to the nearest 10 / 100 /
+  1,000), or `Couldn't read this file` in red (reason on hover: no text found, e.g. a scanned PDF; password-protected;
+  damaged). A file that can't be added says why in red until removed: `Not a PDF, DOCX, CSV or TXT`, `Over 10 MB`,
+  `Only 5 files at a time`. "Paste text" stays (it goes in as a document called "Pasted text"). No "Suggested from your
+  files" in v1 (nothing finds facts in the text; the draft reads it).
+- **② Add key facts.** Label · value rows the user types (label ≤ 80, value ≤ 400 characters). In v1 the value takes the
+  source column (every fact is the user's).
+- **③ Answer what you can.** One question per flag in THIS prompt's response that an answer can clear, by score (as in
+  the rail). Each answer is sent with the flag's id, so it lines up with the Draft's flags. Mapping (rule id → question):
+  `locations` (Missing brand info, 6) → "Clinic or office locations" · `credentials` (Missing brand info, 8) →
+  "Registration or named experts" · `contact` (Missing brand info, 4) → "Public phone or contact page" · `fees` (Needs
+  verification, 5) → "How you quote prices" · `reviews` (Needs verification, 5) → "Approved stats or reviews" ·
+  `trademark` (Needs verification, 3) → "Trademark wording". Not asked: Expert review (a qualified reviewer must read
+  the draft) and Draft gaps (fixed by rewriting). `userFacts.js` `QUESTION_FOR` / `questionsFor`.
+
+**Extraction (`data/extract.js`), per type:**
+- TXT, CSV: `File.text()`, tidied (BOM, CRLF, blank-line runs).
+- DOCX: no dependency. A minimal zip central-directory reader finds `word/document.xml`, the browser's
+  `DecompressionStream('deflate-raw')` inflates it (stored entries too), and the text is the `<w:t>` runs, a line per
+  `<w:p>` (`<w:tab/>` → tab, `<w:br/>` → line break), XML entities decoded. Encrypted / zip64 / other compression →
+  can't read.
+- PDF: **new dependency `pdfjs-dist` (^4.10.38)**, the app needs it too. Loaded only when a PDF is read (dynamic
+  `import('pdfjs-dist')`; the worker from `pdfjs-dist/build/pdf.worker.min.mjs?url`, Vite syntax: in Next.js set
+  `GlobalWorkerOptions.workerSrc` to the worker file you serve, e.g. copied to `/public`). 4.x, not 5/6: 4.10 supports
+  Node 20 (the app's `engines`) and Next 14; 5.x+ want Node ≥ 22. Mock build: `pdf-*.js` 365 kB (107 kB gzip) as its
+  own chunk (not in the main bundle), worker 1.4 MB. `isEvalSupported: false`. Text from `getTextContent()` per page.
+
+**The ONE payload (`data/userFacts.js` `buildUserFacts`):**
+```
+userFacts: { facts: [{ label, value }], answers: [{ flagId, answer }], documentsText }
+```
+- Order: facts, then answers, then the documents in upload order (pasted text last), each as `## <file name>\n<text>`,
+  a blank line between.
+- **Cap: 20,000 characters** over fact labels + values, answers and `documentsText` (headings included; keys not
+  counted). Facts and answers are never cut. Over the cap, `documentsText` is cut inside the document where the budget
+  runs out (at the last space), later documents are left out. The UI then shows, under the files: **"Too long, the first
+  20k characters will be used."** + "`<file>` is cut after ~n of m words." + "`<file>` isn't used." (`OverCap`).
+- Empty (nothing filled; reading / failed / rejected files carry nothing) → the request has no `userFacts` field.
+- Taken when the writing starts and on each Regenerate. Changing Your data after a draft exists turns its button into
+  **Rewrite the draft** (a Regenerate with the new payload); a file still being read holds the button ("Still reading
+  your files…").
+
+**Backend change needed (Harsh):** `content-recommend` takes no user input today (audit §6). It needs a new optional
+`userFacts` request field (shape above, validated: arrays, strings, the 20k cap enforced server-side too) passed into
+the draft prompt, and used by `buildReviewFlags`: a rule isn't raised when the user answered it (`answers[].flagId`) or
+gave a fact labelled for it (the mock's rule: `contentRecommend.js` `resolvedBy`). Until then the app should not send it
+(or the route ignores it) and the step is UI only.
+**Security:** the document text is user-supplied and goes into the model prompt: treat it as untrusted text, exactly
+like the scraped pages (delimit it, tell the model it's data not instructions, never let it change the output format or
+tools; the CLI's `--dangerously-skip-permissions` makes this matter more). The draft output stays rendered by the safe
+Markdown parser (§6).
+
+**Persistence:** per brand + prompt in localStorage, key `auden:content-data:v1:<domain>:<prompt>` (next to the
+draft's `auden:content-brief:v1:…`): `{ facts, answers, pasted, documents: [{ name, kind, bytes, words, text }] }`. The
+extracted text, never the File objects; each document's text capped at 20,001 characters (nothing past 20k is ever
+sent; the +1 keeps "it was cut" true). Failed and rejected rows aren't kept. Empty → the key is removed.
+**Sign-out:** the mock has no sign-out control. The app's sign-out already clears it: `lib/clear-browser-data.js`
+(`clearBrowserData`, app commit d94f7e9, on origin/main) removes every localStorage key except the theme, so both
+`auden:content-data:*` and the draft's `auden:content-brief:*` go. Nothing to add.
+
+**Mock fixture:** prompt 0, "best azelaic acid cream for rosacea" (`contentRecommend.js` variant `clinic`: the brand
+has a clinic but no address on its site). Without userFacts its draft asks "Confirm with your team: Which clinic
+location offers in-person skin checks." and carries the **locations** flag (Missing brand info, 6). With a location in
+userFacts (the `locations` answer, or a fact labelled location / address / office / clinic) the Direct answer ends
+"…book a skin check at our clinic at 14 King Street, Manchester." and Key points say "See us in person: our clinic at
+…"; the locations flag is gone (3 flags → 2). Preview: `/opportunities/content/0?co=data-sample` preloads the
+fixture's Your data (2 facts, the locations answer, one read TXT); Write the draft shows the effect.
+
+| Element | Field(s) | Rule |
+|---|---|---|
+| Questions | `flags[].id` of the response WITHOUT userFacts (they stay put once answered) | `questionsFor` |
+| Bar headline "Add your data so the draft can beat <host>" | `pageRecommendation.evidence[]`, best rank | — |
+| Bar sub-line "2 files · 1 fact · 1 of 3 answered" | browser only | `userDataSummary` |
+
+### Draft (step 3)
 | Element | Field(s) | Rule |
 |---|---|---|
 | Writing state: "Adding FAQ, How-to guide…", the skeleton headings, "Written to beat" | `recommendations[]` (draft plan); request `competitors` | R21, R12 |
@@ -115,12 +203,16 @@ Request: `{ prompt, brandDomain, brandName, competitors, sources, targetUserId }
 | Footer: Copy content, More ▾ (Copy as HTML, Export .md), "Saved in this browser · <time>", Regenerate | `contentMarkdown`; saved time from localStorage | R3, R17 |
 | Re-check score (in the readiness section) | browser only: recomputes `reviewScore` from the ticks, as the app's `recheckScore` does | R9 |
 
-### Copy & publish (step 3)
+### Copy & publish (step 4)
 What each action carries (R3), the unticked flags, Back to the draft. The ticks are browser-only (`fixedFlagIds` in
 localStorage, key `auden:content-brief:v1:<domain>:<prompt>`), as the app does today.
 
 ### Payoff bar
-Reward headline and sub-line per step (Target: "Update this page to get named on n more engines"; Draft: "Resolve n
+Reward headline and sub-line per step (Target: "Update this page to get named on n more engines", button **Add your
+data**, link **Skip to draft**; Your data: "Add your data so the draft can beat <host>" / "2 files · 1 fact · 1 of 3
+answered" or "Optional · nothing added yet", button **Write the draft** (**Continue** once a draft exists, **Rewrite the
+draft** when the data changed since), link **Skip**; on the page while the panel is closed: "Adding your data" +
+Resume; Draft: "Resolve n
 flags, then copy it to your site" / "0 of 2 flags checked · saved in this browser"); named engines in colour + "Named
 on n of 4" (the row's named engines = the 4 engines minus the row's missed `platforms`).
 
@@ -148,11 +240,31 @@ One module, each rule commented in the code:
 
 ## 5. Behind `?backend=full` (do NOT port now)
 Search Console step and the Search Console target page (`ConnectStep.jsx`, `TargetStep.jsx`, `SearchConsolePanel.jsx`),
-Your data (`DataStep.jsx`), Publish & track (`PublishStep.jsx`, `publish/*`), the live 5-step writing view
+Publish & track (`PublishStep.jsx`, `publish/*`), the live 5-step writing view
 (`draft/Generating.jsx`), "Who you're up against" on the page (`UpAgainst.jsx`), and their data in
-`contentOpportunities-proposed.js`. None of these exist in the backend (audit §5–8). The list's states (Draft ready /
+`contentOpportunities-proposed.js`. Behind the flag, Your data keeps the proposal's simulated reading and "Suggested
+from your files" (server-side fact finding, `factsFound`); v1's in-browser reading is §3a. None of these exist in the backend (audit §5–8). The list's states (Draft ready /
 Waiting / Monitoring / Improved) are proposed data too: in the app, v1 can show only "Create content" and "Draft ready"
 (a brief saved in localStorage).
+
+## 5a. Your data tests
+- `data/extract.test.js`: limits (type by extension AND MIME, 10 MB, 5 files); word count and "~1,200 words"; TXT / CSV;
+  empty file; DOCX (`<w:t>` runs, paragraphs, tabs, breaks, entities; a stored zip; a deflated one when Node has
+  `deflate-raw`, else the browser test covers it); the zip reader's failures.
+- `data/userFacts.test.js`: empty → empty payload and no `userFacts` in the request; the shape; the 20k cap (the cut
+  file, kept / total words, later files left out, facts and answers never cut, exactly-at-cap, facts alone over); the
+  questions from the flags; the localStorage shape and key; the summary line; the fixture (prompt 0's draft names the
+  location, the locations flag goes; a fact alone or an answer alone does it; empty userFacts = today's response);
+  answers clear flags on every prompt, Expert review never.
+- `workspace/flow.test.js`: v1's 4 steps, `nextVisible`, `stepPos`, Your data in focus; full keeps 5;
+  "Back to step n" counts the visible steps.
+- `tests/your-data.browser.test.mjs` (real Chromium): makes a TXT, a deflated DOCX, a text PDF (pdf.js), a PDF with no
+  text and a PNG (`tests/makeFiles.mjs`), uploads them with `setInputFiles`, checks every row ("Read · ~1,200 words",
+  "~310", "~11", "Couldn't read this file", "Not a PDF, DOCX, CSV or TXT"), types a fact, adds a 6,000-word TXT and sees
+  "Too long, the first 20k characters will be used. handbook.txt is cut after…", checks the localStorage entry (text and
+  metadata, no files) and that it survives a reload; then `?co=data-sample` → Write the draft → the draft names the
+  clinic location and "Confirm office locations" is gone. A second test: `?backend=full` still has 5 steps and the
+  proposal's Your data.
 
 ## 6. Safe Markdown rendering (`src/pages/opportunities/draft/markdown.js`)
 The draft is model output that includes text scraped from third-party pages, so:
@@ -177,6 +289,8 @@ The draft is model output that includes text scraped from third-party pages, so:
 - The route returns the Target data and the draft in ONE response, so in the real app the Target step and the writing
   state's "Adding …" line can't show before the draft is done. Options: run the route when the prompt opens (Target
   loads, then the finished draft), or split it into recommend → draft.
+- Your data (§3a): a new optional `userFacts` request field into the draft prompt, answered flags not raised; the
+  document text is untrusted user input in the model prompt.
 - Security (audit): the Claude CLI runs on the server with `--dangerously-skip-permissions` on scraped text; no plan
   gate on a paid route.
 
@@ -186,9 +300,11 @@ The draft is model output that includes text scraped from third-party pages, so:
 | List | `r5-0*-1440-{light,dark}.png` (cards, table, row hover), `r9-01-cards-{1440,1280}-*` (final filter cards) |
 | Target page (step 1) | `v1-target-polish-{1440,1280}-{light,dark}.png`, `v1-target-polish-hover-{row,col}-1440-light.png`, `v1-target-contrast-1440-{light,dark}.png`, `v1-target-r3-1440-{light,dark}-{nodraft,draft}.png` (latest left column), clip `v1-target-clip-{light,dark}.webm` |
 | Writing state | `v1-writing2-1440-{light,dark}.png`, `v1-writing2-arrive-1440-light.png` |
-| Draft (step 2) | `v1-draft-r3-1440-{light,dark}-{top,faq-sources,rail}.png` (latest draft), `v1-draft-r4-rail-1440-{light,dark}-{1,2}.png` (latest rail), `v1-draft-r4-rank-hover-1440-light.png`, `v1-draft-r2-show-1440-light.png` (Show in draft) |
+| Your data (step 2) | `v1-data-empty-1440-{light,dark}.png`, `v1-data-files-1440-{light,dark}.png` (4 files read in the browser, one "Couldn't read this file", a fact, an answer), `v1-data-over-1440-{light,dark}.png` (the 20k message naming the cut file), `v1-data-sample-1440-{light,dark}.png` (`?co=data-sample`) |
+| Draft using userFacts | `v1-data-draft-1440-{light,dark}.png` (prompt 0: "…book a skin check at our clinic at 14 King Street, Manchester", 2 flags, the locations flag gone) |
+| Draft (step 3) | `v1-draft-r3-1440-{light,dark}-{top,faq-sources,rail}.png` (latest draft), `v1-draft-r4-rail-1440-{light,dark}-{1,2}.png` (latest rail), `v1-draft-r4-rank-hover-1440-light.png`, `v1-draft-r2-show-1440-light.png` (Show in draft) |
 | Template fallback | `v1-template-1440-{light,dark}.png` |
-| Copy & publish (step 3) | `v1-copy-1440-{light,dark}.png` |
+| Copy & publish (step 4) | `v1-copy-1440-{light,dark}.png` |
 | Reverse-mortgage sample (live content) | `v1-rm-1440-{light,dark}-*.png` |
 | Hostile sample | `v1-hostile-1440-light.png` |
 | Focus panel centring | `focus-centred-{1440,1920}-light.png` |

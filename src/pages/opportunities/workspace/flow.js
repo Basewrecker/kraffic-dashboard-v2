@@ -163,13 +163,15 @@ export const dataTasks = ({ uploads, facts, questions, pasted }) => [
 ]
 
 // ---- Draft step v1: the steps that exist ------------------------------------------------------------------------
-// v1 shows the steps content-recommend supports: Target page (index 1) → Draft (3) → Copy & publish (4). ?backend=full
-// shows all five (Search Console, Your data, Publish & track). The flow keeps its 0–4 indices either way; only the
-// visible list changes. → [{ i, title, short }]
+// v1: Target page (index 1) → Your data (2, optional: read in the browser, sent with the draft request as userFacts) →
+// Draft (3) → Copy & publish (4). ?backend=full shows all five (Search Console first, Publish & track last). The flow
+// keeps its 0–4 indices either way; only the visible list changes. → [{ i, title, short }]
 export const stepsFor = (full) => (full
   ? STEPS.map((s, i) => ({ ...s, i }))
-  : [{ ...STEPS[1], i: 1, title: 'Target page', short: 'Target page' }, { ...STEPS[3], i: 3 }, { id: 'copy', i: 4, title: 'Copy & publish', short: 'Copy & publish' }])
+  : [{ ...STEPS[1], i: 1, title: 'Target page', short: 'Target page' }, { ...STEPS[2], i: 2, title: 'Your data' }, { ...STEPS[3], i: 3 }, { id: 'copy', i: 4, title: 'Copy & publish', short: 'Copy & publish' }])
 // the next visible step after c (or c when it's the last)
 export const nextVisible = (steps, c) => steps.find((s) => s.i > c)?.i ?? c
 // where a step sits among the visible ones: "2 of 3"
 export const stepPos = (steps, i) => ({ n: Math.max(1, steps.findIndex((s) => s.i === i) + 1), of: steps.length })
+// a reopened step's way back: "Back to step n", n counted among the visible steps (v1's Draft is step 3, not 4)
+export const backLabel = (steps, current) => `Back to step ${stepPos(steps, current).n}`

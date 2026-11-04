@@ -3,6 +3,9 @@
 // per missed prompt (data/mock.js missedPrompts), on its topic. The shape mirrors the route exactly; no field the route
 // doesn't return.
 //   request:  { prompt, brandDomain, brandName, competitors, sources, targetUserId }   (requestFor below)
+//     + PROPOSED userFacts { facts, answers, documentsText } (Your data, pages/opportunities/data/userFacts.js): the
+//     route doesn't take it yet. The mock's response for prompt 0 (best azelaic acid cream for rosacea, the "clinic"
+//     variant) uses a location from it, and every sample drops the flags it answers (see reviewFlags).
 //   response: { ok, analyzedAt, brandDomain, brandName, prompt, coverage, ourFormats, formats, recommendations, angles,
 //     citedPages, pageRecommendation, evidence, contentMarkdown, contentSource, contentComplete, contentIssues,
 //     expertReview, brandFactsAvailable, flags, reviewScore }
@@ -97,14 +100,20 @@ const familyOf = (prompt) => {
 }
 
 // ---- the request (the client sends these) ------------------------------------------------------------------------
-export const requestFor = (row) => ({
+// userFacts (proposed, Your data): sent only when there's something in it
+export const requestFor = (row, userFacts = null) => ({
   prompt: row.prompt,
   brandDomain: CO_BRAND.domain,
   brandName: CO_BRAND.name,
   competitors: row.competitors ?? [],
   sources: (row.sources ?? []).map((s) => ({ url: `https://${s.domain}${s.path ?? ''}`, title: '' })),
   targetUserId: 'user_3f9a',
+  ...(hasUserFacts(userFacts) ? { userFacts } : {}),
 })
+const hasUserFacts = (u) => Boolean(u && (u.facts?.length || u.answers?.length || u.documentsText))
+// the location the user gave (the locations answer, else a fact labelled like one), or null
+const LOCATION_LABEL = /location|address|office|clinic/i
+export const userLocation = (u) => u?.answers?.find((a) => a.flagId === 'locations')?.answer?.trim() || u?.facts?.find((f) => LOCATION_LABEL.test(f.label))?.value?.trim() || null
 
 // ---- citedPages: the client's sources + Google's organic top 10 + AI Overview references (one per host) ----------
 const ORGANIC = ['healthline.com', 'allure.com', 'byrdie.com', 'verywellhealth.com', 'glamour.com', 'womenshealthmag.com']
@@ -260,12 +269,15 @@ function writeDraft(row, family, P, missing, pageRec, citedPages, opts) {
   const name = productOf(row.prompt)
   const who = whoOf(row.prompt)
   const brand = CO_BRAND.name
-  const parts = [`# ${row.prompt}`, '', NOTICE, '', pageRecBlock(pageRec), '## Direct answer', '', directAnswer(row.prompt, family, P, who), '', '## Key points', '']
+  // the clinic variant: with a location from Your data the draft names it; without, it asks (the locations flag)
+  const clinic = opts.clinic ? (opts.location ? ` If redness lasts more than two weeks, book a skin check at our clinic at ${opts.location}.` : '') : ''
+  const parts = [`# ${row.prompt}`, '', NOTICE, '', pageRecBlock(pageRec), '## Direct answer', '', directAnswer(row.prompt, family, P, who) + clinic, '', '## Key points', '']
   parts.push(`- ${cap(P.what)}.`)
   parts.push(`- Use ${P.use}.`)
   parts.push(`- What to watch: ${P.watch}.`)
   parts.push(`- Look for ${P.pick}.`)
   parts.push(`- Confirm with your team: Which ${brand} product you recommend here, and its exact strength.`)
+  if (opts.clinic) parts.push(opts.location ? `- See us in person: our clinic at ${opts.location} checks redness and patch-tests new actives.` : '- Confirm with your team: Which clinic location offers in-person skin checks.')
   parts.push('')
   if (missing.some((m) => ['how_to', 'tutorial', 'checklist'].includes(m.id)) || family === 'howto') {
     parts.push('## Steps', '')
@@ -344,8 +356,12 @@ function pageRecBlock(rec) {
 }
 
 // the lib's buildReviewFlags: each rule, its label, status and score (Expert review 10, credentials 8, locations 6,
-// fees 5, reviews 5, contact 4, trademark 3, each draft gap 3); reviewScore.total = the sum of the scores
-export function reviewFlags({ markdown, expertReview, brandFacts, brandName, contentIssues }) {
+// fees 5, reviews 5, contact 4, trademark 3, each draft gap 3); reviewScore.total = the sum of the scores.
+// userFacts (PROPOSED, Your data): a rule isn't raised when the user answered it (answers[].flagId) or gave a fact
+// labelled for it (RESOLVED_BY); Expert review and Draft gaps can't be answered away.
+const RESOLVED_BY = { credentials: /registration|partner|credential|expert/i, locations: LOCATION_LABEL, contact: /phone|contact/i, fees: /fee|price|pricing|quote/i, reviews: /review|rating|testimonial/i, trademark: /trademark/i }
+export const resolvedBy = (u, id) => Boolean(RESOLVED_BY[id] && (u?.answers?.some((a) => a.flagId === id && a.answer?.trim()) || u?.facts?.some((f) => RESOLVED_BY[id].test(f.label) && f.value?.trim())))
+export function reviewFlags({ markdown, expertReview, brandFacts, brandName, contentIssues, userFacts = null }) {
   const text = String(markdown || '')
   const facts = String(brandFacts || '')
   const flags = []
@@ -359,6 +375,7 @@ export function reviewFlags({ markdown, expertReview, brandFacts, brandName, con
   for (const issue of contentIssues || []) flags.push({ id: `issue_${flags.length}`, label: 'Draft gap', status: 'missing', score: 3, text: String(issue) })
   const seen = new Set()
   const unique = flags.filter((f) => { const k = `${f.label}|${f.text}`.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+    .filter((f) => !resolvedBy(userFacts, f.id))
   const total = unique.reduce((s, f) => s + f.score, 0)
   return { flags: unique, reviewScore: { done: 0, total, remaining: total } }
 }
@@ -368,15 +385,20 @@ const flagsBlock = (flags) => (flags.length ? ['## Flags', '', ...flags.map((f) 
 
 // brand facts on file (user_domains.entity_profile + the homepage scrape); prompts without them get none
 const BRAND_FACTS = `${CO_BRAND.name} makes fragrance-free skincare for sensitive skin.\nPhone (from site): +1 415 555 0142\nAddress (from site): 210 Mission St, San Francisco`
+// the clinic variant's: no address on the site (so a location claim needs the user's)
+const BRAND_FACTS_NO_ADDRESS = BRAND_FACTS.split('\n').filter((l) => !l.startsWith('Address')).join('\n')
 
 // per-prompt variants, so every case the route can return has a sample:
 //   template: the Claude run failed twice → the lib's fallback (contentSource 'template', and the gate's issues)
 //   incomplete: Claude's draft failed the quality gate (contentComplete false + contentIssues)
 //   noFacts: no brand facts on file (brandFactsAvailable false)
 //   expert: a sensitive topic (expertReview true)
-const VARIANTS = { 23: ['template', 'noFacts'], 7: ['expert'], 17: ['expert', 'incomplete'], 20: ['noFacts'], 33: ['incomplete'] }
+//   clinic: the brand has a clinic but no address on its site: the draft asks for the location (the locations flag)
+//     until Your data gives one, then names it (the userFacts fixture: ?co=data-sample)
+const VARIANTS = { 0: ['clinic'], 23: ['template', 'noFacts'], 7: ['expert'], 17: ['expert', 'incomplete'], 20: ['noFacts'], 33: ['incomplete'] }
 
-export function buildResponse(row) {
+// userFacts: the request's (proposed); null = the route as it is today
+export function buildResponse(row, userFacts = null) {
   const v = VARIANTS[row.id] ?? []
   const family = familyOf(row.prompt)
   const P = PRODUCTS[productOf(row.prompt)]
@@ -390,7 +412,7 @@ export function buildResponse(row) {
   const gaps = rec.recommendations.filter((r) => r.status !== 'covered')
   const faq = gaps.find((r) => r.id === 'faq')
   const missing = [faq ?? { id: 'faq', label: 'FAQ', score: 3, status: 'missing' }, ...gaps.filter((r) => r !== faq).slice(0, 2)]
-  const brandFacts = v.includes('noFacts') ? '' : BRAND_FACTS
+  const brandFacts = v.includes('noFacts') ? '' : v.includes('clinic') ? BRAND_FACTS_NO_ADDRESS : BRAND_FACTS
   const expertReview = v.includes('expert')
   let markdown
   let issues = []
@@ -401,11 +423,11 @@ export function buildResponse(row) {
     issues = ['Needs a direct answer of about 140 characters (60–200).', 'FAQ missing a useful answer: “What should someone check before they decide?”']
   } else {
     const slip = v.includes('incomplete') ? (row.competitors?.[0] ?? null) : null
-    markdown = writeDraft(row, family, P, missing, pageRecommendation, citedPages, { expert: expertReview, competitorSlip: slip ? MOCK_BRANDS[slip]?.name ?? slip : null, publishingNotes: rnd(row.prompt, 'notes') < 0.4 })
+    markdown = writeDraft(row, family, P, missing, pageRecommendation, citedPages, { expert: expertReview, competitorSlip: slip ? MOCK_BRANDS[slip]?.name ?? slip : null, publishingNotes: rnd(row.prompt, 'notes') < 0.4, clinic: v.includes('clinic'), location: userLocation(userFacts) })
     if (slip) issues.push(`Competitor “${slip}” appears in the draft — remove from publishable content.`)
     if (expertReview) markdown = markdown.replace('## Detailed explanation\n\n', '## Detailed explanation\n\nPigment and scarring can have medical causes; if marks spread or change, see a dermatologist before treating them at home.\n\n')
   }
-  const built = reviewFlags({ markdown, expertReview, brandFacts, brandName: CO_BRAND.name, contentIssues: issues })
+  const built = reviewFlags({ markdown, expertReview, brandFacts, brandName: CO_BRAND.name, contentIssues: issues, userFacts })
   markdown = `${markdown.trim()}\n\n${flagsBlock(built.flags)}`.trim() + '\n'
   return {
     ok: true,
@@ -442,9 +464,17 @@ export const CONTENT_RECOMMEND = Object.fromEntries(missedPrompts.map((row) => [
 // samples outside the skincare list (the live reverse-mortgage run): their rows, reachable by id (/opportunities/content/rm-1)
 export const SAMPLE_ROWS = [RM_ROW]
 export const SAMPLES = { [RM_ROW.id]: RM_RESPONSE }
-export const contentRecommendFor = (row) => {
-  const res = SAMPLES[row.id] ?? CONTENT_RECOMMEND[row.id] ?? buildResponse(row)
+// userFacts (proposed): the draft request's Your data; empty → the response as the route returns it today. The live
+// samples (rm-1) keep their text and only drop the flags it answers.
+export const contentRecommendFor = (row, userFacts = null) => {
+  let res = SAMPLES[row.id] ?? CONTENT_RECOMMEND[row.id] ?? buildResponse(row)
+  if (hasUserFacts(userFacts)) res = SAMPLES[row.id] ? dropAnswered(res, userFacts) : buildResponse(row, userFacts)
   return coStates().has('hostile') ? hostile(res) : res
+}
+const dropAnswered = (res, u) => {
+  const flags = res.flags.filter((f) => !resolvedBy(u, f.id))
+  const total = flags.reduce((s, f) => s + f.score, 0)
+  return { ...res, flags, reviewScore: { done: 0, total, remaining: total } }
 }
 export const hostileResponse = (row) => hostile(CONTENT_RECOMMEND[row.id] ?? buildResponse(row))
 

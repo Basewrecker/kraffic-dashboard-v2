@@ -20,8 +20,9 @@ import { getAnswer } from '../../data/answers'
 import { brandName, domainForName } from '../../utils/brand'
 import { namedSummary, rankGrid } from './workspace/heroData'
 import { missedPrompts } from '../../data/mock'
-import { FACTS, QUESTIONS, UPLOADS, dataEmpty, NOW, candidatesFor, citedBy, draftFor, enginesCitingPage, genHold, genStepsFor, gscStatus, newPageFor, setDraftState, winningPageFor } from '../../data/contentOpportunities-proposed'
-import { LOADING_LINES, LOADING_SWITCH_MS, RESPONSE_MS, SAMPLE_ROWS, backendFull, competitorName, contentRecommendFor } from '../../data/contentRecommend'
+import { FACTS, QUESTIONS, UPLOADS, coStates, dataEmpty, NOW, candidatesFor, citedBy, draftFor, enginesCitingPage, genHold, genStepsFor, gscStatus, newPageFor, setDraftState, winningPageFor } from '../../data/contentOpportunities-proposed'
+import { LOADING_LINES, LOADING_SWITCH_MS, RESPONSE_MS, SAMPLE_ROWS, backendFull, competitorName, contentRecommendFor, requestFor } from '../../data/contentRecommend'
+import { SAMPLE_DATA, buildUserFacts, dataKey, fromStored, toStored, userDataSummary } from './data/userFacts'
 import { copyPayloads, exportName, liveDataOf, pageOf, readinessOf, storageKey } from './draft/recommend'
 import { download, writeClipboard } from './draft/clipboard'
 import TargetV1 from './workspace/TargetV1'
@@ -46,6 +47,7 @@ import { COL_HEAD, COL_TITLE } from './workspace/ui'
 
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const NO_GSC_REASON = 'Search Console isn’t connected, so we can’t see which of your pages ranks.'
+const DATA = 2 // Your data's index
 const DRAFT = 3 // step 4's index
 const nf = new Intl.NumberFormat('en-US')
 // step 5's sub-line: when the page was last looked for
@@ -67,18 +69,24 @@ export default function Workspace({ id }) {
 }
 
 function Flow({ row }) {
-  // v1 (default): what content-recommend returns; ?backend=full adds Search Console, Your data, Publish & track and the
-  // live writing view (they need backend work). steps: the visible steps (v1: Target page → Draft → Copy & publish)
+  // v1 (default): what content-recommend returns, plus Your data (read in the browser, sent as the request's proposed
+  // userFacts); ?backend=full adds Search Console, Publish & track and the live writing view (they need backend work).
+  // steps: the visible steps (v1: Target page → Your data → Draft → Copy & publish)
   const full = useMemo(() => backendFull(), [])
   const steps = useMemo(() => stepsFor(full), [full])
-  const res = useMemo(() => contentRecommendFor(row), [row]) // the route's response for this prompt (the mock's)
+  const kept = PROGRESS.get(row.id) // this visit's progress on the prompt, if it was opened before
+  // the userFacts sent with the draft request (v1): taken when the writing starts (and on Regenerate); null = none
+  const [sent, setSent] = useState(() => kept?.sent ?? null)
+  const request = useMemo(() => requestFor(row, sent), [row, sent]) // the (mock) request: userFacts only when non-empty
+  const res = useMemo(() => contentRecommendFor(row, request.userFacts), [row, request]) // the route's response (the mock's)
+  // the response before any userFacts: its flags are Your data's questions (they stay put once answered)
+  const baseRes = useMemo(() => contentRecommendFor(row), [row])
   const competitors = row.competitors ?? [] // the request's competitors
   const page = useMemo(() => pageOf(res.pageRecommendation), [res])
   // the user's ticks and the last copy, in this browser only (the app's localStorage key)
   const store = storageKey(CO_BRAND.domain, row.prompt)
   const stored = useMemo(() => { try { return JSON.parse(window.localStorage.getItem(store) ?? 'null') ?? {} } catch { return {} } }, [store])
   const saved = useMemo(() => draftFor(row.id, row), [row])
-  const kept = PROGRESS.get(row.id) // this visit's progress on the prompt, if it was opened before
   const [gsc, setGsc] = useState(() => kept?.gsc ?? gscStatus()) // 'connected' | 'declined' | 'new' | 'skipped' (continued without it)
   const start = useMemo(() => startOf(saved, gscStatus()), [saved])
   const [current, setCurrent] = useState(() => Math.max(kept?.current ?? 0, full ? start.current : Math.max(1, start.current)))
@@ -107,10 +115,31 @@ function Flow({ row }) {
     if (s === 'connected' && !saved && allCandidates.length) setTarget({ kind: 'page', url: allCandidates[0].url })
   }
 
-  // ?co=data-empty: nothing added yet (no files, facts or answers)
-  const [data, setData] = useState(() => kept?.data ?? (dataEmpty()
-    ? { uploads: [], facts: [], questions: QUESTIONS.map((q) => ({ ...q, answer: '' })), pasted: '', dismissed: [] }
-    : { uploads: UPLOADS, facts: FACTS, questions: QUESTIONS, pasted: '', dismissed: [] }))
+  // Your data. v1: kept in this browser per brand + prompt (data/userFacts.js dataKey: facts, answers, pasted text and the
+  // read files' text, never the files), the questions from this response's flags; ?co=data-sample preloads the fixture.
+  // ?backend=full: the proposal's sample (?co=data-empty: nothing added yet)
+  const dataStore = dataKey(CO_BRAND.domain, row.prompt)
+  const [data, setData] = useState(() => {
+    if (kept?.data) return kept.data
+    if (!full) {
+      let s = null
+      try { s = coStates().has('data-sample') ? SAMPLE_DATA : JSON.parse(window.localStorage.getItem(dataStore) ?? 'null') } catch { /* private mode */ }
+      return fromStored(s, baseRes.flags)
+    }
+    return dataEmpty()
+      ? { uploads: [], facts: [], questions: QUESTIONS.map((q) => ({ ...q, answer: '' })), pasted: '', dismissed: [] }
+      : { uploads: UPLOADS, facts: FACTS, questions: QUESTIONS, pasted: '', dismissed: [] }
+  })
+  useEffect(() => {
+    if (full) return
+    const s = toStored(data)
+    try {
+      if (!s.facts.length && !s.answers.length && !s.pasted.trim() && !s.documents.length) window.localStorage.removeItem(dataStore)
+      else window.localStorage.setItem(dataStore, JSON.stringify(s))
+    } catch { /* private mode, or over the browser's quota: this visit only */ }
+  }, [full, dataStore, data])
+  // the ONE userFacts payload (v1) and the 20k cap's verdict (over, the file cut, files left out)
+  const cap = useMemo(() => (full ? null : buildUserFacts(data)), [full, data])
   const [dataSkipped, setDataSkipped] = useState(() => kept?.dataSkipped ?? false)
   // step 4's state (the writing clock, the draft, its flags): here, not in DraftStep, so closing the focus panel loses
   // nothing and the writing goes on in the background (draft/model.js draftSession)
@@ -119,12 +148,13 @@ function Flow({ row }) {
     try { window.localStorage.setItem(store, JSON.stringify({ ticked: ds.ticked, copiedAt: ds.copiedAt, savedAt: ds.savedAt })) } catch { /* private mode */ }
   }, [store, ds.ticked, ds.copiedAt, ds.savedAt])
   // keep the progress for this visit (reopening the prompt picks it up; the mock has no store)
-  useEffect(() => { PROGRESS.set(row.id, { gsc, current, ready, target, data, dataSkipped, ds }) })
+  useEffect(() => { PROGRESS.set(row.id, { gsc, current, ready, target, data, dataSkipped, ds, sent }) })
   // the writing starts when step 4 is first reached
   useEffect(() => {
     if (current >= DRAFT && ds.phase === 'generating' && ds.startedAt == null) setDs((s) => ({ ...s, startedAt: performance.now() }))
   }, [current, ds.phase, ds.startedAt])
-  const updateData = (patch) => { setDataSkipped(false); setData((d) => ({ ...d, ...patch })) }
+  // patch: an object, or (data) => object (a file read finishing after other changes)
+  const updateData = (patch) => { setDataSkipped(false); setData((d) => ({ ...d, ...(typeof patch === 'function' ? patch(d) : patch) })) }
 
   const open = editing ?? current
   // focus mode: on whenever the open step is 3–5 (by any route), unless exited on that step (workspace/flow.js)
@@ -145,6 +175,10 @@ function Flow({ row }) {
   const genSteps = useMemo(() => genStepsFor(liveData), [liveData])
   const genShown = focus && open === DRAFT
   const writing = ds.phase === 'generating' && ds.startedAt != null
+  // v1: the request goes out as the writing starts (and on each Regenerate): it carries Your data as it is then
+  useEffect(() => {
+    if (writing && !full) setSent(cap.userFacts)
+  }, [writing, ds.run]) // eslint-disable-line react-hooks/exhaustive-deps
   const [now, setNow] = useState(() => performance.now())
   useEffect(() => {
     if (!writing) return undefined
@@ -186,9 +220,21 @@ function Flow({ row }) {
   // the Target page's draft preview (TargetV1): a draft exists once the session has one (ds.phase 'draft': written in
   // this visit, or saved, draftFor); "Open draft" goes to the Draft step in focus (Resume when it's the open step)
   const openDraft = () => { if (open === DRAFT) setExitedOn(null); else setEditing(current === DRAFT ? null : DRAFT) }
+  // v1's Your data in one line ("2 files · 1 fact · 1 of 3 answered"), null when nothing's added
+  const dataLine = full ? null : userDataSummary(data)?.replace(/^./, (c) => c.toUpperCase()) ?? null
   const values = full
     ? STEPS.map((_, i) => stepValue(i, { gsc, gscDomain: gscConnection.domain, target: target.kind === 'new' ? target : { ...target, path: pathOf(target.url) }, data, dataSkipped, draft }))
-    : [null, page.path, null, ds.phase === 'draft' ? `${review.open} ${review.open === 1 ? 'flag' : 'flags'} open` : null, ds.copiedAt ? 'Copied' : null]
+    : [null, page.path, dataLine ?? 'Skipped', ds.phase === 'draft' ? `${review.open} ${review.open === 1 ? 'flag' : 'flags'} open` : null, ds.copiedAt ? 'Copied' : null]
+  // v1, Your data after a draft exists: changed since the request went out → "Rewrite the draft" (a Regenerate with
+  // the new userFacts); a file still being read holds the button (its text would miss the request)
+  const draftExists = ds.phase === 'draft' || writing
+  const dataChanged = !full && draftExists && JSON.stringify(cap.userFacts) !== JSON.stringify(sent ?? { facts: [], answers: [], documentsText: '' })
+  const stillReading = !full && data.uploads.some((u) => u.status === 'reading')
+  const rewrite = () => {
+    setDs((s) => ({ ...s, phase: 'generating', run: s.run + 1, startedAt: performance.now(), summary: null, failAt: -1, copiedAt: null }))
+    if (current > DRAFT) setEditing(DRAFT)
+    else { setEditing(null); setCurrent(DRAFT) }
+  }
 
   const [toastNode, toast] = useToast({ position: 'center' })
   // the page the draft goes on: the picked page, or the new page's address on the brand's site
@@ -226,8 +272,8 @@ function Flow({ row }) {
       ? <TargetStep candidates={candidates} newPage={newPage} target={target} onTarget={setTarget} onPreview={setPreviewUrl} citing={(url, rank) => enginesCitingPage(row, url, rank)} />
       : <TargetV1 res={res} named={named} resolve={resolveAi}
         draft={ds.phase === 'draft' ? { open: review.open, onOpen: openDraft } : null}
-        write={current < DRAFT ? { label: 'Write the draft', onClick: advance } : writing ? { label: 'Resume', onClick: openDraft } : null} />,
-    <div data-step="data"><DataStep data={data} update={updateData} /></div>,
+        write={current < DATA ? { label: 'Add your data', onClick: advance } : current < DRAFT ? { label: 'Write the draft', onClick: advance } : writing ? { label: 'Resume', onClick: openDraft } : null} />,
+    <div data-step="data"><DataStep data={data} update={updateData} v1={!full} cap={cap} /></div>,
     <div data-step="draft"><DraftStep res={res} competitors={competitors} session={ds} setSession={setDs} full={full} steps={genSteps} live={liveData} onCopy={copyContent} onCopyHtml={copyHtml} onExport={exportMd} onRecheck={recheck} savedAt={ds.savedAt} resolve={resolveAi} inPanel={focus} /></div>,
     full
       ? <div data-step="publish"><PublishStep row={row} draft={draft ?? { stage: 'waiting', target_url: targetUrl }} onEditDraft={() => { setReady(true); setEditing(DRAFT) }} onApi={setPublishApi} /></div>
@@ -264,6 +310,7 @@ function Flow({ row }) {
   const targetPath = full ? (target.kind === 'page' ? pathOf(target.url) : target.slug) : page.path
   const win = winningPageFor(row)
   const winName = win ? `${brandLabels[win.domain] ?? brandName(win.domain)}’s ${win.formats[0] ?? 'page'}` : null
+  const topWinner = [...page.evidence].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))[0] ?? null
   const advance = () => next()
   const BAR = [
     {
@@ -278,8 +325,9 @@ function Flow({ row }) {
       headline: page.action === 'update' ? `Update this page to get named on ${moreEngines}` : `Create this page to get named on ${moreEngines}`,
       line: `${page.path} · ${page.evidence.length} ${page.evidence.length === 1 ? 'page wins' : 'pages win'} this prompt today`,
       choice: page.path,
-      action: { label: 'Write the draft', onClick: advance },
-      secondary: null,
+      // next: Your data (optional), or straight to the draft; reopened later: Continue
+      action: { label: current === 1 ? 'Add your data' : 'Continue', onClick: advance },
+      secondary: current === 1 ? { label: 'Skip to draft', onClick: skipToDraft } : null,
     } : {
       headline: target.kind === 'page' ? `Update this page to get named on ${moreEngines}` : `Publish a new page to get named on ${moreEngines}`,
       line: selected ? `${pathOf(selected.url)} · ${nf.format(selected.impressions)} impressions${selected.bestMatch ? ' · best match' : ''}` : `${targetPath} · new page`,
@@ -287,7 +335,16 @@ function Flow({ row }) {
       action: { label: target.kind === 'page' ? 'Use this page' : 'Use a new page', onClick: advance },
       secondary: { label: 'Skip to draft', onClick: skipToDraft },
     },
-    {
+    !full ? {
+      // v1: the page to beat is the best-ranked winner in the route's evidence (pageRecommendation.evidence)
+      headline: topWinner ? `Add your data so the draft can beat ${topWinner.host}` : 'Add your data so the draft is the best answer',
+      line: dataLine ?? 'Optional · nothing added yet',
+      choice: dataLine ?? 'Your data',
+      action: stillReading ? { label: dataChanged ? 'Rewrite the draft' : draftExists ? 'Continue' : 'Write the draft', disabled: true, why: 'Still reading your files…' }
+        : dataChanged ? { label: 'Rewrite the draft', onClick: rewrite }
+          : { label: draftExists ? 'Continue' : 'Write the draft', onClick: advance },
+      secondary: { label: 'Skip', onClick: () => { setDataSkipped(true); next() } },
+    } : {
       headline: winName ? `Add your data so the draft can beat ${winName}` : 'Add your data so the draft is the best answer',
       line: (!dataSkipped && dataSummary(data)?.replace(/^./, (c) => c.toUpperCase())) || 'Optional · nothing added yet',
       choice: (!dataSkipped && dataSummary(data)) || 'Your data',
@@ -330,7 +387,9 @@ function Flow({ row }) {
   const pageOpen = full && open === 0 ? 0 : 1
   const live = full
     ? resumeState({ open, phase: ds.phase, gen, flags: res.flags.map((f) => ({ resolved: ds.ticked.includes(f.id) })), data, dataSkipped, stage: draft?.stage, week: draft?.week, path: targetPath, steps: genSteps })
-    : open === DRAFT
+    : open === DATA
+      ? { headline: 'Adding your data', line: dataLine ?? 'Nothing added yet · everything is optional', busy: false }
+      : open === DRAFT
       ? ds.phase === 'generating'
         ? { headline: 'Writing your draft…', line: LOADING_LINES[genE >= LOADING_SWITCH_MS ? 1 : 0], busy: true }
         : { headline: review.open ? `Draft ready · ${review.open} ${review.open === 1 ? 'flag' : 'flags'} to resolve` : 'Draft ready to copy', line: flagsChecked, busy: false }

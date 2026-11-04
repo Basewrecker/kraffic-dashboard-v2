@@ -17,7 +17,7 @@ import { ArrowRight } from 'lucide-react'
 import { PlatformIcon } from '../../../components/dashboard/icons'
 import { CrossFade } from '../../../components/ui/motion'
 import { engineIcon } from '../../../data/contentOpportunities'
-import { STEPS, stepPos } from './flow'
+import { STEPS, backLabel, stepPos } from './flow'
 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const LINK = 'rounded text-[13px] leading-[18px] font-medium text-stone-600 underline-offset-4 outline-none whitespace-nowrap hover:text-ink hover:underline focus-visible:ring-2 focus-visible:ring-focus'
@@ -49,7 +49,7 @@ export default function PayoffBar({ barRef, current, open, values = [], onPick, 
 
       {/* RIGHT: the step's text link, then the button */}
       <div className="flex shrink-0 items-center gap-4 max-lg:ml-auto">
-        {onClose && <button type="button" onClick={onClose} className={LINK}>Back to step {current + 1}</button>}
+        {onClose && <button type="button" onClick={onClose} className={LINK}>{backLabel(steps ?? STEPS.map((x, i) => ({ i })), current)}</button>}
         {secondary && <button type="button" onClick={secondary.onClick} className={LINK}>{secondary.label}</button>}
         {action && <ActionButton action={action} still={still} />}
       </div>

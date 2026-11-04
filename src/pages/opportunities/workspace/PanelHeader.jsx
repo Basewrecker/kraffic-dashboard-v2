@@ -9,7 +9,7 @@ import { X } from 'lucide-react'
 import { CrossFade } from '../../../components/ui/motion'
 import { MidText } from '../parts'
 import { ActionButton, Pills } from './PayoffBar'
-import { STEPS, stepPos } from './flow'
+import { STEPS, backLabel, stepPos } from './flow'
 
 const LINK = 'rounded text-[13px] leading-[18px] font-medium text-stone-600 underline-offset-4 outline-none whitespace-nowrap hover:text-ink hover:underline focus-visible:ring-2 focus-visible:ring-focus'
 
@@ -38,7 +38,7 @@ export default function PanelHeader({ current, open, values, onPick, prompt, pat
           </CrossFade>
         </div>
         <div className="flex shrink-0 items-center gap-4">
-          {onClose && <button type="button" onClick={onClose} className={LINK}>Back to step {current + 1}</button>}
+          {onClose && <button type="button" onClick={onClose} className={LINK}>{backLabel(steps, current)}</button>}
           {secondary && <button type="button" onClick={secondary.onClick} className={LINK}>{secondary.label}</button>}
           {action && <ActionButton action={action} />}
         </div>

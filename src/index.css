@@ -598,6 +598,11 @@ html[data-theme="dark"] .co-panel { box-shadow: none; }
 /* Your data: an upload's thin bar while it's read (scaleX, so it can resume mid-way with a negative delay) */
 @keyframes co-read { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .co-read { transform-origin: left; animation-name: co-read; animation-timing-function: linear; animation-fill-mode: both; }
+/* Your data v1: a file being read in the browser (no real progress to show): the bar eases to 90% once and waits there
+   until the text is read; the row then says "Read · ~n words". Not a loop. Reduced motion: a static full bar. */
+@keyframes co-read-wait { from { transform: scaleX(0); } to { transform: scaleX(.9); } }
+.co-read-wait { transform-origin: left; animation: co-read-wait 1200ms cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .co-read-wait { animation: none; } }
 /* Writing the draft (draft/Generating.jsx): rows arriving in the live view, a tick popping in, the current step's soft
    pulse and the outline's caret (the pulse and the caret loop: the owner's exception, DESIGN.md; off under reduced motion) */
 @keyframes co-row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

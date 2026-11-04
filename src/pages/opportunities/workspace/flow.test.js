@@ -157,15 +157,29 @@ test('Your data tasks: uploads read for a second, their facts become suggestions
 
 import { nextVisible, stepPos, stepsFor } from './flow.js'
 
-test('v1 steps: Target page → Draft → Copy & publish; ?backend=full: all five', () => {
+test('v1 steps: Target page → Your data → Draft → Copy & publish; ?backend=full: all five', () => {
   const v1 = stepsFor(false)
-  assert.deepEqual(v1.map((s) => [s.i, s.title]), [[1, 'Target page'], [3, 'Draft'], [4, 'Copy & publish']])
-  assert.equal(nextVisible(v1, 1), 3)
+  assert.deepEqual(v1.map((s) => [s.i, s.title]), [[1, 'Target page'], [2, 'Your data'], [3, 'Draft'], [4, 'Copy & publish']])
+  assert.equal(nextVisible(v1, 1), 2)
+  assert.equal(nextVisible(v1, 2), 3)
   assert.equal(nextVisible(v1, 3), 4)
   assert.equal(nextVisible(v1, 4), 4)
-  assert.deepEqual(stepPos(v1, 3), { n: 2, of: 3 })
+  assert.deepEqual(stepPos(v1, 2), { n: 2, of: 4 })
+  assert.deepEqual(stepPos(v1, 3), { n: 3, of: 4 })
+  // Your data opens in the focus panel like the Draft (index 2 ≥ FOCUS_FROM)
+  assert.equal(inFocus(2, null), true)
   const full = stepsFor(true)
   assert.equal(full.length, 5)
+  assert.deepEqual(full.map((s) => s.id), ['connect', 'target', 'data', 'draft', 'publish'])
+  assert.equal(nextVisible(full, 0), 1)
   assert.equal(nextVisible(full, 1), 2)
   assert.deepEqual(stepPos(full, 3), { n: 4, of: 5 })
+})
+
+import { backLabel } from './flow.js'
+
+test('"Back to step n" counts the visible steps (v1: Draft is step 3 of 4; full: step 4 of 5)', () => {
+  assert.equal(backLabel(stepsFor(false), 3), 'Back to step 3')
+  assert.equal(backLabel(stepsFor(false), 4), 'Back to step 4')
+  assert.equal(backLabel(stepsFor(true), 3), 'Back to step 4')
 })
