@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2 } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
@@ -140,29 +141,44 @@ export function WorkspaceSwitcher() {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false) // kept mounted for the closing fade
   const [shown, setShown] = useState(false)
+  const [pos, setPos] = useState(null) // { left, bottom } of the menu, from the card
   const wrap = useRef(null)
   const trigger = useRef(null)
+  const menu = useRef(null)
+  // The menu is wider than the sidebar, so it renders at the top level (a portal on body, like the other overlays):
+  // inside the sticky <aside> its overhang sat under the page content. It's fixed above the card, left edges aligned.
+  const place = () => {
+    const r = trigger.current?.getBoundingClientRect()
+    if (r) setPos({ left: r.left, bottom: window.innerHeight - r.top + 4 })
+  }
   useEffect(() => {
     if (open) {
+      place()
       setMounted(true)
       const r = requestAnimationFrame(() => setShown(true))
-      const out = (e) => { if (!wrap.current?.contains(e.target)) setOpen(false) }
+      const out = (e) => { if (!wrap.current?.contains(e.target) && !menu.current?.contains(e.target)) setOpen(false) }
       document.addEventListener('mousedown', out)
-      return () => { cancelAnimationFrame(r); document.removeEventListener('mousedown', out) }
+      window.addEventListener('resize', place)
+      return () => { cancelAnimationFrame(r); document.removeEventListener('mousedown', out); window.removeEventListener('resize', place) }
     }
     setShown(false)
     const t = setTimeout(() => setMounted(false), 150)
     return () => clearTimeout(t)
   }, [open])
   const close = () => { setOpen(false); trigger.current?.focus() }
+  const onKey = (e) => {
+    if (open && e.key === 'Escape') { e.preventDefault(); close() }
+    else if (open && e.key === 'Tab' && !e.shiftKey && e.target === menu.current?.querySelector('[role=menuitem]:last-of-type')) setOpen(false)
+  }
   const agencyUser = role() === 'agency'
   return (
-    <div ref={wrap} className="relative" onKeyDown={(e) => { if (open && e.key === 'Escape') { e.preventDefault(); close() } else if (open && e.key === 'Tab' && !e.shiftKey && e.target === wrap.current?.querySelector('[role=menu] [role=menuitem]:last-of-type')) setOpen(false) }}>
-      {mounted && (
-        <div role="menu" aria-label="Workspace"
-          className={`absolute bottom-full left-0 z-30 mb-1 flex w-[min(320px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-line bg-raised shadow-md transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none ${shown ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'}`}>
+    <div ref={wrap} className="relative" onKeyDown={onKey}>
+      {mounted && pos && createPortal(
+        <div ref={menu} role="menu" aria-label="Workspace" style={{ left: pos.left, bottom: pos.bottom }}
+          className={`fixed z-[80] flex w-[min(320px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-line bg-raised shadow-md transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none ${shown ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'}`}>
           <WorkspaceList onDone={() => setOpen(false)} />
-        </div>
+        </div>,
+        document.body,
       )}
       <button ref={trigger} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => { if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !open) { e.preventDefault(); setOpen(true) } }}
