@@ -43,7 +43,7 @@ test covers). Browser tests in `tests/` drive Chrome through playwright-core (`t
 ## 4. What the app session is porting
 App session (`~/app_kraffic.ai`, latest name app-kraffic-ai-65). Already ported: aa5622b, 1b79186, a4f95de, 5d2e847.
 Its order now: its own bug-fix round on `feat/content-page`, then 6a13be7 → c5a40a4 → 07c6b1f → c731327 (Prompt mix
-no-result line; not yet sent to it), adding `userFacts` to
+no-result line; owner-approved 2026-11-04, sent), adding `userFacts` to
 the content-recommend route (owner approved: optional field, no tools on the CLI for the draft call, nothing stored;
 the no-tools switch is draft-only because runClaudeCli is shared with scans that need WebSearch). It will run
 `npm audit` in the app and report pdfjs-dist findings to the owner. Mock-only parts it skips: sample data (e.g.

@@ -28,7 +28,7 @@ don't port it until the line says approved.
 | 6a13be7 | Target page: format matrix left (8/12), Update column right (4/12) | Approved · queued |
 | c5a40a4 | Your data in v1 (§3a, §5a, §10) | Approved · queued |
 | 07c6b1f | A written draft reopens after a reload; list shows "Draft ready" (§9) | Owner-requested fix · queued |
-| c731327 | Prompt mix table: the no-result line + ⓘ, no brand tabs, no "won n new prompts" notice | Waiting (screenshots: `screenshots/no-result/prompt-mix-noresult-1440-{light,dark}.png`) |
+| c731327 | Prompt mix table: the no-result line + ⓘ, no brand tabs, no "won n new prompts" notice | Approved 2026-11-04 · queued (screenshots: `screenshots/no-result/prompt-mix-noresult-1440-{light,dark}.png`) |
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
