@@ -1,5 +1,5 @@
 #!/bin/bash
-# PostToolUse hook on Bash (.claude/settings.json): when a merge has stopped on conflicts, it records the files and
+# PostToolUse hook on Bash (.claude/settings.json): when a merge (normal or --squash) has stopped on conflicts, it records the files and
 # tells Claude to STOP and show them to the owner. Until the owner runs `! .claude/hooks/approve-merge.sh conflicts`,
 # guard-git.sh blocks committing that merge. Never resolve a conflict by keeping our version (CLAUDE.md).
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -9,7 +9,7 @@ cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
 cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
 cd "$(hook_repo_dir "$cmd" "$cwd")" 2>/dev/null || exit 0
 git rev-parse --git-dir >/dev/null 2>&1 || exit 0
-merge_head=$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null) || exit 0
+merge_head=$(merge_key) || exit 0
 files=$(git diff --name-only --diff-filter=U 2>/dev/null)
 [ -z "$files" ] && exit 0
 

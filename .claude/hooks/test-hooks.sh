@@ -114,6 +114,24 @@ printf 'line 1\nharsh line 2\nline 3\nline 4\nline 5\nharsh line\n' > "$W/app.js
 expect "after approval, committing the merge is allowed (not counted as behind)" 0 "$(guard 'git commit --no-edit')"
 as_us commit -q --no-edit
 
+echo "squash-merge conflicts stop for the owner too (git merge --squash writes no MERGE_HEAD)"
+as_us checkout -q -b sq-design
+sed -i.bak 's/^line 4$/design line 4/' "$W/app.js" && rm "$W/app.js.bak"; as_us commit -qam "design: line 4"
+as_us checkout -q -
+sed -i.bak 's/^line 4$/our line 4/' "$W/app.js" && rm "$W/app.js.bak"; as_us commit -qam "us: line 4"
+as_us merge --squash sq-design >/dev/null 2>&1
+out=$(bash_input 'git merge --squash sq-design' | "$H/conflict-stop.sh" 2>&1); s=$?
+expect "conflict-stop says STOP after a conflicted squash merge" 2 "$s"
+case "$out" in *app.js*) ok "the squash STOP message lists the conflicting file" ;; *) bad "the squash STOP message lists the conflicting file" ;; esac
+expect "committing the conflicted squash blocked before the owner approves" 2 "$(guard 'git commit -m squash')"
+(cd "$W" && "$H/approve-merge.sh" conflicts >/dev/null)
+bash_input 'git status' | "$H/conflict-stop.sh" >/dev/null 2>&1
+expect "conflict-stop quiet once the owner approved the squash" 0 "$?"
+sed -i.bak -e '/^<<<<<<< /d' -e '/^=======$/d' -e '/^>>>>>>> /d' -e '/^design line 4$/d' "$W/app.js" && rm "$W/app.js.bak"; as_us add app.js
+expect "after approval, committing the squash is allowed" 0 "$(guard 'git commit -m squash')"
+as_us commit -qm "design (squashed)"
+expect "no stale squash block after it's committed" 0 "$(guard 'git commit --allow-empty -m next')"
+
 echo "lines other people touched"
 base=$(as_us rev-parse origin/main)
 sed -i.bak 's/harsh line 2/reverted line 2/' "$W/app.js" && rm "$W/app.js.bak"; as_us commit -qam "us: change harsh's line"
