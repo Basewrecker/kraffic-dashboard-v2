@@ -657,7 +657,11 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   // marker's tooltip). "Finance of America leads at 60% this month, ahead of Reverse at 28%."
   const tracking = useTracking()
   const insight = (() => {
-    const end = points[points.length - 1]
+    // a scoring change (or the AI Mode split) between the last two points: the period before was counted another way,
+    // so the line states where things are and compares nothing across it (the marker's tooltip says so)
+    const last = points[points.length - 1]
+    const crossed = last && scoringAt != null && scoringAt > points.length - 2
+    const end = crossed ? { ...last, deltas: {}, prevs: {}, delta: null } : last
     if (given) {
       // Reports: a number with one line (prompts missing, prompts they win): the sentence names the number, not the
       // brand, and says nothing about who leads

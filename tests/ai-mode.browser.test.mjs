@@ -28,6 +28,7 @@ test('AI Mode split marker on AI Overview / All engines only; no AI Mode for an 
       assert.equal(await line.locator(`[aria-label="${TIP}"]`).count(), 1, `${engine}: the ⓘ text`)
       assert.equal(await page.getByText('pts vs last sync').count(), 0, `${engine}: no change line`)
       assert.ok(await page.locator('#history').getByText('Scoring updated Oct 5').count() >= 1, `${engine}: the history marker`)
+      assert.doesNotMatch(await page.locator('#history').innerText(), /\b(rose|fell|held steady)\b/, `${engine}: the insight compares nothing across the split`)
     }
     for (const engine of ['aimode', 'gemini']) {
       await page.goto(`${base}/overview?aimode=new&engine=${engine}`, { waitUntil: 'networkidle' })
