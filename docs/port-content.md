@@ -29,11 +29,12 @@ don't port it until the line says approved.
 | c5a40a4 | Your data in v1 (§3a, §5a, §10) | Approved · queued |
 | 07c6b1f | A written draft reopens after a reload; list shows "Draft ready" (§9) | Owner-requested fix · queued |
 | c731327 | Prompt mix table: the no-result line + ⓘ, no brand tabs, no "won n new prompts" notice | Approved · ported (app develop 0a5c8f2) |
-| 396d783 | Google split into two engines, Google AI Overview (`aio` / prompt data `google`) and Google AI Mode (`aimode`), everywhere engines appear (Overview, Prompt Hub, drawers, Tracking/Sync, Sentiment, Insights, Reports, Content); new icons (G + square ≡ badge / round ✦ badge); see §11 | Waiting (screenshots: `screenshots/google-split/`) |
-| 27a649c | Sentiment: the dot plot becomes a 2×2 tone grid (Neutral · Positive / Negative · Mixed), "+n more" past two rows, engine badges when split; `SentimentPage.jsx` Spectrum + `utils/spectrum.js` quadrantPack | Waiting (screenshots: `screenshots/sentiment-grid/`) |
+| 396d783 | Google split into two engines, Google AI Overview (`aio` / prompt data `google`) and Google AI Mode (`aimode`), everywhere engines appear (Overview, Prompt Hub, drawers, Tracking/Sync, Sentiment, Insights, Reports, Content); new icons (G + square ≡ badge / round ✦ badge); see §11 | Approved · port it, minus its Sentiment parts (see 2355b11) |
+| 27a649c | Sentiment: the dot plot becomes a 2×2 tone grid (Neutral · Positive / Negative · Mixed), "+n more" past two rows, engine badges when split; `SentimentPage.jsx` Spectrum + `utils/spectrum.js` quadrantPack | Approved with fixes · port with 2355b11 |
+| 2355b11 | Sentiment keeps one Google engine (the split comes off Sentiment); tone grid: no fill on Positive; 1280 fixes: Visibility history chips (third 'xs' step), Content list KPI label (arrow overlays, icon tile hides in a narrow card) | Owner fixes · port it |
 | c9d33cc | Your data: no draft yet → the five first-visit questions (credentials, locations, fees, reviews, contact, by flag score); a draft's flags replace them; first-visit subline (`userFacts.js` FIRST_VISIT, `questionsFor(…, { drafted })`, `DataStep` `drafted`) | Owner rule (relayed by the app) · mirrors the app |
 | 46ce1f0 | Your data privacy note: "Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team." (`DataStep.jsx`) | Owner wording (relayed by the app) |
-| (pending) | Search Console: "Search Console for this prompt" on the v1 Target page (best query → publish on → Update this page, other top queries, Your pages, 4 states) and the Content list's Best page column (§12) | Waiting (screenshots: `screenshots/content-gsc/`) |
+| f63c186 | Search Console: "Search Console for this prompt" on the v1 Target page (best query → publish on → Update this page, other top queries, Your pages, 4 states) and the Content list's Best page column (§12) | Waiting (screenshots: `screenshots/content-gsc/`) |
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
