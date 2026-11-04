@@ -7,11 +7,12 @@ import { NO_SCORE, noResultLine, noResultText } from '../../utils/score'
 // inButton: inside a row that is itself a button (Sync history), the ⓘ is a labelled image with the hover tooltip
 // (a button can't hold a button); the row's name carries the text.
 // The tooltip is fixed to the viewport under the ⓘ, so a card or a collapsing strip with overflow hidden never cuts it.
-export function NoResultHint({ engine, date = null, align = 'left', inButton = false }) {
+// text: another explanation in the same ⓘ (the AI Mode split's "Scoring updated")
+export function NoResultHint({ engine, date = null, align = 'left', inButton = false, text: override = null }) {
   const [tip, setTip] = useState(null) // { x, y } while shown
   const ref = useRef(null)
   const id = useId()
-  const text = noResultText(engine, date)
+  const text = override ?? noResultText(engine, date)
   const Tag = inButton ? 'span' : 'button'
   const show = () => {
     const r = ref.current?.getBoundingClientRect()

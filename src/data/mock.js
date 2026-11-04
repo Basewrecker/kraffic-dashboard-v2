@@ -189,8 +189,9 @@ const dermasuriHistory = () => ({
 // dataset: { weekly, monthly, series: [{ key, label, share }], scoring: { label, weekly: {after, frac}, monthly } | null }
 // gaps: the weekly syncs' days (iso) whose scan had no result on the engine shown (brandViews.engineGaps): every
 // series is null there (a gap in the line, "—" in the tooltip), and so is a month whose every sync had no result
-export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null, dataset = null, gaps = [] } = {}) {
-  const ds = dataset ?? dermasuriHistory()
+// scoring: a scoring change to mark on the dashboard's own history (the AI Mode split, brandViews aiModeSplit)
+export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null, dataset = null, gaps = [], scoring = null } = {}) {
+  const ds = dataset ?? (scoring ? { ...dermasuriHistory(), scoring } : dermasuriHistory())
   const historySeries = ds.series
   const gran = granularity === 'monthly' ? 'monthly' : 'weekly'
   const gapMonths = new Set(gaps.map((iso) => iso.slice(0, 7)).filter((m) => ds.weekly.filter((w) => w.iso?.startsWith(m)).every((w) => gaps.includes(w.iso))))
@@ -262,7 +263,7 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
     range: opt.id,
     since,
     points,
-    scoring: mark ? { label: ds.scoring.label, at: scoringPosition(points.map((p) => p.date), mark) } : null,
+    scoring: mark ? { label: ds.scoring.label, tip: ds.scoring.tip ?? null, at: scoringPosition(points.map((p) => p.date), mark) } : null,
     series,
     youHidden,
     ...axis,
@@ -286,6 +287,10 @@ export const historySeries = [
   ...extraCompetitors.map((c) => ({ key: c.key, label: c.domain })), // ?competitors=many
 ]
 
+// AI Mode previews: ?aimode=off = an account without AI Mode (the toggle off): it's hidden everywhere, never shown as 0
+// (owner's rule); ?aimode=new = the latest sync is AI Mode's first (brandViews aiModeSplit: "Scoring updated <day>").
+export const aiModePreview = () => { try { return new URLSearchParams(window.location.search).get('aimode') } catch { return null } }
+const AIMODE_OFF = aiModePreview() === 'off'
 // Google is two engines: AI Overview (the answer box on the results page) and AI Mode (Google's conversational search).
 // AI Mode is last in this list only so the seeded draws for the others stay as they were; ENGINE_ORDER (brandViews)
 // is the display order everywhere.
@@ -296,13 +301,13 @@ export const platforms = [
   { id: 'claude', name: 'Claude', visible: 0, cited: 0 },
   { id: 'grok', name: 'Grok', visible: 0, cited: 0 },
   { id: 'aimode', name: 'AI Mode', visible: 82, cited: 12 },
-]
+].filter((p) => !(AIMODE_OFF && p.id === 'aimode'))
 // the display order of a prompt's engines (prompt-data ids: 'google' = AI Overview, 'aimode' = AI Mode)
 export const PID_ORDER = ['google', 'aimode', 'gemini', 'chatgpt', 'claude', 'grok']
 // AI Mode in sample rows that already have AI Overview: a fixed hash of the row, so adding it moves no other draw
 const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return (h >>> 0) / 4294967296 }
 // inserted right after AI Overview; the rest keep their order
-export const withAiMode = (list, key, share = 0.7) => (list.includes('google') && !list.includes('aimode') && hashStr(`aimode|${key}`) < share ? list.flatMap((p) => (p === 'google' ? ['google', 'aimode'] : [p])) : list)
+export const withAiMode = (list, key, share = 0.7) => (AIMODE_OFF ? list : list.includes('google') && !list.includes('aimode') && hashStr(`aimode|${key}`) < share ? list.flatMap((p) => (p === 'google' ? ['google', 'aimode'] : [p])) : list)
 
 // ---- filler generation (deterministic) ----
 const topics = [
@@ -658,7 +663,7 @@ export const syncHistory = [
     // per-platform breakdown (Sync history mini bars + expanded row; Platform visibility history).
     // Mention % wanders ±5 around today's platform values; the latest sync is exact so it matches
     // Platform visibility, and platforms at 0% stay at 0.
-    breakdown: SYNC_PLATFORMS.map((id) => {
+    breakdown: SYNC_PLATFORMS.filter((id) => platforms.some((x) => x.id === id)).map((id) => {
       const p = platforms.find((x) => x.id === id)
       const base = Math.round((p.visible / total) * 100)
       const mentionPct = i === 0 || base === 0 ? base : Math.min(100, Math.max(0, base + Math.round((id === 'aimode' ? aimodeRand : srand)() * 10 - 5)))
@@ -1236,6 +1241,10 @@ export const appTrackingOptions = {
   languages: ['English (US)', 'English (UK)', 'Japanese', 'German', 'French', 'Arabic'],
   currencies: [['Dollar', 'Dollar (USD)'], ['Euro', 'Euro (EUR)'], ['Pound', 'Pound (GBP)'], ['Yen', 'Yen (JPY)'], ['Rupee', 'Rupee (INR)'], ['Canadian Dollar', 'Canadian Dollar (CAD)'], ['Australian Dollar', 'Australian Dollar (AUD)']],
   frequencies: [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']],
+}
+if (AIMODE_OFF) {
+  Object.values(citationsMentions).forEach((m) => { delete m.aimode })
+  initialTracking.platforms.forEach((p) => { if (p.id === 'aimode') p.enabled = false })
 }
 export const appInitialTracking = {
   ...initialTracking,

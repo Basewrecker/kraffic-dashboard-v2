@@ -4,7 +4,7 @@ import { chart } from '../../theme/chart'
 import { useBrandView, useCountUp } from '../../hooks/useBrandView'
 import { goToSection } from '../../utils/navigate'
 import { openEngineDrawer } from '../answer/EngineDrawer'
-import { engineName } from '../../data/brandViews'
+import { aiModeSplit, engineName } from '../../data/brandViews'
 import { changeParts } from '../../utils/syncChange'
 import { NO_SCORE, fmtScore, isScore } from '../../utils/score'
 import { NoResultHint } from '../ui/NoResult'
@@ -57,6 +57,9 @@ export default function KpiRow() {
   // (none when either score is missing: changeParts returns null)
   const change = changeParts(kpis.scoreDelta, kpis.netPrompts)
   const noResult = !isScore(kpis.score)
+  // the latest sync is AI Mode's first (AI Overview and All engines only): "Scoring updated <day>" and its ⓘ in place
+  // of the change line; from the next sync the change line comes back
+  const split = aiModeSplit(engine)
   return (
       // phones / tablets: 2 × 2
       <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
@@ -67,7 +70,8 @@ export default function KpiRow() {
             {noResult && <span className="inline-flex items-center gap-1 text-small text-stone-500">No result <NoResultHint engine={engine} /></span>}
             <span className="text-small font-semibold text-stone-600 tabular-nums">
               {/* no previous sync (null): nothing to compare, no delta line */}
-              {!change ? null : !change.arrow ? <span className="text-stone-500">{change.text}</span> : <><span className={change.arrow === '▲' ? 'text-ink' : 'text-negative'}>{change.arrow}</span> {change.text}</>}
+              {split ? <span className="inline-flex items-center gap-1 font-medium text-stone-500" data-scoring-updated>{split.label} <NoResultHint engine={engine} text={split.tip} /></span>
+                : !change ? null : !change.arrow ? <span className="text-stone-500">{change.text}</span> : <><span className={change.arrow === '▲' ? 'text-ink' : 'text-negative'}>{change.arrow}</span> {change.text}</>}
             </span>
           </div>
         </KpiCard>

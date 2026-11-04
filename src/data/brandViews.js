@@ -6,7 +6,7 @@
 // Paula’s Choice ≈3%), preferring prompts the mock already says they win.
 import {
   account, citedPages, citedPagesOther, extraCompetitors, history, historyEarlier, historySeries, kpis, missedPrompts, platforms as platformList,
-  platformStats, syncHistory, syncTotal, trackedPrompts, visiblePrompts, withAiMode,
+  platformStats, syncHistory, syncTotal, trackedPrompts, visiblePrompts, withAiMode, aiModePreview, historyMonthly,
 } from './mock.js'
 import { brandListName } from '../utils/brand.js'
 import { pointsBetween } from '../utils/syncChange.js'
@@ -236,7 +236,25 @@ function buildBrandView(domain) {
 // One engine at a time ('all' | 'aio' | 'aimode' | 'gemini' | 'chatgpt' | 'claude' | 'grok'). Card ids → prompt-data ids.
 // Google is two engines: 'aio' = Google AI Overview, 'aimode' = Google AI Mode (prompt data: 'google', 'aimode').
 // display order everywhere (header menu, Platform visibility columns): most-used engines first
-export const ENGINE_ORDER = ['aio', 'aimode', 'gemini', 'chatgpt', 'claude', 'grok']
+export const ENGINE_ORDER = ['aio', 'aimode', 'gemini', 'chatgpt', 'claude', 'grok'].filter((id) => id !== 'aimode' || platformList.some((p) => p.id === 'aimode'))
+// The AI Mode split: from the first sync with an AI Mode score, AI Overview stops including AI Mode results. On AI
+// Overview and All engines only (never AI Mode itself or the other engines): the score card says "Scoring updated
+// <day>" with this ⓘ in place of its change line while the latest sync is that first one, and Visibility history
+// marks the day (the same dashed marker as a scoring change). The split day comes from the data (the earliest AI
+// Mode day); the mock's sample has AI Mode from the start, so only ?aimode=new shows it (the latest sync).
+export const AIMODE_SPLIT_TIP = 'Google AI Mode is now counted separately, so Google AI Overview no longer includes AI Mode results.'
+export function aiModeSplit(engine) {
+  if (aiModePreview() !== 'new' || !(engine === 'all' || engine === 'aio')) return null
+  const day = weekly.at(-1), prev = weekly.at(-2)
+  const label = `Scoring updated ${day.date}`
+  const month = historyMonthly.at(-1), monthBefore = historyMonthly.at(-2)
+  const dom = Number(day.iso.slice(8, 10))
+  return {
+    day: day.date, latest: true, label, tip: AIMODE_SPLIT_TIP,
+    // getHistory's scoring shape: the marker sits on the split sync's day
+    scoring: { label, tip: AIMODE_SPLIT_TIP, weekly: { after: prev.date, frac: 1 }, monthly: month && monthBefore && month.iso.slice(0, 7) === day.iso.slice(0, 7) ? { after: monthBefore.date, frac: dom / 31 } : null },
+  }
+}
 // name: the short label (chips, rows, columns); full: menus and drawer titles ("Google AI Overview", "Google AI Mode")
 const FULL_NAME = { aio: 'Google AI Overview', aimode: 'Google AI Mode' }
 export const ENGINES = ENGINE_ORDER.map((id) => platformList.find((p) => p.id === id)).filter(Boolean).map((p) => ({ id: p.id, name: p.name, full: FULL_NAME[p.id] ?? p.name }))
