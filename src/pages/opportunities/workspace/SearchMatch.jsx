@@ -169,7 +169,7 @@ function FlowSection({ gsc, page, onPick, newPath, prompt, enginesFor, titleFor,
 // other rows landing on the same page tint faintly. Load: rows fade up 6px, 40ms apart, once. Reduced motion: no
 // movement (the sparkline shows statically on hover).
 const LIST_ROWS = 6
-const Q_GRID = 'grid grid-cols-[32px_minmax(0,1fr)_minmax(132px,auto)_minmax(0,220px)_76px_136px] items-center gap-x-3'
+const Q_GRID = 'grid grid-cols-[32px_minmax(0,1fr)_128px_minmax(96px,auto)_minmax(0,220px)_76px_136px] items-center gap-x-3'
 const verdict = (q) => (q.best ? { text: 'Best match', cls: 'font-semibold text-[var(--rep-up-fg)]' }
   : q.adjusted >= 70 ? { text: `Strong · ${q.adjusted}%`, cls: 'text-stone-900' }
     : q.adjusted >= 40 ? { text: `Partial · ${q.adjusted}%`, cls: 'text-stone-500' }
@@ -220,7 +220,7 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
   const short = (path) => midTruncate(path, 22)
   const pageTab = (k, dot) => ({ value: k, label: (
     <span className="relative inline-flex items-center gap-1.5" onMouseEnter={() => setTabHot(k)} onMouseLeave={() => setTabHot(null)}>
-      {dot && <span aria-label="Publishing here" className="h-1.5 w-1.5 rounded-full bg-[var(--co-a)]" />}{short(k)} {counts.get(k)}
+{short(k)} {counts.get(k)}{dot && <span className="text-stone-500"> · Publishing</span>}
       <TabCard show={tabHot === k} path={k} url={rows.find((q) => q.topPage?.path === k)?.topPage?.url} title={titleFor(k)} domain={domain}
         impressions={rows.filter((q) => q.topPage?.path === k).reduce((n, q) => n + q.impressions, 0)} e={enginesFor(k)} />
     </span>
@@ -250,6 +250,7 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
                 {q.intent && <Tag intent={q.intent} />}
                 {q.lowVolume && <Tag intent="low volume" />}
               </span>
+              <Trend values={weeksOf(q)} />
               <CitedBy e={enginesFor(q.topPage?.path)} position={q.position} />
               <span className="min-w-0 text-[14px] leading-5 text-stone-500">
                 {q.topPage?.url
@@ -259,10 +260,7 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
                     </a>
                   : q.topPage?.path}
               </span>
-              <span className="relative h-5 text-right text-[14px] leading-5 tabular-nums text-stone-700">
-                <span className={`absolute inset-0 transition-opacity duration-150 ${on ? 'opacity-0' : 'opacity-100'}`}>{num(q.impressions)}</span>
-                {on && <Spark values={weeksOf(q)} still={reduce} />}
-              </span>
+              <span className="text-right text-[14px] leading-5 tabular-nums text-stone-700">{num(q.impressions)}</span>
               <span className={`text-right text-[14px] leading-5 tabular-nums ${muted && !q.best ? 'text-stone-500' : v.cls}`}>{v.text}</span>
             </li>
           )
@@ -311,17 +309,29 @@ function TabCard({ show, path, url, title, domain, impressions, e }) {
   )
 }
 
-// 8 weeks as a 60×20 line, drawn left to right (~400ms), the last point a dot; static under reduced motion
-function Spark({ values, still }) {
+// the trend, right after the query (owner, 2026-11-05): an always-visible 8-week impressions sparkline (72×20, 1.5px,
+// the text colour at 60%, the last point a dot), then the change, last 4 weeks vs the 4 before: "+18%" bold green,
+// "−6%" bold red, "flat" muted under 2% either way. Hover: the line goes to the full text colour and a small tooltip
+// lists the weekly numbers.
+const changeOf = (v) => { const a = v.slice(0, 4).reduce((n, x) => n + x, 0), b = v.slice(4).reduce((n, x) => n + x, 0); return a ? Math.round(((b - a) / a) * 100) : null }
+function Trend({ values }) {
   const lo = Math.min(...values), hi = Math.max(...values)
   const y = (v) => (hi === lo ? 10 : 17 - ((v - lo) / (hi - lo)) * 14)
-  const pts = values.map((v, i) => `${(i * 60) / (values.length - 1)},${y(v).toFixed(1)}`).join(' ')
+  const pts = values.map((v, i) => `${(i * 72) / (values.length - 1)},${y(v).toFixed(1)}`).join(' ')
+  const d = changeOf(values)
   return (
-    <svg width="60" height="20" viewBox="0 0 60 20" className="absolute right-0 top-0 overflow-visible" aria-hidden>
-      <polyline points={pts} fill="none" stroke="var(--ink)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" pathLength="1"
-        style={still ? undefined : { strokeDasharray: 1, animation: 'co-spark-draw 400ms ease-out both' }} />
-      <circle cx="60" cy={y(values.at(-1))} r="2" fill="var(--ink)" style={still ? undefined : { animation: 'fade-in 120ms ease-out 360ms both' }} />
-    </svg>
+    <span className="group/t relative flex items-center gap-2" data-trend>
+      <svg width="72" height="20" viewBox="0 0 72 20" className="shrink-0 overflow-visible text-stone-900" aria-label={`Weekly impressions: ${values.map(num).join(', ')}`} role="img">
+        <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" className="opacity-60 transition-opacity duration-150 group-hover/t:opacity-100" />
+        <circle cx="72" cy={y(values.at(-1))} r="2" fill="currentColor" className="opacity-60 transition-opacity duration-150 group-hover/t:opacity-100" />
+      </svg>
+      <span className={`whitespace-nowrap text-[13px] leading-[18px] tabular-nums ${d == null || Math.abs(d) < 2 ? 'text-stone-500' : d > 0 ? 'font-semibold text-[var(--rep-up-fg)]' : 'font-semibold text-negative'}`}>
+        {d == null || Math.abs(d) < 2 ? 'flat' : `${d > 0 ? '+' : '−'}${Math.abs(d)}%`}
+      </span>
+      <span role="tooltip" className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden whitespace-nowrap rounded-md border border-line bg-raised px-2 py-1 text-[11px] leading-4 tabular-nums text-stone-700 shadow-md group-hover/t:block">
+        {values.map(num).join(' · ')}
+      </span>
+    </span>
   )
 }
 

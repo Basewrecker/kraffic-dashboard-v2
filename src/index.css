@@ -677,9 +677,8 @@ html[data-theme="dark"] { --beta-fg: color-mix(in srgb, var(--beta) 65%, #FFFFFF
 
 /* Content Target page, Search Console flow: the ribbons draw left to right once (clip reveal) */
 
-/* Content: the Search Console queries list (rows fade up once; the hover sparkline draws in) */
+/* Content: the Search Console queries list (rows fade up once) */
 @keyframes co-row-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes co-spark-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes co-ring-fill { from { stroke-dasharray: 0 999; } }
 
 /* Content: logo circles on a light plate in dark mode, so dark logos read; the strip's hover card opening down / up */
