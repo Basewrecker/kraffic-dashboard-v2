@@ -46,6 +46,7 @@ don't port it until the line says approved.
 | e1090a8 | Search Console intent: the owner's rule (intent words vs topic words, synonyms, intentMatch sort, no Best without an intent match; mirrors the app's 4385c8e); topic-only create wording; Update column reason only for the route's own page | Approved · being ported |
 | d8d6a96 | Search Console: the owner's refined Best rule (≥ half the intent words, min 1; rank by intent words then impressions; OPPOSITES disqualify), publish-on semantics (strong eligible only; lowVolume update; else create), shared case `src/data/gscMatchCases.js`, preview `?co=gsc-lowvolume` | Owner rule · in step with the app |
 | 8e9c631 | Search Console list order: 10+ impressions first, under-10 below with a muted "low volume" tag (`lowVolume` per row), the Best always first; shared case 2 | Owner decision · in step with the app |
+| 403ff49 | A site on two page-1 spots: ladder shows both; matrix and competitor lists once at the best rank with "+1 page" (`bySite`, `MorePages`, rows' `others`); §13 | Owner decision · waiting for screenshot review |
 | de2f86d | Sentiment scatter tweak: 24px clear of the cross's two lines and the edges (dot edge + badge, from a line's far side; badge inside the dot's corner; `EDGE = 25`) | Owner tweak · port with 9416ecd |
 
 ## 1. Routes and navigation
