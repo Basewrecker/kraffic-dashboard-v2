@@ -6,11 +6,11 @@
 //   States: not connected (Connect) · reconnect (Reconnect) · no property for the domain · connected with no data yet
 //   (the new page it would suggest). The ladder and the matrix render in every state.
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Check, Info, Loader2, Plus } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUpRight, Check, Info, Loader2, Plus } from 'lucide-react'
 import { GoogleIcon } from '../../../components/dashboard/icons'
 import { lineBtn } from '../../../components/tool/ToolPage'
-import { useWidth } from '../../../components/ui/motion'
-import { MidText } from '../parts'
+import { Seg, useWidth } from '../../../components/ui/motion'
+import { MidText, midTruncate } from '../parts'
 let measureCtx = null
 
 const nf = new Intl.NumberFormat('en-US')
@@ -80,7 +80,7 @@ export default function SearchMatch({ gsc, domain, connecting = false, justConne
   const hasData = connected && gsc.queries.length > 0
   return (
     <section aria-labelledby="co-sc-h" data-search-match style={justConnected && !reducedMotion() ? { animation: 'card-in 360ms cubic-bezier(.2,.8,.2,1) both' } : undefined}>
-      <div className={HEAD}>
+      {hasData ? <QueriesHeader gsc={gsc} domain={domain} onChange={onChange} csv={() => downloadQueries(gsc, prompt)} /> : <div className={HEAD}>
         <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <h3 id="co-sc-h" className={H}>Search Console for this prompt</h3>
           {connected && (
@@ -96,7 +96,7 @@ export default function SearchMatch({ gsc, domain, connecting = false, justConne
             <Tip label="About this data">{gsc.lagNote} Totals run slightly low: Google hides rare queries.</Tip>
           </span>
         )}
-      </div>
+      </div>}
       {!connected ? <NotConnected gsc={gsc} domain={domain} connecting={connecting} onConnect={onConnect} />
         : !hasData ? <NoData gsc={gsc} page={page} onPick={onPick} />
           : (
@@ -151,61 +151,136 @@ function FlowSection({ gsc, page, onPick, newPath, prompt }) {
   const usingCreate = page ? page.action === 'create' : sc.action === 'create'
   return (
     <div className="pt-5">
-      <QueriesTable gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} />
+      <QueriesList gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} />
       <UsingLine gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} onPick={onPick} newPath={newPath} />
     </div>
   )
 }
 
-// The queries table (owner, 2026-11-05: replaces the flow visual): Search query | Impressions | Match | Lands on.
-// Rows: the Best query first (a "Best" tag, a light tint), then the 10+ impression queries by impressions (high → low),
-// then the low-volume ones; at most 6, "+N more" shows the rest. Local / site / account queries: muted text with their
-// tag. Numbers right-aligned, tabular. "Lands on": the full path, middle-truncated only if it overflows; rows landing
-// on the page being published get a "Publishing here" tag. 52px rows and the same borders as the winners table.
-const ROWS = 6
-const QCOLS = 'grid grid-cols-[minmax(0,1.4fr)_96px_72px_minmax(0,1.3fr)] items-center gap-x-4'
-const byImpr = (a, b) => b.impressions - a.impressions
-function QueriesTable({ gsc, usingPath, usingCreate }) {
-  const [all, setAll] = useState(false)
-  const best = gsc.queries.filter((q) => q.best)
-  const rest = gsc.queries.filter((q) => !q.best)
-  const rows = [...best, ...rest.filter((q) => !q.lowVolume).sort(byImpr), ...rest.filter((q) => q.lowVolume).sort(byImpr)]
-  const shown = all ? rows : rows.slice(0, ROWS)
+// ---- the queries list (owner, 2026-11-05), styled like Sentiment's "Pages on <date>" (its header, segmented tabs,
+// 52px rows, Download CSV, "Show all N →"). Tabs filter by landing page: All, then the page being published on (a small
+// accent dot), then the others by how many queries land there; low-volume / local / site rows count in their page's
+// tab. Rows: the Google mark in a 32px circle · the query (15/600, truncated) · the page it lands on (muted, ↗ opens
+// the live page) · impressions · a coloured verdict: "Best match" green (the Best row), "Strong · 82%" near-black
+// (≥ 70), "Partial · 46%" muted (40–69), "Weak · 23%" red (< 40). Tagged / low-volume rows: muted with their tag. Rows
+// landing on the publishing page: a 2px accent bar on the left. Hover: the row tints (150ms), ↗ nudges up-right, the
+// impressions cross-fade into the query's 8-week sparkline (60×20, drawn in ~400ms, the last point a dot), and the
+// other rows landing on the same page tint faintly. Load: rows fade up 6px, 40ms apart, once. Reduced motion: no
+// movement (the sparkline shows statically on hover).
+const LIST_ROWS = 6
+const Q_GRID = 'grid grid-cols-[32px_minmax(0,1fr)_minmax(0,220px)_76px_136px] items-center gap-x-3'
+const verdict = (q) => (q.best ? { text: 'Best match', cls: 'font-semibold text-[var(--rep-up-fg)]' }
+  : q.adjusted >= 70 ? { text: `Strong · ${q.adjusted}%`, cls: 'font-medium text-stone-900' }
+    : q.adjusted >= 40 ? { text: `Partial · ${q.adjusted}%`, cls: 'text-stone-500' }
+      : { text: `Weak · ${q.adjusted}%`, cls: 'font-medium text-negative' })
+// a query's 8 weeks of impressions (the sample: derived from its total, steady with a little wobble; the app needs
+// weekly impressions per query from Search Console for this)
+const weeksOf = (q) => { const base = q.impressions / 8; let h = 0; for (const c of q.query) h = (h * 31 + c.charCodeAt(0)) >>> 0; return Array.from({ length: 8 }, (_, i) => Math.max(0, Math.round(base * (0.75 + ((h >> (i * 3)) % 9) / 16 + i * 0.03)))) }
+const orderRows = (qs) => { const best = qs.filter((q) => q.best), rest = qs.filter((q) => !q.best); const by = (a, b) => b.impressions - a.impressions; return [...best, ...rest.filter((q) => !q.lowVolume).sort(by), ...rest.filter((q) => q.lowVolume).sort(by)] }
+function QueriesHeader({ gsc, domain, onChange, csv }) {
   return (
-    <div role="table" aria-label="Search queries for this prompt" className="text-[14px] leading-5" data-sc-queries>
-      <div role="row" className={`${QCOLS} pb-2 pt-3 ${META}`}>
-        <span role="columnheader">Search query</span>
-        <span role="columnheader" className="text-right">Impressions</span>
-        <span role="columnheader" className="text-right">Match</span>
-        <span role="columnheader">Lands on</span>
+    <div>
+      <div className="flex h-11 items-end justify-between gap-3 border-b border-line pb-2">
+        <h3 id="co-sc-h" className="flex items-baseline gap-2 text-[15px] leading-[22px] font-semibold"><span className="text-ink">Search queries</span><span className="tabular-nums text-stone-500">{gsc.queries.length}</span></h3>
+        <span className="-mb-1.5 flex shrink-0 items-center gap-2">
+          <span data-sc-connected className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line px-2.5 text-[12px] leading-4 text-stone-600">
+            <Check size={12} aria-hidden className="text-stone-500" />Connected · <span className="font-medium text-stone-900">{domain}</span>
+            {onChange && <> · <button type="button" onClick={onChange} className="rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-2 outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Change</button></>}
+          </span>
+          <button type="button" onClick={csv} className="-mr-2 inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[14px] leading-5 font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Download CSV<ArrowDown size={14} aria-hidden /></button>
+        </span>
       </div>
-      {shown.map((q) => {
-        const muted = Boolean(q.intent)
-        const here = !usingCreate && q.topPage?.path === usingPath
-        return (
-          <div role="row" key={q.query} data-query={q.query} data-best={q.best || undefined} data-intent={q.intent ?? undefined} data-low-volume={q.lowVolume || undefined}
-            className={`${QCOLS} h-[52px] border-t border-[var(--div)] ${q.best ? 'bg-tint' : ''}`}>
-            <span role="cell" className="flex min-w-0 items-center gap-1.5 pl-1">
-              <span title={q.query} className={`truncate ${muted ? 'text-stone-500' : q.best ? 'font-semibold text-stone-900' : 'font-medium text-stone-900'}`}>{q.query}</span>
-              {q.best && <Tag intent="Best" />}
-              {q.intent && <Tag intent={q.intent} />}
-              {q.lowVolume && <Tag intent="low volume" />}
-            </span>
-            <span role="cell" className={`text-right tabular-nums ${muted ? 'text-stone-500' : 'text-stone-700'}`}>{num(q.impressions)}</span>
-            <span role="cell" className={`text-right tabular-nums ${muted ? 'text-stone-500' : 'text-stone-700'}`}>{q.adjusted}%</span>
-            <span role="cell" className="flex min-w-0 items-center gap-1.5">
-              <span className="min-w-0 flex-1"><MidText text={q.topPage?.path ?? ''} className={muted ? 'text-stone-500' : 'text-stone-700'} /></span>
-              {here && <Tag intent="Publishing here" />}
-            </span>
-          </div>
-        )
-      })}
-      {rows.length > ROWS && (
-        <button type="button" onClick={() => setAll((v) => !v)} className={`mt-2 ${textLink} text-[13px]`}>
-          {all ? 'Show fewer' : `+${rows.length - ROWS} more`}
+      <p className="mt-1.5 flex items-center gap-1 text-[12px] leading-4 text-stone-500">
+        Last 8 weeks · {day(gsc.range.startDate)} – {day(gsc.range.endDate)}
+        <Tip label="About this data">{gsc.lagNote} Totals run slightly low: Google hides rare queries.</Tip>
+      </p>
+    </div>
+  )
+}
+function downloadQueries(gsc, prompt) {
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const lines = [['query', 'impressions', 'clicks', 'position', 'match', 'verdict', 'tag', 'lands on'].join(',')]
+  for (const q of orderRows(gsc.queries)) lines.push([q.query, q.impressions, q.clicks, q.position, q.adjusted, verdict(q).text, [q.intent, q.lowVolume ? 'low volume' : ''].filter(Boolean).join(' '), q.topPage?.url].map(esc).join(','))
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }))
+  a.download = `search-queries-${(prompt || 'prompt').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 48)}.csv`
+  a.click()
+}
+function QueriesList({ gsc, usingPath, usingCreate }) {
+  const reduce = reducedMotion()
+  const rows = orderRows(gsc.queries)
+  const counts = rows.reduce((m, q) => m.set(q.topPage?.path, (m.get(q.topPage?.path) ?? 0) + 1), new Map())
+  const pub = !usingCreate && counts.has(usingPath) ? usingPath : null
+  const others = [...counts.keys()].filter((k) => k && k !== pub).sort((a, b) => counts.get(b) - counts.get(a))
+  const [tab, setTab] = useState('all')
+  const [all, setAll] = useState(false)
+  const [hot, setHot] = useState(null) // the hovered row's query
+  const short = (path) => midTruncate(path, 22)
+  const options = [{ value: 'all', label: `All ${rows.length}` },
+    ...(pub ? [{ value: pub, label: <span className="inline-flex items-center gap-1.5"><span aria-label="Publishing here" className="h-1.5 w-1.5 rounded-full bg-[var(--co-a)]" />{short(pub)} {counts.get(pub)}</span> }] : []),
+    ...others.map((k) => ({ value: k, label: `${short(k)} ${counts.get(k)}` }))]
+  const shownAll = tab === 'all' ? rows : rows.filter((q) => q.topPage?.path === tab)
+  const shown = all ? shownAll : shownAll.slice(0, LIST_ROWS)
+  const hotPage = hot ? rows.find((q) => q.query === hot)?.topPage?.path : null
+  return (
+    <div data-sc-queries>
+      <div className="mt-3 overflow-x-auto"><Seg label="Landing page" value={tab} onChange={(v) => { setTab(v); setAll(false) }} className="gap-1 [&>button]:px-3.5" options={options} /></div>
+      <ul className="mt-3 border-t border-[var(--div)]" onMouseLeave={() => setHot(null)}>
+        {shown.map((q, i) => {
+          const v = verdict(q)
+          const muted = Boolean(q.intent || q.lowVolume)
+          const here = pub && q.topPage?.path === pub
+          const on = hot === q.query
+          const sibling = !on && hotPage && q.topPage?.path === hotPage
+          return (
+            <li key={q.query} data-query={q.query} data-best={q.best || undefined} data-intent={q.intent ?? undefined} data-low-volume={q.lowVolume || undefined} data-publishing={here || undefined}
+              onMouseEnter={() => setHot(q.query)}
+              className={`group/q relative ${Q_GRID} h-[52px] border-b border-[var(--div)] pl-1 transition-colors duration-150 ${on ? 'bg-[var(--row-hover,var(--tint))]' : sibling ? 'bg-[color-mix(in_srgb,var(--tint)_45%,transparent)]' : ''}`}
+              style={reduce ? undefined : { animation: `co-row-up 260ms ease-out ${i * 40}ms both` }}>
+              {here && <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-[var(--co-a)]" />}
+              <span className="grid h-8 w-8 place-items-center rounded-full border border-line bg-surface"><GoogleIcon size={16} /></span>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span title={q.query} className={`truncate text-[15px] leading-[22px] ${muted ? 'font-medium text-stone-500' : 'font-semibold text-stone-900'}`}>{q.query}</span>
+                {q.intent && <Tag intent={q.intent} />}
+                {q.lowVolume && <Tag intent="low volume" />}
+              </span>
+              <span className="min-w-0 text-[14px] leading-5 text-stone-500">
+                {q.topPage?.url
+                  ? <a href={q.topPage.url} target="_blank" rel="noopener noreferrer" onFocus={() => setHot(q.query)} className="flex min-w-0 items-center gap-1 rounded outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus" aria-label={`${q.topPage.path} (opens in a new tab)`}>
+                      <span className="min-w-0 truncate">{q.topPage.path}</span>
+                      <ArrowUpRight size={12} aria-hidden className={`shrink-0 transition-transform duration-150 ${reduce ? '' : 'group-hover/q:-translate-y-0.5 group-hover/q:translate-x-0.5'}`} />
+                    </a>
+                  : q.topPage?.path}
+              </span>
+              <span className="relative h-5 text-right text-[14px] leading-5 tabular-nums text-stone-700">
+                <span className={`absolute inset-0 transition-opacity duration-150 ${on ? 'opacity-0' : 'opacity-100'}`}>{num(q.impressions)}</span>
+                {on && <Spark values={weeksOf(q)} still={reduce} />}
+              </span>
+              <span className={`text-right text-[14px] leading-5 tabular-nums ${muted && !q.best ? 'text-stone-500' : v.cls}`}>{v.text}</span>
+            </li>
+          )
+        })}
+      </ul>
+      {shownAll.length > LIST_ROWS && (
+        <button type="button" onClick={() => setAll((x) => !x)}
+          className="-ml-2 mt-2 inline-flex h-9 items-center gap-1.5 rounded-md px-2 text-[14px] leading-5 font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
+          {all ? 'Show fewer' : <>Show all {shownAll.length}<ArrowRight size={14} aria-hidden /></>}
         </button>
       )}
     </div>
+  )
+}
+// 8 weeks as a 60×20 line, drawn left to right (~400ms), the last point a dot; static under reduced motion
+function Spark({ values, still }) {
+  const lo = Math.min(...values), hi = Math.max(...values)
+  const y = (v) => (hi === lo ? 10 : 17 - ((v - lo) / (hi - lo)) * 14)
+  const pts = values.map((v, i) => `${(i * 60) / (values.length - 1)},${y(v).toFixed(1)}`).join(' ')
+  return (
+    <svg width="60" height="20" viewBox="0 0 60 20" className="absolute right-0 top-0 overflow-visible" aria-hidden>
+      <polyline points={pts} fill="none" stroke="var(--ink)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" pathLength="1"
+        style={still ? undefined : { strokeDasharray: 1, animation: 'co-spark-draw 400ms ease-out both' }} />
+      <circle cx="60" cy={y(values.at(-1))} r="2" fill="var(--ink)" style={still ? undefined : { animation: 'fade-in 120ms ease-out 360ms both' }} />
+    </svg>
   )
 }
 
