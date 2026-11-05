@@ -75,7 +75,7 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
       {sc && !asking && sc.state !== 'skipped' && <SearchMatch {...sc} enginesFor={(path) => {
         const c = res.citedPages.find((x) => { try { return new URL(x.url).pathname.replace(/\/$/, '') === path } catch { return false } })
         return c ? eng(c) : { engines: [], unknown: false }
-      }} />}
+      }} titleFor={(path) => res.citedPages.find((x) => { try { return new URL(x.url).pathname.replace(/\/$/, '') === path } catch { return false } })?.title ?? null} />}
       {/* the format matrix, full width (owner, 2026-11-05: "The draft adds" panel removed; what it adds is the
           header's line and the tinted columns) */}
       <Matrix m={m} path={page.path} eng={eng} named={named} host={host} setHost={setHost} col={col} hoverCol={hoverCol} pulse={pulse} yourEnd={yourEnd}

@@ -7,10 +7,11 @@
 //   (the new page it would suggest). The ladder and the matrix render in every state.
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowRight, ArrowUpRight, Check, Info, Loader2, Plus } from 'lucide-react'
-import { GoogleIcon } from '../../../components/dashboard/icons'
+import { GoogleIcon, PlatformIcon } from '../../../components/dashboard/icons'
+import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { Seg, useWidth } from '../../../components/ui/motion'
-import { MidText, midTruncate } from '../parts'
+import { LogoPlate, MidText, midTruncate } from '../parts'
 let measureCtx = null
 
 const nf = new Intl.NumberFormat('en-US')
@@ -75,7 +76,7 @@ export function SkippedRow({ onConnect }) {
 // would let the user pick another Search Console property) · enginesFor(path) → { engines, unknown } · page: THE target
 // page (source 'pick' | 'sc' | 'route') · choice: Search Console's own page ({ action, path, url }) or null ·
 // onPick(pick | null): null = back to Search Console's page
-export default function SearchMatch({ gsc, domain, connecting = false, justConnected = false, onConnect, onChange = null, page = null, onPick = () => {}, newPath = null, prompt = "" }) {
+export default function SearchMatch({ gsc, domain, connecting = false, justConnected = false, onConnect, onChange = null, page = null, onPick = () => {}, newPath = null, prompt = "", enginesFor = () => ({ engines: [], unknown: false }), titleFor = () => null }) {
   const connected = gsc?.connected
   const hasData = connected && gsc.queries.length > 0
   return (
@@ -100,7 +101,7 @@ export default function SearchMatch({ gsc, domain, connecting = false, justConne
       {!connected ? <NotConnected gsc={gsc} domain={domain} connecting={connecting} onConnect={onConnect} />
         : !hasData ? <NoData gsc={gsc} page={page} onPick={onPick} />
           : (
-            <FlowSection gsc={gsc} page={page} onPick={onPick} prompt={prompt} newPath={gsc.publishOn.action === 'create' ? gsc.publishOn.suggestedPath : newPath} />
+            <FlowSection gsc={gsc} page={page} onPick={onPick} prompt={prompt} newPath={gsc.publishOn.action === 'create' ? gsc.publishOn.suggestedPath : newPath} enginesFor={enginesFor} titleFor={titleFor} domain={domain} />
           )}
     </section>
   )
@@ -145,13 +146,13 @@ const UseButton = ({ using, label, onClick }) => (
 
 // ---- the section's body: the queries table, then "Publishing on <path> · Change page" (the page in use: Workspace
 // `page`: the user's pick ?? Search Console's Publish on ?? the route's; the payoff bar and the request follow it)
-function FlowSection({ gsc, page, onPick, newPath, prompt }) {
+function FlowSection({ gsc, page, onPick, newPath, prompt, enginesFor, titleFor, domain }) {
   const sc = gsc.publishOn
   const usingPath = page?.action === 'create' ? page.path : page?.path ?? (sc.action === 'create' ? sc.suggestedPath : sc.path)
   const usingCreate = page ? page.action === 'create' : sc.action === 'create'
   return (
     <div className="pt-5">
-      <QueriesList gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} />
+      <QueriesList gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} enginesFor={enginesFor} titleFor={titleFor} domain={domain} />
       <UsingLine gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} onPick={onPick} newPath={newPath} />
     </div>
   )
@@ -168,11 +169,11 @@ function FlowSection({ gsc, page, onPick, newPath, prompt }) {
 // other rows landing on the same page tint faintly. Load: rows fade up 6px, 40ms apart, once. Reduced motion: no
 // movement (the sparkline shows statically on hover).
 const LIST_ROWS = 6
-const Q_GRID = 'grid grid-cols-[32px_minmax(0,1fr)_minmax(0,220px)_76px_136px] items-center gap-x-3'
+const Q_GRID = 'grid grid-cols-[32px_minmax(0,1fr)_minmax(132px,auto)_minmax(0,220px)_76px_136px] items-center gap-x-3'
 const verdict = (q) => (q.best ? { text: 'Best match', cls: 'font-semibold text-[var(--rep-up-fg)]' }
-  : q.adjusted >= 70 ? { text: `Strong · ${q.adjusted}%`, cls: 'font-medium text-stone-900' }
+  : q.adjusted >= 70 ? { text: `Strong · ${q.adjusted}%`, cls: 'text-stone-900' }
     : q.adjusted >= 40 ? { text: `Partial · ${q.adjusted}%`, cls: 'text-stone-500' }
-      : { text: `Weak · ${q.adjusted}%`, cls: 'font-medium text-negative' })
+      : { text: `Weak · ${q.adjusted}%`, cls: 'font-semibold text-negative' })
 // a query's 8 weeks of impressions (the sample: derived from its total, steady with a little wobble; the app needs
 // weekly impressions per query from Search Console for this)
 const weeksOf = (q) => { const base = q.impressions / 8; let h = 0; for (const c of q.query) h = (h * 31 + c.charCodeAt(0)) >>> 0; return Array.from({ length: 8 }, (_, i) => Math.max(0, Math.round(base * (0.75 + ((h >> (i * 3)) % 9) / 16 + i * 0.03)))) }
@@ -206,7 +207,7 @@ function downloadQueries(gsc, prompt) {
   a.download = `search-queries-${(prompt || 'prompt').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 48)}.csv`
   a.click()
 }
-function QueriesList({ gsc, usingPath, usingCreate }) {
+function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain }) {
   const reduce = reducedMotion()
   const rows = orderRows(gsc.queries)
   const counts = rows.reduce((m, q) => m.set(q.topPage?.path, (m.get(q.topPage?.path) ?? 0) + 1), new Map())
@@ -215,16 +216,22 @@ function QueriesList({ gsc, usingPath, usingCreate }) {
   const [tab, setTab] = useState('all')
   const [all, setAll] = useState(false)
   const [hot, setHot] = useState(null) // the hovered row's query
+  const [tabHot, setTabHot] = useState(null) // the hovered page tab's path: its card shows, its rows tint
   const short = (path) => midTruncate(path, 22)
-  const options = [{ value: 'all', label: `All ${rows.length}` },
-    ...(pub ? [{ value: pub, label: <span className="inline-flex items-center gap-1.5"><span aria-label="Publishing here" className="h-1.5 w-1.5 rounded-full bg-[var(--co-a)]" />{short(pub)} {counts.get(pub)}</span> }] : []),
-    ...others.map((k) => ({ value: k, label: `${short(k)} ${counts.get(k)}` }))]
+  const pageTab = (k, dot) => ({ value: k, label: (
+    <span className="relative inline-flex items-center gap-1.5" onMouseEnter={() => setTabHot(k)} onMouseLeave={() => setTabHot(null)}>
+      {dot && <span aria-label="Publishing here" className="h-1.5 w-1.5 rounded-full bg-[var(--co-a)]" />}{short(k)} {counts.get(k)}
+      <TabCard show={tabHot === k} path={k} url={rows.find((q) => q.topPage?.path === k)?.topPage?.url} title={titleFor(k)} domain={domain}
+        impressions={rows.filter((q) => q.topPage?.path === k).reduce((n, q) => n + q.impressions, 0)} e={enginesFor(k)} />
+    </span>
+  ) })
+  const options = [{ value: 'all', label: `All ${rows.length}` }, ...(pub ? [pageTab(pub, true)] : []), ...others.map((k) => pageTab(k, false))]
   const shownAll = tab === 'all' ? rows : rows.filter((q) => q.topPage?.path === tab)
   const shown = all ? shownAll : shownAll.slice(0, LIST_ROWS)
-  const hotPage = hot ? rows.find((q) => q.query === hot)?.topPage?.path : null
+  const hotPage = tabHot ?? (hot ? rows.find((q) => q.query === hot)?.topPage?.path : null)
   return (
     <div data-sc-queries>
-      <div className="mt-3 overflow-x-auto"><Seg label="Landing page" value={tab} onChange={(v) => { setTab(v); setAll(false) }} className="gap-1 [&>button]:px-3.5" options={options} /></div>
+      <div className="relative z-20 mt-3"><Seg label="Landing page" value={tab} onChange={(v) => { setTab(v); setAll(false) }} className="gap-1 [&>button]:px-3.5" options={options} /></div>
       <ul className="mt-3 border-t border-[var(--div)]" onMouseLeave={() => setHot(null)}>
         {shown.map((q, i) => {
           const v = verdict(q)
@@ -237,13 +244,13 @@ function QueriesList({ gsc, usingPath, usingCreate }) {
               onMouseEnter={() => setHot(q.query)}
               className={`group/q relative ${Q_GRID} h-[52px] border-b border-[var(--div)] pl-1 transition-colors duration-150 ${on ? 'bg-[var(--row-hover,var(--tint))]' : sibling ? 'bg-[color-mix(in_srgb,var(--tint)_45%,transparent)]' : ''}`}
               style={reduce ? undefined : { animation: `co-row-up 260ms ease-out ${i * 40}ms both` }}>
-              {here && <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-[var(--co-a)]" />}
               <span className="grid h-8 w-8 place-items-center rounded-full border border-line bg-surface"><GoogleIcon size={16} /></span>
               <span className="flex min-w-0 items-center gap-1.5">
                 <span title={q.query} className={`truncate text-[15px] leading-[22px] ${muted ? 'font-medium text-stone-500' : 'font-semibold text-stone-900'}`}>{q.query}</span>
                 {q.intent && <Tag intent={q.intent} />}
                 {q.lowVolume && <Tag intent="low volume" />}
               </span>
+              <CitedBy e={enginesFor(q.topPage?.path)} position={q.position} />
               <span className="min-w-0 text-[14px] leading-5 text-stone-500">
                 {q.topPage?.url
                   ? <a href={q.topPage.url} target="_blank" rel="noopener noreferrer" onFocus={() => setHot(q.query)} className="flex min-w-0 items-center gap-1 rounded outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus" aria-label={`${q.topPage.path} (opens in a new tab)`}>
@@ -270,6 +277,40 @@ function QueriesList({ gsc, usingPath, usingCreate }) {
     </div>
   )
 }
+// "Cited by": the AI engines (in colour, 18px) that already cite the landing page (real data only: nothing when none
+// do), then "Google #8", the query's average position in Search Console
+function CitedBy({ e, position }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5" data-cited-by>
+      {e.engines.map((id) => <span key={id} title={`Cited by ${ENGINE_NAME[id]}`} className="flex"><PlatformIcon id={engineIcon(id)} size={18} /></span>)}
+      {position != null && <span className="whitespace-nowrap text-[12px] leading-4 tabular-nums text-stone-500">Google #{Math.round(position)}</span>}
+    </span>
+  )
+}
+// a page tab's card: drops 4px under the tab (fade + slide, 150ms ease-out; none with reduced motion): the full path,
+// the page's title, the site logo, the impressions from these queries, the engines that cite it, and Open ↗
+function TabCard({ show, path, url, title, domain, impressions, e }) {
+  const still = reducedMotion()
+  return (
+    <span role="tooltip" aria-hidden={!show} className="pointer-events-auto absolute left-0 top-full z-30 mt-2 w-[300px] rounded-lg border border-line bg-raised p-3 text-left shadow-lg"
+      style={{ opacity: show ? 1 : 0, transform: show || still ? 'none' : 'translateY(-4px)', visibility: show ? 'visible' : 'hidden', transition: still ? 'none' : 'opacity 150ms ease-out, transform 150ms ease-out, visibility 150ms' }}>
+      <span className="flex items-start gap-2.5">
+        <LogoPlate domain={domain} size={24} logoClass="h-4 w-4" />
+        <span className="min-w-0 flex-1">
+          <span className="block break-all text-[13px] leading-[18px] font-semibold text-stone-900">{path}</span>
+          {title && <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-700">{title}</span>}
+        </span>
+      </span>
+      <span className="mt-2 flex items-center justify-between gap-3 text-[12px] leading-4 text-stone-500">
+        <span className="flex items-center gap-2"><span className="tabular-nums">{num(impressions)} impressions</span>
+          {e.engines.length > 0 && <span className="flex items-center gap-1">{e.engines.map((id) => <PlatformIcon key={id} id={engineIcon(id)} size={14} />)}</span>}
+        </span>
+        {url && <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 rounded font-medium text-ink outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">Open<ArrowUpRight size={12} aria-hidden /></a>}
+      </span>
+    </span>
+  )
+}
+
 // 8 weeks as a 60×20 line, drawn left to right (~400ms), the last point a dot; static under reduced motion
 function Spark({ values, still }) {
   const lo = Math.min(...values), hi = Math.max(...values)
