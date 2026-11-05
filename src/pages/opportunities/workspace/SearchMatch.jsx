@@ -81,7 +81,7 @@ export default function SearchMatch({ gsc, domain, connecting = false, justConne
   const hasData = connected && gsc.queries.length > 0
   return (
     <section aria-labelledby="co-sc-h" data-search-match style={justConnected && !reducedMotion() ? { animation: 'card-in 360ms cubic-bezier(.2,.8,.2,1) both' } : undefined}>
-      {hasData ? <QueriesHeader gsc={gsc} domain={domain} onChange={onChange} csv={() => downloadQueries(gsc, prompt)} /> : <div className={HEAD}>
+      {hasData ? null : <div className={HEAD}>
         <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <h3 id="co-sc-h" className={H}>Search Console for this prompt</h3>
           {connected && (
@@ -101,7 +101,7 @@ export default function SearchMatch({ gsc, domain, connecting = false, justConne
       {!connected ? <NotConnected gsc={gsc} domain={domain} connecting={connecting} onConnect={onConnect} />
         : !hasData ? <NoData gsc={gsc} page={page} onPick={onPick} />
           : (
-            <FlowSection gsc={gsc} page={page} onPick={onPick} prompt={prompt} newPath={gsc.publishOn.action === 'create' ? gsc.publishOn.suggestedPath : newPath} enginesFor={enginesFor} titleFor={titleFor} domain={domain} />
+            <FlowSection gsc={gsc} page={page} onPick={onPick} prompt={prompt} newPath={gsc.publishOn.action === 'create' ? gsc.publishOn.suggestedPath : newPath} enginesFor={enginesFor} titleFor={titleFor} domain={domain} onChange={onChange} />
           )}
     </section>
   )
@@ -146,13 +146,13 @@ const UseButton = ({ using, label, onClick }) => (
 
 // ---- the section's body: the queries table, then "Publishing on <path> · Change page" (the page in use: Workspace
 // `page`: the user's pick ?? Search Console's Publish on ?? the route's; the payoff bar and the request follow it)
-function FlowSection({ gsc, page, onPick, newPath, prompt, enginesFor, titleFor, domain }) {
+function FlowSection({ gsc, page, onPick, newPath, prompt, enginesFor, titleFor, domain, onChange }) {
   const sc = gsc.publishOn
   const usingPath = page?.action === 'create' ? page.path : page?.path ?? (sc.action === 'create' ? sc.suggestedPath : sc.path)
   const usingCreate = page ? page.action === 'create' : sc.action === 'create'
   return (
-    <div className="pt-5">
-      <QueriesList gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} enginesFor={enginesFor} titleFor={titleFor} domain={domain} />
+    <div>
+      <QueriesList gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} enginesFor={enginesFor} titleFor={titleFor} domain={domain} onChange={onChange} prompt={prompt} />
       <UsingLine gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} onPick={onPick} newPath={newPath} />
     </div>
   )
@@ -178,36 +178,35 @@ const verdict = (q) => (q.best ? { text: 'Best match', cls: 'font-semibold text-
 // weekly impressions per query from Search Console for this)
 const weeksOf = (q) => { const base = q.impressions / 8; let h = 0; for (const c of q.query) h = (h * 31 + c.charCodeAt(0)) >>> 0; return Array.from({ length: 8 }, (_, i) => Math.max(0, Math.round(base * (0.75 + ((h >> (i * 3)) % 9) / 16 + i * 0.03)))) }
 const orderRows = (qs) => { const best = qs.filter((q) => q.best), rest = qs.filter((q) => !q.best); const by = (a, b) => b.impressions - a.impressions; return [...best, ...rest.filter((q) => !q.lowVolume).sort(by), ...rest.filter((q) => q.lowVolume).sort(by)] }
-function QueriesHeader({ gsc, domain, onChange, csv }) {
+// the header, one block with the tabs (owner, 2026-11-05; Sentiment's "Pages on <date>" header): line 1 "Search
+// queries n" and Download CSV (the current tab's rows); line 2, small and muted: the Google mark, the property, the range
+// (the lag in its title) and a plain "Change" link. No divider: header, tabs and rows read as one block.
+function QueriesHeader({ gsc, count, domain, onChange, csv }) {
   return (
     <div>
-      <div className="flex h-11 items-end justify-between gap-3 border-b border-line pb-2">
-        <h3 id="co-sc-h" className="flex items-baseline gap-2 text-[15px] leading-[22px] font-semibold"><span className="text-ink">Search queries</span><span className="tabular-nums text-stone-500">{gsc.queries.length}</span></h3>
-        <span className="-mb-1.5 flex shrink-0 items-center gap-2">
-          <span data-sc-connected className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line px-2.5 text-[12px] leading-4 text-stone-600">
-            <Check size={12} aria-hidden className="text-stone-500" />Connected · <span className="font-medium text-stone-900">{domain}</span>
-            {onChange && <> · <button type="button" onClick={onChange} className="rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-2 outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Change</button></>}
-          </span>
-          <button type="button" onClick={csv} className="-mr-2 inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[14px] leading-5 font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Download CSV<ArrowDown size={14} aria-hidden /></button>
-        </span>
+      <div className="flex items-center justify-between gap-3">
+        <h3 id="co-sc-h" className="flex items-baseline gap-2 text-[15px] leading-[22px] font-semibold"><span className="text-ink">Search queries</span><span className="tabular-nums text-stone-500">{count}</span></h3>
+        <button type="button" onClick={csv} className="-mr-2 inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[14px] leading-5 font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Download CSV<ArrowDown size={14} aria-hidden /></button>
       </div>
-      <p className="mt-1.5 flex items-center gap-1 text-[12px] leading-4 text-stone-500">
-        Last 8 weeks · {day(gsc.range.startDate)} – {day(gsc.range.endDate)}
-        <Tip label="About this data">{gsc.lagNote} Totals run slightly low: Google hides rare queries.</Tip>
+      <p className="flex flex-wrap items-center gap-x-1.5 text-[12px] leading-4 text-stone-500" data-sc-connected>
+        <GoogleIcon size={16} />
+        <span>{domain}</span><span aria-hidden>·</span>
+        <span title={`${gsc.lagNote} Totals run slightly low: Google hides rare queries.`}>Last 8 weeks, {day(gsc.range.startDate)} – {day(gsc.range.endDate)}</span>
+        {onChange && <><span aria-hidden>·</span><button type="button" onClick={onChange} className="rounded underline decoration-[var(--color-line-strong)] underline-offset-2 outline-none hover:text-stone-900 hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Change</button></>}
       </p>
     </div>
   )
 }
-function downloadQueries(gsc, prompt) {
+function downloadQueries(list, prompt) {
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
   const lines = [['query', 'impressions', 'clicks', 'position', 'match', 'verdict', 'tag', 'lands on'].join(',')]
-  for (const q of orderRows(gsc.queries)) lines.push([q.query, q.impressions, q.clicks, q.position, q.adjusted, verdict(q).text, [q.intent, q.lowVolume ? 'low volume' : ''].filter(Boolean).join(' '), q.topPage?.url].map(esc).join(','))
+  for (const q of list) lines.push([q.query, q.impressions, q.clicks, q.position, q.adjusted, verdict(q).text, [q.intent, q.lowVolume ? 'low volume' : ''].filter(Boolean).join(' '), q.topPage?.url].map(esc).join(','))
   const a = document.createElement('a')
   a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }))
   a.download = `search-queries-${(prompt || 'prompt').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 48)}.csv`
   a.click()
 }
-function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain }) {
+function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain, onChange, prompt }) {
   const reduce = reducedMotion()
   const rows = orderRows(gsc.queries)
   const counts = rows.reduce((m, q) => m.set(q.topPage?.path, (m.get(q.topPage?.path) ?? 0) + 1), new Map())
@@ -231,7 +230,8 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
   const hotPage = tabHot ?? (hot ? rows.find((q) => q.query === hot)?.topPage?.path : null)
   return (
     <div data-sc-queries>
-      <div className="relative z-20 mt-3"><Seg label="Landing page" value={tab} onChange={(v) => { setTab(v); setAll(false) }} className="gap-1 [&>button]:px-3.5" options={options} /></div>
+      <QueriesHeader gsc={gsc} count={rows.length} domain={domain} onChange={onChange} csv={() => downloadQueries(shownAll, prompt)} />
+      <div className="relative z-20 mt-2"><Seg label="Landing page" value={tab} onChange={(v) => { setTab(v); setAll(false) }} className="gap-1 [&>button]:px-3.5" options={options} /></div>
       <ul className="mt-3 border-t border-[var(--div)]" onMouseLeave={() => setHot(null)}>
         {shown.map((q, i) => {
           const v = verdict(q)
