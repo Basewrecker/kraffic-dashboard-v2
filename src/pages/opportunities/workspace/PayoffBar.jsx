@@ -33,7 +33,7 @@ export default function PayoffBar({ barRef, current, open, values = [], onPick, 
         <div aria-live="polite" className="mt-2">
           <CrossFade k={`${open}|${headline}`} ms={180}>
             <div className="min-w-0">
-              <h2 id={headingId} className="whitespace-nowrap text-[18px] leading-[26px] font-semibold text-stone-900 max-lg:whitespace-normal">
+              <h2 id={headingId} className="whitespace-nowrap text-[20px] leading-[28px] font-semibold text-stone-900 max-lg:whitespace-normal">
                 <span className="sr-only">Step {stepPos(steps ?? STEPS.map((s, i) => ({ i })), open).n} of {(steps ?? STEPS).length}: </span>{busy && <Turning />}{headline}
               </h2>
               {line && <SubLine line={line} engines={showNamed ? engines : []} named={named} engineName={engineName} />}
@@ -58,7 +58,7 @@ function SubLine({ line, engines, named, engineName }) {
   const parts = line.split(' · ')
   const sep = <span aria-hidden className="shrink-0">·</span>
   return (
-    <p className="flex min-w-0 items-center gap-1.5 text-[13px] leading-[18px] text-stone-500 tabular-nums">
+    <p className="flex min-w-0 items-center gap-1.5 text-[14px] leading-5 font-medium text-stone-600 tabular-nums">
       {engines.length > 0 && <>
         <span className="flex shrink-0 items-center gap-1.5" role="img" aria-label={`Named on ${named.length} of ${engines.length}${named.length ? `: ${named.map(engineName).join(', ')}` : ''}`}>
           <span className="whitespace-nowrap">Named on {named.length} of {engines.length}</span>

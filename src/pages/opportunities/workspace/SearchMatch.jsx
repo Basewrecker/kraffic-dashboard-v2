@@ -16,9 +16,9 @@ let measureCtx = null
 
 const nf = new Intl.NumberFormat('en-US')
 const num = (n) => nf.format(n)
-const H = 'text-[18px] leading-[26px] font-semibold text-stone-900'
+const H = 'text-[20px] leading-[28px] font-semibold text-stone-900'
 const HEAD = 'flex items-end justify-between gap-3 border-b border-line-strong pb-2'
-const META = 'text-[13px] leading-[18px] text-stone-500'
+const META = 'text-[14px] leading-5 font-medium text-stone-600'
 const LABEL = 'text-[13px] leading-[18px] font-semibold text-stone-500'
 const TIP = 'pointer-events-none absolute top-full z-30 mt-1 rounded-md border border-line bg-raised px-3 py-2 text-left text-[12px] leading-4 font-normal text-stone-700 opacity-0 shadow-md transition-opacity duration-150 group-hover/i:opacity-100 group-focus-within/i:opacity-100'
 const day = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
@@ -181,14 +181,11 @@ const orderRows = (qs) => { const best = qs.filter((q) => q.best), rest = qs.fil
 // the header, one block with the tabs (owner, 2026-11-05; Sentiment's "Pages on <date>" header): line 1 "Search
 // queries n" and Download CSV (the current tab's rows); line 2, small and muted: the Google mark, the property, the range
 // (the lag in its title) and a plain "Change" link. No divider: header, tabs and rows read as one block.
-function QueriesHeader({ gsc, count, domain, onChange, csv }) {
+function QueriesHeader({ gsc, count, domain, onChange }) {
   return (
     <div>
-      <div className="flex items-center justify-between gap-3">
-        <h3 id="co-sc-h" className="flex items-baseline gap-2 text-[15px] leading-[22px] font-semibold"><span className="text-ink">Search queries</span><span className="tabular-nums text-stone-500">{count}</span></h3>
-        <button type="button" onClick={csv} className="-mr-2 inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[14px] leading-5 font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Download CSV<ArrowDown size={14} aria-hidden /></button>
-      </div>
-      <p className="flex flex-wrap items-center gap-x-1.5 text-[12px] leading-4 text-stone-500" data-sc-connected>
+      <h3 id="co-sc-h" className="flex items-baseline gap-2 text-[20px] leading-[28px] font-semibold"><span className="text-ink">Search queries</span><span className="tabular-nums text-stone-500">{count}</span></h3>
+      <p className="flex flex-wrap items-center gap-x-1.5 text-[14px] leading-5 font-medium text-stone-600" data-sc-connected>
         <GoogleIcon size={16} />
         <span>{domain}</span><span aria-hidden>·</span>
         <span title={`${gsc.lagNote} Totals run slightly low: Google hides rare queries.`}>Last 8 weeks, {day(gsc.range.startDate)} – {day(gsc.range.endDate)}</span>
@@ -219,19 +216,27 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
   const short = (path) => midTruncate(path, 22)
   const pageTab = (k, dot) => ({ value: k, label: (
     <span className="relative inline-flex items-center gap-1.5" onMouseEnter={() => setTabHot(k)} onMouseLeave={() => setTabHot(null)}>
-<span className="whitespace-nowrap">{short(k)}</span><span className="shrink-0 tabular-nums">{counts.get(k)}</span>{dot && <span className="shrink-0 whitespace-nowrap text-stone-500">· Publishing</span>}
+<span className="whitespace-nowrap">{short(k)}</span><span className="shrink-0 font-medium tabular-nums">{counts.get(k)}</span>{dot && <span className="shrink-0 whitespace-nowrap font-medium text-stone-500">· Publishing</span>}
       <TabCard show={tabHot === k} path={k} url={rows.find((q) => q.topPage?.path === k)?.topPage?.url} title={titleFor(k)} domain={domain}
         impressions={rows.filter((q) => q.topPage?.path === k).reduce((n, q) => n + q.impressions, 0)} e={enginesFor(k)} />
     </span>
   ) })
-  const options = [{ value: 'all', label: `All ${rows.length}` }, ...(pub ? [pageTab(pub, true)] : []), ...others.map((k) => pageTab(k, false))]
+  const options = [{ value: 'all', label: <span className="inline-flex items-center gap-1.5">All<span className="font-medium tabular-nums">{rows.length}</span></span> }, ...(pub ? [pageTab(pub, true)] : []), ...others.map((k) => pageTab(k, false))]
   const shownAll = tab === 'all' ? rows : rows.filter((q) => q.topPage?.path === tab)
   const shown = all ? shownAll : shownAll.slice(0, LIST_ROWS)
   const hotPage = tabHot ?? (hot ? rows.find((q) => q.query === hot)?.topPage?.path : null)
   return (
     <div data-sc-queries>
-      <QueriesHeader gsc={gsc} count={rows.length} domain={domain} onChange={onChange} csv={() => downloadQueries(shownAll, prompt)} />
-      <div className="relative z-20 mt-2"><Seg label="Landing page" value={tab} onChange={(v) => { setTab(v); setAll(false) }} className="gap-1 [&>button]:px-3.5" options={options} /></div>
+      <QueriesHeader gsc={gsc} count={rows.length} domain={domain} onChange={onChange} />
+      {/* the tabs and, right-aligned on the same row, "↓ CSV" styled as part of the tab bar (its height and radius, a
+          light outline): the selected tab's rows. Its right edge is the table's. */}
+      <div className="relative z-20 mt-2 flex items-center justify-between gap-3">
+        <Seg label="Landing page" value={tab} onChange={(v) => { setTab(v); setAll(false) }} className="gap-1 [&>button]:px-3.5 [&>button]:text-[14px] [&>button]:font-semibold" options={options} />
+        <button type="button" onClick={() => downloadQueries(shownAll, prompt)} title="Download CSV" aria-label="Download CSV"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 text-[14px] leading-5 font-semibold text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
+          <ArrowDown size={14} aria-hidden />CSV
+        </button>
+      </div>
       <ul className="mt-3 border-t border-[var(--div)]" onMouseLeave={() => setHot(null)}>
         {shown.map((q, i) => {
           const v = verdict(q)
@@ -246,7 +251,7 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
               style={reduce ? undefined : { animation: `co-row-up 260ms ease-out ${i * 40}ms both` }}>
               <span className="grid h-8 w-8 place-items-center rounded-full border border-line bg-surface"><GoogleIcon size={16} /></span>
               <span className="flex min-w-0 items-center gap-1.5">
-                <span title={q.query} className={`truncate text-[15px] leading-[22px] ${muted ? 'font-medium text-stone-500' : 'font-semibold text-stone-900'}`}>{q.query}</span>
+                <span title={q.query} className={`truncate text-[16px] leading-6 ${muted ? 'font-medium text-stone-500' : 'font-semibold text-stone-900'}`}>{q.query}</span>
                 {q.intent && <Tag intent={q.intent} />}
                 {q.lowVolume && <Tag intent="low volume" />}
               </span>
@@ -260,8 +265,8 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
                     </a>
                   : q.topPage?.path}
               </span>
-              <span className="text-right text-[14px] leading-5 tabular-nums text-stone-700">{num(q.impressions)}</span>
-              <span className={`text-right text-[14px] leading-5 tabular-nums ${muted && !q.best ? 'text-stone-500' : v.cls}`}>{v.text}</span>
+              <span className="text-right text-[14px] leading-5 font-semibold tabular-nums text-stone-900">{num(q.impressions)}</span>
+              <span className={`text-right text-[14px] leading-5 font-semibold tabular-nums ${muted && !q.best ? 'text-stone-500' : v.cls}`}>{v.text}</span>
             </li>
           )
         })}
@@ -281,7 +286,7 @@ function CitedBy({ e, position }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5" data-cited-by>
       {e.engines.map((id) => <span key={id} title={`Cited by ${ENGINE_NAME[id]}`} className="flex"><PlatformIcon id={engineIcon(id)} size={18} /></span>)}
-      {position != null && <span className="whitespace-nowrap text-[12px] leading-4 font-medium tabular-nums text-stone-900">Google #{Math.round(position)}</span>}
+      {position != null && <span className="whitespace-nowrap text-[14px] leading-5 font-medium tabular-nums text-stone-900">Google #{Math.round(position)}</span>}
     </span>
   )
 }
@@ -342,7 +347,7 @@ function Trend({ values, tone = null, hot = false }) {
           {values.map(num).join(' · ')}
         </span>
       </span>
-      <span className={`whitespace-nowrap text-[13px] leading-[18px] tabular-nums ${d == null || Math.abs(d) < 2 ? 'text-stone-500' : d > 0 ? 'font-semibold text-[var(--rep-up-fg)]' : 'font-semibold text-negative'}`}>
+      <span className={`whitespace-nowrap text-[14px] leading-5 font-semibold tabular-nums ${d == null || Math.abs(d) < 2 ? 'text-stone-500' : d > 0 ? 'text-[var(--rep-up-fg)]' : 'text-negative'}`}>
         {d == null || Math.abs(d) < 2 ? 'flat' : `${d > 0 ? '+' : '−'}${Math.abs(d)}%`}
       </span>
     </span>
@@ -372,7 +377,7 @@ function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath }) {
     setPathW(full > room ? Math.max(40, room) : full)
   }, [rowW, usingPath])
   return (
-    <div ref={rowRef} className="relative mt-3 flex min-w-0 items-center gap-2 border-t border-line pt-3 text-[14px] leading-5" data-sc-using={usingCreate ? 'create' : usingPath}
+    <div ref={rowRef} className="relative mt-3 flex min-w-0 items-center gap-1.5 border-t border-line pt-3 text-[14px] leading-5" data-sc-using={usingCreate ? 'create' : usingPath}
       onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}>
       <span ref={labelRef} className="shrink-0 text-stone-500">Publishing on</span>
       {/* a fixed width (the full path, or the room the line has), so it only truncates in the middle when it overflows */}

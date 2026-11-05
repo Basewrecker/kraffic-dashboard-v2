@@ -34,9 +34,12 @@ import { lineBtn } from '../../../components/tool/ToolPage'
 import { RingDraw, TickDraw } from './ui'
 import SearchMatch, { ConnectSearchConsole, SkippedRow } from './SearchMatch'
 
-const H = 'text-[18px] leading-[26px] font-semibold text-stone-900'
+// one type scale for the page (owner, 2026-11-05): titles 20/600, sublines 14/500 secondary, rows 16/600 + 14/500,
+// headers 14/600, numbers 600 tabular; nothing above 600
+const H = 'text-[20px] leading-[28px] font-semibold text-stone-900'
 const HEAD = 'flex items-end justify-between gap-3 border-b border-line-strong pb-2'
-const META = 'text-[13px] leading-[18px] text-stone-500'
+const META = 'text-[14px] leading-5 font-medium text-stone-600'
+const COLH = 'text-[14px] leading-5 font-semibold text-stone-600' // column headers
 // one-line column headers
 const SHORT = { listicle: 'Listicle', how_to: 'How-to guide', research: 'Original research', faq: 'FAQ', comparison: 'Comparison', tutorial: 'Tutorial', stats: 'Stats roundup', checklist: 'Checklist', case_study: 'Case study', template: 'Template' }
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -209,7 +212,8 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
   const added = (id) => addIds.includes(id)
   // the page column fits its content, then Cited by; the formats share the rest; Coverage last (owner, round 4)
   const cols = `max-content max-content repeat(${columns.length}, minmax(76px,1fr)) 72px`
-  const tint = (id) => (added(id) ? 'bg-tint' : col === id ? 'bg-[color-mix(in_srgb,var(--tint)_60%,transparent)]' : '')
+  // no grey band on the formats the draft adds (a small "Draft adds" label above them); a light tint on hover only
+  const tint = (id) => (col === id ? 'bg-[color-mix(in_srgb,var(--tint)_60%,transparent)]' : '')
   const winners = [...m.winners].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
   const stateOf = (id) => cells?.find((c) => c.id === id)?.state ?? (m.yours.includes(id) ? 'have' : added(id) ? 'adds' : 'missing')
   const line = adds.length ? `The draft adds ${listFormats(addIds)}` : m.missing.length ? 'Nothing the draft can add here: the missing formats need their own page' : 'Your page already has every format the winners use'
@@ -225,24 +229,25 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
       {/* one grid for the whole table; each row a subgrid, so the content-sized columns line up across rows */}
       <div role="table" aria-label="Formats by page" className="grid" style={{ gridTemplateColumns: cols }} onMouseLeave={() => { hoverCol(null); setHost(null) }}>
         <div role="row" className="col-span-full grid grid-cols-subgrid items-end">
-          <span role="columnheader" className={`pb-2 pt-3 pr-6 ${META}`}>Page</span>
-          <span role="columnheader" className={`pb-2 pt-3 pr-4 ${META}`}>Cited by</span>
+          <span role="columnheader" className={`self-end pb-2 pt-3 pr-6 ${COLH}`}>Page</span>
+          <span role="columnheader" className={`self-end pb-2 pt-3 pr-4 ${COLH}`}>Cited by</span>
           {columns.map((c) => (
             <span key={c.id} role="columnheader" onMouseEnter={() => hoverCol(c.id)} data-adds={added(c.id) || undefined}
-              className={`flex flex-col items-center px-1 pb-2 pt-3 text-center transition-colors duration-150 ${tint(c.id)}`}>
-              <span className="whitespace-nowrap text-[13px] leading-[18px] font-semibold text-stone-900" title={formatLabel(c.id)}>{SHORT[c.id] ?? c.label}</span>
-              <span className="whitespace-nowrap text-[12px] leading-4 tabular-nums text-stone-500" aria-label={`${c.used} of ${c.of} winners${added(c.id) && c.score != null ? `, score ${c.score}` : ''}`}>{c.used} of {c.of}{added(c.id) && c.score != null ? ` · ${c.score}` : ''}</span>
+              className={`flex flex-col items-center justify-end self-stretch px-1 pb-2 pt-3 text-center transition-colors duration-150 ${tint(c.id)}`}>
+              {added(c.id) && <span className="mb-0.5 whitespace-nowrap text-[12px] leading-4 font-medium text-stone-600">Draft adds</span>}
+              <span className="whitespace-nowrap text-[14px] leading-5 font-semibold text-stone-900" title={formatLabel(c.id)}>{SHORT[c.id] ?? c.label}</span>
+              <span className="whitespace-nowrap text-[13px] leading-[18px] font-semibold tabular-nums text-stone-600" aria-label={`${c.used} of ${c.of} winners${added(c.id) && c.score != null ? `, score ${c.score}` : ''}`}>{c.used} of {c.of}{added(c.id) && c.score != null ? ` · ${c.score}` : ''}</span>
             </span>
           ))}
-          <span role="columnheader" className={`pb-2 pt-3 text-center ${META}`}>Coverage</span>
+          <span role="columnheader" className={`self-end pb-2 pt-3 text-center ${COLH}`}>Coverage</span>
         </div>
         {winners.map((w, r) => (
           <div key={w.url} role="row" onMouseEnter={() => setHost(w.host)} className={`col-span-full grid h-[52px] grid-cols-subgrid items-center border-t border-[var(--div)] transition-colors duration-150 ${host === w.host ? 'bg-[color-mix(in_srgb,var(--tint)_60%,transparent)]' : ''}`}>
             <span role="rowheader" tabIndex={0} onFocus={() => setHost(w.host)} onBlur={() => setHost(null)} className="group/site relative flex min-w-0 items-center gap-2 rounded pl-1 pr-2 outline-none focus-visible:ring-2 focus-visible:ring-focus">
               <SiteCard w={w} e={eng(w)} />
               <LogoPlate domain={w.host} size={24} logoClass="h-4 w-4" />
-              <span className="truncate text-[14px] leading-5 font-semibold text-stone-900" title={w.host}>{siteName(w.host)}</span>
-              <span className="shrink-0 text-[12px] leading-4 tabular-nums text-stone-500">{w.rank ? `#${w.rank}` : 'AI only'}</span>
+              <span className="truncate text-[16px] leading-6 font-semibold text-stone-900" title={w.host}>{siteName(w.host)}</span>
+              <span className="shrink-0 text-[14px] leading-5 font-medium tabular-nums text-stone-600">{w.rank ? `#${w.rank}` : 'AI only'}</span>
               {w.others?.length > 0 && <MorePages page={w} others={w.others} />}
               <span aria-hidden className="w-4" />
             </span>
@@ -259,8 +264,8 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
         <div role="row" className="col-span-full grid h-[52px] grid-cols-subgrid items-center border-t-2 border-line-strong bg-[color-mix(in_srgb,var(--tint)_70%,transparent)]">
           <span role="rowheader" className="flex min-w-0 items-center gap-2 pl-1 pr-2">
             <span className="flex min-w-0 flex-col">
-              <span className="text-[14px] leading-5 font-semibold text-ink">Your page</span>
-              <span className="truncate text-[12px] leading-4 text-stone-500" title={path}>{path}</span>
+              <span className="text-[16px] leading-6 font-semibold text-ink">Your page</span>
+              <span className="truncate text-[14px] leading-5 font-medium text-stone-900" title={path}>{path}</span>
             </span>
           </span>
           <span role="cell" className="flex items-center pr-4">{named.length > 0 && <span className="flex" aria-label={`Named by ${named.map((x) => ENGINE_NAME[x]).join(', ')}`}><EngineIcons e={{ engines: named, unknown: false }} size={16} /></span>}</span>
@@ -268,14 +273,14 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
             const st = stateOf(c.id)
             return (
               <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} data-state={st} className={`grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
-                {st === 'have' ? <Sq kind="have" />
-                  : st === 'adds' ? <span className="flex items-center gap-1.5"><Sq kind="adds" /><span className="text-[11px] leading-none font-medium text-stone-600">+draft</span></span>
+                {st === 'have' ? <Sq kind="have" green />
+                  : st === 'adds' ? <span className="flex items-center gap-1.5"><Sq kind="adds" green /><span className="text-[12px] leading-none font-semibold text-[var(--rep-up-fg)]">+draft</span></span>
                     : <span key={col === c.id ? `p${pulse}` : 'still'} style={col === c.id && !reduced() ? { animation: 'co-pulse-once 600ms ease-out both' } : undefined}><Sq kind="missing" /></span>}
               </span>
             )
           })}
           <span role="cell" className="grid place-items-center">
-            <CoverageBar have={columns.filter((c) => stateOf(c.id) === 'have').length} adds={columns.filter((c) => stateOf(c.id) === 'adds').length} of={columns.length} />
+            <CoverageBar green have={columns.filter((c) => stateOf(c.id) === 'have').length} adds={columns.filter((c) => stateOf(c.id) === 'adds').length} of={columns.length} />
           </span>
         </div>
       </div>
@@ -284,20 +289,22 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
 }
 
 // a cell (owner's sketch, 2026-11-05): ■ has it · ▨ this draft adds it (hatched) · a red dashed square: still missing
-const HATCH = 'repeating-linear-gradient(135deg, var(--ink) 0 1.5px, transparent 1.5px 4px)'
-function Sq({ kind, size = 12, style }) {
+const hatch = (c) => `repeating-linear-gradient(135deg, ${c} 0 1.5px, transparent 1.5px 4px)`
+// green: the "Your page" row (owner, 2026-11-05): solid green = you have it, hatched green = this draft adds it
+function Sq({ kind, size = 12, style, green = false }) {
+  const ink = green ? 'var(--rep-up-fg)' : 'var(--ink)'
   const label = kind === 'have' ? 'Has it' : kind === 'adds' ? 'This draft adds it' : kind === 'missing' ? 'Still missing after this draft' : 'Doesn’t have it'
-  const look = kind === 'have' ? { background: 'var(--ink)' }
-    : kind === 'adds' ? { backgroundImage: HATCH, boxShadow: 'inset 0 0 0 1.5px var(--ink)' }
+  const look = kind === 'have' ? { background: ink }
+    : kind === 'adds' ? { backgroundImage: hatch(ink), boxShadow: `inset 0 0 0 1.5px ${ink}` }
       : kind === 'missing' ? { boxShadow: 'inset 0 0 0 1.5px var(--negative)', outline: '1px dashed transparent' }
         : { boxShadow: 'inset 0 0 0 1.5px var(--color-line-strong)' }
   return <span role="img" aria-label={label} className="block shrink-0 rounded-[2px]" style={{ width: size, height: size, ...(kind === 'missing' ? { border: '1.5px dashed var(--negative)' } : look), ...style }} />
 }
 // coverage: one small square per format, ■ the ones the page has, ▨ the ones this draft adds, □ the rest
-function CoverageBar({ have, adds = 0, of }) {
+function CoverageBar({ have, adds = 0, of, green = false }) {
   return (
     <span className="flex items-center gap-[3px]" role="img" aria-label={`${have + adds} of ${of} formats${adds ? ` (${have} now, ${adds} from this draft)` : ''}`}>
-      {Array.from({ length: of }, (_, k) => <Sq key={k} size={10} kind={k < have ? 'have' : k < have + adds ? 'adds' : 'empty'} />)}
+      {Array.from({ length: of }, (_, k) => <Sq key={k} size={10} green={green && k < have + adds} kind={k < have ? 'have' : k < have + adds ? 'adds' : 'empty'} />)}
     </span>
   )
 }
