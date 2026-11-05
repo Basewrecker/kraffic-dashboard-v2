@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, ArrowUpRight, Droplet, Eye, Globe, Hand, MoreHorizontal, Pencil, Plus, ShieldCheck, Sparkles, Sun, Tag, Trash2, Type, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Droplet, Eye, FileText, Globe, Hand, MoreHorizontal, Pencil, Plus, ShieldCheck, Sparkles, Sun, Tag, Trash2, Type, X } from 'lucide-react'
 import PromptTable from '../dashboard/PromptTable'
 import { PrimaryButton, useToast } from '../dashboard/overlays'
 import ConfirmPopover from '../prompts/ConfirmPopover'
@@ -14,6 +14,9 @@ import { isValidDomain, normalizeDomain } from '../../utils/domain'
 import { MAX_COMPETITORS, account, setupActions, setupBrands } from '../../data/mock'
 import { sharedAnswers } from '../../data/brandViews'
 import { guessTopicType } from '../../data/topics'
+import { EMPTY_GUIDELINES, GUIDE_ACCEPT, guideReject, guidelinesPreview, hasGuidelines, loadGuidelines, removeGuidelines, saveGuidelines } from '../../data/brandGuidelines'
+import { readFile } from '../../pages/opportunities/data/extract'
+import GuidelinesForm from '../../pages/opportunities/workspace/Guidelines'
 
 // /setup: what Kraffic tracks for a brand, in the same settings layout as /llm-settings —
 // cards of 60px rows (name + meta left, one quiet value + hover-only Edit / Remove right),
@@ -711,6 +714,64 @@ function MarketplacesCard({ brand, update, toast }) {
 // kept outside the component so edits survive leaving /setup (e.g. to change the market on /llm-settings)
 let savedBrands = setupBrands
 
+// "Brand guidelines" (owner, 2026-11-05): what the Content page asks for once (data/brandGuidelines.js, per brand).
+// Saved: one row, the file's name (or "Pasted text" / "Quick rules") over a short preview, with Edit / Replace /
+// Remove. Edit opens the Content page's form in the card (Save / Cancel); Replace picks a new file (PDF, DOCX, TXT or
+// MD, read in the browser) and keeps the text and rules; Remove has Undo. None: "+ Add".
+function GuidelinesCard({ brand, toast }) {
+  const [g, setG] = useState(() => loadGuidelines(brand.domain))
+  const [editing, setEditing] = useState(null) // the form's value while editing, else null
+  const file = useRef(null)
+  const save = (value, msg = 'Brand guidelines saved') => { setG(saveGuidelines(brand.domain, value)); setEditing(null); toast(msg) }
+  const replace = (list) => {
+    const f = list?.[0]
+    if (!f) return
+    const why = guideReject(f)
+    if (why) { toast(why); return }
+    readFile(f).then(({ text, words }) => save({ ...g, file: { name: f.name, words, text } }, `${f.name} saved`), () => toast(`Couldn’t read ${f.name}`))
+  }
+  const remove = () => {
+    const old = g
+    removeGuidelines(brand.domain)
+    setG(null)
+    toast('Brand guidelines removed', { duration: 5000, action: { label: 'Undo', onClick: () => setG(saveGuidelines(brand.domain, old)) } })
+  }
+  const name = g?.file?.name ?? (g?.text?.trim() ? 'Pasted text' : 'Quick rules')
+  const rules = g ? [g.tone?.trim() && `Tone: ${g.tone.trim()}`, g.always?.trim() && `Always say: ${g.always.trim()}`, g.never?.trim() && `Never say: ${g.never.trim()}`].filter(Boolean) : []
+  const preview = g ? (g.file || g.text?.trim() ? guidelinesPreview(g) : rules.join(' · ')) : ''
+  return (
+    <SettingsCard id={`guidelines-${brand.id}`} title="Brand guidelines"
+      description={g ? `Every content draft for ${brand.name} follows them` : `None yet. Every content draft for ${brand.name} will follow them.`}
+      action={!g && !editing ? <AddButton onClick={() => setEditing(EMPTY_GUIDELINES)} /> : null}
+      body={editing ? (
+        <div className="border-t border-[var(--div)] px-5 pb-5 pt-5" data-guidelines-editing>
+          <GuidelinesForm value={editing} onChange={(p) => setEditing((e) => ({ ...e, ...p }))} />
+          <div className="mt-5 flex items-center justify-end gap-4">
+            <button type="button" onClick={() => setEditing(null)} className={textBtn}>Cancel</button>
+            <button type="button" disabled={!hasGuidelines(editing)} onClick={() => save(editing)} className={`${smallBtn} bg-ink text-on-ink hover:bg-ink-hover`}>Save</button>
+          </div>
+        </div>
+      ) : g ? (
+        <div className="group flex min-h-[60px] items-center justify-between gap-4 border-t border-[var(--div)] px-5 py-3" data-guidelines-saved>
+          <span className="flex min-w-0 items-center gap-3">
+            <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-line text-stone-600">{g.file ? <FileText size={14} /> : <Type size={14} />}</span>
+            <span className="min-w-0">
+              <span className="block truncate text-[14px] leading-5 font-medium text-stone-900" title={name}>{name}</span>
+              {preview && <span className="block truncate text-[12.5px] leading-[18px] text-stone-600" title={preview}>{preview}</span>}
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-3">
+            <button type="button" onClick={() => setEditing({ ...EMPTY_GUIDELINES, ...g })} className={`${textBtn} h-7`}>Edit</button>
+            <button type="button" onClick={() => file.current?.click()} className={`${textBtn} h-7`}>Replace</button>
+            <button type="button" onClick={remove} className={`${textBtn} h-7`}>Remove</button>
+            <input ref={file} type="file" accept={GUIDE_ACCEPT} className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { replace(e.target.files); e.target.value = '' }} />
+          </span>
+        </div>
+      ) : null}
+    />
+  )
+}
+
 export default function SetupPage() {
   useEffect(() => { document.title = 'Brand Setup · Kraffic' }, [])
   const [brands, setBrands] = useState(() => savedBrands)
@@ -791,6 +852,7 @@ export default function SetupPage() {
               <NamesCard brand={brand} update={update} toast={toast} />
               <TopicsCard brand={brand} update={update} toast={toast} />
               <CompetitorsCard brand={brand} update={update} toast={toast} />
+              {brand.domain && <GuidelinesCard brand={brand} toast={toast} />}
               {/* marketplaces: the data layer gives a brand its stores when the account has ecommerce (null otherwise) */}
               {Array.isArray(brand.marketplaces) && <MarketplacesCard brand={brand} update={update} toast={toast} />}
             </div>

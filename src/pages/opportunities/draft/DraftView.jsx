@@ -12,7 +12,8 @@
 // SAFETY: the Markdown is parsed into a text-only tree (draft/markdown.js) and rendered as React text nodes; links are
 // http(s) only, new tab, rel="noopener noreferrer". No dangerouslySetInnerHTML anywhere.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, Info } from 'lucide-react'
+import { AlertTriangle, Check, FileText, Info } from 'lucide-react'
+import { guidelinesLabel } from '../../../data/brandGuidelines'
 import { PlatformIcon } from '../../../components/dashboard/icons'
 import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
 import { formatLabel } from '../../../data/contentRecommend'
@@ -33,7 +34,8 @@ const LINK = 'rounded font-medium text-ink underline decoration-[var(--color-lin
 
 // arriving: the draft just replaced the writing skeleton: its sections fade in top to bottom (60ms apart)
 // onRecheck: "Re-check score" (in the readiness section) · resolve: the 'ai' engine tag's engines for a host (R20)
-export default function DraftView({ res, competitors, ticked, onTick, arriving = false, onRecheck, resolve }) {
+// guidelines: the brand's saved guidelines (data/brandGuidelines.js), listed first in Sources as "Brand guidelines"
+export default function DraftView({ res, competitors, ticked, onTick, arriving = false, onRecheck, resolve, guidelines = null }) {
   const terms = competitorTerms(competitors, competitorName)
   const { h1, intro, shown } = draftSections(res.contentMarkdown)
   const notes = draftNotes(res)
@@ -68,7 +70,7 @@ export default function DraftView({ res, competitors, ticked, onTick, arriving =
           <p className="mt-2 text-[13px] leading-[18px] text-stone-500">{extraIssues.join(' · ')} · <button type="button" onClick={() => document.getElementById('co-draft-checks')?.scrollIntoView({ block: 'start' })} className="rounded font-medium text-stone-700 underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">See the checks</button></p>
         )}
         {intro.length > 0 && <div className="mt-5"><Blocks blocks={intro} terms={terms} /></div>}
-        {shown.map((s, i) => <div key={s.title} id={`co-sec-${i}`} data-outline={outlineShort(s.title)} className="scroll-mt-[190px]" style={arriving ? { animation: `co-arrive-in 320ms cubic-bezier(.2,.8,.2,1) ${120 + i * 60}ms both` } : undefined}><Section section={s} terms={terms} competitors={competitors} /></div>)}
+        {shown.map((s, i) => <div key={s.title} id={`co-sec-${i}`} data-outline={outlineShort(s.title)} className="scroll-mt-[190px]" style={arriving ? { animation: `co-arrive-in 320ms cubic-bezier(.2,.8,.2,1) ${120 + i * 60}ms both` } : undefined}><Section section={s} terms={terms} competitors={competitors} guidelines={guidelines} /></div>)}
       </article>
       {/* the rail: sticky under the panel's header, as tall as the room between it and the footer; scrolls on its own
           with a thin overlay thumb (hover / while scrolling), no track, and no scrollbar at all when it fits (.co-rail) */}
@@ -122,7 +124,7 @@ const NoteRow = ({ icon, tone, children }) => (
   </div>
 )
 
-function Section({ section, terms, competitors = [] }) {
+function Section({ section, terms, competitors = [], guidelines = null }) {
   const t = section.title.toLowerCase()
   if (t === 'direct answer') {
     return (
@@ -136,7 +138,7 @@ function Section({ section, terms, competitors = [] }) {
     <section className="mt-10">
       <h2 className={`${H2} mb-4 border-b border-line-strong pb-2`}>{section.title}</h2>
       {t === 'sources'
-        ? <Sources blocks={section.blocks} competitors={competitors} />
+        ? <Sources blocks={section.blocks} competitors={competitors} guidelines={guidelines} />
         : <Blocks blocks={section.blocks} terms={terms} ticks={t === 'key points'} faq={t === 'faq'} />}
     </section>
   )
@@ -258,10 +260,20 @@ const Tip = ({ children, group = 'cf' }) => (
 // each source: its label, the domain (muted), its note as a small chip; the page recommendation isn't listed here
 // each source: its label, the domain (muted), its note as a small chip; a competitor's page gets "Competitor · left
 // out of Copy" (Copy content / Copy as HTML drop it: R2); the page recommendation isn't listed here
-function Sources({ blocks, competitors = [] }) {
+// guidelines: the brand's saved guidelines, first: "Brand guidelines" with what they are ("brand-voice.pdf · Tone")
+function Sources({ blocks, competitors = [], guidelines = null }) {
   const rows = sourcesOf(blocks)
   return (
     <ul>
+      {guidelines && (
+        <li data-source="brand-guidelines" className="flex min-h-12 items-center gap-3 rounded-sm border-b border-[var(--div)] py-2.5">
+          <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-line bg-surface text-stone-600"><FileText size={14} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] leading-[22px] text-stone-900">Brand guidelines</span>
+            <span className="block truncate text-[13px] leading-[18px] text-stone-500">{guidelinesLabel(guidelines)}</span>
+          </span>
+        </li>
+      )}
       {rows.map((s) => {
         const rival = competitors.some((d) => s.host === d || s.host.endsWith(`.${d}`))
         return (

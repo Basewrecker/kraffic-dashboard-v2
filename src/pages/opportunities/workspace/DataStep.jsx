@@ -48,7 +48,8 @@ let nextId = 100
 
 // v1: the browser reads the files (see above) · cap: buildUserFacts' result ({ over, cut, unused }), v1 only
 // drafted: a draft exists, so the questions are its flags; before that they're the first-visit set (userFacts FIRST_VISIT)
-export default function DataStep({ data, update, v1 = false, cap = null, drafted = true }) {
+// guidelines: { brand, onEdit } once the brand's guidelines are saved: "Using <brand>'s guidelines · Edit" under the intro
+export default function DataStep({ data, update, v1 = false, cap = null, drafted = true, guidelines = null }) {
   const { uploads, facts, questions, pasted, dismissed = [] } = data
   const [pasting, setPasting] = useState(false)
   const [draftText, setDraftText] = useState(pasted)
@@ -100,6 +101,13 @@ export default function DataStep({ data, update, v1 = false, cap = null, drafted
     <div>
       <p className="text-[15px] leading-[22px] text-stone-500">Give the draft what only you know. Everything here is optional.</p>
       {v1 && <p className="mt-1 text-[13px] leading-[18px] text-stone-500">Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team.</p>}
+      {guidelines && (
+        <p className="mt-3 flex items-center gap-1.5 text-[13px] leading-[18px] text-stone-600" data-guidelines-used>
+          <Check size={14} className="text-[var(--rep-up-fg)]" aria-hidden />
+          <span>Using {guidelines.brand}’s guidelines</span><span aria-hidden className="text-stone-400">·</span>
+          <button type="button" onClick={guidelines.onEdit} className={LINK}>Edit</button>
+        </p>
+      )}
       <ol className="mt-6 divide-y divide-[var(--div)]">
         <Task n={1} title="Upload documents" why="Studies, spec sheets or price lists the draft can quote." status={nFiles ? `${nFiles} ${nFiles === 1 ? 'file' : 'files'}` : null}>
           <DropZone slim={nRows > 0} v1={v1} onFiles={addFiles} onPaste={() => { setDraftText(pasted); setPasting(true) }} />
@@ -246,7 +254,8 @@ function Task({ n, title, why, status, children }) {
 
 // ① the drop zone: 120px when empty; with files, a 48px drop row (the height eases, 240ms). Real drag events (a counter
 // for the zone's children); a drop with no files (a synthetic event) adds a sample file so the flow can be shown
-function DropZone({ slim, onFiles, onPaste, v1 = false }) {
+// one: a single file (Brand guidelines: "Drop a file here", its own formats line and accept list)
+export function DropZone({ slim, onFiles, onPaste, v1 = false, one = null }) {
   const [over, setOver] = useState(false)
   const depth = useRef(0)
   const input = useRef(null)
@@ -268,7 +277,7 @@ function DropZone({ slim, onFiles, onPaste, v1 = false }) {
           <Upload size={16} aria-hidden className="shrink-0 text-stone-600 transition-transform duration-200 ease-out" style={{ transform: over ? 'translateY(-2px)' : 'none' }} />
           {over ? <span className="text-[14px] leading-5 font-semibold text-stone-900">Release to upload</span> : (
             <span className="min-w-0 truncate text-[14px] leading-5 text-stone-700">
-              Drop more files or <button type="button" onClick={browse} className={LINK}>browse</button>
+              {one ? 'Drop a file to replace it, or ' : 'Drop more files or '}<button type="button" onClick={browse} className={LINK}>browse</button>
               <span className="text-stone-500"> · </span><button type="button" onClick={onPaste} className={LINK}>paste text</button>
             </span>
           )}
@@ -276,15 +285,15 @@ function DropZone({ slim, onFiles, onPaste, v1 = false }) {
       ) : (
         <div className="flex h-full flex-col items-center justify-center text-center">
           <Upload size={22} aria-hidden className="text-stone-600 transition-transform duration-200 ease-out motion-reduce:transition-none" style={{ transform: over ? 'translateY(-4px)' : 'none' }} />
-          <p className="mt-1 text-[16px] leading-6 font-semibold text-stone-900" aria-live="polite">{over ? 'Release to upload' : 'Drop files here'}</p>
-          <p className="text-[13px] leading-[18px] text-stone-500">{v1 ? 'PDF, DOCX, CSV or TXT · up to 10 MB each, 5 files' : 'PDF, DOCX, CSV or images · up to 20 MB'}</p>
+          <p className="mt-1 text-[16px] leading-6 font-semibold text-stone-900" aria-live="polite">{over ? 'Release to upload' : one ? 'Drop a file here' : 'Drop files here'}</p>
+          <p className="text-[13px] leading-[18px] text-stone-500">{one ? one.formats : v1 ? 'PDF, DOCX, CSV or TXT · up to 10 MB each, 5 files' : 'PDF, DOCX, CSV or images · up to 20 MB'}</p>
           <span className="mt-2 flex items-center gap-3" style={{ visibility: over ? 'hidden' : 'visible' }}>
-            <button type="button" onClick={browse} className={OUTLINED}>Browse files</button>
+            <button type="button" onClick={browse} className={OUTLINED}>{one ? 'Browse' : 'Browse files'}</button>
             <button type="button" onClick={onPaste} className={LINK}>or paste text</button>
           </span>
         </div>
       )}
-      <input ref={input} type="file" multiple accept={v1 ? ACCEPT_V1 : ACCEPT} className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { onFiles(e.target.files); e.target.value = '' }} />
+      <input ref={input} type="file" multiple={!one} accept={one ? one.accept : v1 ? ACCEPT_V1 : ACCEPT} className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { onFiles(e.target.files); e.target.value = '' }} />
     </div>
   )
 }

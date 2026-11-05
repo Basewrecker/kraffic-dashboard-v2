@@ -35,7 +35,8 @@ const ink = 'inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-
 // inPanel: in the focus panel
 // savedAt: when it was last saved in this browser · onRecheck: "Re-check score" (recomputed in the browser from the ticks)
 // resolve: the 'ai' engine tag's engines for a host (R20)
-export default function DraftStep({ res, competitors, session, setSession, full = false, steps = GEN_STEPS, live, onCopy, onCopyHtml, onExport, onRecheck, savedAt, resolve, inPanel = false }) {
+// guidelines: the brand's saved guidelines, listed in the draft's Sources (DraftView)
+export default function DraftStep({ res, competitors, session, setSession, full = false, steps = GEN_STEPS, live, onCopy, onCopyHtml, onExport, onRecheck, savedAt, resolve, inPanel = false, guidelines = null }) {
   const { phase, run, failAt, startedAt, ticked } = session
   const patch = (p) => setSession((s) => ({ ...s, ...(typeof p === 'function' ? p(s) : p) }))
   const regenerate = () => patch((s) => ({ phase: 'generating', run: s.run + 1, startedAt: performance.now(), summary: null, failAt: -1, copiedAt: null }))
@@ -67,7 +68,7 @@ export default function DraftStep({ res, competitors, session, setSession, full 
   }
   return (
     <div className="relative motion-safe:animate-[fade-in_.24s_ease-out]">
-      <DraftView res={res} competitors={competitors} ticked={ticked} onTick={tick} arriving={arriving} onRecheck={onRecheck} resolve={resolve} />
+      <DraftView res={res} competitors={competitors} ticked={ticked} onTick={tick} arriving={arriving} onRecheck={onRecheck} resolve={resolve} guidelines={guidelines} />
       {arriving && <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 bg-surface motion-safe:animate-[sent-fade-out_500ms_ease-out_both]"><Writing startedAt={startedAt} plan={plan} competitors={competitors} nameOf={competitorName} overlay /></div>}
       {/* the footer: full width, nothing clipped (wraps on narrow screens) */}
       <div data-draft-footer className={`@container sticky bottom-0 z-20 mt-8 border-t border-line py-3 ${inPanel ? '-mb-8 bg-surface pb-4' : 'bg-page'}`}>

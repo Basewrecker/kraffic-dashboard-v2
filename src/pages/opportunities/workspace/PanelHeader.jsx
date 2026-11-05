@@ -13,7 +13,8 @@ import { STEPS, backLabel, stepPos } from './flow'
 
 const LINK = 'rounded text-[13px] leading-[18px] font-medium text-stone-600 underline-offset-4 outline-none whitespace-nowrap hover:text-ink hover:underline focus-visible:ring-2 focus-visible:ring-focus'
 
-export default function PanelHeader({ current, open, values, onPick, prompt, path, titleId, headingId, headline, line, action, secondary = null, onClose = null, onExit, steps = STEPS.map((s, i) => ({ ...s, i })) }) {
+// notStep: the headline isn't a step's (Brand guidelines), so no "Step n of m:" for screen readers
+export default function PanelHeader({ current, open, values, onPick, prompt, path, titleId, headingId, headline, line, action, secondary = null, onClose = null, onExit, steps = STEPS.map((s, i) => ({ ...s, i })), notStep = false }) {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-surface px-6 pb-4 pt-4 max-md:px-4">
       <div className="flex h-8 items-center gap-4">
@@ -31,7 +32,7 @@ export default function PanelHeader({ current, open, values, onPick, prompt, pat
           <CrossFade k={`${open}|${headline}`} ms={180}>
             <div className="min-w-0">
               <h3 id={headingId} className="text-[20px] leading-7 font-semibold text-stone-900 text-pretty">
-                <span className="sr-only">Step {stepPos(steps, open).n} of {steps.length}: </span>{headline}
+                {!notStep && <span className="sr-only">Step {stepPos(steps, open).n} of {steps.length}: </span>}{headline}
               </h3>
               {line && <p className="w-0 min-w-full truncate text-[13px] leading-[18px] text-stone-500 tabular-nums">{line}</p>}
             </div>

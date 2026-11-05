@@ -39,6 +39,8 @@ import PublishStep from './PublishStep'
 import { Engines, LIST_PATH, OWN_DOMAIN, brandLabels, coBrandName, goTo, pathOf, promptVT, uniqueDomains } from './parts'
 import ConnectStep from './workspace/ConnectStep'
 import DataStep from './workspace/DataStep'
+import GuidelinesForm from './workspace/Guidelines'
+import { EMPTY_GUIDELINES, hasGuidelines, loadGuidelines, needsGuidelines, saveGuidelines, skipGuidelines } from '../../data/brandGuidelines'
 import SearchConsolePanel from './workspace/SearchConsolePanel'
 import ActionDock from './workspace/ActionDock'
 import PayoffBar from './workspace/PayoffBar'
@@ -177,6 +179,15 @@ function Flow({ row }) {
   // the ONE userFacts payload (v1) and the 20k cap's verdict (over, the file cut, files left out)
   const cap = useMemo(() => (full ? null : buildUserFacts(data)), [full, data])
   const [dataSkipped, setDataSkipped] = useState(() => kept?.dataSkipped ?? false)
+  // Brand guidelines (owner, 2026-11-05): a one-time screen, not a numbered step. "Add your data" / "Skip to draft" open
+  // it first (in the focus panel, the step bar still on step 1) when the brand has none saved and hasn't skipped them;
+  // saved or skipped, the click carries on. guide: { then: 'data' | 'draft' | null } (null: opened from "Edit", back to
+  // where it was). v1 only.
+  const [guidelines, setGuidelines] = useState(() => loadGuidelines(CO_BRAND.domain))
+  const [guide, setGuide] = useState(null)
+  const [guideForm, setGuideForm] = useState(EMPTY_GUIDELINES)
+  const openGuide = (then) => { setGuideForm(guidelines ?? EMPTY_GUIDELINES); setGuide({ then }) }
+  const guideFirst = (then, go) => () => { if (!full && needsGuidelines(CO_BRAND.domain)) openGuide(then); else go() }
   // step 4's state (the writing clock, the draft, its flags): here, not in DraftStep, so closing the focus panel loses
   // nothing and the writing goes on in the background (draft/model.js draftSession)
   const [ds, setDs] = useState(() => kept?.ds ?? newSession(start.ready, { savedAt: res.analyzedAt, ...stored }))
@@ -320,9 +331,10 @@ function Flow({ row }) {
         draft={ds.phase === 'draft' ? { open: review.open, onOpen: openDraft } : null}
         page={page}
         sc={{ gsc: gscRes, state: scState, domain: scDomain, connecting: scConnecting, justConnected: scJustConnected, onConnect: connectSc, onSkip: () => setScState('skipped'), onChange: () => { setScJustConnected(false); setScState('new') }, page, choice: scChoice, onPick: setScPick, newPath: suggested.slug, prompt: row.prompt }}
-        write={current < DATA ? { label: 'Add your data', onClick: advance } : current < DRAFT ? { label: 'Write the draft', onClick: advance } : writing ? { label: 'Resume', onClick: openDraft } : null} />,
-    <div data-step="data"><DataStep data={data} update={updateData} v1={!full} cap={cap} drafted={start.ready || ds.phase === 'draft'} /></div>,
-    <div data-step="draft"><DraftStep res={res} competitors={competitors} session={ds} setSession={setDs} full={full} steps={genSteps} live={liveData} onCopy={copyContent} onCopyHtml={copyHtml} onExport={exportMd} onRecheck={recheck} savedAt={ds.savedAt} resolve={resolveAi} inPanel={focus} /></div>,
+        write={current < DATA ? { label: 'Add your data', onClick: guideFirst('data', advance) } : current < DRAFT ? { label: 'Write the draft', onClick: advance } : writing ? { label: 'Resume', onClick: openDraft } : null} />,
+    <div data-step="data"><DataStep data={data} update={updateData} v1={!full} cap={cap} drafted={start.ready || ds.phase === 'draft'}
+      guidelines={!full && guidelines ? { brand: CO_BRAND.name, onEdit: () => openGuide(null) } : null} /></div>,
+    <div data-step="draft"><DraftStep guidelines={!full && guidelines ? guidelines : null} res={res} competitors={competitors} session={ds} setSession={setDs} full={full} steps={genSteps} live={liveData} onCopy={copyContent} onCopyHtml={copyHtml} onExport={exportMd} onRecheck={recheck} savedAt={ds.savedAt} resolve={resolveAi} inPanel={focus} /></div>,
     full
       ? <div data-step="publish"><PublishStep row={row} draft={draft ?? { stage: 'waiting', target_url: targetUrl }} onEditDraft={() => { setReady(true); setEditing(DRAFT) }} onApi={setPublishApi} /></div>
       : <div data-step="publish"><CopyPublish res={res} page={page} ticked={ds.ticked} copiedAt={ds.copiedAt} onCopyHtml={copyHtml} onExport={exportMd} onBack={() => setEditing(DRAFT)} /></div>,
@@ -360,6 +372,16 @@ function Flow({ row }) {
   const winName = win ? `${brandLabels[win.domain] ?? brandName(win.domain)}’s ${win.formats[0] ?? 'page'}` : null
   const topWinner = [...page.evidence].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))[0] ?? null
   const advance = () => next()
+  // the guidelines screen's buttons: save (or skip, remembered for the brand), then carry on with the click that opened it
+  const finishGuide = (then) => { setGuide(null); if (then === 'data') advance(); else if (then === 'draft') skipToDraft() }
+  const saveGuide = () => { setGuidelines(saveGuidelines(CO_BRAND.domain, guideForm)); finishGuide(guide?.then) }
+  const skipGuide = () => { skipGuidelines(CO_BRAND.domain); finishGuide(guide?.then) }
+  const guideBar = {
+    headline: 'Your brand guidelines',
+    line: `Asked once. Every draft for ${CO_BRAND.name} follows them.`,
+    action: { label: guide?.then ? 'Save and continue' : 'Save', onClick: saveGuide, disabled: !hasGuidelines(guideForm), why: 'Add a file, text or a rule first' },
+    secondary: guide?.then ? { label: 'Skip for now', onClick: skipGuide } : { label: 'Cancel', onClick: () => setGuide(null) },
+  }
   const BAR = [
     {
       headline: 'Connect Search Console to find the page that’s closest to winning',
@@ -377,8 +399,8 @@ function Flow({ row }) {
       named: true,
       choice: page.path,
       // next: Your data (optional), or straight to the draft; reopened later: Continue
-      action: { label: current === 1 ? 'Add your data' : 'Continue', onClick: advance },
-      secondary: current === 1 ? { label: 'Skip to draft', onClick: skipToDraft } : null,
+      action: { label: current === 1 ? 'Add your data' : 'Continue', onClick: current === 1 ? guideFirst('data', advance) : advance },
+      secondary: current === 1 ? { label: 'Skip to draft', onClick: guideFirst('draft', skipToDraft) } : null,
     } : {
       headline: target.kind === 'page' ? `Update this page to get named on ${moreEngines}` : `Publish a new page to get named on ${moreEngines}`,
       line: selected ? `${pathOf(selected.url)} · ${nf.format(selected.impressions)} impressions${selected.bestMatch ? ' · best match' : ''}` : `${targetPath} · new page`,
@@ -505,13 +527,23 @@ function Flow({ row }) {
       <ActionDock show={showDock} open={open} choice={bar.choice} action={bar.action} secondary={bar.secondary} />
 
       {/* focus mode: steps 3–5 in a centred panel over the blurred, dimmed page (workspace/FocusPanel.jsx) */}
-      <FocusPanel active={focus} width={open === DRAFT ? 1200 : 880} fromRef={panel} labelledBy="co-focus-title" onExit={exitFocus} style={palette}
+      <FocusPanel active={focus || Boolean(guide)} width={guide ? 880 : open === DRAFT ? 1200 : 880} fromRef={panel} labelledBy="co-focus-title" onExit={guide ? () => setGuide(null) : exitFocus} style={palette}
         scrollerRef={focusScroller} entrance={entrance}>
-        {/* one header (sticky in the panel): progress · prompt · page · Exit, then the step's headline and its button */}
-        <PanelHeader current={current} open={open} values={values} onPick={pick} prompt={row.prompt} path={targetPath} titleId="co-focus-title" headingId="co-focus-step-h"
-          headline={focusBar.headline} line={focusBar.line} action={focusBar.action} secondary={focusBar.secondary}
-          onClose={editing != null ? () => setEditing(null) : null} onExit={exitFocus} steps={steps} />
-        <div key={open} className="co-slide-in min-w-0 px-6 pb-8 pt-6 max-md:px-4">{focus ? body(open) : null}</div>
+        {/* one header (sticky in the panel): progress · prompt · page · Exit, then the step's headline and its button.
+            The guidelines screen uses it too, with the progress still on the step it was opened from (not a step) */}
+        {guide ? (
+          <PanelHeader current={current} open={open} values={values} onPick={() => {}} prompt={row.prompt} path={targetPath} titleId="co-focus-title" headingId="co-focus-step-h"
+            headline={guideBar.headline} line={guideBar.line} action={guideBar.action} secondary={guideBar.secondary} onExit={() => setGuide(null)} steps={steps} notStep />
+        ) : (
+          <PanelHeader current={current} open={open} values={values} onPick={pick} prompt={row.prompt} path={targetPath} titleId="co-focus-title" headingId="co-focus-step-h"
+            headline={focusBar.headline} line={focusBar.line} action={focusBar.action} secondary={focusBar.secondary}
+            onClose={editing != null ? () => setEditing(null) : null} onExit={exitFocus} steps={steps} />
+        )}
+        {guide
+          ? <div key="guide" className="co-slide-in min-w-0 px-6 pb-8 pt-6 max-md:px-4" data-step="guidelines">
+              <GuidelinesForm value={guideForm} onChange={(p) => setGuideForm((g) => ({ ...g, ...p }))} note={`Saved to ${CO_BRAND.name}. Edit anytime in Brand Setup.`} />
+            </div>
+          : <div key={open} className="co-slide-in min-w-0 px-6 pb-8 pt-6 max-md:px-4">{focus ? body(open) : null}</div>}
       </FocusPanel>
       {toastNode}
     </div>
