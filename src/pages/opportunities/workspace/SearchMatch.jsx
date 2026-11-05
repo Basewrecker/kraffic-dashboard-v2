@@ -6,12 +6,14 @@
 //   States: not connected (Connect) · reconnect (Reconnect) · no property for the domain · connected with no data yet
 //   (the new page it would suggest). The ladder and the matrix render in every state.
 // Stacked below 1100px (the chain, then Your pages).
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Check, Info, Loader2, Plus } from 'lucide-react'
 import { GoogleIcon } from '../../../components/dashboard/icons'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { useWidth } from '../../../components/ui/motion'
 import { MidText } from '../parts'
+import { BRAND_PALETTE, BRAND_PALETTE_DARK, cssColor } from '../../../utils/brandColors'
+let measureCtx = null
 
 const nf = new Intl.NumberFormat('en-US')
 const num = (n) => nf.format(n)
@@ -179,64 +181,92 @@ function FlowSection({ gsc, page, onPick, newPath, prompt }) {
   )
 }
 
+// the right column's colours, in the owner's order (Share of voice's palette, light / dark steps; no new colours):
+// indigo, sky, lavender, pink, soft indigo
+const PAGE_COLORS = [0, 2, 4, 6, 3].map((i) => cssColor({ light: BRAND_PALETTE[i], dark: BRAND_PALETTE_DARK[i] }))
+const PORT = 8 // a port dot's size; every ribbon starts and ends on one
 function Flow({ gsc, prompt, usingPath, usingCreate }) {
   const [ref, width] = useWidth()
   const [hot, setHot] = useState(null) // { kind: 'q' | 'p', key }
   const reduce = reducedMotion()
   const W = Math.max(640, width || 1000)
   const qs = searchOrder(gsc.queries)
-  // the right column: the page in use first (solid border), then the pages the searches land on
+  // the right column: the page in use first (outlined in its colour), then the pages the searches land on (5 colours)
   const landing = [...new Set(qs.map((q) => q.topPage.path))].filter((p) => p !== usingPath)
-  const pages = [usingPath, ...landing].slice(0, 6)
+  const pages = [usingPath, ...landing].slice(0, PAGE_COLORS.length)
+  const colorOf = (path) => PAGE_COLORS[pages.indexOf(path)] ?? 'var(--color-stone-400)'
   const pageOfQ = (q) => (pages.includes(q.topPage.path) ? q.topPage.path : null)
-  // geometry: prompt node | ribbons | searches | ribbons | pages
+  // geometry: prompt node | ribbons | searches (a port dot each side) | ribbons | pages
   const P1 = W * 0.17, Q0 = W * 0.33, Q1 = W * 0.58, R0 = W * 0.68
+  // the searches' right ports share one column, right after the longest search (measured), never past Q1
+  const textRefs = useRef([])
+  const [textW, setTextW] = useState(0)
+  useLayoutEffect(() => {
+    const m = Math.max(0, ...textRefs.current.filter(Boolean).map((el) => el.scrollWidth))
+    setTextW((v) => (Math.abs(v - m) > 0.5 ? m : v))
+  })
+  const QL = Q0 + PORT / 2, QTEXT = QL + PORT / 2 + 8
+  const QR = Math.min(Q1, QTEXT + (textW || (Q1 - QTEXT - 12)) + 10)
   const rowY = (i, n) => (i + 0.5) * (FLOW_H / n)
   const into = (q) => Math.round(q.impressions * (q.topPage.share ?? 1))
   const max = Math.max(1, ...qs.map((q) => q.impressions))
-  const thick = (v) => Math.max(2, (v / max) * 22)
-  // prompt → search ribbons stack centred on the prompt node; search → page ribbons stack on each page node
-  const leftTotal = qs.reduce((n, q) => n + thick(q.impressions), 0)
-  let pa = FLOW_H / 2 - leftTotal / 2
-  const left = qs.map((q, i) => { const t = thick(q.impressions), y0 = pa; pa += t; return { q, i, t, y0, y1: rowY(i, qs.length) - t / 2 } })
-  const pOff = new Map()
-  const right = qs.map((q, i) => {
-    const path = pageOfQ(q)
-    if (!path) return null
-    const t = thick(into(q)), pi = pages.indexOf(path)
-    const inTotal = qs.filter((x) => pageOfQ(x) === path).reduce((n, x) => n + thick(into(x)), 0)
-    const y1 = pOff.get(path) ?? rowY(pi, pages.length) - inTotal / 2
-    pOff.set(path, y1 + t)
-    return { q, i, t, path, y0: rowY(i, qs.length) - thick(into(q)) / 2, y1 }
-  }).filter(Boolean)
-  const band = (x0, x1, y0, y1, t) => { const m = (x0 + x1) / 2; return `M${x0},${y0} C${m},${y0} ${m},${y1} ${x1},${y1} L${x1},${y1 + t} C${m},${y1 + t} ${m},${y0 + t} ${x0},${y0 + t} Z` }
-  // the ink chain: the strongest untagged search into the page in use (by default the Best query → Publish on)
-  const inkQ = usingCreate ? null : qs.find((q) => pageOfQ(q) === usingPath && !tagged(q))
-  const chainOf = (q) => q === inkQ
+  const thick = (v) => Math.max(2, (v / max) * 18)
+  const curve = (x0, y0, x1, y1) => { const m = (x0 + x1) / 2; return `M${x0},${y0} C${m},${y0} ${m},${y1} ${x1},${y1}` }
+  // the chain in use: the strongest untagged search into the page in use (by default the Best query → Publish on)
+  const bestQ = usingCreate ? null : qs.find((q) => pageOfQ(q) === usingPath && !tagged(q))
+  const isBest = (q) => q === bestQ
   const lit = (q) => (hot?.kind === 'q' ? hot.key === q.query : hot?.kind === 'p' ? pageOfQ(q) === hot.key : true)
-  const fill = (q) => (chainOf(q) ? 'var(--ink)' : hot && lit(q) ? 'var(--color-stone-500)' : 'var(--color-stone-300)')
-  const opacity = (q) => (hot && !lit(q) ? 0.12 : chainOf(q) ? 0.75 : tagged(q) ? 0.3 : 0.55)
-  const style = (q, k) => ({ fill: fill(q), opacity: opacity(q), transition: 'fill 250ms ease-out, opacity 150ms ease-out', animation: reduce ? undefined : `co-flow-reveal 600ms ease-out ${200 + k * 40}ms both` })
+  const litPage = (path) => (hot?.kind === 'p' ? hot.key === path : hot?.kind === 'q' ? qs.some((q) => q.query === hot.key && pageOfQ(q) === path) : true)
+  // a chain's look: its landing page's colour; the best one full, the others ~45%, tagged / low-volume ~20% dashed
+  // (dark mode: the --flow-* opacities are raised so they read the same); hover: that chain full and +2px, the rest 15%
+  const op = (q) => (hot ? (lit(q) ? 1 : 0.15) : isBest(q) ? 1 : tagged(q) ? 'var(--flow-faint)' : 'var(--flow-other)')
+  const ribbon = (q, k, part) => ({
+    stroke: pageOfQ(q) ? colorOf(pageOfQ(q)) : 'var(--color-stone-400)',
+    strokeWidth: thick(part === 'r' ? into(q) : q.impressions) + (hot && lit(q) ? 2 : 0),
+    strokeDasharray: tagged(q) && !(hot && lit(q)) ? '6 5' : undefined,
+    opacity: op(q),
+    transition: 'opacity 150ms ease-out, stroke-width 150ms ease-out, stroke 250ms ease-out',
+    // drawn in left to right once (~700ms: the left half, then the right), 60ms per chain
+    animation: reduce ? undefined : `co-flow-reveal 350ms ease-out ${k * 60 + (part === 'r' ? 350 : 0)}ms both`,
+  })
+  const promptY = FLOW_H / 2
   const pageImpr = (path) => qs.filter((q) => pageOfQ(q) === path).reduce((n, q) => n + into(q), 0)
+  const Dot = ({ x, y, color, o = 1 }) => <circle cx={x} cy={y} r={PORT / 2} fill={color} style={{ opacity: o, transition: 'opacity 150ms ease-out' }} />
+  const bestI = bestQ ? qs.indexOf(bestQ) : -1
   return (
     <div ref={ref} className="relative" style={{ height: FLOW_H }} data-sc-flow onMouseLeave={() => setHot(null)}>
-      <svg width={W} height={FLOW_H} className="absolute inset-0" aria-hidden>
-        {left.map(({ q, i, t, y0, y1 }) => <path key={`l${q.query}`} data-ribbon={`prompt|${q.query}`} data-chain={chainOf(q) || undefined} d={band(P1, Q0, y0, y1, t)} style={style(q, i)} />)}
-        {right.map(({ q, i, t, y0, y1, path }) => <path key={`r${q.query}`} data-ribbon={`${q.query}|${path}`} data-chain={chainOf(q) || undefined} d={band(Q1, R0, y0, y1, t)} style={style(q, qs.length + i)} />)}
+      <svg width={W} height={FLOW_H} className="absolute inset-0 overflow-visible" aria-hidden fill="none">
+        {qs.map((q, i) => <path key={`l${q.query}`} data-ribbon={`prompt|${q.query}`} data-chain={isBest(q) || undefined} d={curve(P1, promptY, QL, rowY(i, qs.length))} style={ribbon(q, i, 'l')} />)}
+        {qs.map((q, i) => (pageOfQ(q)
+          ? <path key={`r${q.query}`} data-ribbon={`${q.query}|${pageOfQ(q)}`} data-chain={isBest(q) || undefined} d={curve(QR, rowY(i, qs.length), R0, rowY(pages.indexOf(pageOfQ(q)), pages.length))} style={ribbon(q, i, 'r')} />
+          : null))}
+        {/* after the draw-in, a soft light travels along the best chain every ~3s (none with reduced motion) */}
+        {!reduce && bestQ && !hot && <>
+          <path d={curve(P1, promptY, QL, rowY(bestI, qs.length))} pathLength={100} className="co-flow-pulse" style={{ stroke: 'var(--color-surface)', strokeWidth: thick(bestQ.impressions) * 0.6, animationDelay: '1.1s' }} />
+          <path d={curve(QR, rowY(bestI, qs.length), R0, rowY(0, pages.length))} pathLength={100} className="co-flow-pulse" style={{ stroke: 'var(--color-surface)', strokeWidth: thick(into(bestQ)) * 0.6, animationDelay: '1.6s' }} />
+        </>}
+        {/* the port dots: the prompt's right edge, each search's two sides, each page's left edge */}
+        <Dot x={P1} y={promptY} color={bestQ ? colorOf(usingPath) : 'var(--color-stone-400)'} />
+        {qs.map((q, i) => {
+          const c = pageOfQ(q) ? colorOf(pageOfQ(q)) : 'var(--color-stone-400)'
+          const o = hot && !lit(q) ? 0.15 : 1
+          return <g key={`d${q.query}`}><Dot x={QL} y={rowY(i, qs.length)} color={c} o={o} /><Dot x={QR} y={rowY(i, qs.length)} color={c} o={o} /></g>
+        })}
+        {pages.map((path, i) => <Dot key={`p${path}`} x={R0} y={rowY(i, pages.length)} color={colorOf(path)} o={hot && !litPage(path) ? 0.15 : 1} />)}
       </svg>
       {/* the prompt */}
-      <div className="absolute left-0 flex items-center rounded-lg border border-line bg-surface px-3 py-2.5" style={{ top: FLOW_H / 2 - 32, width: P1 - 8, minHeight: 64 }} data-flow-prompt>
+      <div className="absolute left-0 flex items-center rounded-lg border border-line bg-surface px-3 py-2.5" style={{ top: promptY - 32, width: P1, minHeight: 64 }} data-flow-prompt>
         <span className="line-clamp-3 text-[14px] leading-5 font-semibold text-stone-900">{prompt}</span>
       </div>
-      {/* the searches */}
-      <ul aria-label="Matching searches" className="absolute top-0" style={{ left: Q0 + 6, width: Q1 - Q0 - 12 }}>
+      {/* the searches: text between the two port dots */}
+      <ul aria-label="Matching searches" className="absolute top-0" style={{ left: QTEXT, width: Q1 - QTEXT }}>
         {qs.map((q, i) => (
           <li key={q.query} tabIndex={0} data-flow-query={q.query} data-intent={q.intent ?? undefined} data-low-volume={q.lowVolume || undefined} data-best={q.best || undefined}
             onMouseEnter={() => setHot({ kind: 'q', key: q.query })} onFocus={() => setHot({ kind: 'q', key: q.query })} onBlur={() => setHot(null)}
-            className={`absolute left-0 right-0 flex flex-col justify-center rounded-md px-1.5 outline-none transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-focus ${hot && !lit(q) ? 'opacity-35' : ''}`}
-            style={{ top: rowY(i, qs.length) - 21, height: 42, animation: reduce ? undefined : `fade-in 240ms ease-out ${i * 40}ms backwards` }}>
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span title={q.query} className={`truncate text-[14px] leading-5 ${tagged(q) ? 'text-stone-500' : chainOf(q) || q.best ? 'font-semibold text-stone-900' : 'font-medium text-stone-900'}`}>{q.query}</span>
+            className="absolute left-0 flex flex-col justify-center rounded-md outline-none transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-focus"
+            style={{ top: rowY(i, qs.length) - 21, height: 42, maxWidth: Q1 - QTEXT - 14, opacity: hot && !lit(q) ? 0.15 : 1, animation: reduce ? undefined : `fade-in 240ms ease-out ${i * 40}ms backwards` }}>
+            <span ref={(el) => { textRefs.current[i] = el }} className="flex min-w-0 items-center gap-1.5">
+              <span title={q.query} className={`truncate text-[14px] leading-5 ${tagged(q) ? 'text-stone-500' : isBest(q) || q.best ? 'font-semibold text-stone-900' : 'font-medium text-stone-900'}`}>{q.query}</span>
               {q.intent && <Tag intent={q.intent} />}
               {q.lowVolume && <Tag intent="low volume" />}
             </span>
@@ -244,15 +274,15 @@ function Flow({ gsc, prompt, usingPath, usingCreate }) {
           </li>
         ))}
       </ul>
-      {/* your pages: the page in use on top (solid border) */}
-      <ul aria-label="Your pages" className="absolute right-0 top-0" style={{ width: W - R0 }}>
+      {/* your pages: a 3px left border in each page's colour; the page in use on top, outlined in its colour */}
+      <ul aria-label="Your pages" className="absolute right-0 top-0" style={{ left: R0 + PORT / 2 }}>
         {pages.map((path, i) => {
           const top = i === 0
           return (
             <li key={path} tabIndex={0} data-flow-page={path} data-using={top || undefined}
               onMouseEnter={() => setHot({ kind: 'p', key: path })} onFocus={() => setHot({ kind: 'p', key: path })} onBlur={() => setHot(null)}
-              className={`absolute left-0 right-0 flex flex-col justify-center rounded-lg px-2.5 outline-none transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-focus ${top ? 'border-[1.5px] border-ink bg-surface' : ''} ${hot && hot.key !== path && hot.kind === 'p' ? 'opacity-35' : ''}`}
-              style={{ top: rowY(i, pages.length) - 21, height: 42, animation: reduce ? undefined : `fade-in 240ms ease-out ${120 + i * 40}ms backwards` }}>
+              className="absolute left-0 right-0 flex flex-col justify-center rounded-r-lg bg-surface py-1 pl-2.5 pr-2.5 outline-none transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-focus"
+              style={{ top: rowY(i, pages.length) - 21, height: 42, borderLeft: `3px solid ${colorOf(path)}`, boxShadow: top ? `inset 0 0 0 1.5px ${colorOf(path)}` : undefined, opacity: hot && !litPage(path) ? 0.15 : 1, animation: reduce ? undefined : `fade-in 240ms ease-out ${120 + i * 40}ms backwards` }}>
               <MidText text={path} className={`text-[14px] leading-5 ${top ? 'font-semibold' : 'font-medium'} text-stone-900`} />
               <span className="text-[12px] leading-4 tabular-nums text-stone-500">
                 {top && usingCreate ? 'New page' : `${num(pageImpr(path))} impr`}
@@ -271,13 +301,28 @@ function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath }) {
   const pages = gsc.pages.slice(0, 5)
   const options = [...pages.map((p) => ({ key: p.path, label: p.path, pick: { action: 'update', path: p.path, url: p.url } })), ...(newPath ? [{ key: 'create', label: `Create a new page · ${newPath}`, pick: { action: 'create', path: newPath } }] : [])]
   const choose = (o) => { onPick(o.pick); setOpen(false) }
+  const [rowRef, rowW] = useWidth()
+  const labelRef = useRef(null)
+  const changeRef = useRef(null)
+  const [pathW, setPathW] = useState(undefined)
+  useLayoutEffect(() => {
+    const row = rowW, label = labelRef.current?.offsetWidth ?? 0, change = changeRef.current?.offsetWidth ?? 0
+    if (!row) return
+    measureCtx ??= document.createElement('canvas').getContext('2d')
+    // the page's own font stack (the label's), so the estimate matches what MidText measures
+    const fam = labelRef.current ? getComputedStyle(labelRef.current).fontFamily : 'sans-serif'
+    measureCtx.font = `600 14px ${fam}`
+    const full = Math.ceil(measureCtx.measureText(usingPath).width) + 6
+    setPathW(Math.max(40, Math.min(full, row - label - change - 40)))
+  }, [rowW, usingPath])
   return (
-    <div className="relative mt-3 flex min-w-0 items-center gap-2 border-t border-line pt-3 text-[14px] leading-5" data-sc-using={usingCreate ? 'create' : usingPath}
+    <div ref={rowRef} className="relative mt-3 flex min-w-0 items-center gap-2 border-t border-line pt-3 text-[14px] leading-5" data-sc-using={usingCreate ? 'create' : usingPath}
       onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}>
-      <span className="shrink-0 text-stone-500">Using this page:</span>
-      <MidText text={usingPath} className="min-w-0 font-semibold text-stone-900" />
+      <span ref={labelRef} className="shrink-0 text-stone-500">Using this page:</span>
+      {/* a fixed width (the full path, or the room the line has), so it only truncates in the middle when it overflows */}
+      <span className="min-w-0 shrink-0" style={{ width: pathW }}><MidText text={usingPath} className="w-full font-semibold text-stone-900" /></span>
       <span aria-hidden className="text-stone-400">·</span>
-      <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}
+      <button ref={changeRef} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}
         className="shrink-0 rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Change page</button>
       {open && (
         <>

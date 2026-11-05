@@ -677,3 +677,12 @@ html[data-theme="dark"] { --beta-fg: color-mix(in srgb, var(--beta) 65%, #FFFFFF
 
 /* Content Target page, Search Console flow: the ribbons draw left to right once (clip reveal) */
 @keyframes co-flow-reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* Content flow (Search Console): chain opacities (other chains ~45%, low-volume / tagged ~20%), raised in dark mode
+   so they read the same; the best chain's soft light, one pulse every ~3s after the draw-in (none with reduced motion) */
+:root { --flow-other: 0.45; --flow-faint: 0.2; }
+html[data-theme="dark"] { --flow-other: 0.6; --flow-faint: 0.32; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --flow-other: 0.6; --flow-faint: 0.32; } }
+@keyframes co-flow-pulse { 0% { stroke-dashoffset: 18; opacity: 0; } 8% { opacity: 0.55; } 40% { stroke-dashoffset: -100; opacity: 0.55; } 46%, 100% { stroke-dashoffset: -100; opacity: 0; } }
+.co-flow-pulse { stroke-dasharray: 18 200; stroke-linecap: round; animation: co-flow-pulse 3s ease-in-out infinite; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .co-flow-pulse { animation: none; opacity: 0; } }
