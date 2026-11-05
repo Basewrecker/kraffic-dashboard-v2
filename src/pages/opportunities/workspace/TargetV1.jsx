@@ -22,7 +22,8 @@
 // the column); your row's ticks draw and its red rings draw around; then "The draft adds" rows slide in. Linked hover:
 // a ladder logo ↔ its matrix row (soft tint); a format column or a "draft adds" row → that column, top to bottom, with
 // your missing cell pulsing once. Reduced motion: the final state; the hover highlights stay.
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ArrowRight, Check } from 'lucide-react'
 import { PlatformIcon } from '../../../components/dashboard/icons'
 import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
@@ -68,7 +69,7 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
   // it doesn't add isn't listed here (it stays a red ring in both of your rows)
   const adds = m.missing.filter((c) => plan.includes(c.id))
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 pb-12">
       {asking && <ConnectSearchConsole connecting={sc.connecting} onConnect={sc.onConnect} onSkip={sc.onSkip} />}
       {sc?.state === 'skipped' && !sc.connecting && <SkippedRow onConnect={sc.onConnect} />}
       {sc && !asking && sc.state !== 'skipped' && <SearchMatch {...sc} enginesFor={(path) => {
@@ -120,9 +121,9 @@ function Ladder({ ladder, eng, host, setHost }) {
   const slotProps = (p) => ({ host, setHost, dim: dim(p), card: card(p), onHover: setHoverUrl })
   return (
     <section aria-labelledby="co-ladder-h">
-      <div className={HEAD}>
+      <div className={`${HEAD} flex-wrap gap-y-0.5`}>
         <h3 id="co-ladder-h" className={H}>Google page 1 for this prompt</h3>
-        <span className={META}>Engine icons: the AI answers that cite the page</span>
+        <span className={META}>Icons: AI engines that cite the page</span>
       </div>
       <ol className="flex h-[104px] items-center justify-center gap-3" aria-label="Google page 1">
         {slots.map((p, i) => (
@@ -154,24 +155,42 @@ function Slot({ page, e, ours = false, i, host, setHost, dim = false, card = fal
   const on = host === page.host
   const enter = () => { setHost(page.host); onHover(page.url) }
   const leave = () => { setHost(null); onHover(null) }
+  const btn = useRef(null)
   return (
     <span className={`relative transition-opacity duration-150 ${dim ? 'opacity-40' : ''}`} onMouseEnter={enter} onMouseLeave={leave} data-slot-host={page.host} data-dim={dim || undefined}>
-      <button type="button" onFocus={enter} onBlur={leave}
+      <button ref={btn} type="button" onFocus={enter} onBlur={leave}
         aria-label={`${siteName(page.host)}${page.rank ? `, #${page.rank}` : ''}${ours ? ', your page' : ''}${engineNames(e).length ? `, cited by ${engineNames(e).join(', ')}` : ''}`}
         className={`relative grid h-12 w-12 place-items-center rounded-full outline-none transition-transform duration-150 focus-visible:ring-2 focus-visible:ring-focus ${ours ? 'ring-2 ring-ink ring-offset-2 ring-offset-[var(--color-page)]' : ''} ${on ? 'scale-110' : ''}`}
         style={anim('co-slot-in', T.logo(i))}>
-        <LogoPlate domain={page.host} size={48} logoClass="h-7 w-7" initialClass="text-[14px]" />
+        <LogoPlate domain={page.host} size={48} logoClass="h-7 w-7" initialClass="text-[14px]" plate />
         <span className="absolute -right-1.5 -top-1.5"><EngineIcons e={e} size={14} stack delay={T.engines(i)} /></span>
       </button>
-      {on && card && (
-        <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-30 mt-9 w-[260px] -translate-x-1/2 rounded-lg border border-line bg-raised px-3 py-2.5 text-left shadow-md">
-          <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{siteName(page.host)}{ours && <span className="font-normal text-stone-500"> · your page</span>}{page.rank && <span className="font-normal text-stone-500"> · #{page.rank}</span>}</span>
-          <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-700">{page.title}</span>
-          <span className="mt-1.5 block text-[12px] leading-4 text-stone-500">{page.formats.length ? page.formats.map(formatLabel).join(' · ') : 'No format detected'}</span>
-          <span className="mt-0.5 block text-[12px] leading-4 text-stone-500">{engineNames(e).length ? `Cited by ${engineNames(e).join(', ')}` : 'Not cited in AI answers'}</span>
-        </span>
-      )}
+      {on && card && <SlotCard anchor={btn} page={page} e={e} ours={ours} />}
     </span>
+  )
+}
+// the slot's hover card, in a portal (no parent can clip it): below the logo's row when there's room, else above the
+// logo; it fades and slides 4px in from the side it opens on (none with reduced motion)
+function SlotCard({ anchor, page, e, ours }) {
+  const ref = useRef(null)
+  const [at, setAt] = useState(null) // { left, top, below }
+  useLayoutEffect(() => {
+    const r = anchor.current?.getBoundingClientRect()
+    const h = ref.current?.offsetHeight ?? 140, w = 260, gap = 30 // below: clear of the rank label under the logo
+    if (!r) return
+    const below = window.innerHeight - r.bottom >= h + gap + 8
+    setAt({ left: Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)), top: below ? r.bottom + gap : r.top - h - 8, below })
+  }, [anchor])
+  const still = reduced()
+  return createPortal(
+    <span ref={ref} role="tooltip" className="pointer-events-none fixed z-[90] w-[260px] rounded-lg border border-line bg-raised px-3 py-2.5 text-left shadow-md"
+      style={at ? { left: at.left, top: at.top, opacity: 1, animation: still ? undefined : `${at.below ? 'co-card-down' : 'co-card-up'} 150ms ease-out both` } : { left: -9999, top: 0, opacity: 0 }}>
+      <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{siteName(page.host)}{ours && <span className="font-normal text-stone-500"> · your page</span>}{page.rank && <span className="font-normal text-stone-500"> · #{page.rank}</span>}</span>
+      <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-700">{page.title}</span>
+      <span className="mt-1.5 block text-[12px] leading-4 text-stone-500">{page.formats.length ? page.formats.map(formatLabel).join(' · ') : 'No format detected'}</span>
+      <span className="mt-0.5 block text-[12px] leading-4 text-stone-500">{engineNames(e).length ? `Cited by ${engineNames(e).join(', ')}` : 'Not cited in AI answers'}</span>
+    </span>,
+    document.body,
   )
 }
 

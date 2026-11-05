@@ -88,9 +88,10 @@ export function Engines({ ids, missed = [], engineName = (e) => e, size = 16, no
 
 // a site's logo on a round plate, in tokens so it follows the theme (surface fill, a 1px --line ring): the Content
 // workspace's favicons ("Also cited", "Page winning it", the writing checklist). Sentiment keeps its own white plates.
-export function LogoPlate({ domain, name, size = 20, logoClass = 'h-3.5 w-3.5', initialClass = 'text-[9px]' }) {
+// plate: a light plate in dark mode (co-logo-plate, index.css), so dark logos read on a dark page
+export function LogoPlate({ domain, name, size = 20, logoClass = 'h-3.5 w-3.5', initialClass = 'text-[9px]', plate = false }) {
   return (
-    <span className="grid shrink-0 place-items-center overflow-hidden rounded-full bg-surface ring-1 ring-line" style={{ width: size, height: size }}>
+    <span className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-surface ring-1 ring-line ${plate ? 'co-logo-plate' : ''}`} style={{ width: size, height: size }}>
       <SiteLogo domain={domain} name={name ?? domain} className={`${logoClass} rounded-full`} initialClass={initialClass} />
     </span>
   )
