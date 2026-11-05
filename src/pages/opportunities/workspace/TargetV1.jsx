@@ -27,7 +27,7 @@ import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import { PlatformIcon } from '../../../components/dashboard/icons'
 import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
 import { formatLabel } from '../../../data/contentRecommend'
-import { LogoPlate, MorePages, withResults } from '../parts'
+import { LogoPlate, MorePages, siteName, withResults } from '../parts'
 import { afterRow, draftPlan, draftPreview, enginesOf, formatMatrix, pageOf, rankLadder } from '../draft/recommend'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { RingDraw, TickDraw } from './ui'
@@ -149,6 +149,13 @@ const engineNames = (e) => [...e.engines.map((id) => ENGINE_NAME[id]), ...(e.unk
 function Ladder({ ladder, eng, host, setHost }) {
   const { slots, ours, aiOnly } = ladder
   let n = 0
+  // a site on two page-1 spots (owner, 2026-11-05): hovering it keeps both circles bright and dims the others to 40%
+  const count = slots.reduce((m, p) => (p ? m.set(p.host, (m.get(p.host) ?? 0) + 1) : m), new Map())
+  const twoSpot = host && (count.get(host) ?? 0) > 1
+  const [hoverUrl, setHoverUrl] = useState(null) // the slot under the pointer: only its card shows
+  const dim = (p) => twoSpot && p.host !== host
+  const card = (p) => (hoverUrl ? hoverUrl === p.url : host === p.host && slots.find((s) => s?.host === host) === p)
+  const slotProps = (p) => ({ host, setHost, dim: dim(p), card: card(p), onHover: setHoverUrl })
   return (
     <section aria-labelledby="co-ladder-h">
       <div className={HEAD}>
@@ -158,7 +165,7 @@ function Ladder({ ladder, eng, host, setHost }) {
       <ol className="flex h-[104px] items-center justify-center gap-3" aria-label="Google page 1">
         {slots.map((p, i) => (
           <li key={i} className="flex w-12 flex-col items-center gap-1.5">
-            {p ? <Slot page={p} e={eng(p)} ours={p.isOurs} i={n++} host={host} setHost={setHost} /> : <span aria-hidden className="h-12 w-12 rounded-full border-[1.5px] border-dashed border-[var(--co-slot)]" />}
+            {p ? <Slot page={p} e={eng(p)} ours={p.isOurs} i={n++} {...slotProps(p)} /> : <span aria-hidden className="h-12 w-12 rounded-full border-[1.5px] border-dashed border-[var(--co-slot)]" />}
             <span className={`text-[12px] leading-4 tabular-nums ${p ? 'font-semibold text-stone-700' : 'text-stone-400'}`}>#{i + 1}{!p && <span className="sr-only"> empty</span>}</span>
           </li>
         ))}
@@ -170,7 +177,7 @@ function Ladder({ ladder, eng, host, setHost }) {
         )}
         {aiOnly.length > 0 && (
           <li className="ml-3 flex flex-col items-center gap-1.5 border-l border-line pl-6">
-            <span className="flex gap-3">{aiOnly.map((p) => <Slot key={p.url} page={p} e={eng(p)} i={n++} host={host} setHost={setHost} />)}</span>
+            <span className="flex gap-3">{aiOnly.map((p) => <Slot key={p.url} page={p} e={eng(p)} i={n++} {...slotProps(p)} />)}</span>
             <span className="whitespace-nowrap text-[12px] leading-4 text-stone-500">AI only</span>
           </li>
         )}
@@ -180,20 +187,23 @@ function Ladder({ ladder, eng, host, setHost }) {
 }
 
 // a page in its slot: its logo (ink ring when it's yours), its engines on the corner; hover: the card under the row
-function Slot({ page, e, ours = false, i, host, setHost }) {
+// dim: another site's two spots are hovered (40%) · card: this slot shows the hover card (only the one under the pointer)
+function Slot({ page, e, ours = false, i, host, setHost, dim = false, card = false, onHover = () => {} }) {
   const on = host === page.host
+  const enter = () => { setHost(page.host); onHover(page.url) }
+  const leave = () => { setHost(null); onHover(null) }
   return (
-    <span className="relative" onMouseEnter={() => setHost(page.host)} onMouseLeave={() => setHost(null)}>
-      <button type="button" onFocus={() => setHost(page.host)} onBlur={() => setHost(null)}
-        aria-label={`${page.host}${page.rank ? `, #${page.rank}` : ''}${ours ? ', your page' : ''}${engineNames(e).length ? `, cited by ${engineNames(e).join(', ')}` : ''}`}
+    <span className={`relative transition-opacity duration-150 ${dim ? 'opacity-40' : ''}`} onMouseEnter={enter} onMouseLeave={leave} data-slot-host={page.host} data-dim={dim || undefined}>
+      <button type="button" onFocus={enter} onBlur={leave}
+        aria-label={`${siteName(page.host)}${page.rank ? `, #${page.rank}` : ''}${ours ? ', your page' : ''}${engineNames(e).length ? `, cited by ${engineNames(e).join(', ')}` : ''}`}
         className={`relative grid h-12 w-12 place-items-center rounded-full outline-none transition-transform duration-150 focus-visible:ring-2 focus-visible:ring-focus ${ours ? 'ring-2 ring-ink ring-offset-2 ring-offset-[var(--color-page)]' : ''} ${on ? 'scale-110' : ''}`}
         style={anim('co-slot-in', T.logo(i))}>
         <LogoPlate domain={page.host} size={48} logoClass="h-7 w-7" initialClass="text-[14px]" />
         <span className="absolute -right-1.5 -top-1.5"><EngineIcons e={e} size={14} stack delay={T.engines(i)} /></span>
       </button>
-      {on && (
+      {on && card && (
         <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-30 mt-9 w-[260px] -translate-x-1/2 rounded-lg border border-line bg-raised px-3 py-2.5 text-left shadow-md">
-          <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{page.host}{ours && <span className="font-normal text-stone-500"> · your page</span>}{page.rank && <span className="font-normal text-stone-500"> · #{page.rank}</span>}</span>
+          <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{siteName(page.host)}{ours && <span className="font-normal text-stone-500"> · your page</span>}{page.rank && <span className="font-normal text-stone-500"> · #{page.rank}</span>}</span>
           <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-700">{page.title}</span>
           <span className="mt-1.5 block text-[12px] leading-4 text-stone-500">{page.formats.length ? page.formats.map(formatLabel).join(' · ') : 'No format detected'}</span>
           <span className="mt-0.5 block text-[12px] leading-4 text-stone-500">{engineNames(e).length ? `Cited by ${engineNames(e).join(', ')}` : 'Not cited in AI answers'}</span>
@@ -233,10 +243,10 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
               <LogoPlate domain={w.host} size={24} logoClass="h-4 w-4" />
               {/* two lines: the site, then its rank (and "+1 page" when it holds more page-1 spots), so the name stays whole */}
               <span className="flex min-w-0 flex-col">
-                <span className="truncate text-[14px] leading-5 font-semibold text-stone-900">{w.host}</span>
+                <span className="truncate text-[14px] leading-5 font-semibold text-stone-900" title={w.host}>{siteName(w.host)}</span>
                 <span className="flex items-center gap-1.5 text-[12px] leading-4 tabular-nums text-stone-500">
                   {w.rank ? `#${w.rank}` : 'AI only'}
-                  {w.others?.length > 0 && <><span aria-hidden>·</span><MorePages others={w.others} /></>}
+                  {w.others?.length > 0 && <><span aria-hidden>·</span><MorePages page={w} others={w.others} /></>}
                 </span>
               </span>
             </span>

@@ -493,3 +493,15 @@ best-ranked competitor also at a lower rank, e.g. prompt 11 "sunscreen for oily 
   (`upAgainstRows` via `bySite`; rows carry `others: [{ url, path, rank }]`). The row shows a plain "+1 page" after the
   name; its existing hover card adds "Also on Google page 1" with the other page(s) (one card, not two).
 
+**Fixes (owner, 2026-11-05):**
+- **Names:** the winners table, the Draft rail and the strip's hover card use the display name (`parts.jsx`
+  `siteName(host)`: the tracked brand's name, "The Ordinary"; else the tidied domain, "healthline.com" → "Healthline";
+  never a raw domain).
+- **Hover = two lines, the same in both places** (`TwoSpotLines`): line 1 the cited page's path · its format(s); line 2
+  "Also #<rank> on Google page 1 · <path>" (one line per other page). The winners table shows it on the "+1 page" note;
+  the Draft rail's row card shows it for a two-spot row (340px wide).
+- **"+1 page"** carries the "Confirm with your team" dotted underline (`DOTTED`: 1.5px dotted, offset 4px) in a neutral
+  grey (amber stays for things to confirm), so it reads as hoverable; in the rail too.
+- **Page-1 strip:** hovering a site that holds two spots keeps both circles bright and dims the others to 40%; only the
+  circle under the pointer shows its card.
+- Test: `tests/two-spots.browser.test.mjs`.
