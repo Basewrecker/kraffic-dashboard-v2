@@ -177,19 +177,12 @@ const verdict = (q) => (q.best ? { text: 'Best match', cls: 'font-semibold text-
 // weekly impressions per query from Search Console for this)
 const weeksOf = (q) => { const base = q.impressions / 8; let h = 0; for (const c of q.query) h = (h * 31 + c.charCodeAt(0)) >>> 0; return Array.from({ length: 8 }, (_, i) => Math.max(0, Math.round(base * (0.75 + ((h >> (i * 3)) % 9) / 16 + i * 0.03)))) }
 const orderRows = (qs) => { const best = qs.filter((q) => q.best), rest = qs.filter((q) => !q.best); const by = (a, b) => b.impressions - a.impressions; return [...best, ...rest.filter((q) => !q.lowVolume).sort(by), ...rest.filter((q) => q.lowVolume).sort(by)] }
-// the header, one block with the tabs (owner, 2026-11-05; Sentiment's "Pages on <date>" header): line 1 "Search
-// queries n" and Download CSV (the current tab's rows); line 2, small and muted: the Google mark, the property, the range
-// (the lag in its title) and a plain "Change" link. No divider: header, tabs and rows read as one block.
-function QueriesHeader({ gsc, count, domain, onChange }) {
+// the header, one block with the tabs: just "Prompts n" (owner, 2026-11-05: no property / range / Change line under it).
+// No divider: header, tabs and rows read as one block.
+function QueriesHeader({ count }) {
   return (
     <div>
       <h3 id="co-sc-h" className="flex items-baseline gap-2 text-[20px] leading-[28px] font-semibold"><span className="text-ink">Prompts</span><span className="tabular-nums text-stone-500">{count}</span></h3>
-      <p className="flex flex-wrap items-center gap-x-1.5 text-[14px] leading-5 font-medium text-stone-600" data-sc-connected>
-        <GoogleIcon size={16} />
-        <span>{domain}</span><span aria-hidden>·</span>
-        <span title={`${gsc.lagNote} Totals run slightly low: Google hides rare queries.`}>Last 8 weeks, {day(gsc.range.startDate)} – {day(gsc.range.endDate)}</span>
-        {onChange && <><span aria-hidden>·</span><button type="button" onClick={onChange} className="rounded underline decoration-[var(--color-line-strong)] underline-offset-2 outline-none hover:text-stone-900 hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Change</button></>}
-      </p>
     </div>
   )
 }
@@ -226,7 +219,7 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
   const hotPage = tabHot ?? (hot ? rows.find((q) => q.query === hot)?.topPage?.path : null)
   return (
     <div data-sc-queries>
-      <QueriesHeader gsc={gsc} count={rows.length} domain={domain} onChange={onChange} />
+      <QueriesHeader count={rows.length} />
       {/* the tabs and, right-aligned on the same row, "↓ CSV" styled as part of the tab bar (its height and radius, a
           light outline): the selected tab's rows. Its right edge is the table's. */}
       <div className="relative z-20 mt-2 flex items-center justify-between gap-3">
