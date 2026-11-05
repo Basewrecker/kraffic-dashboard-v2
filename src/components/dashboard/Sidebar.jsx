@@ -16,7 +16,7 @@ export const groups = [
     { label: 'Visibility Overview', icon: BarChart3, href: '/overview' },
     { label: 'Prompt Hub', icon: MessageSquareText, href: '/tracker' },
     { label: 'Sentiment', icon: Gauge, href: '/sentiment', beta: true },
-    { label: 'Trends', icon: TrendingUp, href: '/trends' },
+    { label: 'Trends', icon: TrendingUp, href: '/trends', soon: true }, // as the app (owner, 2026-11-05): a Soon pill
   ] },
   { label: 'Reports', items: [
     { label: 'New report', icon: Sparkles, href: '/reports', beta: true },
@@ -243,7 +243,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
         {g.label}
       </button>
       <div id={id}>
-      {g.items.map(({ label, icon: Icon, href, beta }, i) => {
+      {g.items.map(({ label, icon: Icon, href, beta, soon }, i) => {
         const active = href === path
         return (
         <Fold key={label} open={open || active}>
@@ -258,6 +258,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
           <Icon size={16} strokeWidth={1.5} aria-hidden className={`shrink-0 ${active ? 'text-ink' : 'text-stone-500'}`} />
           <span className="min-w-0 truncate">{label}</span>
           {beta && <BetaTag className="ml-auto" />}
+          {soon && <BetaTag variant="soon" className="ml-auto" />}
         </a>
         </Fold>
         )

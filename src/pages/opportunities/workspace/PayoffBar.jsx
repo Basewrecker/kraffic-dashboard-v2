@@ -23,7 +23,7 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
 const LINK = 'rounded text-[13px] leading-[18px] font-medium text-stone-600 underline-offset-4 outline-none whitespace-nowrap hover:text-ink hover:underline focus-visible:ring-2 focus-visible:ring-focus'
 
 // engines: the engines with a result in the latest scan (5 with Google split in two; a no-result one is left out) · named: the ones that name the brand now (the rest are missed)
-export default function PayoffBar({ barRef, current, open, values = [], onPick, headline, line, showNamed = false, engines = [], named = [], engineName = (e) => e, action, secondary = null, onClose = null, headingId, busy = false, steps }) {
+export default function PayoffBar({ barRef, current, open, values = [], onPick, headline, line, showNamed = false, engines = [], named = [], engineName = (e) => e, action, secondary = null, extra = null, onClose = null, headingId, busy = false, steps }) {
   const still = reduced()
   return (
     // one row (owner, 2026-11-05): left the progress over the headline and the sub-line; right the actions, centred
@@ -45,6 +45,8 @@ export default function PayoffBar({ barRef, current, open, values = [], onPick, 
       {/* RIGHT: the step's text link, then the button */}
       <div className="flex shrink-0 items-center gap-4 max-lg:ml-auto">
         {onClose && <button type="button" onClick={onClose} className={LINK}>{backLabel(steps ?? STEPS.map((x, i) => ({ i })), current)}</button>}
+        {/* app (owner, 2026-11-05): a second small link before the secondary ("Guidelines · Edit") */}
+        {extra && <button type="button" onClick={extra.onClick} className={LINK} data-bar-extra>{extra.label}</button>}
         {secondary && <button type="button" onClick={secondary.onClick} className={LINK}>{secondary.label}</button>}
         {action && <ActionButton action={action} still={still} />}
       </div>
@@ -152,7 +154,8 @@ export function ActionButton({ action, onLit = () => {}, still = false, tone = '
       <button type="button" onClick={off ? undefined : action.onClick} aria-disabled={off || undefined} aria-describedby={off && action.why ? 'co-act-why' : undefined}
         onMouseEnter={() => onLit(true)} onMouseLeave={() => onLit(false)} onFocus={() => onLit(true)} onBlur={() => onLit(false)}
         className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg font-medium outline-none transition-[transform,background-color] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${base} ${colors} ${off ? 'cursor-not-allowed' : still ? '' : 'hover:-translate-y-px'}`}>
-        {action.label}<ArrowRight size={15} aria-hidden />
+        {/* app: arrow: false when the label carries its own ("I’ve pasted it → Verify") */}
+        {action.label}{action.arrow !== false && <ArrowRight size={15} aria-hidden />}
       </button>
       {off && action.why && (
         <span id="co-act-why" role="tooltip" className="pointer-events-none absolute right-0 top-full z-30 mt-1.5 w-max max-w-[260px] rounded-md border border-line bg-raised px-2.5 py-1.5 text-[12px] leading-4 text-stone-700 opacity-0 shadow-md transition-opacity duration-150 group-hover/act:opacity-100 group-focus-within/act:opacity-100">

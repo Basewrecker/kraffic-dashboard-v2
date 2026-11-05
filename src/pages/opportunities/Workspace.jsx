@@ -10,9 +10,8 @@
 //   3. Who you're up against (workspace/UpAgainst.jsx), like Sentiment's Sources
 // Where it starts: workspace/flow.js startOf (no draft → step 1 until Search Console is connected, else step 2; a
 // written draft → step 4; copied or published → step 5).
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { ArrowLeft } from 'lucide-react'
-import LogoStack from '../../components/dashboard/LogoStack'
 import { t2, textBtn } from '../../components/firstSetup/ui'
 import { useToast } from '../../components/dashboard/overlays'
 import { CO_BRAND, ENGINES, ENGINE_NAME, ENGINE_SHORT, engineIcon, gscConnection } from '../../data/contentOpportunities'
@@ -36,17 +35,22 @@ import { productName } from '../../store/workspace'
 import DraftStep, { newSession, savedLabel } from './DraftStep'
 import { fmtSecs, genElapsed, genProgress, genSummary } from './draft/model'
 import PublishStep from './PublishStep'
-import { Engines, LIST_PATH, OWN_DOMAIN, brandLabels, coBrandName, goTo, pathOf, promptVT, uniqueDomains } from './parts'
+import { Engines, LIST_PATH, OWN_DOMAIN, brandLabels, coBrandName, goTo, pathOf, promptVT } from './parts'
 import ConnectStep from './workspace/ConnectStep'
 import DataStep from './workspace/DataStep'
 import GuidelinesForm from './workspace/Guidelines'
-import { EMPTY_GUIDELINES, hasGuidelines, loadGuidelines, needsGuidelines, saveGuidelines, skipGuidelines } from '../../data/brandGuidelines'
+import { EMPTY_GUIDELINES, guidelinesStamp, hasGuidelines, loadGuidelines, needsGuidelines, removeGuidelines, saveGuidelines, skipGuidelines } from '../../data/brandGuidelines'
 import SearchConsolePanel from './workspace/SearchConsolePanel'
 import ActionDock from './workspace/ActionDock'
 import PayoffBar from './workspace/PayoffBar'
 import TargetStep from './workspace/TargetStep'
 import UpAgainst from './workspace/UpAgainst'
-import { STEPS, dataSummary, FOCUS_FROM, exitAfter, inFocus, nextVisible, resumeState, startExited, startOf, startTarget, stepValue, stepsFor } from './workspace/flow'
+import { PUBLISH, STEPS, VERIFY, dataSummary, FOCUS_FROM, exitAfter, inFocus, nextVisible, resumeState, startExited, startExitedV1, startOf, startOfV1, startTarget, stepValue, stepsFor } from './workspace/flow'
+// as the app (owner, 2026-11-05): parts hidden for now, where the page came from, the CMS link, Verify, back to the list,
+// the draft's hand edits; the property picker and who connected Search Console (data/contentApp.js: sample data)
+import { CONTENT_HIDDEN, SAMPLE_CONNECTED_BY, cmsLinkOf, contentVersion, flashPrompt, pageSourceLabel, sampleProperties, subscribeContent, withEdit, yourDataOf } from '../../data/contentApp'
+import VerifyStep, { checkedLabel, useVerify } from './workspace/VerifyStep'
+import { usePropertyPicker } from './workspace/SearchMatch'
 import FocusPanel from './workspace/FocusPanel'
 import PanelHeader from './workspace/PanelHeader'
 import { COL_HEAD, COL_TITLE } from './workspace/ui'
@@ -97,7 +101,11 @@ function Flow({ row }) {
   const scTimer = useRef(null)
   useEffect(() => () => clearTimeout(scTimer.current), [])
   const connectSc = () => { setScConnecting(true); scTimer.current = setTimeout(() => { setScConnecting(false); setScJustConnected(true); setScState('connected') }, 900) }
-  const gscRes = useMemo(() => gscMatchFor(row, { state: scState }), [row, scState])
+  // as the app: who connected it ("Connected by <name> · <date> · Change · Disconnect"); Disconnect (asked first) and the
+  // property picker (Harsh's, "Choose property" when the account can't see the brand's site)
+  const gscRes = useMemo(() => { const g = gscMatchFor(row, { state: scState }); return g.connected ? { ...g, connectedBy: SAMPLE_CONNECTED_BY } : g }, [row, scState])
+  const disconnectSc = () => { if (window.confirm(`Disconnect Search Console for ${CO_BRAND.name}? Everyone who sees this brand loses its Search Console data until it’s connected again.`)) { setScJustConnected(false); setScState('new') } }
+  const picker = usePropertyPicker(() => sampleProperties(scDomain), () => toast('Search Console property saved'))
   // THE target page, one value everywhere (the Update column, the payoff bar, Copy & publish, the draft request):
   // the user's pick (a Your pages row, a Create this page), else Search Console's Publish on (connected, with data),
   // else the route's own page (not connected, skipped, no data). scPick: { action, path, url? } | null
@@ -110,7 +118,9 @@ function Flow({ row }) {
   const choice = scPick ?? scChoice // null: the route's page
   const choiceUrl = choice ? choice.url ?? `https://${scDomain}${choice.path}` : null
   const request = useMemo(() => requestFor(row, sent, choice ? { action: choice.action, url: choiceUrl } : null), [row, sent, choice?.path, choice?.action]) // eslint-disable-line react-hooks/exhaustive-deps
-  const res = useMemo(() => contentRecommendFor(row, request.userFacts), [row, request]) // the route's response (the mock's)
+  // the route's response (the mock's), with the draft's hand edit if any; a hand edit or a Regenerate re-renders
+  const edited = useSyncExternalStore(subscribeContent, contentVersion, contentVersion)
+  const res = useMemo(() => withEdit(contentRecommendFor(row, request.userFacts)), [row, request, edited])
   // the response before any userFacts: its flags are Your data's questions (they stay put once answered)
   const baseRes = useMemo(() => contentRecommendFor(row), [row])
   const competitors = row.competitors ?? [] // the request's competitors
@@ -125,7 +135,9 @@ function Flow({ row }) {
   const saved = useMemo(() => draftFor(row.id, row), [row])
   const [gsc, setGsc] = useState(() => kept?.gsc ?? gscStatus()) // 'connected' | 'declined' | 'new' | 'skipped' (continued without it)
   // a draft written earlier in this browser opens on the Draft step, ready (no writing state)
-  const start = useMemo(() => (!saved && stored.written ? { current: DRAFT, ready: true } : startOf(saved, gscStatus())), [saved, stored])
+  // v1 (as the app): copied and waiting → Verify; published → Publish & track
+  const exitedStart = full ? startExited : startExitedV1
+  const start = useMemo(() => (!saved && stored.written ? { current: DRAFT, ready: true } : (full ? startOf : startOfV1)(saved, gscStatus())), [saved, stored]) // eslint-disable-line react-hooks/exhaustive-deps
   const [current, setCurrent] = useState(() => Math.max(kept?.current ?? 0, full ? start.current : Math.max(1, start.current)))
   const [editing, setEditing] = useState(null) // a done step reopened from the progress pills
   const [ready, setReady] = useState(() => kept?.ready ?? start.ready) // a draft exists: step 4 skips its generating view
@@ -177,7 +189,7 @@ function Flow({ row }) {
     } catch { /* private mode, or over the browser's quota: this visit only */ }
   }, [full, dataStore, data])
   // the ONE userFacts payload (v1) and the 20k cap's verdict (over, the file cut, files left out)
-  const cap = useMemo(() => (full ? null : buildUserFacts(data)), [full, data])
+  const cap = useMemo(() => (full ? null : buildUserFacts(yourDataOf(data))), [full, data]) // as the app: hidden tasks left out (CONTENT_HIDDEN)
   const [dataSkipped, setDataSkipped] = useState(() => kept?.dataSkipped ?? false)
   // Brand guidelines (owner, 2026-11-05): a one-time screen, not a numbered step. "Add your data" / "Skip to draft" open
   // it first (in the focus panel, the step bar still on step 1) when the brand has none saved and hasn't skipped them;
@@ -188,6 +200,7 @@ function Flow({ row }) {
   const [guideForm, setGuideForm] = useState(EMPTY_GUIDELINES)
   const openGuide = (then) => { setGuideForm(guidelines ?? EMPTY_GUIDELINES); setGuide({ then }) }
   const guideFirst = (then, go) => () => { if (!full && needsGuidelines(CO_BRAND.domain)) openGuide(then); else go() }
+  const noGuidelines = !full && !guidelines && needsGuidelines(CO_BRAND.domain) // as the app: the step card's primary and sub-line
   // step 4's state (the writing clock, the draft, its flags): here, not in DraftStep, so closing the focus panel loses
   // nothing and the writing goes on in the background (draft/model.js draftSession)
   const [ds, setDs] = useState(() => kept?.ds ?? newSession(start.ready, { savedAt: res.analyzedAt, ...stored }))
@@ -215,12 +228,12 @@ function Flow({ row }) {
 
   const open = editing ?? current
   // focus mode: on whenever the open step is 3–5 (by any route), unless exited on that step (workspace/flow.js)
-  const [exitedOn, setExitedOn] = useState(() => startExited(saved, open))
+  const [exitedOn, setExitedOn] = useState(() => exitedStart(saved, open))
   const prevOpen = useRef(open)
   if (prevOpen.current !== open) { const was = prevOpen.current; prevOpen.current = open; if (exitAfter(was, open, exitedOn) !== exitedOn) setExitedOn(null) }
   const focus = inFocus(open, exitedOn)
   // opened on load (arriving on step 3–5 from the list or a reopened prompt): a fade, no travel; after that, the FLIP
-  const [entrance, setEntrance] = useState(() => (inFocus(open, startExited(saved, open)) ? 'fade' : 'travel'))
+  const [entrance, setEntrance] = useState(() => (inFocus(open, exitedStart(saved, open)) ? 'fade' : 'travel'))
   const exitFocus = () => setExitedOn(open)
   // while the checklist isn't on screen (the panel is closed or on another step), the workspace keeps the writing's
   // clock: it ticks the resume row (200ms) and finishes the draft when the time is up
@@ -274,14 +287,19 @@ function Flow({ row }) {
   // the bar's sub-line wherever the flags matter: flags checked of all (never the weighted points: those are the
   // readiness ⓘ's, in the Draft rail)
   const flagsChecked = `${res.flags.length - review.open} of ${res.flags.length} ${res.flags.length === 1 ? 'flag' : 'flags'} checked`
+  // as the app (owner, 2026-11-05): the draft check runs but isn't shown, so no flag counts anywhere (CONTENT_HIDDEN.draftChecks)
+  const checksShown = !CONTENT_HIDDEN.draftChecks
   // the Target page's draft preview (TargetV1): a draft exists once the session has one (ds.phase 'draft': written in
   // this visit, or saved, draftFor); "Open draft" goes to the Draft step in focus (Resume when it's the open step)
   const openDraft = () => { if (open === DRAFT) setExitedOn(null); else setEditing(current === DRAFT ? null : DRAFT) }
   // v1's Your data in one line ("2 files · 1 fact · 1 of 3 answered"), null when nothing's added
-  const dataLine = full ? null : userDataSummary(data)?.replace(/^./, (c) => c.toUpperCase()) ?? null
+  const dataLine = full ? null : userDataSummary(yourDataOf(data))?.replace(/^./, (c) => c.toUpperCase()) ?? null
   const values = full
     ? STEPS.map((_, i) => stepValue(i, { gsc, gscDomain: gscConnection.domain, target: target.kind === 'new' ? target : { ...target, path: pathOf(target.url) }, data, dataSkipped, draft }))
-    : [null, page.path, dataLine ?? 'Skipped', ds.phase === 'draft' ? `${review.open} ${review.open === 1 ? 'flag' : 'flags'} open` : null, ds.copiedAt ? 'Copied' : null]
+    : [null, page.path, dataLine ?? 'Skipped', ds.phase === 'draft' ? (checksShown ? `${review.open} ${review.open === 1 ? 'flag' : 'flags'} open` : 'Draft ready') : null, ds.copiedAt ? 'Copied' : null,
+      // as the app: step 5, Verify; step 6, Publish & track (the record's state)
+      draft && draft.stage !== 'waiting' ? 'Found' : null,
+      draft && draft.stage !== 'waiting' ? 'Published' : null]
   // v1, Your data after a draft exists: changed since the request went out → "Rewrite the draft" (a Regenerate with
   // the new userFacts); a file still being read holds the button (its text would miss the request)
   const draftExists = ds.phase === 'draft' || writing
@@ -299,7 +317,14 @@ function Flow({ row }) {
   // the draft's three actions (the footer and the Copy & publish step share them): draft/recommend.js R3
   const payloads = useMemo(() => copyPayloads(res.contentMarkdown, competitors), [res]) // eslint-disable-line react-hooks/exhaustive-deps
   // R20's 'ai' tag: the tracked engines whose answers cite that host (the prompt's sources), else unspecified
-  const resolveAi = (h) => { const src = (row.sources ?? []).find((x) => x.domain === h); return src ? citedBy(row, src) : null }
+  // as the app (owner, 2026-11-05: "only the engines that actually cite that page"): the engines whose answer cites
+  // that page (enginesCitingPage), else the ones citing its site (citedBy)
+  const resolveAi = (h, url) => {
+    const p = url ? enginesCitingPage(row, url) : []
+    if (p.length) return p
+    const src = (row.sources ?? []).find((x) => x.domain === h)
+    return src ? citedBy(row, src) : null
+  }
   const blocked = () => toast('Couldn’t copy: the browser blocked the clipboard')
   // advanceAfter: the draft footer shows "Copied ✓" for 2s, then the bar moves to step 3 · → true when it copied
   const copyContent = async ({ advanceAfter = 0 } = {}) => {
@@ -330,14 +355,18 @@ function Flow({ row }) {
       : <TargetV1 res={res} named={named} resolve={resolveAi}
         draft={ds.phase === 'draft' ? { open: review.open, onOpen: openDraft } : null}
         page={page}
-        sc={{ gsc: gscRes, state: scState, domain: scDomain, connecting: scConnecting, justConnected: scJustConnected, onConnect: connectSc, onSkip: () => setScState('skipped'), onChange: () => { setScJustConnected(false); setScState('new') }, page, choice: scChoice, onPick: setScPick, newPath: suggested.slug, prompt: row.prompt }}
+        sc={{ gsc: gscRes, state: scState, domain: scDomain, connecting: scConnecting, justConnected: scJustConnected, onConnect: connectSc, onSkip: () => setScState('skipped'), onChange: () => { setScJustConnected(false); setScState('new') }, onDisconnect: disconnectSc, onChooseProperty: picker.openPicker, picker, onAsk: () => setScState('new'), page, choice: scChoice, onPick: setScPick, newPath: suggested.slug, prompt: row.prompt }}
         write={current < DATA ? { label: 'Add your data', onClick: guideFirst('data', advance) } : current < DRAFT ? { label: 'Write the draft', onClick: advance } : writing ? { label: 'Resume', onClick: openDraft } : null} />,
-    <div data-step="data"><DataStep data={data} update={updateData} v1={!full} cap={cap} drafted={start.ready || ds.phase === 'draft'}
-      guidelines={!full && guidelines ? { brand: CO_BRAND.name, onEdit: () => openGuide(null) } : null} /></div>,
+    <div data-step="data"><DataStep data={data} update={updateData} v1={!full} cap={cap}
+      guidelines={full ? null : guidelines ? { brand: CO_BRAND.name, updated: guidelines.savedAt ?? null, onEdit: () => openGuide(null) } : { none: true, onEdit: () => openGuide(null) }} /></div>,
     <div data-step="draft"><DraftStep guidelines={!full && guidelines ? guidelines : null} res={res} competitors={competitors} session={ds} setSession={setDs} full={full} steps={genSteps} live={liveData} onCopy={copyContent} onCopyHtml={copyHtml} onExport={exportMd} onRecheck={recheck} savedAt={ds.savedAt} resolve={resolveAi} inPanel={focus} /></div>,
     full
       ? <div data-step="publish"><PublishStep row={row} draft={draft ?? { stage: 'waiting', target_url: targetUrl }} onEditDraft={() => { setReady(true); setEditing(DRAFT) }} onApi={setPublishApi} /></div>
       : <div data-step="publish"><CopyPublish res={res} page={page} ticked={ds.ticked} copiedAt={ds.copiedAt} onCopyHtml={copyHtml} onExport={exportMd} onBack={() => setEditing(DRAFT)} /></div>,
+    // as the app: step 5, Verify (owner, 2026-11-05): the publish check runs as it opens
+    <div data-step="verify"><VerifyStep v={verify} cms={cmsLinkOf(page, CO_BRAND.domain)} onCopy={copyContent} onLater={checkLater} /></div>,
+    // step 6 after Verify: Publish & track on the record
+    <div data-step="track"><PublishStep row={row} draft={draft ?? { stage: 'waiting', target_url: targetUrl }} onEditDraft={() => { setReady(true); setEditing(DRAFT) }} onApi={setPublishApi} /></div>,
   ][i]
 
   // the right column: Search Console for the page hovered in Your pages (a preview), else the target page (the selected
@@ -376,11 +405,41 @@ function Flow({ row }) {
   const finishGuide = (then) => { setGuide(null); if (then === 'data') advance(); else if (then === 'draft') skipToDraft() }
   const saveGuide = () => { setGuidelines(saveGuidelines(CO_BRAND.domain, guideForm)); finishGuide(guide?.then) }
   const skipGuide = () => { skipGuidelines(CO_BRAND.domain); finishGuide(guide?.then) }
+  // as the app (owner, 2026-11-05): removing saved guidelines (cleared and marked skipped: not asked again)
+  const removeGuide = () => { removeGuidelines(CO_BRAND.domain); setGuidelines(null); setGuide(null) }
+  const clearedAll = Boolean(guidelines) && !hasGuidelines(guideForm)
   const guideBar = {
     headline: 'Your brand guidelines',
     line: `Asked once. Every draft for ${CO_BRAND.name} follows them.`,
-    action: { label: guide?.then ? 'Save and continue' : 'Save', onClick: saveGuide, disabled: !hasGuidelines(guideForm), why: 'Add a file, text or a rule first' },
-    secondary: guide?.then ? { label: 'Skip for now', onClick: skipGuide } : { label: 'Cancel', onClick: () => setGuide(null) },
+    // saved guidelines with every field now empty: the button removes them (Save would keep the old ones)
+    action: clearedAll ? { label: 'Remove guidelines', onClick: removeGuide, arrow: false }
+      : { label: guide?.then ? 'Save and continue' : 'Save', onClick: saveGuide, disabled: !hasGuidelines(guideForm), why: 'Add a file, text or a rule first' },
+    // "Skip for now" only when the brand has none saved; with saved guidelines, Cancel (never clears them)
+    secondary: guide?.then && !guidelines ? { label: 'Skip for now', onClick: skipGuide } : { label: 'Cancel', onClick: () => setGuide(null) },
+  }
+  // as the app (owner, 2026-11-05): "I’ve pasted it → Verify" opens Verify, which runs the check as it opens
+  const publishedIt = () => { setEditing(null); setCurrent((c) => Math.max(c, VERIFY)) }
+  const verify = useVerify(row, { auto: !full && open === VERIFY })
+  // found: tracking starts (the list shows "Published"); back to the list with a toast and the row highlighted, after
+  // ~2s (the button stays for anyone faster). Check later: the record keeps waiting (the daily check goes on 14 days)
+  const backToList = () => { flashPrompt(row); goTo(LIST_PATH) }
+  const checkLater = () => goTo(LIST_PATH)
+  useEffect(() => {
+    if (full || open !== VERIFY || verify.kind !== 'found') return undefined
+    setDraftState(row.id, { stage: 'monitoring', week: 0, published_at: NOW })
+    setDraft((d) => ({ ...(d ?? {}), target_url: targetUrl, stage: 'monitoring', week: 0 }))
+    const t = setTimeout(backToList, 2000)
+    return () => clearTimeout(t)
+  }, [open, verify.kind]) // eslint-disable-line react-hooks/exhaustive-deps
+  const publishBar = publishBarOf()
+  const verifyBar = {
+    headline: 'Checking your page', // the result's own title is the step's body
+    line: <>{page.url}{page.href && <> · <a href={page.href} target="_blank" rel="noopener noreferrer" className="font-medium text-stone-700 underline decoration-[var(--color-line-strong)] underline-offset-[3px] hover:text-ink">Open page ↗</a></>}{verify.at && verify.kind !== 'running' ? ` · Last checked ${checkedLabel(verify.at)}` : ''}</>,
+    choice: page.path,
+    // one primary: found → back to the list; while it runs, a held button; the other results' buttons are in the body
+    action: verify.kind === 'found' ? { label: 'Done → back to prompts', onClick: backToList, arrow: false }
+      : verify.kind === 'running' || verify.kind === 'idle' ? { label: 'Checking…', disabled: true, why: 'Checking your page…', arrow: false } : null,
+    secondary: null,
   }
   const BAR = [
     {
@@ -395,11 +454,14 @@ function Flow({ row }) {
       // owner, 2026-11-05: a 2–4 word title; the sub-line "Named on n of 5 [icons] · 5 pages win this prompt" (the path
       // is in "Publishing on …")
       headline: page.action === 'update' ? 'Update this page' : 'Create a new page',
-      line: `${page.evidence.length} ${page.evidence.length === 1 ? 'page wins' : 'pages win'} this prompt`,
+      // as the app (owner, 2026-11-05): the page and where it came from first ("Suggested from your site", "From Search Console"…)
+      line: `${page.path} · ${pageSourceLabel(page)} · ${page.evidence.length} ${page.evidence.length === 1 ? 'page wins' : 'pages win'} this prompt${noGuidelines ? ' · No brand guidelines yet' : ''}`,
       named: true,
       choice: page.path,
-      // next: Your data (optional), or straight to the draft; reopened later: Continue
-      action: { label: current === 1 ? 'Add your data' : 'Continue', onClick: current === 1 ? guideFirst('data', advance) : advance },
+      // next: Your data (optional), or straight to the draft; reopened later: Continue. As the app: while the brand has
+      // no guidelines saved and hasn't skipped them, the primary opens them first (saving goes on to Your data)
+      action: current === 1 && noGuidelines ? { label: 'Add brand guidelines', onClick: () => openGuide('data') }
+        : { label: current === 1 ? 'Add your data' : 'Continue', onClick: current === 1 ? guideFirst('data', advance) : advance },
       secondary: current === 1 ? { label: 'Skip to draft', onClick: guideFirst('draft', skipToDraft) } : null,
     } : {
       headline: target.kind === 'page' ? `Update this page to get named on ${moreEngines}` : `Publish a new page to get named on ${moreEngines}`,
@@ -410,7 +472,7 @@ function Flow({ row }) {
     },
     !full ? {
       // v1: the page to beat is the best-ranked winner in the route's evidence (pageRecommendation.evidence)
-      headline: topWinner ? `Add your data so the draft can beat ${topWinner.host}` : 'Add your data so the draft is the best answer',
+      headline: topWinner ? `Add your data so the draft can beat ${competitorName(topWinner.host)}` : 'Add your data so the draft is the best answer', // as the app: the site by its name
       line: dataLine ?? 'Optional · nothing added yet',
       choice: dataLine ?? 'Your data',
       action: stillReading ? { label: dataChanged ? 'Rewrite the draft' : draftExists ? 'Continue' : 'Write the draft', disabled: true, why: 'Still reading your files…' }
@@ -427,30 +489,41 @@ function Flow({ row }) {
     // the Draft: its one primary (Copy content) is the draft's footer, so the header has no button here
     ds.phase === 'draft'
       ? {
-        headline: review.open ? `Resolve ${review.open} ${review.open === 1 ? 'flag' : 'flags'}` : 'Ready to copy',
-        line: `${flagsChecked} · saved in this browser`,
-        choice: `${review.open} flags open`,
+        headline: !checksShown ? 'Draft ready' : review.open ? `Resolve ${review.open} ${review.open === 1 ? 'flag' : 'flags'}` : 'Ready to copy',
+        // as the app: after a hand edit, who edited it and when
+        line: res.editedAt ? `Edited by ${res.editedBy || 'you'} · ${savedLabel(res.editedAt)} · saved in this browser` : checksShown ? `${flagsChecked} · saved in this browser` : 'Saved in this browser',
+        choice: checksShown ? `${review.open} flags open` : 'Draft ready',
         action: null,
       }
       : full
         ? { headline: 'Writing the draft', line: ds.startedAt == null ? 'Starting…' : `${fmtSecs(Math.min(genE, gen.totalMs))} · ${gen.done ? 'Finishing' : genSteps[Math.max(0, gen.rows.findIndex((r) => r.status !== 'done'))]?.label}`, choice: 'Writing the draft', action: null }
         : { headline: 'Writing your draft', line: 'Usually under a minute · you can leave this panel', choice: 'Writing your draft', action: null },
     !full ? {
-      // v1: the copy / export moment (the route has no publish check yet)
+      // v1: the copy / export moment; as the app (owner, 2026-11-05): once copied, "I’ve pasted it → Verify" (Copy content
+      // becomes the secondary "Copy again"); Copy as HTML / Export .md in More
       headline: page.action === 'update' ? 'Paste it into your page' : 'Publish the new page',
       line: ds.copiedAt ? `Copied ${savedLabel(ds.copiedAt)} · saved in this browser` : 'Not copied yet · saved in this browser',
       choice: page.path,
-      action: { label: 'Copy content', onClick: copyContent },
-    } :
-    publishApi?.phase === 'tracking'
+      action: ds.copiedAt ? { label: 'I’ve pasted it → Verify', onClick: publishedIt, arrow: false } : { label: 'Copy content', onClick: copyContent },
+      secondary: ds.copiedAt ? { label: 'Copy again', onClick: copyContent } : null,
+      menu: [{ label: 'Copy as HTML', onClick: copyHtml }, { label: 'Export .md', onClick: exportMd }],
+    } : publishBar,
+    // step 5, Verify: "Checking your page", the target and its link; the result's one primary
+    verifyBar,
+    // step 6, Publish & track (the ?backend=full step-5 bar)
+    publishBar,
+  ]
+  // Publish & track's bar (?backend=full's step 5, v1's step 6)
+  function publishBarOf() {
+    return publishApi?.phase === 'tracking' || (!full && draft && draft.stage !== 'waiting')
       ? { headline: `Tracking ${names(missedEngines)} each sync`, line: `${targetPath} · week ${Math.max(1, draft?.week ?? 1)} of 4`, choice: targetPath, action: null }
       : {
         headline: `Publish to start tracking ${names(missedEngines)}`,
         line: `Waiting for ${targetPath} · ${checkedLine(draft?.published_checked_at)}`,
         choice: targetPath,
         action: { label: 'I’ve published it', onClick: () => publishApi?.check(), disabled: !publishApi || publishApi.checking, why: publishApi?.checking ? 'Checking your page…' : 'Copy the draft to your site first' },
-      },
-  ]
+      }
+  }
   // the bar's one stakes block: the engines that name the brand now (the rest are the missed ones)
   const named = answeredEngines().filter((e) => !row.platforms.includes(e))
   // two things, kept apart: where the flow is (open: steps 1–5) and whether the focus panel is up (focus). The page's
@@ -465,8 +538,13 @@ function Flow({ row }) {
       : open === DRAFT
       ? ds.phase === 'generating'
         ? { headline: 'Writing your draft…', line: LOADING_LINES[genE >= LOADING_SWITCH_MS ? 1 : 0], busy: true }
-        : { headline: review.open ? `Draft ready · ${review.open} ${review.open === 1 ? 'flag' : 'flags'} to resolve` : 'Draft ready to copy', line: flagsChecked, busy: false }
-      : { headline: ds.copiedAt ? 'Copied · ready to publish' : 'Ready to copy & publish', line: page.path, busy: false }
+        : checksShown ? { headline: review.open ? `Draft ready · ${review.open} ${review.open === 1 ? 'flag' : 'flags'} to resolve` : 'Draft ready to copy', line: flagsChecked, busy: false }
+          : { headline: 'Draft ready', line: 'Saved in this browser', busy: false }
+      : open === VERIFY
+        ? { headline: verifyBar.headline, line: page.path, busy: verify.kind === 'running' }
+      : open === PUBLISH
+        ? resumeState({ open: 4, stage: draft?.stage, week: draft?.week, path: page.path }) // as ?backend=full's step 5
+        : { headline: ds.copiedAt ? 'Copied · ready to publish' : 'Ready to copy & publish', line: page.path, busy: false }
   const bar = onPage ? BAR[open] : { ...live, choice: live.headline, action: { label: 'Resume', onClick: () => setExitedOn(null) }, secondary: null }
   const focusBar = BAR[open]
   // the dock: shown while the bar is out of view above (it scrolled past)
@@ -486,7 +564,7 @@ function Flow({ row }) {
     if (publishApi?.phase !== 'tracking' || !draft || draft.stage !== 'waiting') return
     setDraftState(row.id, { stage: 'monitoring', week: 0, published_at: NOW })
     setDraft((d) => ({ ...d, stage: 'monitoring', week: 0 }))
-    setExitedOn(4)
+    setExitedOn(full ? 4 : PUBLISH) // v1: Publish & track is step 6's index
   }, [publishApi?.phase]) // eslint-disable-line react-hooks/exhaustive-deps
   const palette = {
     '--co-a': cssColor({ light: BRAND_PALETTE[0], dark: BRAND_PALETTE_DARK[0] }),
@@ -496,13 +574,15 @@ function Flow({ row }) {
     // one spacing system: each section with a clear header over a --line-strong rule, 48px apart; the header row is
     // the page's summary and the payoff bar sits 24px under it (the header stays a direct child so it stays sticky)
     <div className="co-ws flex flex-col" style={palette}>
-      <Header row={row} />
+      {/* as the app (owner, 2026-11-05): the brand guidelines link lives in the top bar, so it's there at every step (the
+          same screen, pre-filled, Save / Cancel): "Brand guidelines · Added Nov 5" when saved, "Add brand guidelines" */}
+      <Header row={row} guideLink={full ? null : { label: guidelines ? `Brand guidelines · ${guidelinesStamp(guidelines)}` : 'Add brand guidelines', onClick: () => openGuide(null) }} />
       <section ref={panel} aria-labelledby="co-step-h" tabIndex={-1} className="mt-6 scroll-mt-24 outline-none">
         {/* the payoff bar: the step's reward, its progress and its one action; while steps 3–5 are under way (they live
             only in the focus panel), what they're doing, live, and Resume */}
         <PayoffBar barRef={barRef} current={current} open={open} values={values} onPick={pick} headingId="co-step-h"
           headline={bar.headline} line={bar.line} showNamed={Boolean(bar.named)} busy={bar.busy} engines={answeredEngines()} named={named} engineName={(e) => ENGINE_NAME[e]}
-          action={bar.action} secondary={bar.secondary} onClose={editing != null && onPage ? () => setEditing(null) : null} steps={steps} />
+          action={bar.action} secondary={bar.secondary} extra={bar.extra} onClose={editing != null && onPage ? () => setEditing(null) : null} steps={steps} />
         {/* the page's step: step 1 (Search Console), else always step 2's layout, whatever the flow's step: the step (7/12),
             Search Console (5/12), 32px apart with a 1px line between */}
         {full ? (
@@ -524,10 +604,10 @@ function Flow({ row }) {
       {full && <div className="mt-12"><UpAgainst row={row} named={(d) => namedSummary(grid, d, (e) => ENGINE_NAME[e])} /></div>}
       {/* while the dock shows, room under the page so it never covers the last row */}
       <div aria-hidden className="transition-[height] duration-200 ease-out print:hidden" style={{ height: showDock ? 88 : 0 }} />
-      <ActionDock show={showDock} open={open} choice={bar.choice} action={bar.action} secondary={bar.secondary} />
+      <ActionDock show={showDock} open={open} choice={bar.choice} action={bar.action} secondary={bar.secondary} steps={steps} />
 
       {/* focus mode: steps 3–5 in a centred panel over the blurred, dimmed page (workspace/FocusPanel.jsx) */}
-      <FocusPanel active={focus || Boolean(guide)} width={guide ? 880 : open === DRAFT ? 1200 : 880} fromRef={panel} labelledBy="co-focus-title" onExit={guide ? () => setGuide(null) : exitFocus} style={palette}
+      <FocusPanel active={focus || Boolean(guide)} width={guide ? 880 : open === DRAFT ? 1200 : open === DATA && !full ? 960 : 880} minHeight={!guide && open === DATA && !full ? '70vh' : null} fromRef={panel} labelledBy="co-focus-title" onExit={guide ? () => setGuide(null) : exitFocus} style={palette}
         scrollerRef={focusScroller} entrance={entrance}>
         {/* one header (sticky in the panel): progress · prompt · page · Exit, then the step's headline and its button.
             The guidelines screen uses it too, with the progress still on the step it was opened from (not a step) */}
@@ -536,12 +616,14 @@ function Flow({ row }) {
             headline={guideBar.headline} line={guideBar.line} action={guideBar.action} secondary={guideBar.secondary} onExit={() => setGuide(null)} steps={steps} notStep />
         ) : (
           <PanelHeader current={current} open={open} values={values} onPick={pick} prompt={row.prompt} path={targetPath} titleId="co-focus-title" headingId="co-focus-step-h"
-            headline={focusBar.headline} line={focusBar.line} action={focusBar.action} secondary={focusBar.secondary}
+            headline={focusBar.headline} line={focusBar.line} action={focusBar.action} secondary={focusBar.secondary} menu={focusBar.menu}
             onClose={editing != null ? () => setEditing(null) : null} onExit={exitFocus} steps={steps} />
         )}
         {guide
           ? <div key="guide" className="co-slide-in min-w-0 px-6 pb-8 pt-6 max-md:px-4" data-step="guidelines">
               <GuidelinesForm value={guideForm} onChange={(p) => setGuideForm((g) => ({ ...g, ...p }))} note={`Saved to ${CO_BRAND.name}. Edit anytime in Brand Setup.`} />
+              {/* as the app (owner, 2026-11-05): whenever guidelines are saved, a plain way to remove them */}
+              {guidelines && <button type="button" onClick={removeGuide} data-remove-guidelines className="mt-6 rounded text-[13px] leading-[18px] font-medium text-stone-600 underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">Remove guidelines</button>}
             </div>
           : <div key={open} className="co-slide-in min-w-0 px-6 pb-8 pt-6 max-md:px-4">{focus ? body(open) : null}</div>}
       </FocusPanel>
@@ -556,29 +638,25 @@ function Flow({ row }) {
 // the no-result state: it counts as neither missed nor named, and the header says so with the ⓘ.
 const answeredEngines = () => ENGINES.filter((e) => hasResult(engineIcon(e)))
 
-function Header({ row }) {
+function Header({ row, guideLink = null }) {
   const engines = answeredEngines()
   const noResult = ENGINES.filter((e) => !engines.includes(e))
   const missedIds = engines.filter((e) => row.platforms.includes(e))
   const missed = missedIds.length
-  const named = uniqueDomains(row.competitors, [OWN_DOMAIN])
   return (
     <header data-sticky-header className="sticky top-14 z-30 -mx-4 border-b border-[var(--div)] bg-page px-4 md:-mx-6 md:px-6 lg:top-0 lg:-mt-8">
       <div className="flex min-h-16 flex-wrap items-center gap-x-5 gap-y-2 py-2 lg:h-16 lg:flex-nowrap lg:py-0">
         <button type="button" onClick={() => goTo(LIST_PATH)} className={`${textBtn} -ml-0.5`}><ArrowLeft size={14} aria-hidden />Back to list</button>
         <span className="h-5 w-px shrink-0 bg-line max-lg:hidden" aria-hidden />
         <h1 style={promptVT(row.id)} title={row.prompt} className="min-w-0 flex-1 truncate text-[18px] leading-6 font-semibold tracking-[-0.01em] text-stone-900 max-lg:order-last max-lg:basis-full">{row.prompt}</h1>
+        {guideLink && <button type="button" onClick={guideLink.onClick} className={`${textBtn} shrink-0`} data-guidelines-link>{guideLink.label}</button>}
         <div className="flex shrink-0 items-center gap-3">
           <span className="text-[13px] leading-[18px] text-stone-600 tabular-nums">Missed on {missed} of {engines.length}</span>
           {/* the missed engines themselves, in full colour (they're the point of the label) */}
           <Engines ids={missedIds} engineName={(e) => ENGINE_NAME[e]} size={18} none="None" />
           {noResult.map((e) => <NoResultHint key={e} engine={engineIcon(e)} align="right" />)}
         </div>
-        <span className="h-5 w-px shrink-0 bg-line max-sm:hidden" aria-hidden />
-        <div className="flex shrink-0 items-center gap-3">
-          <span className="text-[13px] leading-[18px] text-stone-600">Named instead</span>
-          <LogoStack domains={named} max={3} labels={brandLabels} empty={<span className="text-[13px] leading-[18px] text-stone-500">No brand</span>} />
-        </div>
+        {/* as the app (owner, 2026-11-05): no "Named instead" logos (and no divider before them) */}
       </div>
     </header>
   )

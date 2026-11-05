@@ -2,23 +2,26 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { missedPrompts } from '../../../data/mock.js'
 import { CONTENT_RECOMMEND, hostileResponse } from '../../../data/contentRecommend.js'
+import { withoutDropped } from './recommend.js'
 import { competitorTerms, confirmOf, copyPayloads, draftSections, formatRows, liveDataOf, outlineOf, readinessOf, sortedFlags, sourcesOf, sourcesToOutrank, splitMentions, withComparisons } from './recommend.js'
 import { parseInline, parseMarkdown, plainOf } from './markdown.js'
 
 const res = CONTENT_RECOMMEND[13]
 
-test('R1–R3: hidden sections and the notice stay out of the rendered draft and Copy; Export keeps everything', () => {
+test('R1–R3: hidden sections and the notice stay out of the rendered draft and Copy; Export keeps everything but ## Sources', () => {
   const { shown, sections } = draftSections(res.contentMarkdown)
   const hidden = sections.filter((s) => s.hidden).map((s) => s.title)
   assert.ok(hidden.includes('Page recommendation') && hidden.includes('Flags'))
-  assert.ok(hidden.every((t) => ['Page recommendation', 'Flags', 'Publishing notes'].includes(t)))
+  assert.ok(hidden.every((t) => ['Page recommendation', 'Flags', 'Publishing notes', 'Sources'].includes(t)))
   assert.ok(!shown.some((s) => /page recommendation|flags|publishing notes/i.test(s.title)))
   const c = copyPayloads(res.contentMarkdown)
   for (const s of [c.markdown, c.html, c.plain]) {
     assert.ok(!/Page recommendation|## Flags|Publishing notes|Draft for client review/i.test(s))
     assert.ok(s.includes('Direct answer'))
   }
-  assert.equal(c.exportMd, res.contentMarkdown)
+  // as the app (owner, 2026-11-05): ## Sources is dropped everywhere, Export .md included
+  assert.equal(c.exportMd, withoutDropped(res.contentMarkdown))
+  assert.ok(!c.exportMd.includes('## Sources') && !shown.some((x) => x.title === 'Sources'))
   assert.ok(c.exportMd.includes('## Page recommendation') && c.exportMd.includes('## Flags'))
 })
 
@@ -48,8 +51,8 @@ test('R5–R7: confirm phrases, competitor mentions, sources', () => {
   assert.equal(confirmOf(parseInline('Plain line.')).confirm, false)
   const terms = competitorTerms(['cerave.com'], () => 'CeraVe')
   assert.deepEqual(splitMentions('Unlike CeraVe’s routine', terms), [{ text: 'Unlike ' }, { text: 'CeraVe', mention: true }, { text: '’s routine' }])
-  const { shown } = draftSections(res.contentMarkdown)
-  const src = sourcesOf(shown.find((s) => s.title === 'Sources').blocks)
+  const { sections } = draftSections(res.contentMarkdown) // Sources is hidden now (as the app); its rows still parse
+  const src = sourcesOf(sections.find((s) => s.title === 'Sources').blocks)
   assert.ok(src.length >= 3 && src.every((s) => /^https:\/\//.test(s.url) && s.host && !s.host.startsWith('www.')))
 })
 
@@ -81,17 +84,17 @@ import { SAMPLES, SAMPLE_ROWS } from '../../../data/contentRecommend.js'
 test('rm-1: Sources rows (label · domain · note), Copy leaves out competitor sources and the page recommendation; the comparison is a grid', () => {
   const rm = SAMPLES['rm-1']
   const comps = SAMPLE_ROWS[0].competitors
-  const { shown } = draftSections(rm.contentMarkdown)
-  const src = sourcesOf(shown.find((s) => s.title === 'Sources').blocks)
+  const { shown, sections } = draftSections(rm.contentMarkdown)
+  const src = sourcesOf(sections.find((s) => s.title === 'Sources').blocks) // hidden now (as the app)
   assert.equal(src.length, 7) // the "recommended new page" bullet isn't a source
   assert.deepEqual(src[0], { url: 'https://www.hud.gov/program_offices/housing/sfh/hecm/hecmhome', host: 'hud.gov', path: '/program_offices/housing/sfh/hecm/hecmhome', label: 'HUD, Home Equity Conversion Mortgage program overview', note: 'flag for expert review' })
   const c = copyPayloads(rm.contentMarkdown, comps)
   for (const s of [c.markdown, c.html]) {
     assert.ok(!comps.some((d) => s.includes(d)), 'no competitor-domain source')
     assert.ok(!/recommended new page|Page recommendation|## Flags|Draft for client review/i.test(s))
-    assert.ok(s.includes('hud.gov') && s.includes('consumerfinance.gov'))
+    assert.ok(!s.includes('Sources'), 'no Sources section (as the app)')
   }
-  assert.ok(c.exportMd.includes('keystonereverse.com') && c.exportMd.includes('## Flags'))
+  assert.ok(c.exportMd.includes('## Flags') && !c.exportMd.includes('## Sources'))
   const cmp = withComparisons(shown.find((s) => /^Line of credit vs/.test(s.title)).blocks).find((b) => b.type === 'compare')
   assert.equal(cmp.uniform, true)
   assert.deepEqual(cmp.labels, ['Growth', 'Flexibility', 'Repayment', 'Best for'])
@@ -122,8 +125,8 @@ test('R21: the draft plan before it arrives: FAQ + up to 2 gaps; Steps / Compari
   const recs = [{ id: 'how_to', status: 'missing' }, { id: 'comparison', status: 'missing' }, { id: 'stats', status: 'missing' }, { id: 'faq', status: 'covered' }]
   const p = draftPlan(recs)
   assert.deepEqual(p.missing.map((m) => m.id), ['faq', 'how_to', 'comparison'])
-  assert.deepEqual(p.sections, ['Direct answer', 'Key points', 'Steps', 'Comparison', 'Detailed explanation', 'FAQ', 'Sources'])
-  assert.deepEqual(draftPlan([{ id: 'stats', status: 'partial' }]).sections, ['Direct answer', 'Key points', 'Detailed explanation', 'FAQ', 'Sources'])
+  assert.deepEqual(p.sections, ['Direct answer', 'Key points', 'Steps', 'Comparison', 'Detailed explanation', 'FAQ'])
+  assert.deepEqual(draftPlan([{ id: 'stats', status: 'partial' }]).sections, ['Direct answer', 'Key points', 'Detailed explanation', 'FAQ']) // no Sources (as the app)
 })
 
 import { flagHost, outlineShort, upAgainstRows } from './recommend.js'

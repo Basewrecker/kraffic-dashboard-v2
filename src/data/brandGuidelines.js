@@ -30,13 +30,31 @@ export function loadGuidelines(domain) {
     return hasGuidelines(g) ? { ...EMPTY_GUIDELINES, ...g } : null
   } catch { return null }
 }
+// addedAt: when they were first saved (kept through edits), for "Added Nov 5" / "Updated Nov 7"
 export function saveGuidelines(domain, g) {
-  const saved = { ...EMPTY_GUIDELINES, ...g, savedAt: new Date().toISOString() }
+  const now = new Date().toISOString()
+  const saved = { ...EMPTY_GUIDELINES, ...g, addedAt: g.addedAt ?? loadGuidelines(domain)?.addedAt ?? now, savedAt: now }
   try { store()?.setItem(KEY(domain), JSON.stringify(saved)); store()?.removeItem(SKIP(domain)) } catch { /* private mode: this visit only */ }
   return saved
 }
+// removed = skipped (owner, 2026-11-05, as the app): the one-time screen isn't shown again; "Add" everywhere
 export function removeGuidelines(domain) {
-  try { store()?.removeItem(KEY(domain)) } catch { /* private mode */ }
+  try { store()?.removeItem(KEY(domain)); store()?.setItem(SKIP(domain), '1') } catch { /* private mode */ }
+}
+
+// "Added Nov 5" (never edited since) or "Updated Nov 7": the list's button and the prompt's top bar
+export const updatedLabel = (iso) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '')
+export function guidelinesStamp(g) {
+  if (!g) return ''
+  const added = g.addedAt ?? g.savedAt ?? null
+  const edited = g.savedAt && added && Date.parse(g.savedAt) - Date.parse(added) > 60_000
+  return edited ? `Updated ${updatedLabel(g.savedAt)}` : `Added ${updatedLabel(added)}`
+}
+// the text sent with a draft is cut at 20,000 characters (the file's text plus the pasted text)
+export const GUIDE_MAX_CHARS = 20_000
+export function guidelinesTrim(g) {
+  const chars = (g?.file?.text?.length ?? 0) + (g?.text?.length ?? 0)
+  return { trimmed: chars > GUIDE_MAX_CHARS, chars, max: GUIDE_MAX_CHARS }
 }
 export function skipGuidelines(domain) {
   try { store()?.setItem(SKIP(domain), '1') } catch { /* private mode */ }

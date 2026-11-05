@@ -168,7 +168,21 @@ export const dataTasks = ({ uploads, facts, questions, pasted }) => [
 // keeps its 0–4 indices either way; only the visible list changes. → [{ i, title, short }]
 export const stepsFor = (full) => (full
   ? STEPS.map((s, i) => ({ ...s, i }))
-  : [{ ...STEPS[1], i: 1, title: 'Target page', short: 'Target page' }, { ...STEPS[2], i: 2, title: 'Your data' }, { ...STEPS[3], i: 3 }, { id: 'copy', i: 4, title: 'Copy & publish', short: 'Copy & publish' }])
+  : [{ ...STEPS[1], i: 1, title: 'Target page', short: 'Target page' }, { ...STEPS[2], i: 2, title: 'Your data' }, { ...STEPS[3], i: 3 }, { id: 'copy', i: 4, title: 'Copy & publish', short: 'Copy & publish' },
+    // as the app (owner, 2026-11-05): Verify, then Publish & track. ONE list for every count ("n of 6": the step card,
+    // the focus panel's header, the dock)
+    { id: 'verify', i: VERIFY, title: 'Verify', short: 'Verify' }, { id: 'publish', i: PUBLISH, title: 'Publish & track', short: 'Publish & track' }])
+// v1's last two steps (the flow's own indices stay 0–4): Verify runs the publish check as it opens; Publish & track
+export const VERIFY = 5
+export const PUBLISH = 6
+// v1's start: copied but not verified (the record waits) → Verify; verified → Publish & track
+export function startOfV1(draft, gsc) {
+  const s = startOf(draft, gsc)
+  if (!draft || draft.stage === 'draft') return s
+  return { ...s, current: draft.stage === 'waiting' ? VERIFY : PUBLISH }
+}
+// a published prompt (tracking, improved, no change) is finished: it opens on the page, not in focus
+export const startExitedV1 = (draft, current) => (draft && !['draft', 'waiting'].includes(draft.stage) && current === PUBLISH ? PUBLISH : null)
 // the next visible step after c (or c when it's the last)
 export const nextVisible = (steps, c) => steps.find((s) => s.i > c)?.i ?? c
 // where a step sits among the visible ones: "2 of 3"

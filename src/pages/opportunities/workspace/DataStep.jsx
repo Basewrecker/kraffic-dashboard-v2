@@ -1,3 +1,5 @@
+// as the app (owner, 2026-11-05): only ① Upload documents shows for now; ② and ③ are hidden by CONTENT_HIDDEN
+// (data/contentApp.js) and their payload isn't sent. ?backend=full (the mock's proposal) keeps all three.
 // Step 3: Your data (optional), in the focus panel, as three numbered tasks under one intro line (15px muted). Each task:
 // a 28px number circle (ink once something's added), a title (17/600), one muted line on why it helps (it collapses
 // once something's added), a status on the right ("Optional", then "2 files" / "2 added" / "1 answered" with a small
@@ -30,6 +32,8 @@ import { ANSWER_MAX, LABEL_MAX, VALUE_MAX } from '../data/userFacts'
 import { textBtn } from '../../../components/firstSetup/ui'
 import { UPLOAD_MS, factsFound } from '../../../data/contentOpportunities-proposed'
 import { FLAG_RULES } from '../../../data/contentRecommend'
+import { updatedLabel } from '../../../data/brandGuidelines' // as the app
+import { CONTENT_HIDDEN } from '../../../data/contentApp' // as the app: ② and ③ hidden for now (owner, 2026-11-05); the code stays
 import { fileKind, fileSize, suggestionsFor, uploadState } from './flow'
 import { Collapse, DashedRing, GreenTick } from './ui'
 
@@ -47,9 +51,11 @@ const SHOW = 4 // suggestions shown before "Show n more"
 let nextId = 100
 
 // v1: the browser reads the files (see above) · cap: buildUserFacts' result ({ over, cut, unused }), v1 only
-// drafted: a draft exists, so the questions are its flags; before that they're the first-visit set (userFacts FIRST_VISIT)
-// guidelines: { brand, onEdit } once the brand's guidelines are saved: "Using <brand>'s guidelines · Edit" under the intro
-export default function DataStep({ data, update, v1 = false, cap = null, drafted = true, guidelines = null }) {
+// guidelines: { brand, onEdit } once the brand's guidelines are saved: "Using <brand>'s guidelines · Edit" under the intro;
+// app (owner, 2026-11-05): { none: true, onEdit } when there are none: "No brand guidelines · Add"
+// app (owner, 2026-11-05): with ② and ③ hidden, Upload documents is the only section: no number, no status (the header
+// says Optional), a 240px drop zone that stays full size, and the files listed under it
+export default function DataStep({ data, update, v1 = false, cap = null, guidelines = null }) {
   const { uploads, facts, questions, pasted, dismissed = [] } = data
   const [pasting, setPasting] = useState(false)
   const [draftText, setDraftText] = useState(pasted)
@@ -96,21 +102,30 @@ export default function DataStep({ data, update, v1 = false, cap = null, drafted
   const pendingFrom = (u) => suggestions.filter((s) => s.key.startsWith(`${u.id}:`)).length
   const addFacts = (xs) => update({ facts: [...facts.filter((f) => f.label.trim() || f.value.trim()), ...xs.map(({ label, value }) => ({ label, value }))] })
   const shown = more ? suggestions : suggestions.slice(0, SHOW)
+  const solo = v1 && CONTENT_HIDDEN.keyFacts && CONTENT_HIDDEN.flagAnswers // app: only Upload documents shows
 
   return (
     <div>
       <p className="text-[15px] leading-[22px] text-stone-500">Give the draft what only you know. Everything here is optional.</p>
       {v1 && <p className="mt-1 text-[13px] leading-[18px] text-stone-500">Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team.</p>}
-      {guidelines && (
+      {guidelines?.none && (
+        <p className="mt-3 flex items-center gap-1.5 text-[13px] leading-[18px] text-stone-600" data-guidelines-used="none">
+          <span>No brand guidelines</span><span aria-hidden className="text-stone-400">·</span>
+          <button type="button" onClick={guidelines.onEdit} className={LINK}>Add</button>
+        </p>
+      )}
+      {guidelines && !guidelines.none && (
         <p className="mt-3 flex items-center gap-1.5 text-[13px] leading-[18px] text-stone-600" data-guidelines-used>
           <Check size={14} className="text-[var(--rep-up-fg)]" aria-hidden />
           <span>Using {guidelines.brand}’s guidelines</span><span aria-hidden className="text-stone-400">·</span>
+          {/* app (owner, 2026-11-05): when they were last updated */}
+          {guidelines.updated && <><span className="tabular-nums">Updated {updatedLabel(guidelines.updated)}</span><span aria-hidden className="text-stone-400">·</span></>}
           <button type="button" onClick={guidelines.onEdit} className={LINK}>Edit</button>
         </p>
       )}
       <ol className="mt-6 divide-y divide-[var(--div)]">
-        <Task n={1} title="Upload documents" why="Studies, spec sheets or price lists the draft can quote." status={nFiles ? `${nFiles} ${nFiles === 1 ? 'file' : 'files'}` : null}>
-          <DropZone slim={nRows > 0} v1={v1} onFiles={addFiles} onPaste={() => { setDraftText(pasted); setPasting(true) }} />
+        <Task n={1} plain={solo} title="Upload documents" why="Studies, spec sheets or price lists the draft can quote." status={nFiles ? `${nFiles} ${nFiles === 1 ? 'file' : 'files'}` : null}>
+          <DropZone slim={!solo && nRows > 0} large={solo} v1={v1} onFiles={addFiles} onPaste={() => { setDraftText(pasted); setPasting(true) }} />
           <Collapse open={pasting}>
             <div className="flex flex-col gap-2 pt-3">
               <textarea value={draftText} onChange={(e) => setDraftText(e.target.value)} rows={4} aria-label="Pasted text" placeholder="Paste notes, a product sheet or an approved answer"
@@ -122,10 +137,11 @@ export default function DataStep({ data, update, v1 = false, cap = null, drafted
             </div>
           </Collapse>
           {nRows > 0 && (
-            <ul className="mt-2" aria-label="Added">
+            <ul className={solo ? 'mt-6' : 'mt-2'} aria-label="Added">
+              {solo && <li className="border-b border-[var(--div)] pb-2 text-[13px] leading-[18px] tabular-nums text-stone-500">{nRows} {nRows === 1 ? 'file' : 'files'} added</li>}
               {uploads.map((u) => {
                 const Icon = KIND_ICON[u.type] ?? FileText
-                if (v1) return <FileRowV1 key={u.id} u={u} Icon={Icon} onRemove={() => update((d) => ({ uploads: d.uploads.filter((x) => x.id !== u.id) }))} />
+                if (v1) return <FileRowV1 key={u.id} u={u} Icon={Icon} showX={solo} onRemove={() => update((d) => ({ uploads: d.uploads.filter((x) => x.id !== u.id) }))} />
                 const st = uploadState(u, now, UPLOAD_MS)
                 const left = st.reading ? null : pendingFrom(u)
                 return (
@@ -160,7 +176,7 @@ export default function DataStep({ data, update, v1 = false, cap = null, drafted
           {v1 && cap?.over && <OverCap cap={cap} />}
         </Task>
 
-        <Task n={2} title="Add key facts" why="Exact numbers and names the draft must get right." status={filledFacts.length ? `${filledFacts.length} added` : null}>
+        {!(v1 && CONTENT_HIDDEN.keyFacts) && <Task n={2} title="Add key facts" why="Exact numbers and names the draft must get right." status={filledFacts.length ? `${filledFacts.length} added` : null}>
           {/* one table: label · value · source · action (the value column lines up on every row). v1 has no suggested
               facts, so every fact is the user's: no source column, the value takes its width */}
           <ul aria-label="Facts">
@@ -205,10 +221,10 @@ export default function DataStep({ data, update, v1 = false, cap = null, drafted
               </>
             )}
           </ul>
-        </Task>
+        </Task>}
 
-        <Task n={3} title={<>Answer what you can<span className="ml-2 text-[15px] font-normal tabular-nums text-stone-500">{answered} of {questions.length}</span></>}
-          why={drafted ? 'The draft flagged these. Answers remove the flags.' : 'Drafts are often flagged for these. Answers go into the draft.'} status={answered ? `${answered} answered` : null}>
+        {!(v1 && CONTENT_HIDDEN.flagAnswers) && <Task n={v1 && CONTENT_HIDDEN.keyFacts ? 2 : 3} title={<>Answer what you can<span className="ml-2 text-[15px] font-normal tabular-nums text-stone-500">{answered} of {questions.length}</span></>}
+          why="The draft flagged these. Answers remove the flags." status={answered ? `${answered} answered` : null}>
           {questions.length === 0 && <p className="text-[14px] leading-5 text-stone-500">Nothing to answer: the draft check found no missing brand info.</p>}
           <ul>
             {questions.map((q) => {
@@ -226,15 +242,25 @@ export default function DataStep({ data, update, v1 = false, cap = null, drafted
               )
             })}
           </ul>
-        </Task>
+        </Task>}
       </ol>
     </div>
   )
 }
 
 // a task: number circle · title · why (collapses once something's added) · status ("Optional", or what's added + a tick)
-function Task({ n, title, why, status, children }) {
+// plain: app (owner, 2026-11-05): the only section: no number circle, no status, the why line stays
+function Task({ n, title, why, status, children, plain = false }) {
   const done = Boolean(status)
+  if (plain) {
+    return (
+      <li className="min-w-0" data-task="plain">
+        <h3 className="text-[17px] leading-6 font-semibold text-stone-900">{title}</h3>
+        <p className="text-[14px] leading-5 text-stone-500">{why}</p>
+        <div className="mt-4">{children}</div>
+      </li>
+    )
+  }
   return (
     <li className="grid grid-cols-[28px_minmax(0,1fr)] gap-x-4 py-8 first:pt-0 last:pb-0">
       <span aria-hidden className={`grid h-7 w-7 place-items-center rounded-full text-[14px] font-semibold tabular-nums transition-colors duration-200 ${done ? 'bg-ink text-on-ink' : 'border border-[var(--color-line-strong)] text-stone-700'}`}>{n}</span>
@@ -255,7 +281,8 @@ function Task({ n, title, why, status, children }) {
 // ① the drop zone: 120px when empty; with files, a 48px drop row (the height eases, 240ms). Real drag events (a counter
 // for the zone's children); a drop with no files (a synthetic event) adds a sample file so the flow can be shown
 // one: a single file (Brand guidelines: "Drop a file here", its own formats line and accept list)
-export function DropZone({ slim, onFiles, onPaste, v1 = false, one = null }) {
+// large: app (owner, 2026-11-05): Your data's only section: 240px, a 32px icon, "Drop files here" at 20px
+export function DropZone({ slim, onFiles, onPaste, v1 = false, one = null, large = false }) {
   const [over, setOver] = useState(false)
   const depth = useRef(0)
   const input = useRef(null)
@@ -271,7 +298,7 @@ export function DropZone({ slim, onFiles, onPaste, v1 = false, one = null }) {
   return (
     <div data-dropzone onDragEnter={enter} onDragOver={(e) => { e.preventDefault(); if (!over) setOver(true) }} onDragLeave={leave} onDrop={drop}
       className={`relative overflow-hidden rounded-[12px] border-[1.5px] border-dashed transition-[height,border-color,background-color] duration-[240ms] ease-out motion-reduce:transition-none ${over ? 'border-ink bg-[var(--tabs)]' : 'border-[var(--color-line-strong)]'}`}
-      style={{ height: slim ? 48 : 120 }}>
+      style={{ height: slim ? 48 : large ? 240 : 120 }}>
       {slim ? (
         <div className="flex h-full items-center gap-3 px-4 motion-safe:animate-[fade-in_200ms_ease-out]">
           <Upload size={16} aria-hidden className="shrink-0 text-stone-600 transition-transform duration-200 ease-out" style={{ transform: over ? 'translateY(-2px)' : 'none' }} />
@@ -284,10 +311,10 @@ export function DropZone({ slim, onFiles, onPaste, v1 = false, one = null }) {
         </div>
       ) : (
         <div className="flex h-full flex-col items-center justify-center text-center">
-          <Upload size={22} aria-hidden className="text-stone-600 transition-transform duration-200 ease-out motion-reduce:transition-none" style={{ transform: over ? 'translateY(-4px)' : 'none' }} />
-          <p className="mt-1 text-[16px] leading-6 font-semibold text-stone-900" aria-live="polite">{over ? 'Release to upload' : one ? 'Drop a file here' : 'Drop files here'}</p>
-          <p className="text-[13px] leading-[18px] text-stone-500">{one ? one.formats : v1 ? 'PDF, DOCX, CSV or TXT · up to 10 MB each, 5 files' : 'PDF, DOCX, CSV or images · up to 20 MB'}</p>
-          <span className="mt-2 flex items-center gap-3" style={{ visibility: over ? 'hidden' : 'visible' }}>
+          <Upload size={large ? 32 : 22} aria-hidden className="text-stone-600 transition-transform duration-200 ease-out motion-reduce:transition-none" style={{ transform: over ? 'translateY(-4px)' : 'none' }} />
+          <p className={`${large ? 'mt-3 text-[20px] leading-7' : 'mt-1 text-[16px] leading-6'} font-semibold text-stone-900`} aria-live="polite">{over ? 'Release to upload' : one ? 'Drop a file here' : 'Drop files here'}</p>
+          <p className={`${large ? 'mt-1 ' : ''}text-[13px] leading-[18px] text-stone-500`}>{one ? one.formats : v1 ? 'PDF, DOCX, CSV or TXT · up to 10 MB each, 5 files' : 'PDF, DOCX, CSV or images · up to 20 MB'}</p>
+          <span className={`${large ? 'mt-4' : 'mt-2'} flex items-center gap-3`} style={{ visibility: over ? 'hidden' : 'visible' }}>
             <button type="button" onClick={browse} className={OUTLINED}>{one ? 'Browse' : 'Browse files'}</button>
             <button type="button" onClick={onPaste} className={LINK}>or paste text</button>
           </span>
@@ -314,7 +341,8 @@ function FlagTip({ flag }) {
 
 // v1: a file row: icon · name · size · status (reading: a bar that eases to 90% and waits · "Read · ~1,200 words" ·
 // "Couldn't read this file", the reason on hover · a file that can't be added: why, in red) · ×
-function FileRowV1({ u, Icon, onRemove }) {
+// showX: app (owner, 2026-11-05): the × always shown (not only on hover) when the files are the panel's only content
+function FileRowV1({ u, Icon, onRemove, showX = false }) {
   const msg = 'text-[13px] leading-[18px] motion-safe:animate-[fade-in_160ms_ease-out]'
   return (
     <li className={`${GRID} motion-safe:animate-[fade-in_160ms_ease-out]`} data-file-row={u.status}>
@@ -332,7 +360,7 @@ function FileRowV1({ u, Icon, onRemove }) {
       ) : (
         <span className={`${msg} truncate text-negative`}>{u.error}</span>
       )}
-      <span className="flex justify-end"><button type="button" aria-label={`Remove ${u.name}`} onClick={onRemove} className={xBtn}><X size={14} aria-hidden /></button></span>
+      <span className="flex justify-end"><button type="button" aria-label={`Remove ${u.name}`} onClick={onRemove} className={showX ? xBtn.replace('opacity-0', 'opacity-100') : xBtn}><X size={14} aria-hidden /></button></span>
     </li>
   )
 }

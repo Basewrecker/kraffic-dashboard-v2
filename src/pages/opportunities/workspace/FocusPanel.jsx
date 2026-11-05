@@ -22,7 +22,8 @@ const MS = 450
 // scrollerRef: the panel's scrolling body (the dock's IntersectionObserver root) · onExit: ✕, Esc
 // entrance: 'travel' (FLIP from the band) or 'fade' (opened as the page loads, e.g. arriving from the list on step 4)
 // style: the workspace's palette (--co-a): the panel is portalled out of the workspace's root, so it carries its own
-export default function FocusPanel({ active, width, fromRef, labelledBy, onExit, scrollerRef, onLanded = () => {}, entrance = 'travel', style, children }) {
+// minHeight: app (owner, 2026-11-05): Your data keeps a steady size (70vh) instead of shrinking to its content
+export default function FocusPanel({ active, width, minHeight = null, fromRef, labelledBy, onExit, scrollerRef, onLanded = () => {}, entrance = 'travel', style, children }) {
   const [mounted, setMounted] = useState(active)
   const panel = useRef(null)
   const content = useRef(null)
@@ -104,7 +105,7 @@ export default function FocusPanel({ active, width, fromRef, labelledBy, onExit,
       <div ref={veil} aria-hidden className="co-veil absolute inset-0" />
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1}
         className="co-panel relative flex max-h-full flex-col overflow-hidden rounded-[16px] border border-line bg-surface outline-none"
-        style={{ width: `min(${width}px, 100%)`, transformOrigin: '0 0', transition: reduced() ? 'none' : 'width 300ms cubic-bezier(.2,.8,.2,1)' }}>
+        style={{ width: `min(${width}px, 100%)`, ...(minHeight ? { minHeight: `min(${minHeight}, 100%)` } : {}), transformOrigin: '0 0', transition: reduced() ? 'none' : 'width 300ms cubic-bezier(.2,.8,.2,1)' }}>
         <div ref={(el) => { content.current = el; if (scrollerRef) scrollerRef.current = el }} className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {children}
         </div>

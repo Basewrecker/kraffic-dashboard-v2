@@ -16,19 +16,28 @@ function Line({ icon, children, className = 'text-stone-900' }) {
   )
 }
 
+// app: a later state opens its prompt too (the column stops row clicks, so "Draft ready" did nothing when clicked)
+function Opens({ row, onOpen, children }) {
+  return (
+    <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(row) }} aria-label={`${statusText(row)}: open`}
+      className="rounded outline-none focus-visible:ring-2 focus-visible:ring-focus">{children}</button>
+  )
+}
+
 export default function StatusCell({ row, onOpen }) {
   const d = row.draft
   switch (row.stage) {
     case 'draft':
-      return <Line icon={<FileText size={14} />}>Draft ready</Line>
+      return <Opens row={row} onOpen={onOpen}><Line icon={<FileText size={14} />}>Draft ready</Line></Opens>
     case 'waiting':
-      return <Line icon={<span className="status-pulse h-1.5 w-1.5 rounded-full bg-ink" />}>Waiting to publish</Line>
+      return <Opens row={row} onOpen={onOpen}><Line icon={<span className="status-pulse h-1.5 w-1.5 rounded-full bg-ink" />}>Waiting to publish</Line></Opens>
     case 'monitoring':
-      return <Line icon={<Ring value={d.week} total={4} size={14} stroke={2.5} />}>Week {d.week} of 4</Line>
+      // app (owner, 2026-11-05): just published, before its first sync: "Published" (never "Week 0 of 4")
+      return <Opens row={row} onOpen={onOpen}><Line icon={<Ring value={d.week} total={4} size={14} stroke={2.5} />}>{d.week ? `Week ${d.week} of 4` : 'Published'}</Line></Opens>
     case 'nochange':
-      return <Line icon={<Minus size={14} />} className="text-stone-500">No change yet</Line>
+      return <Opens row={row} onOpen={onOpen}><Line icon={<Minus size={14} />} className="text-stone-500">No change yet</Line></Opens>
     case 'improved':
-      return <Line icon={<span className="text-[12px] leading-none">▲</span>} className="font-semibold text-[var(--co-improved)]">Improved</Line>
+      return <Opens row={row} onOpen={onOpen}><Line icon={<span className="text-[12px] leading-none">▲</span>} className="font-semibold text-[var(--co-improved)]">Improved</Line></Opens>
     default:
       // muted; ink and underlined while its row is hovered (PromptTable rows are `group`)
       return (

@@ -501,7 +501,7 @@ function Hero({ heroRef, col, change: sync, brand, run, isLatest, onLatest, page
         <div className="min-w-0">
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className={`min-w-0 truncate text-[13px] leading-[18px] ${t2} ${theme ? '' : 'max-sm:invisible'}`}>
-              {theme ? <>Pages behind “{theme.theme}” · <button type="button" onClick={clearTheme} className="rounded font-medium text-ink outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">clear</button></> : 'Every page is a dot, placed by its tone'}
+              {theme ? <>Pages behind “{theme.theme}” · <button type="button" onClick={clearTheme} className="rounded font-medium text-ink outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">clear</button></> : 'Every publication, placed by its tone'}
             </span>
             <Switch checked={split} onChange={setSplit} spring>Split by engine</Switch>
           </div>

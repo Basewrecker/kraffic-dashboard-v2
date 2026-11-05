@@ -2,22 +2,38 @@
 // place. Pure. Each rule says what it reads and why.
 import { parseMarkdown, plainOf, safeHref, toHtml, toMarkdown, toPlain } from './markdown.js'
 import { formatLabel } from '../../../data/contentRecommend.js'
+import { detectFormatsOnPage } from '../../../data/contentApp.js' // as the app: an edited draft's formats, by the draft check's rules
 
 // R1 · Sections. contentMarkdown is one string; its sections are the ## headings. The H1 is the prompt.
 //   The lib's own blocks are kept for Export .md but hidden in the rendered draft and left out of Copy content / Copy as
 //   HTML (owner, decision 1): ## Page recommendation, ## Flags, ## Publishing notes, and the "Draft for client review"
 //   notice (a blockquote).
 export const HIDDEN_SECTIONS = ['page recommendation', 'flags', 'publishing notes']
+// app (owner, 2026-11-05): ## Sources is removed from the draft entirely: not in the view, Copy content, Copy as HTML
+// or Export .md. The source data stays in the stored response only.
+export const DROPPED_SECTIONS = ['sources']
+const isDropped = (title) => DROPPED_SECTIONS.includes(String(title).trim().toLowerCase())
+// the markdown without the dropped sections (Export .md): from the ## heading to the next ## heading or the end
+export const withoutDropped = (markdown) => String(markdown ?? '').replace(/^##[ \t]+([^\n]*)\n[\s\S]*?(?=^##[ \t]|(?![\s\S]))/gm, (all, title) => (isDropped(title.replace(/[*_`#]/g, '')) ? '' : all)).replace(/\n{3,}/g, '\n\n')
 const isNotice = (b) => b.type === 'quote' && /draft for client review/i.test(plainOf(b.inline))
 export function draftSections(markdown) {
   const blocks = parseMarkdown(markdown)
   let h1 = null
   const intro = []
   const sections = []
+  let skipBody = false // true while inside a repeated ## heading (e.g. second ## Steps)
   for (const b of blocks) {
-    if (b.type === 'h1' && !h1) { h1 = b; continue }
-    if (b.type === 'h2') { sections.push({ title: plainOf(b.inline), heading: b, blocks: [], hidden: HIDDEN_SECTIONS.includes(plainOf(b.inline).trim().toLowerCase()) }); continue }
-    if (isNotice(b)) continue
+    if (b.type === 'h1' && !h1) { h1 = b; skipBody = false; continue }
+    if (b.type === 'h2') {
+      const title = plainOf(b.inline)
+      const key = title.trim().toLowerCase()
+      // How-to + Step-by-step tutorial both become "## Steps" — keep the first, drop repeats (tabs + body)
+      if (sections.some((s) => s.title.trim().toLowerCase() === key)) { skipBody = true; continue }
+      skipBody = false
+      sections.push({ title, heading: b, blocks: [], hidden: HIDDEN_SECTIONS.includes(key) || isDropped(title) })
+      continue
+    }
+    if (skipBody || isNotice(b)) continue
     ;(sections.length ? sections[sections.length - 1].blocks : intro).push(b)
   }
   return { h1, intro, sections, shown: sections.filter((s) => !s.hidden) }
@@ -40,7 +56,7 @@ export function publishableBlocks(markdown, competitors = []) {
 //   the raw contentMarkdown, the full brief including the hidden blocks (it's a text file, never rendered).
 export function copyPayloads(markdown, competitors = []) {
   const blocks = publishableBlocks(markdown, competitors)
-  return { markdown: toMarkdown(blocks), html: toHtml(blocks), plain: toPlain(blocks), exportMd: String(markdown) }
+  return { markdown: toMarkdown(blocks), html: toHtml(blocks), plain: toPlain(blocks), exportMd: withoutDropped(markdown) } // app: no ## Sources
 }
 
 // R4 · Comparisons. The lib bans pipe tables: a comparison is "**Option**" on its own line, then "- Label: value"
@@ -213,7 +229,7 @@ export function draftPlan(recommendations) {
   const sections = ['Direct answer', 'Key points',
     ...(ids.some((i) => ['how_to', 'tutorial', 'checklist', 'comparison'].includes(i)) ? ['Steps'] : []),
     ...(ids.includes('comparison') ? ['Comparison'] : []),
-    'Detailed explanation', 'FAQ', 'Sources']
+    'Detailed explanation', 'FAQ'] // app (owner, 2026-11-05): no Sources section in the draft
   return { missing, sections }
 }
 export const exportName = (prompt) => `${String(prompt).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.md`
@@ -282,7 +298,7 @@ export function enginesOf(page, resolve = () => null) {
   for (const e of page.engines ?? []) {
     if (e === 'aio') out.add('google')
     else if (e === 'aimode') out.add('aimode')
-    else if (e === 'ai') { const r = resolve(page.host); if (r?.length) r.forEach((x) => out.add(x)); else unknown = true }
+    else if (e === 'ai') { const r = resolve(page.host, page.url); if (r?.length) r.forEach((x) => out.add(x)); else unknown = true }
     else if (e !== 'google' && NAMED.includes(e)) out.add(e)
   }
   return { engines: [...out].sort((a, b) => NAMED.indexOf(a) - NAMED.indexOf(b)), unknown: unknown && out.size === 0 }
@@ -313,9 +329,15 @@ export const flagHost = (f) => (f.label === 'Draft gap' ? (f.text.match(/Competi
 //   missing / partial formats). A column the draft doesn't add stays as it is now (it can still be missing: honest).
 //   added = the formats that are missing now and present after (only those animate). Formats the draft adds that aren't
 //   a matrix column aren't shown (the matrix doesn't show them either).
+// app (owner, 2026-11-05): an edited draft's formats, re-checked on its text with the draft check's own rules
+export function editedFormatsOf(markdown) {
+  const { h1, intro, shown } = draftSections(markdown)
+  return detectFormatsOnPage({ title: h1 ? plainOf(h1.inline) : '', headings: shown.map((s) => s.title), mainText: [toPlain(intro), ...shown.map((s) => toPlain(s.blocks))].join('\n') })
+}
 export function beforeAfter(res) {
   const m = formatMatrix(res)
-  const adds = draftPlan(res.recommendations).missing.map((x) => x.id)
+  // app: after a hand edit, what the draft adds is what its text has now (a listicle added by hand turns green)
+  const adds = res.editedAt ? editedFormatsOf(res.contentMarkdown) : draftPlan(res.recommendations).missing.map((x) => x.id)
   const columns = m.columns.map((c) => {
     const now = m.yours.includes(c.id)
     const after = now || adds.includes(c.id)

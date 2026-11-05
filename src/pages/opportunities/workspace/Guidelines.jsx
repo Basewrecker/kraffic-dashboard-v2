@@ -9,6 +9,7 @@ import { readFile, wordsLabel } from '../data/extract'
 import { GUIDE_ACCEPT, guideReject } from '../../../data/brandGuidelines'
 import { DropZone } from './DataStep'
 import { Collapse } from './ui'
+import { guidelinesTrim } from '../../../data/brandGuidelines' // as the app: the text sent is cut at 20,000 characters
 
 const ROW = 'group/row flex h-12 items-center gap-3 border-b border-[var(--div)]'
 const xBtn = 'grid h-7 w-7 shrink-0 place-items-center rounded-md text-stone-500 outline-none transition-colors duration-150 hover:bg-tint hover:text-ink focus-visible:ring-2 focus-visible:ring-focus'
@@ -61,6 +62,8 @@ export default function GuidelinesForm({ value, onChange, note = null }) {
             className="w-full resize-y rounded-[10px] border border-line bg-surface px-3 py-2 text-[14px] leading-5 text-stone-900 outline-none placeholder:text-stone-400 focus:border-[var(--color-line-strong)]" />
         </div>
       </Collapse>
+      {/* app: over 20,000 characters (the file's text plus the pasted text), only the first 20,000 are kept */}
+      {guidelinesTrim(value).trimmed && <p className="mt-2 text-[13px] leading-[18px] tabular-nums text-stone-500" data-guidelines-trimmed>Trimmed: only the first {guidelinesTrim(value).max.toLocaleString('en-US')} of {guidelinesTrim(value).chars.toLocaleString('en-US')} characters are kept.</p>}
 
       <div className="mt-8 flex items-baseline justify-between gap-4">
         <h4 className={H}>Quick rules</h4>

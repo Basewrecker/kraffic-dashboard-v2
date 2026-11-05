@@ -32,7 +32,8 @@ import { LogoPlate, MorePages, siteName, withResults } from '../parts'
 import { afterRow, draftPlan, draftPreview, enginesOf, formatMatrix, pageOf, rankLadder } from '../draft/recommend'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { RingDraw, TickDraw } from './ui'
-import SearchMatch, { ConnectSearchConsole, SkippedRow } from './SearchMatch'
+import { CONTENT_HIDDEN } from '../../../data/contentApp' // as the app
+import SearchMatch, { ConnectSearchConsole, RoutePublishing } from './SearchMatch'
 
 // one type scale for the page (owner, 2026-11-05): titles 20/600, sublines 14/500 secondary, rows 16/600 + 14/500,
 // headers 14/600, numbers 600 tabular; nothing above 600
@@ -74,7 +75,9 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
   return (
     <div className="flex flex-col gap-8 pb-12">
       {asking && <ConnectSearchConsole connecting={sc.connecting} onConnect={sc.onConnect} onSkip={sc.onSkip} />}
-      {sc?.state === 'skipped' && !sc.connecting && <SkippedRow onConnect={sc.onConnect} />}
+      {/* app (owner, 2026-11-05): not connected / skipped: the route's page, labelled as its suggestion, with the way to
+          connect (it replaces the skipped row's own "Connect Search Console for a better match") */}
+      {sc && (asking || sc.state === 'skipped') && !sc.connecting && <RoutePublishing page={page} onAsk={sc.onAsk} />}
       {sc && !asking && sc.state !== 'skipped' && <SearchMatch {...sc} enginesFor={(path) => {
         const c = res.citedPages.find((x) => { try { return new URL(x.url).pathname.replace(/\/$/, '') === path } catch { return false } })
         return c ? eng(c) : { engines: [], unknown: false }
@@ -89,7 +92,9 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
   )
 }
 
-// the engines that cite a page, as icons (full colour); "AI" when the route doesn't say which engine
+// the engines that cite a page, as icons (full colour)
+// app (owner, 2026-11-05: "Replace every "AI" badge with the real engine icons in colour … only the engines that actually
+// cite that page"): no "AI" badge; a page the stored answers don't tie to an engine shows no icon (its hover card says so)
 function EngineIcons({ e, size = 16, stack = false, delay = null }) {
   // only engines we can name (owner, 2026-11-05: no neutral "AI" badge; unresolved shows nothing)
   const items = e.engines.map((id) => ({ id }))
@@ -99,17 +104,15 @@ function EngineIcons({ e, size = 16, stack = false, delay = null }) {
     // corner badges (the only thing telling Google's two engines apart) stay visible
     <span className={`flex items-center ${stack ? 'gap-px' : 'gap-1'}`} style={delay != null ? anim('co-pop-in', delay, 220) : undefined}>
       {items.map((x) => (
-        <span key={x.id} title={x.id === 'ai' ? 'AI answers (engine not specified)' : ENGINE_NAME[x.id]}
+        <span key={x.id} title={ENGINE_NAME[x.id]}
           className={`grid place-items-center rounded-full bg-surface ${stack ? 'ring-[1.5px] ring-[var(--color-surface)]' : ''}`} style={{ width: size + (stack ? 2 : 0), height: size + (stack ? 2 : 0) }}>
-          {x.id === 'ai'
-            ? <span className="grid h-full w-full place-items-center rounded-full bg-stone-200 leading-none font-bold text-stone-700" style={{ fontSize: Math.max(7, size * 0.45) }}>AI</span>
-            : <PlatformIcon id={engineIcon(x.id)} size={size} />}
+          <PlatformIcon id={engineIcon(x.id)} size={size} />
         </span>
       ))}
     </span>
   )
 }
-const engineNames = (e) => [...e.engines.map((id) => ENGINE_NAME[id]), ...(e.unknown ? ['AI answers (engine not specified)'] : [])]
+const engineNames = (e) => e.engines.map((id) => ENGINE_NAME[id])
 
 // ---- 1. the rank ladder ---------------------------------------------------------------------------------------
 function Ladder({ ladder, eng, host, setHost }) {
@@ -191,21 +194,22 @@ function SlotCard({ anchor, page, e, ours }) {
       <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{siteName(page.host)}{ours && <span className="font-normal text-stone-500"> · your page</span>}{page.rank && <span className="font-normal text-stone-500"> · #{page.rank}</span>}</span>
       <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-700">{page.title}</span>
       <span className="mt-1.5 block text-[12px] leading-4 text-stone-500">{page.formats.length ? page.formats.map(formatLabel).join(' · ') : 'No format detected'}</span>
-      <span className="mt-0.5 block text-[12px] leading-4 text-stone-500">{engineNames(e).length ? `Cited by ${engineNames(e).join(', ')}` : 'Not cited in AI answers'}</span>
+      <span className="mt-0.5 block text-[12px] leading-4 text-stone-500">{engineNames(e).length ? `Cited by ${engineNames(e).join(', ')}` : e.unknown ? 'Cited in an AI answer (engine not recorded)' : 'Not cited in AI answers'}</span>{/* app: the app's wording (49cf305) */}
     </span>,
     document.body,
   )
 }
 
 // ---- 2. the format matrix (owner, 2026-11-05) ----------------------------------------------------------------
-// Full width. Header: the title, "Add your data →" right; one line under it: "The draft adds FAQ and How-to guide".
+// Full width. Header: the title alone (app, owner 2026-11-05: no sub-line; the "Draft adds" labels say it).
 // Columns: the formats the draft adds first (light tint, full height), then the rest; each "3 of 5" and, for the ones
 // the draft adds, "· score 24". Winner rows: one line (logo · name · "#2" muted · the engines that cite the page), by
 // rank, AI-only last; a filled 8px dot where the page has the format, nothing where it doesn't. One "Your page" row
-// (tinted, the path under the name, the engines that name you): dark green tick = you have it, light green tick +
+// (tinted, the label only, the engines that name you): dark green tick = you have it, light green tick +
 // "+ draft" = this draft adds it, red dashed ring = still missing after this draft. 52px rows, the Search Console
 // table's borders.
-const listFormats = (ids) => { const l = ids.map(formatLabel); return l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} and ${l.at(-1)}` }
+// app (owner, 2026-11-05): the winners table's "Your page" row is hidden (one switch, so it can come back)
+const YOUR_PAGE_ROW = false
 function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, yourEnd, adds, cells, write }) {
   const addIds = adds.map((c) => c.id)
   const columns = [...m.columns.filter((c) => addIds.includes(c.id)), ...m.columns.filter((c) => !addIds.includes(c.id))]
@@ -216,14 +220,11 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
   const tint = (id) => (col === id ? 'bg-[color-mix(in_srgb,var(--tint)_60%,transparent)]' : '')
   const winners = [...m.winners].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
   const stateOf = (id) => cells?.find((c) => c.id === id)?.state ?? (m.yours.includes(id) ? 'have' : added(id) ? 'adds' : 'missing')
-  const line = adds.length ? `The draft adds ${listFormats(addIds)}` : m.missing.length ? 'Nothing the draft can add here: the missing formats need their own page' : 'Your page already has every format the winners use'
   return (
     <section aria-labelledby="co-matrix-h" className="min-w-0 overflow-x-auto">
       <div className={`${HEAD} items-center`}>
-        <div className="min-w-0">
-          <h3 id="co-matrix-h" className={H}>What the winners have that you don’t</h3>
-          <p className={`mt-0.5 ${META}`} data-draft-adds>{line}</p>
-        </div>
+        {/* app (owner, 2026-11-05): no sub-line under the title; the "Draft adds" labels over the columns say it */}
+        <h3 id="co-matrix-h" className={`min-w-0 ${H}`}>What the winners have that you don’t</h3>
         {/* no "Add your data" here: the step card at the top has the main one (owner, 2026-11-05, "your call") */}
       </div>
       {/* one grid for the whole table; each row a subgrid, so the content-sized columns line up across rows */}
@@ -260,13 +261,12 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
             <span role="cell" className="grid place-items-center"><CoverageBar have={columns.filter((c) => w.formats.includes(c.id)).length} of={columns.length} /></span>
           </div>
         ))}
-        {/* your page: one tinted row, under a stronger rule */}
-        <div role="row" className="col-span-full grid h-[52px] grid-cols-subgrid items-center border-t-2 border-line-strong bg-[color-mix(in_srgb,var(--tint)_70%,transparent)]">
+        {/* your page: one tinted row, under a stronger rule. app (owner, 2026-11-05): not shown; the table ends at the
+            last winner, and the "Draft adds" labels over the columns say what the draft adds */}
+        {YOUR_PAGE_ROW && <div role="row" className="col-span-full grid h-[52px] grid-cols-subgrid items-center border-t-2 border-line-strong bg-[color-mix(in_srgb,var(--tint)_70%,transparent)]">
           <span role="rowheader" className="flex min-w-0 items-center gap-2 pl-1 pr-2">
-            <span className="flex min-w-0 flex-col">
-              <span className="text-[16px] leading-6 font-semibold text-ink">Your page</span>
-              <span className="truncate text-[14px] leading-5 font-medium text-stone-900" title={path}>{path}</span>
-            </span>
+            {/* app (owner, 2026-11-05): the label alone, no path under it; the row is as tall as the winners' */}
+            <span className="text-[16px] leading-6 font-semibold text-ink" title={path}>Your page</span>
           </span>
           <span role="cell" className="flex items-center pr-4">{named.length > 0 && <span className="flex" aria-label={`Named by ${named.map((x) => ENGINE_NAME[x]).join(', ')}`}><EngineIcons e={{ engines: named, unknown: false }} size={16} /></span>}</span>
           {columns.map((c, i) => {
@@ -282,7 +282,7 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
           <span role="cell" className="grid place-items-center">
             <CoverageBar green have={columns.filter((c) => stateOf(c.id) === 'have').length} adds={columns.filter((c) => stateOf(c.id) === 'adds').length} of={columns.length} />
           </span>
-        </div>
+        </div>}
       </div>
     </section>
   )
@@ -314,13 +314,14 @@ function CoverageBar({ have, adds = 0, of, green = false }) {
 function SiteCard({ w, e }) {
   return (
     <span role="tooltip" className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden w-[280px] rounded-lg border border-line bg-raised px-3 py-2.5 text-left shadow-md group-hover/site:block group-focus-visible/site:block">
-      <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{w.host}{w.rank ? <span className="font-normal text-stone-500"> · #{w.rank}</span> : <span className="font-normal text-stone-500"> · AI only</span>}</span>
+      {/* app (owner, 2026-11-05: "Show brand names, not truncated domains"): the site by its name (was w.host) */}
+      <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{siteName(w.host)}{w.rank ? <span className="font-normal text-stone-500"> · #{w.rank}</span> : <span className="font-normal text-stone-500"> · AI only</span>}</span>
       {w.title && <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-700">{w.title}</span>}
       <span className="mt-1.5 block text-[12px] leading-4 text-stone-500">{w.formats.length ? w.formats.map(formatLabel).join(' · ') : 'No format detected'}</span>
       <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-4 text-stone-600">
         {e.engines.length
           ? <>Cited by {e.engines.map((id) => <span key={id} className="inline-flex items-center gap-1"><PlatformIcon id={engineIcon(id)} size={14} />{ENGINE_NAME[id]}</span>)}</>
-          : e.unknown ? 'Cited in AI answers (engine not specified)' : 'Not cited in AI answers'}
+          : e.unknown ? 'Cited in an AI answer (engine not recorded)' : 'Not cited in AI answers'}{/* app: the app's wording (49cf305) */}
       </span>
     </span>
   )
@@ -340,7 +341,8 @@ function DraftPreview({ p, open, onOpen }) {
         </ul>
       )}
       <div className="mt-2.5 flex items-center justify-between gap-3">
-        <span className="text-[13px] leading-[18px] tabular-nums text-stone-700">{open ? `${open} ${open === 1 ? 'flag' : 'flags'} to check` : 'Every flag checked'}</span>
+        {/* app: no flag counts while the draft check is hidden (CONTENT_HIDDEN.draftChecks) */}
+        {CONTENT_HIDDEN.draftChecks ? <span /> : <span className="text-[13px] leading-[18px] tabular-nums text-stone-700">{open ? `${open} ${open === 1 ? 'flag' : 'flags'} to check` : 'Every flag checked'}</span>}
         <button type="button" onClick={onOpen} className="inline-flex items-center gap-1 rounded text-[14px] leading-5 font-medium text-ink outline-none hover:underline hover:underline-offset-4 focus-visible:ring-2 focus-visible:ring-focus">
           Open draft<ArrowRight size={14} aria-hidden />
         </button>

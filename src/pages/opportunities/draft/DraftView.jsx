@@ -18,6 +18,7 @@ import { PlatformIcon } from '../../../components/dashboard/icons'
 import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
 import { formatLabel } from '../../../data/contentRecommend'
 import SiteLogo from '../../../components/ui/SiteLogo'
+import { CONTENT_HIDDEN } from '../../../data/contentApp' // as the app: Before you publish hidden for now (owner, 2026-11-05)
 import { DOTTED, LogoPlate, Ring, TwoSpotLines, siteName, withResults } from '../parts'
 import { RingDraw, TickDraw } from '../workspace/ui'
 import { competitorName } from '../../../data/contentRecommend'
@@ -66,11 +67,11 @@ export default function DraftView({ res, competitors, ticked, onTick, arriving =
           {notes.expert && <span className="inline-flex items-center gap-1.5 text-[13px] leading-[18px] text-stone-500"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[var(--negative)]" />Needs expert review</span>}
         </div>
         {/* contentIssues the flags don't already list (a Draft gap flag's text is the issue verbatim, so match by text) */}
-        {extraIssues.length > 0 && (
+        {!CONTENT_HIDDEN.draftChecks && extraIssues.length > 0 && (
           <p className="mt-2 text-[13px] leading-[18px] text-stone-500">{extraIssues.join(' · ')} · <button type="button" onClick={() => document.getElementById('co-draft-checks')?.scrollIntoView({ block: 'start' })} className="rounded font-medium text-stone-700 underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">See the checks</button></p>
         )}
         {intro.length > 0 && <div className="mt-5"><Blocks blocks={intro} terms={terms} /></div>}
-        {shown.map((s, i) => <div key={s.title} id={`co-sec-${i}`} data-outline={outlineShort(s.title)} className="scroll-mt-[190px]" style={arriving ? { animation: `co-arrive-in 320ms cubic-bezier(.2,.8,.2,1) ${120 + i * 60}ms both` } : undefined}><Section section={s} terms={terms} competitors={competitors} guidelines={guidelines} /></div>)}
+        {shown.map((s, i) => <div key={`${outlineShort(s.title)}-${i}`} id={`co-sec-${i}`} data-outline={outlineShort(s.title)} className="scroll-mt-[190px]" style={arriving ? { animation: `co-arrive-in 320ms cubic-bezier(.2,.8,.2,1) ${120 + i * 60}ms both` } : undefined}><Section section={s} terms={terms} competitors={competitors} guidelines={guidelines} /></div>)}
       </article>
       {/* the rail: sticky under the panel's header, as tall as the room between it and the footer; scrolls on its own
           with a thin overlay thumb (hover / while scrolling), no track, and no scrollbar at all when it fits (.co-rail) */}
@@ -280,7 +281,7 @@ function Sources({ blocks, competitors = [], guidelines = null }) {
           <li key={s.url} data-host={s.host} className="flex min-h-12 items-center gap-3 rounded-sm border-b border-[var(--div)] py-2.5">
             <LogoPlate domain={s.host} />
             <a href={s.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">
-              <span className="block text-[15px] leading-[22px] text-stone-900">{s.label || s.host}</span>
+              <span className="block text-[15px] leading-[22px] text-stone-900">{s.label || siteName(s.host)}{/* app: was s.host */}</span>
               <span className="block truncate text-[13px] leading-[18px] text-stone-500">{[s.host, rival && 'Competitor · left out of Copy', s.note].filter(Boolean).join(' · ')}</span>
             </a>
           </li>
@@ -319,7 +320,7 @@ function Outline({ sections }) {
     <nav ref={nav} aria-label="Draft sections" className="sticky z-10 mb-2 border-b border-line bg-surface" style={{ top }}>
       <div className="relative flex flex-wrap items-center gap-x-6">
         {sections.map((s, i) => (
-          <button key={s.title} ref={(el) => { btns.current[i] = el }} type="button" onClick={() => jump(i)} aria-current={at === i ? 'location' : undefined}
+          <button key={`${outlineShort(s.title)}-${i}`} ref={(el) => { btns.current[i] = el }} type="button" onClick={() => jump(i)} aria-current={at === i ? 'location' : undefined}
             className={`h-11 rounded-sm text-[14px] leading-5 font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${at === i ? 'text-ink' : 'text-stone-500 hover:text-ink'}`}>{outlineShort(s.title)}</button>
         ))}
         <span aria-hidden className="absolute bottom-0 h-0.5 rounded-full bg-ink transition-[left,width] duration-200 ease-out motion-reduce:transition-none" style={{ left: bar.left, width: bar.width }} />
@@ -347,7 +348,9 @@ function Rail({ res, flags, ready, ticked, onTick, competitors, onRecheck, onSho
   const eng = (p) => (p ? withResults(enginesOf(p, resolve)) : { engines: [], unknown: false })
   return (
     <aside id="co-draft-checks" className="flex min-w-0 scroll-mt-36 flex-col gap-8" aria-label="Draft checks">
-      <section>
+      {/* app: the draft check (flags, readiness ring, Re-check score, never-say flags) isn't shown for now; the route
+          still runs it (CONTENT_HIDDEN.draftChecks) */}
+      {!CONTENT_HIDDEN.draftChecks && <section>
         <div className="flex items-center gap-3 border-b border-line-strong pb-3">
           <Ring value={ready.done} total={ready.total || 1} size={44} stroke={4} tone={ready.remaining === 0 ? 'positive' : 'ink'}>{checked}/{flags.length}</Ring>
           <div className="min-w-0 flex-1">
@@ -387,7 +390,7 @@ function Rail({ res, flags, ready, ticked, onTick, competitors, onRecheck, onSho
             )
           })}
         </ul>
-      </section>
+      </section>}
 
       {formats.length > 0 && (
         <section>
@@ -421,7 +424,7 @@ function Rail({ res, flags, ready, ticked, onTick, competitors, onRecheck, onSho
               </span>
               <span className="w-8 text-right text-[13px] leading-[18px] tabular-nums text-stone-700">{r.rank ? `#${r.rank}` : ''}</span>
               {/* room for all five engines (5 × 14px + gaps): the rank column stays put whatever a row has */}
-              <span className="flex w-[86px] shrink-0 justify-end">{(eng(r.page).engines.length || eng(r.page).unknown) ? <EngineIconRow e={eng(r.page)} /> : <span className="text-[13px] text-stone-500" aria-label="Not cited in AI answers">—</span>}</span>
+              <span className="flex w-[86px] shrink-0 justify-end">{eng(r.page).engines.length ? <EngineIconRow e={eng(r.page)} /> : <span className="text-[13px] text-stone-500" aria-label={eng(r.page).unknown ? 'Cited in an AI answer (engine not recorded)' : 'Not cited in AI answers'}>—</span>}</span>
               {r.url && (
                 <span role="tooltip" className={`${CARD} right-0 ${r.others?.length ? 'w-[340px]' : 'w-[260px]'} text-stone-700 group-hover/ua:block ${i >= shownRows.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
                   {r.others?.length > 0
@@ -442,29 +445,29 @@ function Rail({ res, flags, ready, ticked, onTick, competitors, onRecheck, onSho
   )
 }
 
-// the engines that cite a page, as 16px icons in full colour; "AI" when the route doesn't say which engine (R20)
+// the engines that cite a page, as 16px icons in full colour (R20)
+// app (owner, 2026-11-05): no "AI" badge: only the engines that cite the page (Workspace resolveAi)
 function EngineIconRow({ e, size = 14 }) {
-  const items = [...e.engines, ...(e.unknown ? ['ai'] : [])]
+  const items = e?.engines ?? []
   return (
     <span className="flex items-center gap-1">
-      {items.map((id) => (id === 'ai'
-        ? <span key={id} title="AI answers (engine not specified)" className="grid place-items-center rounded-full bg-stone-200 text-[7px] font-bold text-stone-700" style={{ width: size, height: size }}>AI</span>
-        : <span key={id} title={ENGINE_NAME[id]}><PlatformIcon id={engineIcon(id)} size={size} /></span>))}
+      {items.map((id) => <span key={id} title={ENGINE_NAME[id]}><PlatformIcon id={engineIcon(id)} size={size} /></span>)}
     </span>
   )
 }
 
 // a stack of the competitors that use a format (max 3); hover: their names, ranks and engines
+// app (owner, 2026-11-05): a site missing from rows is named by competitorName too (was its domain)
 function LogoStack({ usages, rows, eng, res }) {
   return (
     <span className="group/ls relative flex shrink-0 gap-1">
-      {usages.map((u) => <span key={u.host} title={rows.find((r) => r.host === u.host)?.name ?? u.host}><LogoPlate domain={u.host} size={18} logoClass="h-3 w-3" initialClass="text-[8px]" /></span>)}
+      {usages.map((u) => <span key={u.host} title={rows.find((r) => r.host === u.host)?.name ?? competitorName(u.host)}><LogoPlate domain={u.host} size={18} logoClass="h-3 w-3" initialClass="text-[8px]" /></span>)}
       <span role="tooltip" className={`${CARD} right-0 top-full mt-1 w-[240px] text-left group-hover/ls:block`}>
         {usages.map((u) => {
           const row = rows.find((r) => r.host === u.host)
           return (
             <span key={u.host} className="flex items-center gap-2 py-0.5 text-[12px] leading-4 text-stone-700">
-              <span className="min-w-0 flex-1 truncate font-medium text-stone-900">{row?.name ?? u.host}</span>
+              <span className="min-w-0 flex-1 truncate font-medium text-stone-900">{row?.name ?? competitorName(u.host)}</span>
               <span className="tabular-nums">{u.rank ? `#${u.rank}` : 'AI only'}</span>
               <EngineIconRow e={eng(res.citedPages.find((c) => c.host === u.host))} size={12} />
             </span>

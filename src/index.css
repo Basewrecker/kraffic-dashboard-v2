@@ -672,6 +672,11 @@ html:not([data-theme="dark"]) .co-ws {
    text toward white so it stays readable on the dark tint. Used only by components/ui/BetaTag.jsx.
    --------------------------------------------------------------------------- */
 :root { --beta-bg: color-mix(in srgb, var(--beta) 15%, transparent); --beta-fg: var(--beta); }
+/* Soon pill (as the app, owner 2026-11-05): the Beta tag's 'soon' variant, sky text on sky, for a page that isn't ready
+   yet (Trends). Sky is used for nothing else. */
+:root { --soon-bg: #E0F2FE; --soon-fg: #0369A1; }
+html[data-theme="dark"] { --soon-bg: rgba(56,189,248,0.14); --soon-fg: #7DD3FC; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --soon-bg: rgba(56,189,248,0.14); --soon-fg: #7DD3FC; } }
 html[data-theme="dark"] { --beta-fg: color-mix(in srgb, var(--beta) 65%, #FFFFFF); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --beta-fg: color-mix(in srgb, var(--beta) 65%, #FFFFFF); } }
 

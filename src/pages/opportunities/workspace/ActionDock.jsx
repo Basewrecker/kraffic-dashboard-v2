@@ -7,12 +7,13 @@
 import { SNAPPY, spring } from '../../../utils/spring'
 import { MidText } from '../parts'
 import { ActionButton } from './PayoffBar'
-import { STEPS } from './flow'
+import { STEPS, stepPos } from './flow'
 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const SP = spring(SNAPPY)
 
-export default function ActionDock({ show, open, choice, action, secondary = null }) {
+// app (owner, 2026-11-05): steps: the Workspace's one list, so the dock counts like the step card and the panel ("1 of 6")
+export default function ActionDock({ show, open, choice, action, secondary = null, steps = STEPS.map((s, i) => ({ ...s, i })) }) {
   const still = reduced()
   const t = still ? 'opacity 150ms ease-out' : `opacity 220ms ease-out, transform ${Math.min(SP.duration, 220)}ms ${SP.easing}`
   return (
@@ -21,7 +22,7 @@ export default function ActionDock({ show, open, choice, action, secondary = nul
       <div role="region" aria-label="Current step"
         className="pointer-events-auto flex max-w-full items-center gap-3 whitespace-nowrap rounded-[14px] bg-ink p-2 pl-4 text-on-ink shadow-[0_8px_24px_-8px_color-mix(in_srgb,var(--ink)_45%,transparent)]"
         style={{ opacity: show ? 1 : 0, transform: show || still ? 'translateY(0)' : 'translateY(16px)', transition: t }}>
-        <span className="text-[13px] leading-[18px] tabular-nums text-[color-mix(in_srgb,var(--on-ink)_60%,transparent)]">{open + 1} of {STEPS.length}</span>
+        <span className="text-[13px] leading-[18px] tabular-nums text-[color-mix(in_srgb,var(--on-ink)_60%,transparent)]">{stepPos(steps, open).n} of {steps.length}</span>
         {choice && <MidText text={choice} className="max-w-[280px] text-[14px] leading-5 font-medium" />}
         {secondary && <button type="button" onClick={secondary.onClick} className="rounded px-1 text-[13px] leading-[18px] font-medium text-[color-mix(in_srgb,var(--on-ink)_70%,transparent)] outline-none hover:text-[var(--on-ink)] focus-visible:ring-2 focus-visible:ring-focus">{secondary.label}</button>}
         {action && <ActionButton action={action} tone="light" size="sm" still={still} />}

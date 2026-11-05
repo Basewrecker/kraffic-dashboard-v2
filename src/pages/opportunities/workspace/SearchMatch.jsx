@@ -9,9 +9,11 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowRight, ArrowUpRight, Check, Info, Loader2, Plus } from 'lucide-react'
 import { GoogleIcon, PlatformIcon } from '../../../components/dashboard/icons'
 import { engineIcon } from '../../../data/contentOpportunities'
+import { pageSourceLabel } from '../../../data/contentApp' // as the app: where the target page came from
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { Seg } from '../../../components/ui/motion'
 import { LogoPlate, MidText, midTruncate } from '../parts'
+import EdgeTip from '../../../components/ui/EdgeTip' // as the app
 
 const nf = new Intl.NumberFormat('en-US')
 const num = (n) => nf.format(n)
@@ -19,17 +21,14 @@ const H = 'text-[20px] leading-[28px] font-semibold text-stone-900'
 const HEAD = 'flex items-end justify-between gap-3 border-b border-line-strong pb-2'
 const META = 'text-[14px] leading-5 font-medium text-stone-600'
 const LABEL = 'text-[13px] leading-[18px] font-semibold text-stone-500'
-const TIP = 'pointer-events-none absolute top-full z-30 mt-1 rounded-md border border-line bg-raised px-3 py-2 text-left text-[12px] leading-4 font-normal text-stone-700 opacity-0 shadow-md transition-opacity duration-150 group-hover/i:opacity-100 group-focus-within/i:opacity-100'
+// (the old in-place TIP class is gone: Tip uses the shared EdgeTip)
 const day = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 
 // an ⓘ with its tooltip (hover / focus)
-export function Tip({ label, children, align = 'right', width = 260 }) {
-  return (
-    <span className="group/i relative inline-flex shrink-0 align-middle">
-      <span tabIndex={0} aria-label={label} className="grid h-5 w-5 place-items-center rounded-md text-stone-500 outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus"><Info size={13} aria-hidden /></span>
-      <span role="tooltip" className={`${TIP} ${align === 'right' ? 'right-0' : 'left-0'}`} style={{ width }}>{children}</span>
-    </span>
-  )
+// app (owner, 2026-11-05): the Content pages' one tooltip, drawn outside any container and kept on screen
+// (components/mock-overview/content-tip.jsx); align is no longer needed (it places itself)
+export function Tip({ label, children, width = 260 }) {
+  return <EdgeTip tip={children} label={label} width={width} className="grid h-5 w-5 shrink-0 place-items-center align-middle text-stone-500 hover:text-ink"><Info size={13} aria-hidden /></EdgeTip>
 }
 const Chip = ({ children }) => <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-tint px-2 text-[12px] leading-4 font-medium text-stone-600">{children}</span>
 const Tag = ({ intent }) => <span className="inline-flex h-[18px] shrink-0 items-center rounded border border-line px-1.5 text-[11px] leading-none font-medium text-stone-500">{intent}</span>
@@ -65,7 +64,7 @@ export function SkippedRow({ onConnect }) {
   return (
     <div data-sc-skipped className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg bg-tint px-4 py-2.5">
       <span className="flex min-w-0 items-center gap-2.5 text-[14px] leading-5 text-stone-700"><GoogleIcon size={16} />Connect Search Console for a better match</span>
-      <button type="button" onClick={onConnect} className={textLink}>Connect</button>
+      <button type="button" onClick={onConnect} className={ink}>Connect</button>
     </div>
   )
 }
@@ -75,8 +74,31 @@ export function SkippedRow({ onConnect }) {
 // would let the user pick another Search Console property) · enginesFor(path) → { engines, unknown } · page: THE target
 // page (source 'pick' | 'sc' | 'route') · choice: Search Console's own page ({ action, path, url }) or null ·
 // onPick(pick | null): null = back to Search Console's page
-export default function SearchMatch({ gsc, domain, connecting = false, justConnected = false, onConnect, onChange = null, page = null, onPick = () => {}, newPath = null, prompt = "", enginesFor = () => ({ engines: [], unknown: false }), titleFor = () => null }) {
+// canConnect: false for an admin viewing a client's account (View as, ?co=view-as): the not-connected line says this view
+// can't start the connection (as the app). picker: the property picker's state (usePropertyPicker), for "Choose property"
+export default function SearchMatch({ gsc, domain, connecting = false, justConnected = false, onConnect, onChange = null, onChooseProperty = null, onDisconnect = null, disconnecting = false, page = null, onPick = () => {}, newPath = null, prompt = "", enginesFor = () => ({ engines: [], unknown: false }), titleFor = () => null, canConnect = true, picker = null }) {
   const connected = gsc?.connected
+  if (!connected && !canConnect && gsc?.reason !== 'no-domain') {
+    return (
+      <section aria-labelledby="co-sc-h" data-search-match data-sc-state={gsc?.reason ?? 'not-connected'}>
+        <div className={HEAD}><h3 id="co-sc-h" className={H}>Search Console for this prompt</h3></div>
+        <div className="flex min-h-[64px] flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-[var(--div)] py-3">
+          <p className="text-[15px] leading-[22px] text-stone-700">
+            {gsc?.reason === 'reconnect' ? 'Search Console needs reconnecting.' : gsc?.reason === 'no-property' ? `This Google account has no Search Console property for ${domain || 'this brand'}.` : 'Search Console isn’t connected.'}{' '}
+            This view can’t start the connection.
+          </p>
+        </div>
+      </section>
+    )
+  }
+  if (picker) {
+    return (
+      <div>
+        <SearchMatch {...{ gsc, domain, connecting, justConnected, onConnect, onChange, onChooseProperty, onDisconnect, disconnecting, page, onPick, newPath, prompt, enginesFor, titleFor }} />
+        <PropertyPicker {...picker} domain={domain} onReconnect={() => { picker.onClose(); onConnect?.() }} onDisconnect={onDisconnect} disconnecting={disconnecting} />
+      </div>
+    )
+  }
   const hasData = connected && gsc.queries.length > 0
   return (
     <section aria-labelledby="co-sc-h" data-search-match style={justConnected && !reducedMotion() ? { animation: 'card-in 360ms cubic-bezier(.2,.8,.2,1) both' } : undefined}>
@@ -97,28 +119,38 @@ export default function SearchMatch({ gsc, domain, connecting = false, justConne
           </span>
         )}
       </div>}
-      {!connected ? <NotConnected gsc={gsc} domain={domain} connecting={connecting} onConnect={onConnect} />
+      {!connected ? <NotConnected gsc={gsc} domain={domain} connecting={connecting} onConnect={onConnect} onChooseProperty={onChooseProperty} onDisconnect={onDisconnect} disconnecting={disconnecting} />
         : !hasData ? <NoData gsc={gsc} page={page} onPick={onPick} />
           : (
-            <FlowSection gsc={gsc} page={page} onPick={onPick} prompt={prompt} newPath={gsc.publishOn.action === 'create' ? gsc.publishOn.suggestedPath : newPath} enginesFor={enginesFor} titleFor={titleFor} domain={domain} onChange={onChange} />
+            <FlowSection gsc={gsc} page={page} onPick={onPick} prompt={prompt} newPath={gsc.publishOn.action === 'create' ? gsc.publishOn.suggestedPath : newPath} enginesFor={enginesFor} titleFor={titleFor} domain={domain} onChange={onChange} onDisconnect={onDisconnect} />
           )}
     </section>
   )
 }
 
 // one row, a sentence and the action
-function NotConnected({ gsc, domain, connecting, onConnect }) {
+function NotConnected({ gsc, domain, connecting, onConnect, onChooseProperty = null, onDisconnect = null, disconnecting = false }) {
   const [text, action] = gsc?.reason === 'reconnect' ? ['Search Console needs reconnecting. Reconnect it to rank your pages by real search traffic.', 'Reconnect']
+    : gsc?.reason === 'no-property' ? [`This Google account has no Search Console property for ${domain}. Choose a property from the account, or connect with a Google account that has access.`, onChooseProperty ? 'Choose property' : 'Use another Google account']
     : gsc?.reason === 'no-domain' ? [`Search Console has no property for ${domain}. Add the site in Search Console, then connect again.`, null]
       : ['Connect Search Console to rank your pages by real search traffic.', 'Connect']
+  const click = gsc?.reason === 'no-property' && onChooseProperty ? onChooseProperty : onConnect
   return (
     <div className="flex min-h-[64px] flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-[var(--div)] py-3" data-sc-state={gsc?.reason ?? 'not-connected'}>
       <p className="text-[15px] leading-[22px] text-stone-700">{text}</p>
-      {action && (
-        <button type="button" onClick={onConnect} disabled={connecting} aria-busy={connecting} className={`${lineBtn} disabled:opacity-60`}>
-          {connecting ? 'Connecting…' : action}
-        </button>
-      )}
+      <span className="flex shrink-0 flex-wrap items-center gap-2">
+        {action && (
+          <button type="button" onClick={click} disabled={connecting || disconnecting} aria-busy={connecting} className={`${lineBtn} disabled:opacity-60`}>
+            {connecting ? 'Connecting…' : action}
+          </button>
+        )}
+        {gsc?.reason === 'no-property' && onDisconnect && (
+          <button type="button" onClick={onDisconnect} disabled={disconnecting || connecting}
+            className="rounded text-[14px] font-medium text-stone-600 underline decoration-[var(--color-line-strong)] underline-offset-2 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60">
+            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+          </button>
+        )}
+      </span>
     </div>
   )
 }
@@ -145,14 +177,14 @@ const UseButton = ({ using, label, onClick }) => (
 
 // ---- the section's body: the queries table, then "Publishing on <path> · Change page" (the page in use: Workspace
 // `page`: the user's pick ?? Search Console's Publish on ?? the route's; the payoff bar and the request follow it)
-function FlowSection({ gsc, page, onPick, newPath, prompt, enginesFor, titleFor, domain, onChange }) {
+function FlowSection({ gsc, page, onPick, newPath, prompt, enginesFor, titleFor, domain, onChange, onDisconnect = null }) {
   const sc = gsc.publishOn
   const usingPath = page?.action === 'create' ? page.path : page?.path ?? (sc.action === 'create' ? sc.suggestedPath : sc.path)
   const usingCreate = page ? page.action === 'create' : sc.action === 'create'
   return (
     <div>
-      <QueriesList gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} enginesFor={enginesFor} titleFor={titleFor} domain={domain} onChange={onChange} prompt={prompt} />
-      <UsingLine gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} onPick={onPick} newPath={newPath} />
+      <QueriesList gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} enginesFor={enginesFor} titleFor={titleFor} domain={domain} onChange={onChange} onDisconnect={onDisconnect} prompt={prompt} />
+      <UsingLine sourceLabel={page ? pageSourceLabel(page) : null} gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} onPick={onPick} newPath={newPath} />
     </div>
   )
 }
@@ -168,6 +200,7 @@ function FlowSection({ gsc, page, onPick, newPath, prompt, enginesFor, titleFor,
 // 6px, 40ms apart, once. Reduced motion: no movement.
 const LIST_ROWS = 6
 const Q_GRID = 'grid grid-cols-[32px_minmax(0,1fr)_minmax(0,220px)_76px_136px] items-center gap-x-3'
+const SMALL_LINK = 'rounded font-medium text-stone-600 underline decoration-[var(--color-line-strong)] underline-offset-2 outline-none hover:text-stone-900 hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus'
 const verdict = (q) => (q.best ? { text: 'Best match', cls: 'font-semibold text-[var(--rep-up-fg)]' }
   : q.adjusted >= 70 ? { text: `Strong · ${q.adjusted}%`, cls: 'text-stone-900' }
     : q.adjusted >= 40 ? { text: `Partial · ${q.adjusted}%`, cls: 'text-stone-500' }
@@ -191,7 +224,7 @@ function downloadQueries(list, prompt) {
   a.download = `search-queries-${(prompt || 'prompt').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 48)}.csv`
   a.click()
 }
-function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain, onChange, prompt }) {
+function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain, onChange, onDisconnect = null, prompt }) {
   const reduce = reducedMotion()
   const rows = orderRows(gsc.queries)
   const counts = rows.reduce((m, q) => m.set(q.topPage?.path, (m.get(q.topPage?.path) ?? 0) + 1), new Map())
@@ -231,6 +264,15 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
         </button>
         </span>
       </div>
+      {/* app (owner, 2026-11-05, item 2): who connected it, under Change property: "Connected by <name> · <date> · Change"
+          (and Disconnect, for the same people who can connect) */}
+      {(gsc.connectedBy || onDisconnect) && (
+        <p data-sc-connected-by className="mt-1.5 flex flex-wrap items-center justify-end gap-x-1.5 text-[13px] leading-[18px] text-stone-500">
+          {gsc.connectedBy ? <span>Connected by {gsc.connectedBy.name || 'someone on your team'} · <span className="tabular-nums">{new Date(gsc.connectedBy.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></span> : <span>Connected</span>}
+          {onChange && <><span aria-hidden>·</span><button type="button" onClick={onChange} className={SMALL_LINK}>Change</button></>}
+          {onDisconnect && <><span aria-hidden>·</span><button type="button" onClick={onDisconnect} className={SMALL_LINK}>Disconnect</button></>}
+        </p>
+      )}
       {/* the column labels (12/600, muted), on the rows' grid; a bottom border as the winners table's header */}
       <div aria-hidden className={`${Q_GRID} mt-3 border-b border-[var(--div)] pb-2 pl-1 text-[12px] leading-4 font-semibold text-stone-500`} data-sc-head>
         <span /><span /><span>Best Targeted URL</span><span className="text-right">Impr.</span><span className="text-right">Match</span>
@@ -252,6 +294,8 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
                 <span title={q.query} className={`truncate text-[16px] leading-6 ${muted ? 'font-medium text-stone-500' : 'font-semibold text-stone-900'}`}>{q.query}</span>
                 {q.intent && <Tag intent={q.intent} />}
                 {q.lowVolume && <Tag intent="low volume" />}
+                {/* app (owner, 2026-11-05): a Best query with the whole subject but not the prompt's intent words */}
+                {q.note && <span className="min-w-0 truncate text-[13px] leading-[18px] text-stone-500" data-best-note title={q.note}>· {q.note}</span>}
               </span>
               <span className="min-w-0 text-[14px] leading-5 font-medium">
                 {q.topPage?.url
@@ -350,7 +394,7 @@ function TabCard({ show, path, url, title, domain, impressions, e }) {
   )
 }
 // one line under the table: "Publishing on <path> · Change page" (a small menu: your pages, or a new page)
-function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath }) {
+function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath, sourceLabel = null }) {
   const [open, setOpen] = useState(false)
   const pages = gsc.pages.slice(0, 5)
   const options = [...pages.map((p) => ({ key: p.path, label: p.path, pick: { action: 'update', path: p.path, url: p.url } })), ...(newPath ? [{ key: 'create', label: `Create a new page · ${newPath}`, pick: { action: 'create', path: newPath } }] : [])]
@@ -365,6 +409,8 @@ function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath }) {
       {/* its own rendered width (no measured box: that ran before the font loaded and left a gap before "·"); it
           truncates in the middle only when the line overflows */}
       <span title={usingPath} className="flex min-w-0"><FitMid text={usingPath} className="font-semibold text-stone-900" /></span>
+      {/* app (owner, 2026-11-05): where it came from: "From Search Console" or "Your pick" */}
+      {sourceLabel && <><span aria-hidden className="text-stone-400">·</span><span className="shrink-0 text-stone-500" data-page-source>{sourceLabel}</span></>}
       <span aria-hidden className="text-stone-400">·</span>
       <button ref={changeRef} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}
         className="shrink-0 rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Change page</button>
@@ -387,6 +433,91 @@ function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath }) {
           </ul>
         </>
       )}
+    </div>
+  )
+}
+
+// ---- as the app (owner, 2026-11-05) -----------------------------------------------------------------------------
+// The target page when Search Console isn't connected (or was skipped): the page comes from content-recommend's own
+// suggestion, so it says so: "Publishing on <path> · Suggested from your site" (or "New page we suggest") · "Connect
+// Search Console for a better match" (onAsk: the Connect card again, scrolled into view)
+export function RoutePublishing({ page, onAsk = null }) {
+  if (!page?.path) return null
+  const openCard = () => {
+    onAsk?.()
+    requestAnimationFrame(() => document.querySelector('[data-sc-ask]')?.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }))
+  }
+  return (
+    <p data-route-publishing={page.source || 'route'} className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px] leading-5">
+      <span className="shrink-0 text-stone-500">Publishing on</span>
+      <span className="min-w-0 truncate font-semibold text-stone-900" title={page.path}>{page.path}</span>
+      <span aria-hidden className="text-stone-400">·</span>
+      <span className="shrink-0 text-stone-500" data-page-source>{pageSourceLabel(page)}</span>
+      <span aria-hidden className="text-stone-400">·</span>
+      <button type="button" onClick={openCard} className="shrink-0 rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Connect Search Console for a better match</button>
+    </p>
+  )
+}
+
+// The property picker (Harsh's, app 65cff54): the Google account is connected but the brand's site isn't one of its
+// readable properties, or "Change property" on the list. Lists the account's properties (the brand's first), saves one,
+// or reconnects with another Google account. picker: { open, loading, saving, error, data, onClose, onSave }
+export function usePropertyPicker(load, save = () => {}) {
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [data, setData] = useState(null)
+  const timer = useRef(null)
+  useLayoutEffect(() => () => clearTimeout(timer.current), [])
+  return {
+    open, loading, saving, error: null, data,
+    openPicker: () => { setOpen(true); setLoading(true); timer.current = setTimeout(() => { setData(load()); setLoading(false) }, 500) },
+    onClose: () => setOpen(false),
+    onSave: (siteUrl) => { setSaving(true); timer.current = setTimeout(() => { setSaving(false); setOpen(false); save(siteUrl) }, 500) },
+  }
+}
+const PROP_ROW = 'flex w-full items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5 text-left text-[14px] text-stone-800 outline-none hover:border-ink hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60'
+const SMALL_TEXT_BTN = 'rounded text-[14px] font-medium text-stone-600 underline decoration-[var(--color-line-strong)] underline-offset-2 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60'
+export function PropertyPicker({ open, loading, saving, error, data, onClose, onSave, onReconnect, onDisconnect = null, disconnecting = false, domain }) {
+  if (!open) return null
+  const matched = data?.matched || []
+  const other = data?.other || []
+  const host = String(domain || '').replace(/^www\./, '')
+  const list = (xs) => (
+    <ul className="space-y-1">{xs.map((p) => (
+      <li key={p.siteUrl}>
+        <button type="button" disabled={saving} onClick={() => onSave(p.siteUrl)} className={PROP_ROW}>
+          <span className="min-w-0 break-all">{p.siteUrl}</span>
+          <span className="shrink-0 text-[12px] text-stone-500">{p.permissionLevel?.replace(/^site/, '') || ''}</span>
+        </button>
+      </li>
+    ))}</ul>
+  )
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="gsc-prop-h" data-gsc-property-picker
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[color-mix(in_srgb,var(--ink)_40%,transparent)] p-4 sm:items-center" onClick={onClose}>
+      <div className="max-h-[min(80vh,560px)] w-full max-w-lg overflow-auto rounded-xl border border-line bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 id="gsc-prop-h" className="text-[17px] leading-6 font-semibold text-stone-900">Choose a Search Console property</h2>
+        <p className="mt-1 text-[14px] leading-5 text-stone-600">
+          Pick the property to use for <span className="font-medium text-stone-900">{host}</span>. If this Google account doesn’t include that site, connect with another account.
+        </p>
+        {loading && <p className="mt-4 text-[14px] text-stone-500" aria-busy>Loading properties…</p>}
+        {error && <p role="alert" className="mt-3 text-[14px] text-stone-700"><span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-negative" aria-hidden />{error}</p>}
+        {!loading && data && (
+          <div className="mt-4 space-y-4">
+            {matched.length > 0 && <div><p className="mb-2 text-[12px] font-medium text-stone-500">Matches {host}</p>{list(matched)}</div>}
+            {other.length > 0 && <div><p className="mb-2 text-[12px] font-medium text-stone-500">{matched.length ? 'Other properties on this Google account' : `No property for ${host}: other sites on this account`}</p>{list(other)}</div>}
+            {!matched.length && !other.length && <p className="text-[14px] text-stone-700">This Google account has no Search Console properties. Add {host} in Search Console, or connect with another Google account.</p>}
+          </div>
+        )}
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          {onDisconnect ? <button type="button" onClick={onDisconnect} disabled={saving || disconnecting} className={SMALL_TEXT_BTN}>{disconnecting ? 'Disconnecting…' : 'Disconnect'}</button> : <span />}
+          <span className="flex flex-wrap items-center justify-end gap-3">
+            <button type="button" onClick={onClose} className={SMALL_TEXT_BTN}>Cancel</button>
+            {onReconnect && <button type="button" onClick={onReconnect} disabled={saving || disconnecting} className={ink}>Use another Google account</button>}
+          </span>
+        </div>
+      </div>
     </div>
   )
 }

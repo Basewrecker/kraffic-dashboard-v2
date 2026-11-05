@@ -157,15 +157,16 @@ test('Your data tasks: uploads read for a second, their facts become suggestions
 
 import { nextVisible, stepPos, stepsFor } from './flow.js'
 
-test('v1 steps: Target page → Your data → Draft → Copy & publish; ?backend=full: all five', () => {
+test('v1 steps: Target page → Your data → Draft → Copy & publish → Verify → Publish & track; ?backend=full: all five', () => {
   const v1 = stepsFor(false)
-  assert.deepEqual(v1.map((s) => [s.i, s.title]), [[1, 'Target page'], [2, 'Your data'], [3, 'Draft'], [4, 'Copy & publish']])
+  assert.deepEqual(v1.map((s) => [s.i, s.title]), [[1, 'Target page'], [2, 'Your data'], [3, 'Draft'], [4, 'Copy & publish'], [5, 'Verify'], [6, 'Publish & track']])
   assert.equal(nextVisible(v1, 1), 2)
   assert.equal(nextVisible(v1, 2), 3)
   assert.equal(nextVisible(v1, 3), 4)
-  assert.equal(nextVisible(v1, 4), 4)
-  assert.deepEqual(stepPos(v1, 2), { n: 2, of: 4 })
-  assert.deepEqual(stepPos(v1, 3), { n: 3, of: 4 })
+  assert.equal(nextVisible(v1, 4), 5)
+  assert.equal(nextVisible(v1, 6), 6)
+  assert.deepEqual(stepPos(v1, 1), { n: 1, of: 6 }, 'one count everywhere: 1 of 6')
+  assert.deepEqual(stepPos(v1, 3), { n: 3, of: 6 })
   // Your data opens in the focus panel like the Draft (index 2 ≥ FOCUS_FROM)
   assert.equal(inFocus(2, null), true)
   const full = stepsFor(true)
@@ -182,4 +183,15 @@ test('"Back to step n" counts the visible steps (v1: Draft is step 3 of 4; full:
   assert.equal(backLabel(stepsFor(false), 3), 'Back to step 3')
   assert.equal(backLabel(stepsFor(false), 4), 'Back to step 4')
   assert.equal(backLabel(stepsFor(true), 3), 'Back to step 4')
+})
+
+import { PUBLISH, VERIFY, startExitedV1, startOfV1 } from './flow.js'
+test('v1 start: copied and waiting → Verify; published → Publish & track, on the page', () => {
+  assert.equal(startOfV1({ stage: 'draft' }, 'new').current, 3)
+  assert.equal(startOfV1({ stage: 'waiting' }, 'new').current, VERIFY)
+  for (const stage of ['monitoring', 'improved', 'nochange']) {
+    assert.equal(startOfV1({ stage }, 'new').current, PUBLISH)
+    assert.equal(startExitedV1({ stage }, PUBLISH), PUBLISH)
+  }
+  assert.equal(startExitedV1({ stage: 'waiting' }, VERIFY), null)
 })

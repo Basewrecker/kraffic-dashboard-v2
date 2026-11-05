@@ -1,6 +1,6 @@
 import { test, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { guideReject, guidelinesLabel, guidelinesPreview, hasGuidelines, loadGuidelines, needsGuidelines, removeGuidelines, saveGuidelines, skipGuidelines } from './brandGuidelines.js'
+import { guideReject, guidelinesLabel, guidelinesPreview, guidelinesStamp, guidelinesTrim, hasGuidelines, loadGuidelines, needsGuidelines, removeGuidelines, saveGuidelines, skipGuidelines } from './brandGuidelines.js'
 
 // a stand-in for the browser's localStorage
 const mem = new Map()
@@ -16,7 +16,7 @@ test('asked once per brand: until saved or skipped', () => {
   assert.equal(needsGuidelines('b.com'), false, 'saved: not asked again')
 })
 
-test('save clears an earlier skip; remove asks again only if not skipped', () => {
+test('save clears an earlier skip; remove counts as a skip (not asked again)', () => {
   skipGuidelines('a.com')
   const g = saveGuidelines('a.com', { never: 'miracle' })
   assert.equal(g.never, 'miracle')
@@ -24,7 +24,21 @@ test('save clears an earlier skip; remove asks again only if not skipped', () =>
   assert.deepEqual(loadGuidelines('a.com').never, 'miracle')
   removeGuidelines('a.com')
   assert.equal(loadGuidelines('a.com'), null)
-  assert.equal(needsGuidelines('a.com'), true, 'the skip went with the save')
+  assert.equal(needsGuidelines('a.com'), false, 'removed = skipped, as the app')
+})
+
+test('stamp: Added on first save, Updated after an edit; addedAt kept', () => {
+  const g = saveGuidelines('a.com', { tone: 'warm' })
+  assert.match(guidelinesStamp(g), /^Added /)
+  const later = { ...g, savedAt: new Date(Date.parse(g.addedAt) + 2 * 864e5).toISOString() }
+  assert.match(guidelinesStamp(later), /^Updated /)
+  assert.equal(saveGuidelines('a.com', { tone: 'calm' }).addedAt, g.addedAt)
+})
+
+test('trim at 20,000 characters (file text plus pasted text)', () => {
+  assert.equal(guidelinesTrim({ text: 'a'.repeat(100) }).trimmed, false)
+  const t = guidelinesTrim({ file: { text: 'a'.repeat(15000) }, text: 'b'.repeat(6000) })
+  assert.deepEqual(t, { trimmed: true, chars: 21000, max: 20000 })
 })
 
 test('empty guidelines are not guidelines', () => {

@@ -10,6 +10,8 @@ import { ArrowRight, EyeOff, FileText, LineChart, TrendingUp } from 'lucide-reac
 import { PlatformIcon } from '../../../components/dashboard/icons'
 import { ENGINES, ENGINE_SHORT as SHORT, engineIcon } from '../../../data/contentOpportunities'
 import { FLAGS } from '../../../data/contentOpportunities-proposed'
+import EdgeTip from '../../../components/ui/EdgeTip'
+import { CONTENT_HIDDEN } from '../../../data/contentApp' // as the app: the Drafts card's flag count hidden for now (owner, 2026-11-05)
 import { Ring } from '../parts'
 import { useCountUp } from '../../../hooks/useBrandView'
 import Card from '../../../components/dashboard/Card'
@@ -39,14 +41,10 @@ function Sparkline({ draft }) {
   )
 }
 
-// a small tooltip on hover / focus (no browser title tooltip)
-function Tip({ text, children, align = 'center' }) {
-  return (
-    <span tabIndex={0} aria-label={text} className="group/tip relative inline-flex items-center rounded outline-none focus-visible:ring-2 focus-visible:ring-focus">
-      {children}
-      <span role="tooltip" className={`pointer-events-none absolute bottom-full z-20 mb-1.5 ${align === 'left' ? 'left-0' : 'left-1/2 -translate-x-1/2'} whitespace-nowrap rounded-md border border-line bg-raised px-2 py-1 text-[12px] leading-4 text-stone-700 opacity-0 shadow-sm transition-opacity duration-150 group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100`}>{text}</span>
-    </span>
-  )
+// a small tooltip on hover / focus (no browser title tooltip). app (owner, 2026-11-05): the Content pages' one tooltip,
+// drawn outside the card and kept on screen (components/mock-overview/content-tip.jsx)
+function Tip({ text, children }) {
+  return <EdgeTip tip={text} label={text} className="inline-flex items-center">{children}</EdgeTip>
 }
 
 // Published & monitoring: the tracked engines' icons; the ones that named you this week in full colour, the others
@@ -114,20 +112,30 @@ function FilterCard({ label, icon: Icon, selected, onClick, number, children, as
   )
 }
 
+// → n, or null when there's no previous sync to compare with
+export function newSinceLastSync(rows) {
+  const prev = (r) => (r.history?.length > 1 ? r.history[r.history.length - 2] : null)
+  if (!rows.some((r) => prev(r) != null)) return null
+  return rows.filter((r) => prev(r) === 'visible').length
+}
+
 export default function KpiCards({ rows, value, onChange }) {
   const count = (stage) => rows.filter((r) => r.stage === stage).length
   const improved = rows.filter((r) => r.stage === 'improved')
-  const newThisSync = rows.filter((r) => r.streak === 1).length
+  // app (owner, 2026-11-05): "+n since last sync" counts only prompts the previous sync has an answer for and that were
+  // visible then (history: the loaded syncs, oldest first). A sync with no data for a prompt is no comparison (it read as
+  // "new" before, so +31 matched the whole count); no previous sync at all → no change line, just "of 113"
+  const newThisSync = newSinceLastSync(rows)
   const gained = [...new Set(improved.flatMap((r) => r.draft.gained))]
   const resolved = FLAGS.filter((f) => f.resolved).length
   const pick = (id) => () => onChange(id)
   return (
     <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
-      <FilterCard label="Missed prompts" icon={EyeOff} number={rows.length} selected={value === 'all'} onClick={pick('all')} aside={<Ring value={rows.length} total={TRACKED_TOTAL} size={28} stroke={4} />}>
+      <FilterCard label="Content opportunities" icon={EyeOff} number={rows.length} selected={value === 'all'} onClick={pick('all')} aside={<Ring value={rows.length} total={TRACKED_TOTAL} size={28} stroke={4} />}>
         <span className={context}>of {TRACKED_TOTAL}{newThisSync > 0 && <> · <span className="font-semibold text-negative">+{newThisSync}</span> since last sync</>}</span>
       </FilterCard>
       <FilterCard label="Drafts" icon={FileText} number={count('draft')} selected={value === 'draft'} onClick={pick('draft')}
-        aside={<span className="flex items-center gap-2"><Ring value={resolved} total={FLAGS.length} size={24} stroke={3} /><span className="text-[13px] leading-4 tabular-nums"><span className="text-stone-900">{resolved}/{FLAGS.length}</span> <span className="text-stone-500">flags</span></span></span>}>
+        aside={CONTENT_HIDDEN.draftChecks ? null : <span className="flex items-center gap-2"><Ring value={resolved} total={FLAGS.length} size={24} stroke={3} /><span className="text-[13px] leading-4 tabular-nums"><span className="text-stone-900">{resolved}/{FLAGS.length}</span> <span className="text-stone-500">flags</span></span></span>}>
         <span className={context}>Ready to review</span>
       </FilterCard>
       <FilterCard label="Published & monitoring" icon={LineChart} number={count('monitoring')} selected={value === 'monitoring'} onClick={pick('monitoring')}

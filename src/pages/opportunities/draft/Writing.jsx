@@ -10,13 +10,12 @@
 //     motion: the skeleton and the timer stay).
 // When the draft arrives, DraftStep fades this out while the draft's sections fade in, top to bottom (60ms apart).
 import { useEffect, useState } from 'react'
-import { LOADING_LINES, LOADING_SWITCH_MS, formatLabel } from '../../../data/contentRecommend'
+import { LOADING_LINES, LOADING_SWITCH_MS } from '../../../data/contentRecommend'
 import { CrossFade } from '../../../components/ui/motion'
 import { LogoPlate } from '../parts'
 
 const LINES = { 'Direct answer': ['92%', '64%'], 'Key points': ['88%', '80%', '72%'], Steps: ['90%', '84%', '76%'], Comparison: ['30%', '30%', '30%'], 'Detailed explanation': ['96%', '90%', '58%'], FAQ: ['70%', '94%', '66%'], Sources: ['44%', '40%'] }
 const clock = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
-const andList = (xs) => (xs.length < 2 ? xs : [...xs.slice(0, -1).flatMap((x, i) => (i ? [', ', x] : [x])), ' and ', xs.at(-1)])
 
 // plan: draftPlan() (R21) · competitors: the request's domains · nameOf: a competitor's display name
 // overlay: drawn over the arriving draft, in its column (left, 8/12) so each skeleton section sits near its section
@@ -28,15 +27,13 @@ export default function Writing({ startedAt, plan, competitors = [], nameOf = (d
   }, [])
   const elapsed = startedAt != null ? now - startedAt : 0
   const line = elapsed >= LOADING_SWITCH_MS ? 1 : 0
-  const formats = plan.missing.map((m) => formatLabel(m.id))
   const total = plan.sections.reduce((n, s) => n + 1 + (LINES[s]?.length ?? 2), 0)
   let k = 0 // the shimmer's position down the skeleton
   const wave = () => ({ animationDelay: `${(k++) * 110}ms`, animationDuration: `${total * 110 + 700}ms` })
   return (
     <div className={overlay ? 'w-[66%] py-2' : 'mx-auto max-w-[760px] py-2'} role={overlay ? undefined : 'status'} aria-live={overlay ? undefined : 'polite'}>
-      <p className="text-[15px] leading-[22px] text-stone-700">
-        Adding {andList(formats.map((f) => <span key={f} className="font-semibold text-ink">{f}</span>))}, the {formats.length} {formats.length === 1 ? 'format' : 'formats'} the winners use
-      </p>
+      {/* app (owner, 2026-11-05): just "Creating content" (was "Adding FAQ and …, the n formats the winners use") */}
+      <p className="text-[15px] leading-[22px] text-stone-700">Creating content</p>
       {competitors.length > 0 && (
         <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] leading-[18px] text-stone-500">
           <span>Written to beat</span>
