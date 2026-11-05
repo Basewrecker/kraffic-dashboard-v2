@@ -143,22 +143,8 @@ const UseButton = ({ using, label, onClick }) => (
   </button>
 )
 
-// ---- one flow visual (owner, 2026-11-05): the prompt → its matching searches → your pages, then one line: the page
-// in use and "Change page". No other text blocks (the Best query / Publish on / Other top queries / Your pages blocks
-// are gone). Layout only: the matcher's data as it is (data/gscMatch.js).
-//   Left: the prompt (one node). Middle: the matching searches (gsc.queries): the Best query first, then the ones with
-//   10+ impressions (the matcher's order), then the low-volume ones; each shows its impressions and match %. Account /
-//   local / site and low-volume searches are faint grey with their tag. Right: your pages; the page in use (Workspace
-//   `page`: the user's pick ?? Search Console's Publish on ?? the route's) is the top node with a solid border, then
-//   the pages the searches land on.
-//   Ribbons: prompt → every search (thickness = its impressions) and search → its page (thickness = the impressions that
-//   page gets: impressions × topPage.share). The chain into the page in use is ink (by default that's the best chain:
-//   prompt → Best query → its page; ink, not indigo: brand colours stay in Share of voice / history / Reports), the
-//   rest neutral grey, tagged and low-volume ones faint. Hover / focus a search or a page: its whole chain lights up,
-//   the rest dims, and only the numbers show (a page: the impressions it gets from these searches). The ribbons draw in
-//   left to right once on load (600ms, ease-out); none with prefers-reduced-motion.
-//   Under it: "Using this page: <path> · Change page" (a small menu: your pages, or a new page). The payoff bar and
-//   the draft request's target follow.
+// ---- the section's body: the queries table, then "Publishing on <path> · Change page" (the page in use: Workspace
+// `page`: the user's pick ?? Search Console's Publish on ?? the route's; the payoff bar and the request follow it)
 function FlowSection({ gsc, page, onPick, newPath, prompt }) {
   const sc = gsc.publishOn
   const usingPath = page?.action === 'create' ? page.path : page?.path ?? (sc.action === 'create' ? sc.suggestedPath : sc.path)
