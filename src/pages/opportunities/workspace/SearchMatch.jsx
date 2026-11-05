@@ -8,7 +8,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowRight, ArrowUpRight, Check, Info, Loader2, Plus } from 'lucide-react'
 import { GoogleIcon, PlatformIcon } from '../../../components/dashboard/icons'
-import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
+import { engineIcon } from '../../../data/contentOpportunities'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { Seg } from '../../../components/ui/motion'
 import { LogoPlate, MidText, midTruncate } from '../parts'
@@ -163,19 +163,15 @@ function FlowSection({ gsc, page, onPick, newPath, prompt, enginesFor, titleFor,
 // tab. Rows: the Google mark in a 32px circle · the query (15/600, truncated) · the page it lands on (muted, ↗ opens
 // the live page) · impressions · a coloured verdict: "Best match" green (the Best row), "Strong · 82%" near-black
 // (≥ 70), "Partial · 46%" muted (40–69), "Weak · 23%" red (< 40). Tagged / low-volume rows: muted with their tag. Rows
-// landing on the publishing page: a 2px accent bar on the left. Hover: the row tints (150ms), ↗ nudges up-right, the
-// impressions cross-fade into the query's 8-week sparkline (60×20, drawn in ~400ms, the last point a dot), and the
-// other rows landing on the same page tint faintly. Load: rows fade up 6px, 40ms apart, once. Reduced motion: no
-// movement (the sparkline shows statically on hover).
+// landing on the publishing page: a 2px accent bar on the left. Hover: the row tints (150ms), ↗ nudges up-right, the other rows
+// landing on the same page tint faintly. No trend or Google-position columns (owner, 2026-11-05). Load: rows fade up
+// 6px, 40ms apart, once. Reduced motion: no movement.
 const LIST_ROWS = 6
-const Q_GRID = 'grid grid-cols-[32px_minmax(0,1fr)_128px_minmax(96px,auto)_minmax(0,220px)_76px_136px] items-center gap-x-3'
+const Q_GRID = 'grid grid-cols-[32px_minmax(0,1fr)_minmax(0,220px)_76px_136px] items-center gap-x-3'
 const verdict = (q) => (q.best ? { text: 'Best match', cls: 'font-semibold text-[var(--rep-up-fg)]' }
   : q.adjusted >= 70 ? { text: `Strong · ${q.adjusted}%`, cls: 'text-stone-900' }
     : q.adjusted >= 40 ? { text: `Partial · ${q.adjusted}%`, cls: 'text-stone-500' }
       : { text: `Weak · ${q.adjusted}%`, cls: 'font-semibold text-negative' })
-// a query's 8 weeks of impressions (the sample: derived from its total, steady with a little wobble; the app needs
-// weekly impressions per query from Search Console for this)
-const weeksOf = (q) => { const base = q.impressions / 8; let h = 0; for (const c of q.query) h = (h * 31 + c.charCodeAt(0)) >>> 0; return Array.from({ length: 8 }, (_, i) => Math.max(0, Math.round(base * (0.75 + ((h >> (i * 3)) % 9) / 16 + i * 0.03)))) }
 const orderRows = (qs) => { const best = qs.filter((q) => q.best), rest = qs.filter((q) => !q.best); const by = (a, b) => b.impressions - a.impressions; return [...best, ...rest.filter((q) => !q.lowVolume).sort(by), ...rest.filter((q) => q.lowVolume).sort(by)] }
 // the header, one block with the tabs: just "Prompts n" (owner, 2026-11-05: no property / range / Change line under it).
 // No divider: header, tabs and rows read as one block.
@@ -231,7 +227,7 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
       </div>
       {/* the column labels (12/600, muted), on the rows' grid; a bottom border as the winners table's header */}
       <div aria-hidden className={`${Q_GRID} mt-3 border-b border-[var(--div)] pb-2 pl-1 text-[12px] leading-4 font-semibold text-stone-500`} data-sc-head>
-        <span /><span /><span>Trend</span><span>Google</span><span>Lands on</span><span className="text-right">Impr.</span><span className="text-right">Match</span>
+        <span /><span /><span>Lands on</span><span className="text-right">Impr.</span><span className="text-right">Match</span>
       </div>
       <ul onMouseLeave={() => setHot(null)}>
         {shown.map((q, i) => {
@@ -251,8 +247,6 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
                 {q.intent && <Tag intent={q.intent} />}
                 {q.lowVolume && <Tag intent="low volume" />}
               </span>
-              <Trend values={weeksOf(q)} tone={q.best ? 'best' : q.adjusted < 40 ? 'weak' : null} hot={on} />
-              <CitedBy e={enginesFor(q.topPage?.path)} position={q.position} />
               <span className="min-w-0 text-[14px] leading-5 font-medium">
                 {q.topPage?.url
                   ? <a href={q.topPage.url} target="_blank" rel="noopener noreferrer" onFocus={() => setHot(q.query)} className="group/l flex min-w-0 items-center gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-focus" aria-label={`${q.topPage.path} (opens in a new tab)`}>
@@ -274,16 +268,6 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
         </button>
       )}
     </div>
-  )
-}
-// "Cited by": the AI engines (in colour, 18px) that already cite the landing page (real data only: nothing when none
-// do), then the query's average Google position as a small neutral chip ("#8"; the column header says Google)
-function CitedBy({ e, position }) {
-  return (
-    <span className="flex min-w-0 items-center gap-1.5" data-cited-by>
-      {e.engines.map((id) => <span key={id} title={`Cited by ${ENGINE_NAME[id]}`} className="flex"><PlatformIcon id={engineIcon(id)} size={18} /></span>)}
-      {position != null && <span title={`Average Google position ${Math.round(position)}`} data-gpos className="whitespace-nowrap rounded-[12px] bg-tint px-2 py-0.5 text-[13px] leading-[18px] font-semibold tabular-nums text-stone-600">#{Math.round(position)}</span>}
-    </span>
   )
 }
 // a landing page as a link (owner, 2026-11-05): the folder ("/blog/") muted, the slug secondary and truncated in the
@@ -359,47 +343,6 @@ function TabCard({ show, path, url, title, domain, impressions, e }) {
     </span>
   )
 }
-
-// the trend, right after the query (owner, 2026-11-05): an always-visible 8-week impressions sparkline (72×20, 1.5px,
-// the text colour at 60%, the last point a dot), then the change, last 4 weeks vs the 4 before: "+18%" bold green,
-// "−6%" bold red, "flat" muted under 2% either way. Hover: the line goes to the full text colour and a small tooltip
-// lists the weekly numbers.
-const changeOf = (v) => { const a = v.slice(0, 4).reduce((n, x) => n + x, 0), b = v.slice(4).reduce((n, x) => n + x, 0); return a ? Math.round(((b - a) / a) * 100) : null }
-// tone: 'best' (green, as "Best match"), 'weak' (red, as "Weak"), else neutral (the text colour at 60%). hot: the row
-// is hovered: the line redraws left to right (~500ms ease-out), a soft area fill (the line colour at ~12%) fades in, the
-// end dot scales 1 → 1.4 → 1 once; mouse-out: the fill fades away, the line stays. None with reduced motion. The weekly
-// numbers' tooltip shows with the pointer on the line itself.
-function Trend({ values, tone = null, hot = false }) {
-  const lo = Math.min(...values), hi = Math.max(...values)
-  const y = (v) => (hi === lo ? 10 : 17 - ((v - lo) / (hi - lo)) * 14)
-  const xy = values.map((v, i) => [(i * 72) / (values.length - 1), y(v)])
-  const pts = xy.map(([x, yy]) => `${x},${yy.toFixed(1)}`).join(' ')
-  const area = `M0,20 L${xy.map(([x, yy]) => `${x},${yy.toFixed(1)}`).join(' L')} L72,20 Z`
-  const d = changeOf(values)
-  const still = reducedMotion()
-  const color = tone === 'best' ? 'var(--rep-up-fg)' : tone === 'weak' ? 'var(--negative)' : 'var(--color-stone-900)'
-  const op = tone ? 1 : 0.6
-  return (
-    <span className="relative flex items-center gap-2" data-trend data-tone={tone ?? undefined}>
-      <span className="group/t relative flex">
-        <svg width="72" height="20" viewBox="0 0 72 20" className="shrink-0 overflow-visible" role="img" aria-label={`Weekly impressions: ${values.map(num).join(', ')}`}>
-          <path d={area} fill={color} style={{ opacity: hot ? 0.12 : 0, transition: still ? 'none' : 'opacity 250ms ease-out' }} />
-          <polyline key={hot && !still ? 'redraw' : 'still'} points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" pathLength="1"
-            style={{ opacity: hot ? 1 : op, transition: 'opacity 150ms ease-out', ...(hot && !still ? { strokeDasharray: 1, animation: 'co-line-draw 500ms ease-out both' } : {}) }} />
-          <circle key={hot && !still ? 'pulse' : 'dot'} cx="72" cy={xy.at(-1)[1]} r="2" fill={color}
-            style={{ opacity: hot ? 1 : op, transformOrigin: '72px ' + xy.at(-1)[1] + 'px', ...(hot && !still ? { animation: 'co-dot-pulse 420ms ease-out 380ms both' } : {}) }} />
-        </svg>
-        <span role="tooltip" className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden whitespace-nowrap rounded-md border border-line bg-raised px-2 py-1 text-[11px] leading-4 tabular-nums text-stone-700 shadow-md group-hover/t:block">
-          {values.map(num).join(' · ')}
-        </span>
-      </span>
-      <span className={`whitespace-nowrap text-[14px] leading-5 font-semibold tabular-nums ${d == null || Math.abs(d) < 2 ? 'text-stone-500' : d > 0 ? 'text-[var(--rep-up-fg)]' : 'text-negative'}`}>
-        {d == null || Math.abs(d) < 2 ? 'flat' : `${d > 0 ? '+' : '−'}${Math.abs(d)}%`}
-      </span>
-    </span>
-  )
-}
-
 // one line under the table: "Publishing on <path> · Change page" (a small menu: your pages, or a new page)
 function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath }) {
   const [open, setOpen] = useState(false)
