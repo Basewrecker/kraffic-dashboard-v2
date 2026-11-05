@@ -76,33 +76,10 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
         const c = res.citedPages.find((x) => { try { return new URL(x.url).pathname.replace(/\/$/, '') === path } catch { return false } })
         return c ? eng(c) : { engines: [], unknown: false }
       }} />}
-      {/* the format matrix left (8/12), the Update column right (4/12), owner 2026-11-04; stacked below 1100px, matrix first */}
-      <div className="grid grid-cols-1 gap-x-10 gap-y-8 min-[1100px]:grid-cols-[minmax(0,8fr)_minmax(0,4fr)] min-[1100px]:items-start">
-        <Matrix m={m} path={page.path} eng={eng} named={named} host={host} setHost={setHost} col={col} hoverCol={hoverCol} pulse={pulse} yourEnd={yourEnd} after={after.show ? after.cells : null} />
-        {/* right (≥1100px): what the draft adds (the page is chosen once, in Search Console's Your pages; owner,
-            2026-11-05), then Add your data (or, once a draft exists, its preview). Below 1100px it stacks under the matrix. */}
-        <section aria-labelledby="co-adds-h" className="min-[1100px]:border-l min-[1100px]:border-line min-[1100px]:pl-10">
-          <div className={HEAD}>
-            <h3 id="co-adds-h" className={H}>The draft adds</h3>
-            {adds.length > 0 && <span className={META}>{adds.length} {adds.length === 1 ? 'format' : 'formats'}</span>}
-          </div>
-          {adds.length > 0 ? (
-            <ul onMouseLeave={() => hoverCol(null)}>
-              {adds.map((c, i) => (
-                <li key={c.id} onMouseEnter={() => hoverCol(c.id)} style={anim('co-slide-row', yourEnd + T.adds + i * T.addsStep)}
-                  className={`flex h-10 items-center gap-2.5 border-b border-[var(--div)] px-1.5 transition-colors duration-150 ${col === c.id ? 'bg-tint' : ''}`}>
-                  <RingDraw size={14} />
-                  <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-stone-900">{formatLabel(c.id)}</span>
-                  <span className="text-[12px] leading-4 tabular-nums text-stone-500">{c.used} of {c.of} winners</span>
-                  {c.score != null && <span className="w-[58px] text-right text-[13px] leading-[18px] font-semibold tabular-nums text-stone-900">score {c.score}</span>}
-                </li>
-              ))}
-            </ul>
-          ) : <p className={`pt-3 ${META}`}>{m.missing.length ? 'Nothing the draft can add here: the missing formats need their own page.' : 'Your page already has every format the winners use.'}</p>}
-          {draft ? <DraftPreview p={draftPreview(res.contentMarkdown)} open={draft.open} onOpen={draft.onOpen} />
-            : write && <button type="button" onClick={write.onClick} className={`${lineBtn} mt-4`}>{write.label}<ArrowRight size={14} aria-hidden /></button>}
-        </section>
-      </div>
+      {/* the format matrix, full width (owner, 2026-11-05: "The draft adds" panel removed; what it adds is the
+          header's line and the tinted columns) */}
+      <Matrix m={m} path={page.path} eng={eng} named={named} host={host} setHost={setHost} col={col} hoverCol={hoverCol} pulse={pulse} yourEnd={yourEnd}
+        adds={adds} cells={after.cells} write={write} />
     </div>
   )
 }
@@ -197,84 +174,83 @@ function Slot({ page, e, ours = false, i, host, setHost, dim = false, card = fal
   )
 }
 
-// ---- 2. the format matrix -------------------------------------------------------------------------------------
-function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, yourEnd, after }) {
-  // the page column keeps room for its names (168px+); format columns give way first (120px, down to 76px)
-  const cols = `minmax(168px,1fr) repeat(${m.columns.length}, minmax(76px,120px))`
-  const tint = (id) => (col === id ? 'bg-tint' : '')
-  const sweep = (c) => anim('co-sweep', T.sweep + c * T.col, 420, 'ease-out')
+// ---- 2. the format matrix (owner, 2026-11-05) ----------------------------------------------------------------
+// Full width. Header: the title, "Add your data →" right; one line under it: "The draft adds FAQ and How-to guide".
+// Columns: the formats the draft adds first (light tint, full height), then the rest; each "3 of 5" and, for the ones
+// the draft adds, "· score 24". Winner rows: one line (logo · name · "#2" muted · the engines that cite the page), by
+// rank, AI-only last; a filled 8px dot where the page has the format, nothing where it doesn't. One "Your page" row
+// (tinted, the path under the name, the engines that name you): dark green tick = you have it, light green tick +
+// "+ draft" = this draft adds it, red dashed ring = still missing after this draft. 52px rows, the Search Console
+// table's borders.
+const listFormats = (ids) => { const l = ids.map(formatLabel); return l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} and ${l.at(-1)}` }
+function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, yourEnd, adds, cells, write }) {
+  const addIds = adds.map((c) => c.id)
+  const columns = [...m.columns.filter((c) => addIds.includes(c.id)), ...m.columns.filter((c) => !addIds.includes(c.id))]
+  const added = (id) => addIds.includes(id)
+  const cols = `minmax(260px,1.7fr) repeat(${columns.length}, minmax(84px,1fr))`
+  const tint = (id) => (added(id) ? 'bg-tint' : col === id ? 'bg-[color-mix(in_srgb,var(--tint)_60%,transparent)]' : '')
+  const winners = [...m.winners].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
+  const stateOf = (id) => cells?.find((c) => c.id === id)?.state ?? (m.yours.includes(id) ? 'have' : added(id) ? 'adds' : 'missing')
+  const line = adds.length ? `The draft adds ${listFormats(addIds)}` : m.missing.length ? 'Nothing the draft can add here: the missing formats need their own page' : 'Your page already has every format the winners use'
   return (
     <section aria-labelledby="co-matrix-h" className="min-w-0 overflow-x-auto">
-      <div className={HEAD}>
-        <h3 id="co-matrix-h" className={H}>What the winners have that you don’t</h3>
-        <span className={META}>Formats on each page</span>
+      <div className={`${HEAD} items-center`}>
+        <div className="min-w-0">
+          <h3 id="co-matrix-h" className={H}>What the winners have that you don’t</h3>
+          <p className={`mt-0.5 ${META}`} data-draft-adds>{line}</p>
+        </div>
+        {write && <button type="button" onClick={write.onClick} className={`${lineBtn} shrink-0`}>{write.label}<ArrowRight size={14} aria-hidden /></button>}
       </div>
       <div role="table" aria-label="Formats by page" onMouseLeave={() => { hoverCol(null); setHost(null) }}>
         <div role="row" className="grid items-end" style={{ gridTemplateColumns: cols }}>
           <span role="columnheader" className={`pb-2 pt-3 ${META}`}>Page</span>
-          {m.columns.map((c, i) => (
-            <span key={c.id} role="columnheader" onMouseEnter={() => hoverCol(c.id)} className={`relative flex flex-col items-center px-1 pb-2 pt-3 text-center transition-colors duration-150 ${tint(c.id)}`}>
-              <span aria-hidden className="pointer-events-none absolute inset-0 bg-tint" style={sweep(i) ?? { opacity: 0 }} />
-              <span className="relative whitespace-nowrap text-[13px] leading-[18px] font-semibold text-stone-900" title={formatLabel(c.id)}>{SHORT[c.id] ?? c.label}</span>
-              <span className={`relative text-[12px] leading-4 tabular-nums ${col === c.id && c.score != null ? 'font-semibold text-stone-900' : 'text-stone-500'}`}>{col === c.id && c.score != null ? `score ${c.score}` : `${c.used} of ${c.of}`}</span>
+          {columns.map((c) => (
+            <span key={c.id} role="columnheader" onMouseEnter={() => hoverCol(c.id)} data-adds={added(c.id) || undefined}
+              className={`flex flex-col items-center px-1 pb-2 pt-3 text-center transition-colors duration-150 ${tint(c.id)}`}>
+              <span className="whitespace-nowrap text-[13px] leading-[18px] font-semibold text-stone-900" title={formatLabel(c.id)}>{SHORT[c.id] ?? c.label}</span>
+              <span className="whitespace-nowrap text-[12px] leading-4 tabular-nums text-stone-500">{c.used} of {c.of}{added(c.id) && c.score != null ? ` · score ${c.score}` : ''}</span>
             </span>
           ))}
         </div>
-        {m.winners.map((w, r) => (
-          <div key={w.url} role="row" onMouseEnter={() => setHost(w.host)} className={`grid h-[52px] items-center border-t border-[var(--div)] transition-colors duration-150 ${host === w.host ? 'bg-tint' : ''}`} style={{ gridTemplateColumns: cols }}>
-            <span role="rowheader" tabIndex={0} onFocus={() => setHost(w.host)} onBlur={() => setHost(null)} className="group/site relative flex min-w-0 items-center gap-2.5 rounded pl-1 pr-2 outline-none focus-visible:ring-2 focus-visible:ring-focus">
+        {winners.map((w, r) => (
+          <div key={w.url} role="row" onMouseEnter={() => setHost(w.host)} className={`grid h-[52px] items-center border-t border-[var(--div)] transition-colors duration-150 ${host === w.host ? 'bg-[color-mix(in_srgb,var(--tint)_60%,transparent)]' : ''}`} style={{ gridTemplateColumns: cols }}>
+            <span role="rowheader" tabIndex={0} onFocus={() => setHost(w.host)} onBlur={() => setHost(null)} className="group/site relative flex min-w-0 items-center gap-2 rounded pl-1 pr-2 outline-none focus-visible:ring-2 focus-visible:ring-focus">
               <SiteCard w={w} e={eng(w)} />
               <LogoPlate domain={w.host} size={24} logoClass="h-4 w-4" />
-              {/* two lines: the site, then its rank (and "+1 page" when it holds more page-1 spots), so the name stays whole */}
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-[14px] leading-5 font-semibold text-stone-900" title={w.host}>{siteName(w.host)}</span>
-                <span className="flex items-center gap-1.5 text-[12px] leading-4 tabular-nums text-stone-500">
-                  {w.rank ? `#${w.rank}` : 'AI only'}
-                  {w.others?.length > 0 && <><span aria-hidden>·</span><MorePages page={w} others={w.others} /></>}
-                </span>
-              </span>
+              <span className="truncate text-[14px] leading-5 font-semibold text-stone-900" title={w.host}>{siteName(w.host)}</span>
+              <span className="shrink-0 text-[12px] leading-4 tabular-nums text-stone-500">{w.rank ? `#${w.rank}` : 'AI only'}</span>
+              {w.others?.length > 0 && <MorePages page={w} others={w.others} />}
+              <EngineIcons e={eng(w)} size={14} />
             </span>
-            {m.columns.map((c, i) => (
-              <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} className={`relative grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
-                <span aria-hidden className="pointer-events-none absolute inset-0 bg-tint" style={sweep(i) ?? { opacity: 0 }} />
-                <span className="relative" style={anim('co-cell-in', T.sweep + i * T.col + 60 + r * T.cell, 220)}>
-                  {w.formats.includes(c.id)
-                    ? <span className="block h-3 w-3 rounded-full bg-ink" role="img" aria-label="Has it" />
-                    : <span className="block h-2.5 w-2.5 rounded-full border-[1.5px] border-[var(--color-line-strong)]" role="img" aria-label="Doesn’t have it" />}
-                </span>
+            {columns.map((c, i) => (
+              <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} className={`grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
+                {w.formats.includes(c.id) && <span className="block h-2 w-2 rounded-full bg-ink" role="img" aria-label="Has it" style={anim('co-cell-in', T.sweep + i * T.col + 60 + r * T.cell, 220)} />}
               </span>
             ))}
           </div>
         ))}
-        {/* your page, under a stronger rule */}
-        <div role="row" className="grid h-[52px] items-center border-t-2 border-line-strong" style={{ gridTemplateColumns: cols }}>
-          <span role="rowheader" className="min-w-0 pl-1 pr-2">
-            <span className="flex items-center gap-2 text-[14px] leading-5 font-semibold text-ink">Your page{named.length > 0 && <span className="flex" aria-label={`Named by ${named.map((x) => ENGINE_NAME[x]).join(', ')}`}><EngineIcons e={{ engines: named, unknown: false }} size={14} /></span>}</span>
-            <span className="block truncate text-[12px] leading-4 text-stone-500">{path}</span>
-          </span>
-          {m.columns.map((c, i) => (
-            <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} className={`grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
-              {m.yours.includes(c.id)
-                ? <TickDraw delay={yourEnd + i * 40} />
-                : <span key={col === c.id ? `p${pulse}` : 'still'} className="grid place-items-center rounded-full" style={col === c.id && !reduced() ? { animation: 'co-pulse-once 600ms ease-out both' } : undefined}>
-                  <RingDraw size={20} delay={col === c.id ? 0 : yourEnd + i * 40} />
-                </span>}
+        {/* your page: one tinted row, under a stronger rule */}
+        <div role="row" className="grid h-[52px] items-center border-t-2 border-line-strong bg-[color-mix(in_srgb,var(--tint)_70%,transparent)]" style={{ gridTemplateColumns: cols }}>
+          <span role="rowheader" className="flex min-w-0 items-center gap-2 pl-1 pr-2">
+            <span className="flex min-w-0 flex-col">
+              <span className="text-[14px] leading-5 font-semibold text-ink">Your page</span>
+              <span className="truncate text-[12px] leading-4 text-stone-500" title={path}>{path}</span>
             </span>
-          ))}
-        </div>
-        {/* after this draft: your ticks, the draft's formats as faint ticks drawing in (after your row's), honest rings */}
-        {after && (
-          <div role="row" className="grid h-[52px] items-center border-t border-[var(--div)]" style={{ gridTemplateColumns: cols }}>
-            <span role="rowheader" className="min-w-0 truncate pl-1 pr-2 text-[14px] leading-5 text-stone-500">After this draft</span>
-            {after.map((c, i) => (
-              <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} className={`grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
-                {c.state === 'have' ? <TickDraw delay={yourEnd + i * 40} />
-                  : c.state === 'adds' ? <span className="opacity-40"><TickDraw delay={yourEnd + 360 + i * 60} ms={320} label="The draft adds it" /></span>
-                    : <RingDraw size={20} delay={yourEnd + 360 + i * 60} label="Still missing after this draft" />}
+            {named.length > 0 && <span className="flex shrink-0" aria-label={`Named by ${named.map((x) => ENGINE_NAME[x]).join(', ')}`}><EngineIcons e={{ engines: named, unknown: false }} size={14} /></span>}
+          </span>
+          {columns.map((c, i) => {
+            const st = stateOf(c.id)
+            return (
+              <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} data-state={st} className={`grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
+                {st === 'have' ? <TickDraw delay={yourEnd + i * 40} />
+                  : st === 'adds' ? <span className="flex items-center gap-1"><span className="opacity-45"><TickDraw delay={yourEnd + 360 + i * 60} ms={320} label="This draft adds it" /></span><span className="text-[11px] leading-none font-medium text-[var(--rep-up-fg)]">+ draft</span></span>
+                    : <span key={col === c.id ? `p${pulse}` : 'still'} className="grid place-items-center rounded-full" style={col === c.id && !reduced() ? { animation: 'co-pulse-once 600ms ease-out both' } : undefined}>
+                      <RingDraw size={20} delay={col === c.id ? 0 : yourEnd + i * 40} label="Still missing after this draft" />
+                    </span>}
               </span>
-            ))}
-          </div>
-        )}
+            )
+          })}
+        </div>
       </div>
     </section>
   )
