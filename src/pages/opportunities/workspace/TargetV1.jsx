@@ -22,8 +22,8 @@
 // the column); your row's ticks draw and its red rings draw around; then "The draft adds" rows slide in. Linked hover:
 // a ladder logo ↔ its matrix row (soft tint); a format column or a "draft adds" row → that column, top to bottom, with
 // your missing cell pulsing once. Reduced motion: the final state; the hover highlights stay.
-import { useState } from 'react'
-import { ArrowRight } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowRight, Check } from 'lucide-react'
 import { PlatformIcon } from '../../../components/dashboard/icons'
 import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
 import { formatLabel } from '../../../data/contentRecommend'
@@ -71,7 +71,6 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
     <div className="flex flex-col gap-8">
       {asking && <ConnectSearchConsole connecting={sc.connecting} onConnect={sc.onConnect} onSkip={sc.onSkip} />}
       {sc?.state === 'skipped' && !sc.connecting && <SkippedRow onConnect={sc.onConnect} />}
-      <Ladder ladder={ladder} eng={eng} host={host} setHost={setHost} />
       {sc && !asking && sc.state !== 'skipped' && <SearchMatch {...sc} enginesFor={(path) => {
         const c = res.citedPages.find((x) => { try { return new URL(x.url).pathname.replace(/\/$/, '') === path } catch { return false } })
         return c ? eng(c) : { engines: [], unknown: false }
@@ -80,6 +79,8 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
           header's line and the tinted columns) */}
       <Matrix m={m} path={page.path} eng={eng} named={named} host={host} setHost={setHost} col={col} hoverCol={hoverCol} pulse={pulse} yourEnd={yourEnd}
         adds={adds} cells={after.cells} write={write} />
+      {/* Google page 1 at the bottom, after the winners table (owner, round 4) */}
+      <Ladder ladder={ladder} eng={eng} host={host} setHost={setHost} />
     </div>
   )
 }
@@ -187,7 +188,8 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
   const addIds = adds.map((c) => c.id)
   const columns = [...m.columns.filter((c) => addIds.includes(c.id)), ...m.columns.filter((c) => !addIds.includes(c.id))]
   const added = (id) => addIds.includes(id)
-  const cols = `minmax(260px,1.7fr) repeat(${columns.length}, minmax(84px,1fr))`
+  // the page column fits its content, then Cited by; the formats share the rest; Coverage last (owner, round 4)
+  const cols = `max-content max-content repeat(${columns.length}, minmax(76px,1fr)) 72px`
   const tint = (id) => (added(id) ? 'bg-tint' : col === id ? 'bg-[color-mix(in_srgb,var(--tint)_60%,transparent)]' : '')
   const winners = [...m.winners].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
   const stateOf = (id) => cells?.find((c) => c.id === id)?.state ?? (m.yours.includes(id) ? 'have' : added(id) ? 'adds' : 'missing')
@@ -201,43 +203,51 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
         </div>
         {/* no "Add your data" here: the step card at the top has the main one (owner, 2026-11-05, "your call") */}
       </div>
-      <div role="table" aria-label="Formats by page" onMouseLeave={() => { hoverCol(null); setHost(null) }}>
-        <div role="row" className="grid items-end" style={{ gridTemplateColumns: cols }}>
-          <span role="columnheader" className={`pb-2 pt-3 ${META}`}>Page</span>
+      {/* one grid for the whole table; each row a subgrid, so the content-sized columns line up across rows */}
+      <div role="table" aria-label="Formats by page" className="grid" style={{ gridTemplateColumns: cols }} onMouseLeave={() => { hoverCol(null); setHost(null) }}>
+        <div role="row" className="col-span-full grid grid-cols-subgrid items-end">
+          <span role="columnheader" className={`pb-2 pt-3 pr-6 ${META}`}>Page</span>
+          <span role="columnheader" className={`pb-2 pt-3 pr-4 ${META}`}>Cited by</span>
           {columns.map((c) => (
             <span key={c.id} role="columnheader" onMouseEnter={() => hoverCol(c.id)} data-adds={added(c.id) || undefined}
-              className={`flex flex-col items-center px-1 pb-2 pt-3 text-center transition-colors duration-150 ${tint(c.id)}`}>
+              className={`flex flex-col items-center gap-1 px-1 pb-2 pt-3 text-center transition-colors duration-150 ${tint(c.id)}`}>
+              <ProgressRing value={c.used} of={c.of} label={`${c.used} of ${c.of} winners`} />
               <span className="whitespace-nowrap text-[13px] leading-[18px] font-semibold text-stone-900" title={formatLabel(c.id)}>{SHORT[c.id] ?? c.label}</span>
-              <span className="whitespace-nowrap text-[12px] leading-4 tabular-nums text-stone-500">{c.used} of {c.of}{added(c.id) && c.score != null ? ` · score ${c.score}` : ''}</span>
+              {added(c.id) && c.score != null && <span className="whitespace-nowrap text-[12px] leading-4 tabular-nums text-stone-500">score {c.score}</span>}
             </span>
           ))}
+          <span role="columnheader" className={`pb-2 pt-3 text-center ${META}`}>Coverage</span>
         </div>
         {winners.map((w, r) => (
-          <div key={w.url} role="row" onMouseEnter={() => setHost(w.host)} className={`grid h-[52px] items-center border-t border-[var(--div)] transition-colors duration-150 ${host === w.host ? 'bg-[color-mix(in_srgb,var(--tint)_60%,transparent)]' : ''}`} style={{ gridTemplateColumns: cols }}>
+          <div key={w.url} role="row" onMouseEnter={() => setHost(w.host)} className={`col-span-full grid h-[52px] grid-cols-subgrid items-center border-t border-[var(--div)] transition-colors duration-150 ${host === w.host ? 'bg-[color-mix(in_srgb,var(--tint)_60%,transparent)]' : ''}`}>
             <span role="rowheader" tabIndex={0} onFocus={() => setHost(w.host)} onBlur={() => setHost(null)} className="group/site relative flex min-w-0 items-center gap-2 rounded pl-1 pr-2 outline-none focus-visible:ring-2 focus-visible:ring-focus">
               <SiteCard w={w} e={eng(w)} />
               <LogoPlate domain={w.host} size={24} logoClass="h-4 w-4" />
               <span className="truncate text-[14px] leading-5 font-semibold text-stone-900" title={w.host}>{siteName(w.host)}</span>
               <span className="shrink-0 text-[12px] leading-4 tabular-nums text-stone-500">{w.rank ? `#${w.rank}` : 'AI only'}</span>
               {w.others?.length > 0 && <MorePages page={w} others={w.others} />}
-              <EngineIcons e={eng(w)} size={14} />
+              <span aria-hidden className="w-4" />
             </span>
+            <span role="cell" className="flex items-center pr-4"><EngineIcons e={eng(w)} size={16} /></span>
             {columns.map((c, i) => (
               <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} className={`grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
-                {w.formats.includes(c.id) && <span className="block h-2 w-2 rounded-full bg-ink" role="img" aria-label="Has it" style={anim('co-cell-in', T.sweep + i * T.col + 60 + r * T.cell, 220)} />}
+                {w.formats.includes(c.id)
+                  ? <span className="grid h-5 w-5 place-items-center rounded-full bg-[color-mix(in_srgb,var(--rep-up-fg)_16%,transparent)]" role="img" aria-label="Has it" style={anim('co-cell-in', T.sweep + i * T.col + 60 + r * T.cell, 220)}><Check size={12} strokeWidth={2.6} className="text-[var(--rep-up-fg)]" aria-hidden /></span>
+                  : <span className="text-[13px] leading-none text-stone-300" aria-label="Doesn’t have it">–</span>}
               </span>
             ))}
+            <span role="cell" className="grid place-items-center"><CoverageRing have={columns.filter((c) => w.formats.includes(c.id)).length} of={columns.length} /></span>
           </div>
         ))}
         {/* your page: one tinted row, under a stronger rule */}
-        <div role="row" className="grid h-[52px] items-center border-t-2 border-line-strong bg-[color-mix(in_srgb,var(--tint)_70%,transparent)]" style={{ gridTemplateColumns: cols }}>
+        <div role="row" className="col-span-full grid h-[52px] grid-cols-subgrid items-center border-t-2 border-line-strong bg-[color-mix(in_srgb,var(--tint)_70%,transparent)]">
           <span role="rowheader" className="flex min-w-0 items-center gap-2 pl-1 pr-2">
             <span className="flex min-w-0 flex-col">
               <span className="text-[14px] leading-5 font-semibold text-ink">Your page</span>
               <span className="truncate text-[12px] leading-4 text-stone-500" title={path}>{path}</span>
             </span>
-            {named.length > 0 && <span className="flex shrink-0" aria-label={`Named by ${named.map((x) => ENGINE_NAME[x]).join(', ')}`}><EngineIcons e={{ engines: named, unknown: false }} size={14} /></span>}
           </span>
+          <span role="cell" className="flex items-center pr-4">{named.length > 0 && <span className="flex" aria-label={`Named by ${named.map((x) => ENGINE_NAME[x]).join(', ')}`}><EngineIcons e={{ engines: named, unknown: false }} size={16} /></span>}</span>
           {columns.map((c, i) => {
             const st = stateOf(c.id)
             return (
@@ -250,9 +260,46 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
               </span>
             )
           })}
+          <span role="cell" className="grid place-items-center">
+            <CoverageRing have={columns.filter((c) => stateOf(c.id) === 'have').length} adds={columns.filter((c) => stateOf(c.id) === 'adds').length} of={columns.length} />
+          </span>
         </div>
       </div>
     </section>
+  )
+}
+
+// a 28px ring over a format's name: how many winners use it ("3 of 5"), filling on load (400ms)
+function ProgressRing({ value, of, label }) {
+  const r = 11, c = 2 * Math.PI * r, f = of ? value / of : 0
+  const still = reduced()
+  return (
+    <svg width="28" height="28" viewBox="0 0 28 28" role="img" aria-label={label} className="shrink-0">
+      <circle cx="14" cy="14" r={r} fill="none" stroke="var(--color-line)" strokeWidth="3" />
+      <circle cx="14" cy="14" r={r} fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinecap="round" transform="rotate(-90 14 14)"
+        strokeDasharray={`${c * f} ${c}`} style={still ? undefined : { animation: 'co-ring-fill 400ms ease-out both', '--len': `${c * f}` }} />
+      <text x="14" y="17.5" textAnchor="middle" fontSize="9" fontWeight="600" className="num" fill="var(--color-stone-700)">{value}/{of}</text>
+    </svg>
+  )
+}
+// a row's coverage: how many of these formats the page has (n/m in the centre). Your page: from now to after this
+// draft on load, the draft's part in light green
+function CoverageRing({ have, adds = 0, of }) {
+  const r = 13, c = 2 * Math.PI * r
+  const still = reduced()
+  const a = of ? have / of : 0, b = of ? adds / of : 0
+  const [after, setAfter] = useState(still || !adds)
+  useEffect(() => { if (!after) { const t = setTimeout(() => setAfter(true), 700); return () => clearTimeout(t) } return undefined }, [after])
+  const shown = have + (after ? adds : 0)
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" role="img" aria-label={`${have + adds} of ${of} formats${adds ? ` (${have} now, ${adds} from this draft)` : ''}`} className="shrink-0">
+      <circle cx="16" cy="16" r={r} fill="none" stroke="var(--color-line)" strokeWidth="3" />
+      {b > 0 && <circle cx="16" cy="16" r={r} fill="none" stroke="color-mix(in srgb, var(--rep-up-fg) 40%, transparent)" strokeWidth="3" transform={`rotate(${-90 + a * 360} 16 16)`}
+        strokeDasharray={`${after ? c * b : 0} ${c}`} style={{ transition: still ? 'none' : 'stroke-dasharray 600ms ease-out' }} />}
+      <circle cx="16" cy="16" r={r} fill="none" stroke="var(--rep-up-fg)" strokeWidth="3" transform="rotate(-90 16 16)"
+        strokeDasharray={`${c * a} ${c}`} style={still ? undefined : { animation: 'co-ring-fill 400ms ease-out both', '--len': `${c * a}` }} />
+      <text x="16" y="19.5" textAnchor="middle" fontSize="10" fontWeight="600" className="num" fill="var(--color-stone-900)">{shown}/{of}</text>
+    </svg>
   )
 }
 
