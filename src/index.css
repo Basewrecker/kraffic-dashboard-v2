@@ -674,3 +674,6 @@ html:not([data-theme="dark"]) .co-ws {
 :root { --beta-bg: color-mix(in srgb, var(--beta) 15%, transparent); --beta-fg: var(--beta); }
 html[data-theme="dark"] { --beta-fg: color-mix(in srgb, var(--beta) 65%, #FFFFFF); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --beta-fg: color-mix(in srgb, var(--beta) 65%, #FFFFFF); } }
+
+/* Content Target page, Search Console flow: the ribbons draw left to right once (clip reveal) */
+@keyframes co-flow-reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }

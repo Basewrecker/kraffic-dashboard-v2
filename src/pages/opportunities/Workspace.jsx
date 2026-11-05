@@ -319,7 +319,7 @@ function Flow({ row }) {
       : <TargetV1 res={res} named={named} resolve={resolveAi}
         draft={ds.phase === 'draft' ? { open: review.open, onOpen: openDraft } : null}
         page={page}
-        sc={{ gsc: gscRes, state: scState, domain: scDomain, connecting: scConnecting, justConnected: scJustConnected, onConnect: connectSc, onSkip: () => setScState('skipped'), onChange: () => { setScJustConnected(false); setScState('new') }, page, choice: scChoice, onPick: setScPick }}
+        sc={{ gsc: gscRes, state: scState, domain: scDomain, connecting: scConnecting, justConnected: scJustConnected, onConnect: connectSc, onSkip: () => setScState('skipped'), onChange: () => { setScJustConnected(false); setScState('new') }, page, choice: scChoice, onPick: setScPick, newPath: suggested.slug, prompt: row.prompt }}
         write={current < DATA ? { label: 'Add your data', onClick: advance } : current < DRAFT ? { label: 'Write the draft', onClick: advance } : writing ? { label: 'Resume', onClick: openDraft } : null} />,
     <div data-step="data"><DataStep data={data} update={updateData} v1={!full} cap={cap} drafted={start.ready || ds.phase === 'draft'} /></div>,
     <div data-step="draft"><DraftStep res={res} competitors={competitors} session={ds} setSession={setDs} full={full} steps={genSteps} live={liveData} onCopy={copyContent} onCopyHtml={copyHtml} onExport={exportMd} onRecheck={recheck} savedAt={ds.savedAt} resolve={resolveAi} inPanel={focus} /></div>,

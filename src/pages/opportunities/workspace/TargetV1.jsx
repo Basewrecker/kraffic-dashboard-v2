@@ -23,7 +23,7 @@
 // a ladder logo ↔ its matrix row (soft tint); a format column or a "draft adds" row → that column, top to bottom, with
 // your missing cell pulsing once. Reduced motion: the final state; the hover highlights stay.
 import { useState } from 'react'
-import { ArrowRight, ArrowUpRight } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { PlatformIcon } from '../../../components/dashboard/icons'
 import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
 import { formatLabel } from '../../../data/contentRecommend'
@@ -79,43 +79,26 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
       {/* the format matrix left (8/12), the Update column right (4/12), owner 2026-11-04; stacked below 1100px, matrix first */}
       <div className="grid grid-cols-1 gap-x-10 gap-y-8 min-[1100px]:grid-cols-[minmax(0,8fr)_minmax(0,4fr)] min-[1100px]:items-start">
         <Matrix m={m} path={page.path} eng={eng} named={named} host={host} setHost={setHost} col={col} hoverCol={hoverCol} pulse={pulse} yourEnd={yourEnd} after={after.show ? after.cells : null} />
-        {/* right (≥1100px): the recommendation, compact, top-aligned with the matrix's header; the draft (or Write the draft)
-            under its rows; ends where its content ends. Below 1100px it stacks under the matrix. */}
-        <section aria-labelledby="co-target-h" className="min-[1100px]:border-l min-[1100px]:border-line min-[1100px]:pl-10">
-          <p id="co-target-h" className="text-[13px] leading-[18px] font-semibold text-stone-500">{page.action === 'update' ? 'Update' : 'Create'}</p>
-          <p className="mt-0.5 break-all text-[18px] leading-[26px] font-semibold text-stone-900" data-target-path>{page.path}</p>
-          {/* where the page comes from: Search Console's Publish on, or the user's own pick (with the way back) */}
-          {page.source === 'sc' && <p className={`mt-0.5 ${META}`} data-sc-source="sc">From Search Console</p>}
-          {page.source === 'pick' && (
-            <p className={`mt-0.5 ${META}`} data-sc-source="pick">
-              Your pick · <button type="button" onClick={() => sc?.onPick(null)} className="rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">{sc?.choice ? 'Use the suggested page' : 'Use the route’s page'}</button>
-            </p>
-          )}
-          {page.action === 'update' && page.href && (
-            <a href={page.href} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 rounded text-[14px] font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">
-              Open page<ArrowUpRight size={14} aria-hidden />
-            </a>
-          )}
-          <p className="mt-4 text-[15px] leading-[22px] font-semibold text-stone-900">
-            {m.missing.length ? `Missing ${m.missing.length} ${m.missing.length === 1 ? 'format' : 'formats'} the winners use` : 'Has every format the winners use'}
-          </p>
-          <p className={`mt-0.5 ${META}`}>{page.reason}</p>
-          {adds.length > 0 && (
-            <div className="mt-4">
-              <p className={`border-b border-line pb-1.5 ${META}`}>The draft adds</p>
-              <ul onMouseLeave={() => hoverCol(null)}>
-                {adds.map((c, i) => (
-                  <li key={c.id} onMouseEnter={() => hoverCol(c.id)} style={anim('co-slide-row', yourEnd + T.adds + i * T.addsStep)}
-                    className={`flex h-10 items-center gap-2.5 border-b border-[var(--div)] px-1.5 transition-colors duration-150 ${col === c.id ? 'bg-tint' : ''}`}>
-                    <RingDraw size={14} />
-                    <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-stone-900">{formatLabel(c.id)}</span>
-                    <span className="text-[12px] leading-4 tabular-nums text-stone-500">{c.used} of {c.of} winners</span>
-                    {c.score != null && <span className="w-[58px] text-right text-[13px] leading-[18px] font-semibold tabular-nums text-stone-900">score {c.score}</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+        {/* right (≥1100px): what the draft adds (the page is chosen once, in Search Console's Your pages; owner,
+            2026-11-05), then Add your data (or, once a draft exists, its preview). Below 1100px it stacks under the matrix. */}
+        <section aria-labelledby="co-adds-h" className="min-[1100px]:border-l min-[1100px]:border-line min-[1100px]:pl-10">
+          <div className={HEAD}>
+            <h3 id="co-adds-h" className={H}>The draft adds</h3>
+            {adds.length > 0 && <span className={META}>{adds.length} {adds.length === 1 ? 'format' : 'formats'}</span>}
+          </div>
+          {adds.length > 0 ? (
+            <ul onMouseLeave={() => hoverCol(null)}>
+              {adds.map((c, i) => (
+                <li key={c.id} onMouseEnter={() => hoverCol(c.id)} style={anim('co-slide-row', yourEnd + T.adds + i * T.addsStep)}
+                  className={`flex h-10 items-center gap-2.5 border-b border-[var(--div)] px-1.5 transition-colors duration-150 ${col === c.id ? 'bg-tint' : ''}`}>
+                  <RingDraw size={14} />
+                  <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-stone-900">{formatLabel(c.id)}</span>
+                  <span className="text-[12px] leading-4 tabular-nums text-stone-500">{c.used} of {c.of} winners</span>
+                  {c.score != null && <span className="w-[58px] text-right text-[13px] leading-[18px] font-semibold tabular-nums text-stone-900">score {c.score}</span>}
+                </li>
+              ))}
+            </ul>
+          ) : <p className={`pt-3 ${META}`}>{m.missing.length ? 'Nothing the draft can add here: the missing formats need their own page.' : 'Your page already has every format the winners use.'}</p>}
           {draft ? <DraftPreview p={draftPreview(res.contentMarkdown)} open={draft.open} onOpen={draft.onOpen} />
             : write && <button type="button" onClick={write.onClick} className={`${lineBtn} mt-4`}>{write.label}<ArrowRight size={14} aria-hidden /></button>}
         </section>
@@ -126,7 +109,8 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
 
 // the engines that cite a page, as icons (full colour); "AI" when the route doesn't say which engine
 function EngineIcons({ e, size = 16, stack = false, delay = null }) {
-  const items = [...e.engines.map((id) => ({ id })), ...(e.unknown ? [{ id: 'ai' }] : [])]
+  // only engines we can name (owner, 2026-11-05: no neutral "AI" badge; unresolved shows nothing)
+  const items = e.engines.map((id) => ({ id }))
   if (!items.length) return null
   return (
     // stacked (on a ladder slot): side by side with a hairline gap, never overlapping, so the AI Overview / AI Mode
@@ -216,7 +200,7 @@ function Slot({ page, e, ours = false, i, host, setHost, dim = false, card = fal
 // ---- 2. the format matrix -------------------------------------------------------------------------------------
 function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, yourEnd, after }) {
   // the page column keeps room for its names (168px+); format columns give way first (120px, down to 76px)
-  const cols = `minmax(168px,1fr) 84px repeat(${m.columns.length}, minmax(76px,120px))`
+  const cols = `minmax(168px,1fr) repeat(${m.columns.length}, minmax(76px,120px))`
   const tint = (id) => (col === id ? 'bg-tint' : '')
   const sweep = (c) => anim('co-sweep', T.sweep + c * T.col, 420, 'ease-out')
   return (
@@ -228,7 +212,6 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
       <div role="table" aria-label="Formats by page" onMouseLeave={() => { hoverCol(null); setHost(null) }}>
         <div role="row" className="grid items-end" style={{ gridTemplateColumns: cols }}>
           <span role="columnheader" className={`pb-2 pt-3 ${META}`}>Page</span>
-          <span role="columnheader" className={`pb-2 pt-3 text-center ${META}`}>Cited by</span>
           {m.columns.map((c, i) => (
             <span key={c.id} role="columnheader" onMouseEnter={() => hoverCol(c.id)} className={`relative flex flex-col items-center px-1 pb-2 pt-3 text-center transition-colors duration-150 ${tint(c.id)}`}>
               <span aria-hidden className="pointer-events-none absolute inset-0 bg-tint" style={sweep(i) ?? { opacity: 0 }} />
@@ -239,7 +222,8 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
         </div>
         {m.winners.map((w, r) => (
           <div key={w.url} role="row" onMouseEnter={() => setHost(w.host)} className={`grid h-[52px] items-center border-t border-[var(--div)] transition-colors duration-150 ${host === w.host ? 'bg-tint' : ''}`} style={{ gridTemplateColumns: cols }}>
-            <span role="rowheader" className="flex min-w-0 items-center gap-2.5 pl-1 pr-2">
+            <span role="rowheader" tabIndex={0} onFocus={() => setHost(w.host)} onBlur={() => setHost(null)} className="group/site relative flex min-w-0 items-center gap-2.5 rounded pl-1 pr-2 outline-none focus-visible:ring-2 focus-visible:ring-focus">
+              <SiteCard w={w} e={eng(w)} />
               <LogoPlate domain={w.host} size={24} logoClass="h-4 w-4" />
               {/* two lines: the site, then its rank (and "+1 page" when it holds more page-1 spots), so the name stays whole */}
               <span className="flex min-w-0 flex-col">
@@ -250,14 +234,13 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
                 </span>
               </span>
             </span>
-            <span role="cell" className="flex justify-center">{(eng(w).engines.length || eng(w).unknown) ? <EngineIcons e={eng(w)} size={16} /> : <span className={META} aria-label="Not cited in AI answers">—</span>}</span>
             {m.columns.map((c, i) => (
               <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} className={`relative grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
                 <span aria-hidden className="pointer-events-none absolute inset-0 bg-tint" style={sweep(i) ?? { opacity: 0 }} />
                 <span className="relative" style={anim('co-cell-in', T.sweep + i * T.col + 60 + r * T.cell, 220)}>
                   {w.formats.includes(c.id)
-                    ? <span className="block h-2.5 w-2.5 rounded-full bg-ink" role="img" aria-label="Has it" />
-                    : <span className="block h-[9px] w-[9px] rounded-full border-[1.5px] border-[var(--co-empty)]" role="img" aria-label="Doesn’t have it" />}
+                    ? <span className="block h-3 w-3 rounded-full bg-ink" role="img" aria-label="Has it" />
+                    : <span className="block h-2.5 w-2.5 rounded-full border-[1.5px] border-[var(--color-line-strong)]" role="img" aria-label="Doesn’t have it" />}
                 </span>
               </span>
             ))}
@@ -266,10 +249,9 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
         {/* your page, under a stronger rule */}
         <div role="row" className="grid h-[52px] items-center border-t-2 border-line-strong" style={{ gridTemplateColumns: cols }}>
           <span role="rowheader" className="min-w-0 pl-1 pr-2">
-            <span className="block text-[14px] leading-5 font-semibold text-ink">Your page</span>
+            <span className="flex items-center gap-2 text-[14px] leading-5 font-semibold text-ink">Your page{named.length > 0 && <span className="flex" aria-label={`Named by ${named.map((x) => ENGINE_NAME[x]).join(', ')}`}><EngineIcons e={{ engines: named, unknown: false }} size={14} /></span>}</span>
             <span className="block truncate text-[12px] leading-4 text-stone-500">{path}</span>
           </span>
-          <span role="cell" className="flex justify-center">{named.length ? <EngineIcons e={{ engines: named, unknown: false }} size={16} /> : <span className={META}>None yet</span>}</span>
           {m.columns.map((c, i) => (
             <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} className={`grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
               {m.yours.includes(c.id)
@@ -284,7 +266,6 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
         {after && (
           <div role="row" className="grid h-[52px] items-center border-t border-[var(--div)]" style={{ gridTemplateColumns: cols }}>
             <span role="rowheader" className="min-w-0 truncate pl-1 pr-2 text-[14px] leading-5 text-stone-500">After this draft</span>
-            <span role="cell" />
             {after.map((c, i) => (
               <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} className={`grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
                 {c.state === 'have' ? <TickDraw delay={yourEnd + i * 40} />
@@ -296,6 +277,23 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
         )}
       </div>
     </section>
+  )
+}
+
+// a matrix row's hover / focus card: the site, its rank, the page title, its formats, and the AI answers that cite it
+// (the engines' icons and names; they used to repeat in a "Cited by" column on every row)
+function SiteCard({ w, e }) {
+  return (
+    <span role="tooltip" className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden w-[280px] rounded-lg border border-line bg-raised px-3 py-2.5 text-left shadow-md group-hover/site:block group-focus-visible/site:block">
+      <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{w.host}{w.rank ? <span className="font-normal text-stone-500"> · #{w.rank}</span> : <span className="font-normal text-stone-500"> · AI only</span>}</span>
+      {w.title && <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-700">{w.title}</span>}
+      <span className="mt-1.5 block text-[12px] leading-4 text-stone-500">{w.formats.length ? w.formats.map(formatLabel).join(' · ') : 'No format detected'}</span>
+      <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-4 text-stone-600">
+        {e.engines.length
+          ? <>Cited by {e.engines.map((id) => <span key={id} className="inline-flex items-center gap-1"><PlatformIcon id={engineIcon(id)} size={14} />{ENGINE_NAME[id]}</span>)}</>
+          : e.unknown ? 'Cited in AI answers (engine not specified)' : 'Not cited in AI answers'}
+      </span>
+    </span>
   )
 }
 

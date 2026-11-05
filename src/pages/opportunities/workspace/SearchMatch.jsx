@@ -1,27 +1,20 @@
 // Target page (v1): "Search Console for this prompt", between the rank ladder and the format matrix. The app's GET
 // …/gsc-match response (data/gscMatch.js, lib/gsc-match.js analyzePrompt), one section under the same header style as
 // the ladder and the matrix (18/600 over a --line-strong rule, a muted meta right with the range and an ⓘ).
-//   Left (7/12): the query-first chain. "Best query" (the query, 17/600) · "60% match · 1,220 impressions · position
-//   19.5" → "Publish on" (the path) · "Gets 80% of that query's impressions" (+ "3 of the top queries land here") →
-//   Update this page (secondary; it makes this the Update column's page). A best match under 30% → "Create a new page"
-//   with the suggested path and why. Under it, "Other top queries" (the next 4): query · match · impressions · clicks
-//   · position · its page (middle-truncated). Account / local queries: muted, a small neutral tag, scored at half (ⓘ).
-//   Right (5/12): "Your pages" (analyzePrompt.pages, by score), two lines each: the path (middle-truncated; "Best
-//   match" on the page the chain publishes on) and "Match 76%" (the page's score) with an ⓘ listing its matching
-//   queries; under it the AI engines that cite it (only when cited: nothing otherwise) and an impressions bar with
-//   the number.
+//   One flow visual (owner, 2026-11-05): the prompt → its matching searches → your pages (see Flow below), and one
+//   line under it: "Using this page: <path> · Change page". No other text blocks.
 //   States: not connected (Connect) · reconnect (Reconnect) · no property for the domain · connected with no data yet
 //   (the new page it would suggest). The ladder and the matrix render in every state.
 // Stacked below 1100px (the chain, then Your pages).
-import { ArrowDown, Check, Info, Loader2 } from 'lucide-react'
-import { GoogleIcon, PlatformIcon } from '../../../components/dashboard/icons'
+import { useState } from 'react'
+import { Check, Info, Loader2, Plus } from 'lucide-react'
+import { GoogleIcon } from '../../../components/dashboard/icons'
 import { lineBtn } from '../../../components/tool/ToolPage'
-import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
+import { useWidth } from '../../../components/ui/motion'
 import { MidText } from '../parts'
 
 const nf = new Intl.NumberFormat('en-US')
 const num = (n) => nf.format(n)
-const pct = (share) => `${Math.round(share * 100)}%`
 const H = 'text-[18px] leading-[26px] font-semibold text-stone-900'
 const HEAD = 'flex items-end justify-between gap-3 border-b border-line-strong pb-2'
 const META = 'text-[13px] leading-[18px] text-stone-500'
@@ -82,7 +75,7 @@ export function SkippedRow({ onConnect }) {
 // would let the user pick another Search Console property) · enginesFor(path) → { engines, unknown } · page: THE target
 // page (source 'pick' | 'sc' | 'route') · choice: Search Console's own page ({ action, path, url }) or null ·
 // onPick(pick | null): null = back to Search Console's page
-export default function SearchMatch({ gsc, domain, connecting = false, justConnected = false, onConnect, onChange = null, enginesFor = () => ({ engines: [], unknown: false }), page = null, onPick = () => {} }) {
+export default function SearchMatch({ gsc, domain, connecting = false, justConnected = false, onConnect, onChange = null, page = null, onPick = () => {}, newPath = null, prompt = "" }) {
   const connected = gsc?.connected
   const hasData = connected && gsc.queries.length > 0
   return (
@@ -107,13 +100,7 @@ export default function SearchMatch({ gsc, domain, connecting = false, justConne
       {!connected ? <NotConnected gsc={gsc} domain={domain} connecting={connecting} onConnect={onConnect} />
         : !hasData ? <NoData gsc={gsc} page={page} onPick={onPick} />
           : (
-            <div className="grid grid-cols-1 gap-x-10 gap-y-8 pt-5 min-[1100px]:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] min-[1100px]:items-start">
-              <div className="min-w-0">
-                <Chain gsc={gsc} page={page} onPick={onPick} />
-                <OtherQueries gsc={gsc} />
-              </div>
-              <YourPages gsc={gsc} enginesFor={enginesFor} page={page} onPick={onPick} />
-            </div>
+            <FlowSection gsc={gsc} page={page} onPick={onPick} prompt={prompt} newPath={gsc.publishOn.action === 'create' ? gsc.publishOn.suggestedPath : newPath} />
           )}
     </section>
   )
@@ -156,129 +143,161 @@ const UseButton = ({ using, label, onClick }) => (
   </button>
 )
 
-// the query-first chain: the best query → the page to publish on → the action. Publish on IS the target page unless
-// the user picked another one in Your pages ("Using this page"); then the button takes it back.
-function Chain({ gsc, page, onPick }) {
-  // no Best (no query has the prompt's specific words, the owner's intent rule): the closest one, about the topic only
-  const q = gsc.bestQuery ?? (gsc.publishOn.action === 'create' ? gsc.queries[0] ?? null : null)
-  const topicOnly = !gsc.bestQuery && Boolean(q)
-  const words = (gsc.intentTerms ?? []).map((w) => `“${w}”`).join(', ')
-  const p = gsc.publishOn
-  const create = p.action === 'create'
-  const onPage = create ? 0 : gsc.queries.filter((x) => x.topPage.path === p.path).length
-  const using = page?.source === 'sc' && page.path === (create ? p.suggestedPath : p.path)
+// ---- one flow visual (owner, 2026-11-05): the prompt → its matching searches → your pages, then one line: the page
+// in use and "Change page". No other text blocks (the Best query / Publish on / Other top queries / Your pages blocks
+// are gone). Layout only: the matcher's data as it is (data/gscMatch.js).
+//   Left: the prompt (one node). Middle: the matching searches (gsc.queries): the Best query first, then the ones with
+//   10+ impressions (the matcher's order), then the low-volume ones; each shows its impressions and match %. Account /
+//   local / site and low-volume searches are faint grey with their tag. Right: your pages; the page in use (Workspace
+//   `page`: the user's pick ?? Search Console's Publish on ?? the route's) is the top node with a solid border, then
+//   the pages the searches land on.
+//   Ribbons: prompt → every search (thickness = its impressions) and search → its page (thickness = the impressions that
+//   page gets: impressions × topPage.share). The chain into the page in use is ink (by default that's the best chain:
+//   prompt → Best query → its page; ink, not indigo: brand colours stay in Share of voice / history / Reports), the
+//   rest neutral grey, tagged and low-volume ones faint. Hover / focus a search or a page: its whole chain lights up,
+//   the rest dims, and only the numbers show (a page: the impressions it gets from these searches). The ribbons draw in
+//   left to right once on load (600ms, ease-out); none with prefers-reduced-motion.
+//   Under it: "Using this page: <path> · Change page" (a small menu: your pages, or a new page). The payoff bar and
+//   the draft request's target follow.
+const FLOW_H = 300
+const tagged = (q) => Boolean(q.intent || q.lowVolume)
+// the middle column's order: the Best query, then 10+ impressions, then low volume (display only)
+const searchOrder = (qs) => {
+  const best = qs.filter((q) => q.best)
+  const rest = qs.filter((q) => !q.best)
+  return [...best, ...rest.filter((q) => !q.lowVolume), ...rest.filter((q) => q.lowVolume)]
+}
+function FlowSection({ gsc, page, onPick, newPath, prompt }) {
+  const sc = gsc.publishOn
+  const usingPath = page?.action === 'create' ? page.path : page?.path ?? (sc.action === 'create' ? sc.suggestedPath : sc.path)
+  const usingCreate = page ? page.action === 'create' : sc.action === 'create'
   return (
-    <div data-sc-chain={p.action}>
-      {q && (
-        <div>
-          <p className={LABEL}>{create ? 'Closest query' : 'Best query'}</p>
-          <p className="mt-0.5 text-[17px] leading-6 font-semibold text-stone-900">“{q.query}”</p>
-          <p className={`mt-0.5 tabular-nums ${META}`}>{q.adjusted}% match · {num(q.impressions)} impressions · position {q.position}</p>
-        </div>
-      )}
-      {q && <span aria-hidden className="my-2 ml-1 flex h-6 w-4 items-center justify-center text-stone-400"><ArrowDown size={14} /></span>}
-      <div>
-        <p className={LABEL}>{create ? 'Create a new page' : 'Publish on'}</p>
-        <p className="mt-0.5 break-all text-[17px] leading-6 font-semibold text-stone-900">{create ? p.suggestedPath : p.path}</p>
-        <p className={`mt-0.5 ${META}`}>
-          {create
-            ? (topicOnly ? `None of your queries has this prompt’s specific words${words ? ` (${words})` : ''} yet; they’re about the topic only.`
-              : q ? `No query matches this prompt well enough yet (best ${q.adjusted}%).` : 'None of your pages gets impressions for this prompt’s queries yet.')
-            : <>Gets {pct(p.share)} of that query’s impressions{onPage >= 2 && <> · {onPage} of the top queries land here</>}</>}
-        </p>
-        {!create && p.lowVolume && <p className={`mt-0.5 ${META}`}>Few searches so far: every match is under 10 impressions.</p>}
-        <div className="mt-3">
-          {/* using: it's already the target (nothing to do); else back to it from the user's own pick */}
-          <UseButton using={using} label={create ? 'Create this page' : 'Update this page'} onClick={() => { if (!using) onPick(null) }} />
-        </div>
-      </div>
+    <div className="pt-5">
+      <Flow gsc={gsc} prompt={prompt} usingPath={usingPath} usingCreate={usingCreate} />
+      <UsingLine gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} onPick={onPick} newPath={newPath} />
     </div>
   )
 }
 
-// the other top queries (the best one is the chain's): match, impressions, clicks, position, page
-const QROW = 'grid grid-cols-[minmax(0,1fr)_56px_72px_52px_40px_minmax(0,0.9fr)] items-center gap-x-3'
-function OtherQueries({ gsc }) {
-  const rows = gsc.queries.filter((q) => !q.best).slice(0, 4)
-  if (!rows.length) return null
+function Flow({ gsc, prompt, usingPath, usingCreate }) {
+  const [ref, width] = useWidth()
+  const [hot, setHot] = useState(null) // { kind: 'q' | 'p', key }
+  const reduce = reducedMotion()
+  const W = Math.max(640, width || 1000)
+  const qs = searchOrder(gsc.queries)
+  // the right column: the page in use first (solid border), then the pages the searches land on
+  const landing = [...new Set(qs.map((q) => q.topPage.path))].filter((p) => p !== usingPath)
+  const pages = [usingPath, ...landing].slice(0, 6)
+  const pageOfQ = (q) => (pages.includes(q.topPage.path) ? q.topPage.path : null)
+  // geometry: prompt node | ribbons | searches | ribbons | pages
+  const P1 = W * 0.17, Q0 = W * 0.33, Q1 = W * 0.58, R0 = W * 0.68
+  const rowY = (i, n) => (i + 0.5) * (FLOW_H / n)
+  const into = (q) => Math.round(q.impressions * (q.topPage.share ?? 1))
+  const max = Math.max(1, ...qs.map((q) => q.impressions))
+  const thick = (v) => Math.max(2, (v / max) * 22)
+  // prompt → search ribbons stack centred on the prompt node; search → page ribbons stack on each page node
+  const leftTotal = qs.reduce((n, q) => n + thick(q.impressions), 0)
+  let pa = FLOW_H / 2 - leftTotal / 2
+  const left = qs.map((q, i) => { const t = thick(q.impressions), y0 = pa; pa += t; return { q, i, t, y0, y1: rowY(i, qs.length) - t / 2 } })
+  const pOff = new Map()
+  const right = qs.map((q, i) => {
+    const path = pageOfQ(q)
+    if (!path) return null
+    const t = thick(into(q)), pi = pages.indexOf(path)
+    const inTotal = qs.filter((x) => pageOfQ(x) === path).reduce((n, x) => n + thick(into(x)), 0)
+    const y1 = pOff.get(path) ?? rowY(pi, pages.length) - inTotal / 2
+    pOff.set(path, y1 + t)
+    return { q, i, t, path, y0: rowY(i, qs.length) - thick(into(q)) / 2, y1 }
+  }).filter(Boolean)
+  const band = (x0, x1, y0, y1, t) => { const m = (x0 + x1) / 2; return `M${x0},${y0} C${m},${y0} ${m},${y1} ${x1},${y1} L${x1},${y1 + t} C${m},${y1 + t} ${m},${y0 + t} ${x0},${y0 + t} Z` }
+  // the ink chain: the strongest untagged search into the page in use (by default the Best query → Publish on)
+  const inkQ = usingCreate ? null : qs.find((q) => pageOfQ(q) === usingPath && !tagged(q))
+  const chainOf = (q) => q === inkQ
+  const lit = (q) => (hot?.kind === 'q' ? hot.key === q.query : hot?.kind === 'p' ? pageOfQ(q) === hot.key : true)
+  const fill = (q) => (chainOf(q) ? 'var(--ink)' : hot && lit(q) ? 'var(--color-stone-500)' : 'var(--color-stone-300)')
+  const opacity = (q) => (hot && !lit(q) ? 0.12 : chainOf(q) ? 0.75 : tagged(q) ? 0.3 : 0.55)
+  const style = (q, k) => ({ fill: fill(q), opacity: opacity(q), transition: 'fill 250ms ease-out, opacity 150ms ease-out', animation: reduce ? undefined : `co-flow-reveal 600ms ease-out ${200 + k * 40}ms both` })
+  const pageImpr = (path) => qs.filter((q) => pageOfQ(q) === path).reduce((n, q) => n + into(q), 0)
   return (
-    <div className="mt-7">
-      <p className={`border-b border-line pb-1.5 ${LABEL}`}>Other top queries</p>
-      <div role="table" aria-label="Other top queries" className="text-[13px] leading-[18px]">
-        <div role="row" className={`${QROW} h-8 text-[12px] leading-4 text-stone-500`}>
-          <span role="columnheader">Query</span>
-          <span role="columnheader" className="text-right">Match</span>
-          <span role="columnheader" className="text-right">Impr.</span>
-          <span role="columnheader" className="text-right">Clicks</span>
-          <span role="columnheader" className="text-right">Pos.</span>
-          <span role="columnheader">Page</span>
-        </div>
-        {rows.map((q) => (
-          <div role="row" key={q.query} data-intent={q.intent ?? undefined} data-low-volume={q.lowVolume || undefined} className={`${QROW} h-11 border-t border-[var(--div)] tabular-nums`}>
-            <span role="cell" className="flex min-w-0 items-center gap-1.5">
-              {/* tagged (account / local / site) and low-volume (under 10 impressions, listed last) rows are muted */}
-              <span title={q.query} className={`truncate ${q.intent || q.lowVolume ? 'text-stone-500' : 'font-medium text-stone-900'}`}>{q.query}</span>
+    <div ref={ref} className="relative" style={{ height: FLOW_H }} data-sc-flow onMouseLeave={() => setHot(null)}>
+      <svg width={W} height={FLOW_H} className="absolute inset-0" aria-hidden>
+        {left.map(({ q, i, t, y0, y1 }) => <path key={`l${q.query}`} data-ribbon={`prompt|${q.query}`} data-chain={chainOf(q) || undefined} d={band(P1, Q0, y0, y1, t)} style={style(q, i)} />)}
+        {right.map(({ q, i, t, y0, y1, path }) => <path key={`r${q.query}`} data-ribbon={`${q.query}|${path}`} data-chain={chainOf(q) || undefined} d={band(Q1, R0, y0, y1, t)} style={style(q, qs.length + i)} />)}
+      </svg>
+      {/* the prompt */}
+      <div className="absolute left-0 flex items-center rounded-lg border border-line bg-surface px-3 py-2.5" style={{ top: FLOW_H / 2 - 32, width: P1 - 8, minHeight: 64 }} data-flow-prompt>
+        <span className="line-clamp-3 text-[14px] leading-5 font-semibold text-stone-900">{prompt}</span>
+      </div>
+      {/* the searches */}
+      <ul aria-label="Matching searches" className="absolute top-0" style={{ left: Q0 + 6, width: Q1 - Q0 - 12 }}>
+        {qs.map((q, i) => (
+          <li key={q.query} tabIndex={0} data-flow-query={q.query} data-intent={q.intent ?? undefined} data-low-volume={q.lowVolume || undefined} data-best={q.best || undefined}
+            onMouseEnter={() => setHot({ kind: 'q', key: q.query })} onFocus={() => setHot({ kind: 'q', key: q.query })} onBlur={() => setHot(null)}
+            className={`absolute left-0 right-0 flex flex-col justify-center rounded-md px-1.5 outline-none transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-focus ${hot && !lit(q) ? 'opacity-35' : ''}`}
+            style={{ top: rowY(i, qs.length) - 21, height: 42, animation: reduce ? undefined : `fade-in 240ms ease-out ${i * 40}ms backwards` }}>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span title={q.query} className={`truncate text-[14px] leading-5 ${tagged(q) ? 'text-stone-500' : chainOf(q) || q.best ? 'font-semibold text-stone-900' : 'font-medium text-stone-900'}`}>{q.query}</span>
               {q.intent && <Tag intent={q.intent} />}
               {q.lowVolume && <Tag intent="low volume" />}
             </span>
-            <span role="cell" className={`flex items-center justify-end gap-0.5 ${q.intent || q.lowVolume ? 'text-stone-500' : 'text-stone-900'}`}>
-              {q.adjusted}%
-              {q.intent && <Tip label={`Scored at half: ${INTENT_WHY[q.intent]}`} width={220}>Scored at half: {INTENT_WHY[q.intent]}. Its match before that: {q.match}%.</Tip>}
-            </span>
-            <span role="cell" className="text-right text-stone-700">{num(q.impressions)}</span>
-            <span role="cell" className="text-right text-stone-700">{num(q.clicks)}</span>
-            <span role="cell" className="text-right text-stone-700">{q.position}</span>
-            <span role="cell" className="min-w-0"><MidText text={q.topPage.path} className="text-stone-700" /></span>
-          </div>
+            <span className="text-[12px] leading-4 tabular-nums text-stone-500">{num(q.impressions)} impr · {q.adjusted}% match</span>
+          </li>
         ))}
-      </div>
-    </div>
-  )
-}
-
-// the brand's pages that the matching queries land on, by score. One radio group: picking a row makes it THE target page
-// (the Update column, the payoff bar, the draft); picking Search Console's own page is the default again.
-function YourPages({ gsc, enginesFor, page = null, onPick = () => {} }) {
-  const pages = gsc.pages.slice(0, 5)
-  const max = Math.max(1, ...pages.map((p) => p.impressions))
-  const pick = (p) => onPick(gsc.publishOn.action === 'update' && p.path === gsc.publishOn.path ? null : { action: 'update', path: p.path, url: p.url })
-  return (
-    <div className="min-w-0 min-[1100px]:border-l min-[1100px]:border-line min-[1100px]:pl-10">
-      <p className={`border-b border-line pb-1.5 ${LABEL}`}>Your pages</p>
-      <ul role="radiogroup" aria-label="The page to update">
-        {pages.map((p) => {
-          const e = enginesFor(p.path)
-          const qs = gsc.queries.filter((q) => q.topPage.path === p.path)
-          const on = page?.action === 'update' && page.path === p.path
+      </ul>
+      {/* your pages: the page in use on top (solid border) */}
+      <ul aria-label="Your pages" className="absolute right-0 top-0" style={{ width: W - R0 }}>
+        {pages.map((path, i) => {
+          const top = i === 0
           return (
-            <li key={p.path} role="radio" aria-checked={on} tabIndex={0} data-your-page={p.path}
-              onClick={(ev) => { if (!ev.target.closest('[role="tooltip"],[aria-label^="Why"]')) pick(p) }}
-              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(p) } }}
-              className={`-mx-2 flex h-[64px] cursor-pointer flex-col justify-center gap-1.5 rounded-lg border-b border-[var(--div)] px-2 outline-none transition-[background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'bg-tint shadow-[inset_0_0_0_1px_var(--ink)]' : 'hover:bg-[color-mix(in_srgb,var(--tint)_60%,transparent)]'}`}>
-              <span className="flex min-w-0 items-center gap-2">
-                <MidText text={p.path} className="flex-1 text-[14px] leading-5 font-medium text-stone-900" />
-                {gsc.publishOn.action === 'update' && p.path === gsc.publishOn.path && <Chip>Best match</Chip>}
-                <span className="flex shrink-0 items-center gap-0.5 text-[13px] leading-[18px] font-semibold tabular-nums text-stone-900">
-                  Match {p.score}%
-                  <Tip label={`Why ${p.path} matches`} width={240}>
-                    {qs.length
-                      ? <><span className="block font-semibold text-stone-900">Top matching queries</span>{qs.slice(0, 3).map((q) => <span key={q.query} className="mt-1 block">“{q.query}” · {q.adjusted}%</span>)}</>
-                      : `${p.queries} matching ${p.queries === 1 ? 'query' : 'queries'}, outside the top five.`}
-                  </Tip>
-                </span>
-              </span>
-              <span className="flex items-center gap-3">
-                <span className="flex w-[64px] shrink-0 items-center gap-1" aria-label={e.engines.length ? `Cited by ${e.engines.map((x) => ENGINE_NAME[x]).join(', ')}` : p.cited ? 'Cited by AI answers' : undefined}>
-                  {e.engines.length ? e.engines.map((x) => <span key={x} title={ENGINE_NAME[x]} className="flex"><PlatformIcon id={engineIcon(x)} size={14} /></span>) : p.cited ? <span title="Cited by AI answers (engine not specified)" className="grid h-[14px] w-[14px] place-items-center rounded-full bg-stone-200 text-[7px] leading-none font-bold text-stone-700">AI</span>
-                    : null}
-                </span>
-                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-tint" aria-hidden><span className="block h-full rounded-full bg-[var(--color-stone-400)]" style={{ width: `${Math.max(4, (p.impressions / max) * 100)}%` }} /></span>
-                <span className="w-[96px] shrink-0 text-right text-[12px] leading-4 tabular-nums text-stone-600">{num(p.impressions)} impr.</span>
+            <li key={path} tabIndex={0} data-flow-page={path} data-using={top || undefined}
+              onMouseEnter={() => setHot({ kind: 'p', key: path })} onFocus={() => setHot({ kind: 'p', key: path })} onBlur={() => setHot(null)}
+              className={`absolute left-0 right-0 flex flex-col justify-center rounded-lg px-2.5 outline-none transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-focus ${top ? 'border-[1.5px] border-ink bg-surface' : ''} ${hot && hot.key !== path && hot.kind === 'p' ? 'opacity-35' : ''}`}
+              style={{ top: rowY(i, pages.length) - 21, height: 42, animation: reduce ? undefined : `fade-in 240ms ease-out ${120 + i * 40}ms backwards` }}>
+              <MidText text={path} className={`text-[14px] leading-5 ${top ? 'font-semibold' : 'font-medium'} text-stone-900`} />
+              <span className="text-[12px] leading-4 tabular-nums text-stone-500">
+                {top && usingCreate ? 'New page' : `${num(pageImpr(path))} impr`}
               </span>
             </li>
           )
         })}
       </ul>
+    </div>
+  )
+}
+
+// one line under the visual: the page in use and "Change page" (a small menu: your pages, or a new page)
+function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath }) {
+  const [open, setOpen] = useState(false)
+  const pages = gsc.pages.slice(0, 5)
+  const options = [...pages.map((p) => ({ key: p.path, label: p.path, pick: { action: 'update', path: p.path, url: p.url } })), ...(newPath ? [{ key: 'create', label: `Create a new page · ${newPath}`, pick: { action: 'create', path: newPath } }] : [])]
+  const choose = (o) => { onPick(o.pick); setOpen(false) }
+  return (
+    <div className="relative mt-3 flex min-w-0 items-center gap-2 border-t border-line pt-3 text-[14px] leading-5" data-sc-using={usingCreate ? 'create' : usingPath}
+      onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}>
+      <span className="shrink-0 text-stone-500">Using this page:</span>
+      <MidText text={usingPath} className="min-w-0 font-semibold text-stone-900" />
+      <span aria-hidden className="text-stone-400">·</span>
+      <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}
+        className="shrink-0 rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Change page</button>
+      {open && (
+        <>
+          <span className="fixed inset-0 z-20" aria-hidden onClick={() => setOpen(false)} />
+          <ul role="menu" aria-label="Choose the page" className="absolute left-0 top-full z-30 mt-1 w-[min(420px,100%)] rounded-lg border border-line bg-raised p-1 shadow-lg motion-safe:animate-[fade-in_120ms_ease-out]">
+            {options.map((o) => {
+              const on = o.key === 'create' ? usingCreate : !usingCreate && o.key === usingPath
+              return (
+                <li key={o.key} role="none">
+                  <button type="button" role="menuitemradio" aria-checked={on} data-path={o.key} onClick={() => choose(o)}
+                    className={`flex w-full min-w-0 items-center gap-2 rounded-md px-2.5 py-2 text-left text-[14px] leading-5 outline-none hover:bg-tint focus-visible:bg-tint ${on ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>
+                    <span className="grid w-4 shrink-0 place-items-center" aria-hidden>{on && <Check size={14} />}</span>
+                    {o.key === 'create' ? <span className="flex min-w-0 items-center gap-1.5"><Plus size={13} aria-hidden className="shrink-0 text-stone-500" /><MidText text={o.label} className="min-w-0" /></span> : <MidText text={o.label} className="min-w-0" />}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
     </div>
   )
 }
