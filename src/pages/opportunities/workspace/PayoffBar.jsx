@@ -23,7 +23,7 @@ const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(pre
 const LINK = 'rounded text-[13px] leading-[18px] font-medium text-stone-600 underline-offset-4 outline-none whitespace-nowrap hover:text-ink hover:underline focus-visible:ring-2 focus-visible:ring-focus'
 
 // engines: the engines with a result in the latest scan (5 with Google split in two; a no-result one is left out) · named: the ones that name the brand now (the rest are missed)
-export default function PayoffBar({ barRef, current, open, values = [], onPick, headline, line, engines = [], named = [], engineName = (e) => e, action, secondary = null, onClose = null, headingId, busy = false, steps }) {
+export default function PayoffBar({ barRef, current, open, values = [], onPick, headline, line, showNamed = false, engines = [], named = [], engineName = (e) => e, action, secondary = null, onClose = null, headingId, busy = false, steps }) {
   const still = reduced()
   return (
     // one row (owner, 2026-11-05): left the progress over the headline and the sub-line; right the actions, centred
@@ -36,7 +36,7 @@ export default function PayoffBar({ barRef, current, open, values = [], onPick, 
               <h2 id={headingId} className="whitespace-nowrap text-[18px] leading-[26px] font-semibold text-stone-900 max-lg:whitespace-normal">
                 <span className="sr-only">Step {stepPos(steps ?? STEPS.map((s, i) => ({ i })), open).n} of {(steps ?? STEPS).length}: </span>{busy && <Turning />}{headline}
               </h2>
-              {line && <SubLine line={line} engines={engines} named={named} engineName={engineName} />}
+              {line && <SubLine line={line} engines={showNamed ? engines : []} named={named} engineName={engineName} />}
             </div>
           </CrossFade>
         </div>
@@ -52,21 +52,19 @@ export default function PayoffBar({ barRef, current, open, values = [], onPick, 
   )
 }
 
-// the sub-line (owner, 2026-11-05): its first part (the path), then "Named on n of 5" with the engines that name you
-// (in colour, 16px, only those), then the rest ("5 pages win this prompt today"). Nothing truncates at the end: when the
-// line overflows, the path truncates in the middle.
+// the sub-line (owner, 2026-11-05): on step 1 "Named on n of 5" with the engines that name you (in colour, 16px, only
+// those) first, then the line's items ("5 pages win this prompt"); a path in it truncates in the middle only.
 function SubLine({ line, engines, named, engineName }) {
-  const [first, ...rest] = line.split(' · ')
+  const parts = line.split(' · ')
   const sep = <span aria-hidden className="shrink-0">·</span>
   return (
     <p className="flex min-w-0 items-center gap-1.5 text-[13px] leading-[18px] text-stone-500 tabular-nums">
-      {first.startsWith('/') ? <MidPath text={first} /> : <span className="shrink-0">{first}</span>}
-      {engines.length > 0 && <>{sep}
+      {engines.length > 0 && <>
         <span className="flex shrink-0 items-center gap-1.5" role="img" aria-label={`Named on ${named.length} of ${engines.length}${named.length ? `: ${named.map(engineName).join(', ')}` : ''}`}>
           <span className="whitespace-nowrap">Named on {named.length} of {engines.length}</span>
           {named.map((e) => <span key={e} title={`${engineName(e)} names you`} className="flex"><PlatformIcon id={engineIcon(e)} size={16} /></span>)}
-        </span></>}
-      {rest.map((r) => <span key={r} className="flex shrink-0 items-center gap-1.5">{sep}<span className="whitespace-nowrap">{r}</span></span>)}
+        </span>{sep}</>}
+      {parts.map((r, k) => <span key={`${k}${r}`} className="flex min-w-0 items-center gap-1.5">{k > 0 && sep}{r.startsWith('/') ? <MidPath text={r} /> : <span className="whitespace-nowrap">{r}</span>}</span>)}
     </p>
   )
 }

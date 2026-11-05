@@ -370,8 +370,11 @@ function Flow({ row }) {
     },
     !full ? {
       // v1: the route's page choice (pageRecommendation)
-      headline: page.action === 'update' ? `Update this page to get named on ${moreEngines}` : `Create this page to get named on ${moreEngines}`,
-      line: `${page.path} · ${page.evidence.length} ${page.evidence.length === 1 ? 'page wins' : 'pages win'} this prompt today`,
+      // owner, 2026-11-05: a 2–4 word title; the sub-line "Named on n of 5 [icons] · 5 pages win this prompt" (the path
+      // is in "Publishing on …")
+      headline: page.action === 'update' ? 'Update this page' : 'Create a new page',
+      line: `${page.evidence.length} ${page.evidence.length === 1 ? 'page wins' : 'pages win'} this prompt`,
+      named: true,
       choice: page.path,
       // next: Your data (optional), or straight to the draft; reopened later: Continue
       action: { label: current === 1 ? 'Add your data' : 'Continue', onClick: advance },
@@ -402,17 +405,17 @@ function Flow({ row }) {
     // the Draft: its one primary (Copy content) is the draft's footer, so the header has no button here
     ds.phase === 'draft'
       ? {
-        headline: review.open ? `Resolve ${review.open} ${review.open === 1 ? 'flag' : 'flags'}, then copy it to your site` : 'Every flag is ticked: copy it to your site',
+        headline: review.open ? `Resolve ${review.open} ${review.open === 1 ? 'flag' : 'flags'}` : 'Ready to copy',
         line: `${flagsChecked} · saved in this browser`,
         choice: `${review.open} flags open`,
         action: null,
       }
       : full
-        ? { headline: 'Writing the draft for this prompt', line: ds.startedAt == null ? 'Starting…' : `${fmtSecs(Math.min(genE, gen.totalMs))} · ${gen.done ? 'Finishing' : genSteps[Math.max(0, gen.rows.findIndex((r) => r.status !== 'done'))]?.label}`, choice: 'Writing the draft', action: null }
-        : { headline: 'Writing your draft…', line: 'Usually under a minute; you can leave this panel and come back', choice: 'Writing your draft', action: null },
+        ? { headline: 'Writing the draft', line: ds.startedAt == null ? 'Starting…' : `${fmtSecs(Math.min(genE, gen.totalMs))} · ${gen.done ? 'Finishing' : genSteps[Math.max(0, gen.rows.findIndex((r) => r.status !== 'done'))]?.label}`, choice: 'Writing the draft', action: null }
+        : { headline: 'Writing your draft', line: 'Usually under a minute · you can leave this panel', choice: 'Writing your draft', action: null },
     !full ? {
       // v1: the copy / export moment (the route has no publish check yet)
-      headline: page.action === 'update' ? `Paste it into ${page.path}` : `Publish it at ${page.path}`,
+      headline: page.action === 'update' ? 'Paste it into your page' : 'Publish the new page',
       line: ds.copiedAt ? `Copied ${savedLabel(ds.copiedAt)} · saved in this browser` : 'Not copied yet · saved in this browser',
       choice: page.path,
       action: { label: 'Copy content', onClick: copyContent },
@@ -476,7 +479,7 @@ function Flow({ row }) {
         {/* the payoff bar: the step's reward, its progress and its one action; while steps 3–5 are under way (they live
             only in the focus panel), what they're doing, live, and Resume */}
         <PayoffBar barRef={barRef} current={current} open={open} values={values} onPick={pick} headingId="co-step-h"
-          headline={bar.headline} line={bar.line} busy={bar.busy} engines={answeredEngines()} named={named} engineName={(e) => ENGINE_NAME[e]}
+          headline={bar.headline} line={bar.line} showNamed={Boolean(bar.named)} busy={bar.busy} engines={answeredEngines()} named={named} engineName={(e) => ENGINE_NAME[e]}
           action={bar.action} secondary={bar.secondary} onClose={editing != null && onPage ? () => setEditing(null) : null} steps={steps} />
         {/* the page's step: step 1 (Search Console), else always step 2's layout, whatever the flow's step: the step (7/12),
             Search Console (5/12), 32px apart with a 1px line between */}
