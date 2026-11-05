@@ -220,7 +220,7 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
   const short = (path) => midTruncate(path, 22)
   const pageTab = (k, dot) => ({ value: k, label: (
     <span className="relative inline-flex items-center gap-1.5" onMouseEnter={() => setTabHot(k)} onMouseLeave={() => setTabHot(null)}>
-{short(k)} {counts.get(k)}{dot && <span className="text-stone-500"> · Publishing</span>}
+<span className="whitespace-nowrap">{short(k)}</span><span className="shrink-0 tabular-nums">{counts.get(k)}</span>{dot && <span className="shrink-0 whitespace-nowrap text-stone-500">· Publishing</span>}
       <TabCard show={tabHot === k} path={k} url={rows.find((q) => q.topPage?.path === k)?.topPage?.url} title={titleFor(k)} domain={domain}
         impressions={rows.filter((q) => q.topPage?.path === k).reduce((n, q) => n + q.impressions, 0)} e={enginesFor(k)} />
     </span>
@@ -250,9 +250,9 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
                 {q.intent && <Tag intent={q.intent} />}
                 {q.lowVolume && <Tag intent="low volume" />}
               </span>
-              <Trend values={weeksOf(q)} />
+              <Trend values={weeksOf(q)} tone={q.best ? 'best' : q.adjusted < 40 ? 'weak' : null} hot={on} />
               <CitedBy e={enginesFor(q.topPage?.path)} position={q.position} />
-              <span className="min-w-0 text-[14px] leading-5 text-stone-500">
+              <span className="min-w-0 text-[14px] leading-5 font-medium text-stone-900">
                 {q.topPage?.url
                   ? <a href={q.topPage.url} target="_blank" rel="noopener noreferrer" onFocus={() => setHot(q.query)} className="flex min-w-0 items-center gap-1 rounded outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus" aria-label={`${q.topPage.path} (opens in a new tab)`}>
                       <span className="min-w-0 truncate">{q.topPage.path}</span>
@@ -281,7 +281,7 @@ function CitedBy({ e, position }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5" data-cited-by>
       {e.engines.map((id) => <span key={id} title={`Cited by ${ENGINE_NAME[id]}`} className="flex"><PlatformIcon id={engineIcon(id)} size={18} /></span>)}
-      {position != null && <span className="whitespace-nowrap text-[12px] leading-4 tabular-nums text-stone-500">Google #{Math.round(position)}</span>}
+      {position != null && <span className="whitespace-nowrap text-[12px] leading-4 font-medium tabular-nums text-stone-900">Google #{Math.round(position)}</span>}
     </span>
   )
 }
@@ -314,22 +314,36 @@ function TabCard({ show, path, url, title, domain, impressions, e }) {
 // "−6%" bold red, "flat" muted under 2% either way. Hover: the line goes to the full text colour and a small tooltip
 // lists the weekly numbers.
 const changeOf = (v) => { const a = v.slice(0, 4).reduce((n, x) => n + x, 0), b = v.slice(4).reduce((n, x) => n + x, 0); return a ? Math.round(((b - a) / a) * 100) : null }
-function Trend({ values }) {
+// tone: 'best' (green, as "Best match"), 'weak' (red, as "Weak"), else neutral (the text colour at 60%). hot: the row
+// is hovered: the line redraws left to right (~500ms ease-out), a soft area fill (the line colour at ~12%) fades in, the
+// end dot scales 1 → 1.4 → 1 once; mouse-out: the fill fades away, the line stays. None with reduced motion. The weekly
+// numbers' tooltip shows with the pointer on the line itself.
+function Trend({ values, tone = null, hot = false }) {
   const lo = Math.min(...values), hi = Math.max(...values)
   const y = (v) => (hi === lo ? 10 : 17 - ((v - lo) / (hi - lo)) * 14)
-  const pts = values.map((v, i) => `${(i * 72) / (values.length - 1)},${y(v).toFixed(1)}`).join(' ')
+  const xy = values.map((v, i) => [(i * 72) / (values.length - 1), y(v)])
+  const pts = xy.map(([x, yy]) => `${x},${yy.toFixed(1)}`).join(' ')
+  const area = `M0,20 L${xy.map(([x, yy]) => `${x},${yy.toFixed(1)}`).join(' L')} L72,20 Z`
   const d = changeOf(values)
+  const still = reducedMotion()
+  const color = tone === 'best' ? 'var(--rep-up-fg)' : tone === 'weak' ? 'var(--negative)' : 'var(--color-stone-900)'
+  const op = tone ? 1 : 0.6
   return (
-    <span className="group/t relative flex items-center gap-2" data-trend>
-      <svg width="72" height="20" viewBox="0 0 72 20" className="shrink-0 overflow-visible text-stone-900" aria-label={`Weekly impressions: ${values.map(num).join(', ')}`} role="img">
-        <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" className="opacity-60 transition-opacity duration-150 group-hover/t:opacity-100" />
-        <circle cx="72" cy={y(values.at(-1))} r="2" fill="currentColor" className="opacity-60 transition-opacity duration-150 group-hover/t:opacity-100" />
-      </svg>
+    <span className="relative flex items-center gap-2" data-trend data-tone={tone ?? undefined}>
+      <span className="group/t relative flex">
+        <svg width="72" height="20" viewBox="0 0 72 20" className="shrink-0 overflow-visible" role="img" aria-label={`Weekly impressions: ${values.map(num).join(', ')}`}>
+          <path d={area} fill={color} style={{ opacity: hot ? 0.12 : 0, transition: still ? 'none' : 'opacity 250ms ease-out' }} />
+          <polyline key={hot && !still ? 'redraw' : 'still'} points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" pathLength="1"
+            style={{ opacity: hot ? 1 : op, transition: 'opacity 150ms ease-out', ...(hot && !still ? { strokeDasharray: 1, animation: 'co-line-draw 500ms ease-out both' } : {}) }} />
+          <circle key={hot && !still ? 'pulse' : 'dot'} cx="72" cy={xy.at(-1)[1]} r="2" fill={color}
+            style={{ opacity: hot ? 1 : op, transformOrigin: '72px ' + xy.at(-1)[1] + 'px', ...(hot && !still ? { animation: 'co-dot-pulse 420ms ease-out 380ms both' } : {}) }} />
+        </svg>
+        <span role="tooltip" className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden whitespace-nowrap rounded-md border border-line bg-raised px-2 py-1 text-[11px] leading-4 tabular-nums text-stone-700 shadow-md group-hover/t:block">
+          {values.map(num).join(' · ')}
+        </span>
+      </span>
       <span className={`whitespace-nowrap text-[13px] leading-[18px] tabular-nums ${d == null || Math.abs(d) < 2 ? 'text-stone-500' : d > 0 ? 'font-semibold text-[var(--rep-up-fg)]' : 'font-semibold text-negative'}`}>
         {d == null || Math.abs(d) < 2 ? 'flat' : `${d > 0 ? '+' : '−'}${Math.abs(d)}%`}
-      </span>
-      <span role="tooltip" className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden whitespace-nowrap rounded-md border border-line bg-raised px-2 py-1 text-[11px] leading-4 tabular-nums text-stone-700 shadow-md group-hover/t:block">
-        {values.map(num).join(' · ')}
       </span>
     </span>
   )
@@ -352,8 +366,10 @@ function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath }) {
     // the page's own font stack (the label's), so the estimate matches what MidText measures
     const fam = labelRef.current ? getComputedStyle(labelRef.current).fontFamily : 'sans-serif'
     measureCtx.font = `600 14px ${fam}`
-    const full = Math.ceil(measureCtx.measureText(usingPath).width) + 6
-    setPathW(Math.max(40, Math.min(full, row - label - change - 40)))
+    const full = Math.ceil(measureCtx.measureText(usingPath).width) + 1
+    const room = row - label - change - 40
+    // only a fixed width when it overflows (then it middle-truncates); otherwise its own width, so no gap before "·"
+    setPathW(full > room ? Math.max(40, room) : full)
   }, [rowW, usingPath])
   return (
     <div ref={rowRef} className="relative mt-3 flex min-w-0 items-center gap-2 border-t border-line pt-3 text-[14px] leading-5" data-sc-using={usingCreate ? 'create' : usingPath}
