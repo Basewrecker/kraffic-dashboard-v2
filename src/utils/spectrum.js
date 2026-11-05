@@ -9,14 +9,14 @@ export function hash01(id) {
   return ((h >>> 0) % 10007) / 10007
 }
 
-// production has no per-page number, only a tone: three bands, Negative | Neutral | Positive
-export const BAND = { negative: 0, neutral: 1, positive: 2 }
+// production has no per-page number, only a tone. Not scored pages are listed, not placed on this scale.
+export const BAND = { negative: 0, neutral: 1, mixed: 2, positive: 3 }
 
 // Beeswarm: each dot's x is spread evenly (in a stable order) across its tone band, with a little jitter; y is the
 // smallest offset from the centre line that keeps it clear of every dot already placed (centres ≥ 2r + gap apart).
 //   items: [{ id, tone }] · returns { pos: { [id]: { x, y } }, extent } (extent = the swarm's half-height, dot included)
 export function layoutSwarm(items, { width, r = 14, gap = 3, pad = 8 }) {
-  const band = width / 3
+  const band = width / Object.keys(BAND).length
   const D = 2 * r + gap
   const pos = {}
   const targets = []
@@ -99,10 +99,11 @@ export function repeatedNumbers(texts) {
   return [...seen].filter(([, ts]) => ts.length > 1).map(([n, ts]) => ({ n, texts: ts }))
 }
 
-// ---- "What AI reads about you" ------------------------------------------------------------------------------------
+// ---- "What AI says about you" ------------------------------------------------------------------------------------
 
-// SWOT → two columns: Hurting you (weaknesses + threats) and Working for you (strengths + opportunities). Within each,
-// the themes most of whose pages carry that side's tone come first (negative for hurting, positive for working).
+// SWOT → two columns: Hurting you (weaknesses + threats) and Working for you (strengths + opportunities). A theme is
+// hurting only when a linked page is negative, and working only when a linked page is positive. Neutral-only themes
+// are not praise or criticism. Within a side, the themes with the most pages in that tone come first.
 const KIND = { strengths: 'strength', opportunities: 'opportunity', weaknesses: 'weakness', threats: 'threat' }
 export function groupThemes(swot, pages) {
   const byId = new Map(pages.map((p) => [p.id, p]))
@@ -110,6 +111,7 @@ export function groupThemes(swot, pages) {
     .flatMap((k) => (swot?.[k] ?? []).map((t, i) => ({ ...t, kind: KIND[k], order: i, pages: t.sources.map((id) => byId.get(id)).filter(Boolean) })))
     .filter((t) => t.pages.length)
     .map((t) => ({ ...t, hits: t.pages.filter((p) => p.tone === tone).length }))
+    .filter((t) => t.hits > 0)
     .sort((a, b) => b.hits - a.hits || b.pages.length - a.pages.length || keys.indexOf(`${a.kind}s`.replace('opportunitys', 'opportunities')) - keys.indexOf(`${b.kind}s`.replace('opportunitys', 'opportunities')) || a.order - b.order)
   return { hurting: side(['weaknesses', 'threats'], 'negative'), working: side(['strengths', 'opportunities'], 'positive') }
 }
@@ -164,34 +166,31 @@ export function dotGrid(n, { perRow = 6, pitch = 12 }) {
 }
 export const dotRows = (n, perRow = 6) => Math.ceil(n / perRow)
 
-// the biggest move between two runs (the latest wins a tie): its index (the run after the change), the change and
-// what moved, in words without digits: "one more positive page and one fewer negative"
+// the biggest move between two runs: the most pages that changed tone (the latest run wins a tie). Not the blended
+// score, and not a smaller cited set. Runs need `.pages`. → { index, changes, what }
 const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
 export function biggestChange(runs) {
   let best = null
   for (let i = 1; i < runs.length; i++) {
-    const d = runs[i].score - runs[i - 1].score
-    if (d !== 0 && (!best || Math.abs(d) >= Math.abs(best.delta))) best = { index: i, delta: d }
+    const prev = runs[i - 1].pages
+    const next = runs[i].pages
+    if (!Array.isArray(prev) || !Array.isArray(next)) continue
+    const changes = toneChanges(prev, next)
+    if (!changes.length) continue
+    if (!best || changes.length >= best.changes.length) best = { index: i, changes }
   }
   if (!best) return null
-  const a = runs[best.index - 1].counts, b = runs[best.index].counts
-  const part = (tone) => {
-    const d = b[tone] - a[tone]
-    if (!d) return null
-    return `${WORDS[Math.abs(d)] ?? Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} ${tone}`
-  }
-  const parts = ['positive', 'negative'].map(part).filter(Boolean)
-  const what = parts.length ? `${parts[0]} page${/^one /.test(parts[0]) ? '' : 's'}${parts[1] ? ` and ${parts[1]}` : ''}` : 'the same split of pages'
-  return { ...best, what }
+  const n = (tone) => best.changes.filter((c) => c.to === tone).length
+  const part = (tone) => (n(tone) ? `${WORDS[n(tone)] ?? n(tone)} turned ${tone}` : null)
+  const parts = ['positive', 'negative', 'neutral'].map(part).filter(Boolean)
+  return { ...best, what: parts.join(' and ') }
 }
 
-// the note under the biggest move's two columns, from the data: "+13 · 2 more positive, 3 fewer negative"
-export function moveNote(runs, big) {
-  if (!big) return null
-  const a = runs[big.index - 1].counts, b = runs[big.index].counts
-  const part = (tone) => { const d = b[tone] - a[tone]; return d ? `${Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} ${tone}` : null }
-  const parts = ['positive', 'negative'].map(part).filter(Boolean)
-  return `${big.delta > 0 ? '+' : '−'}${Math.abs(big.delta)}${parts.length ? ` · ${parts.join(', ')}` : ''}`
+// the note for that move, from the pages that changed tone: "2 turned positive, 1 turned negative"
+export function moveNote(_runs, big) {
+  if (!big?.changes?.length) return null
+  const n = (tone) => big.changes.filter((c) => c.to === tone).length
+  return ['positive', 'negative', 'neutral'].map((tone) => (n(tone) ? `${n(tone)} turned ${tone}` : null)).filter(Boolean).join(', ')
 }
 
 // ---- tone flow (Over time) ----------------------------------------------------------------------------------------
@@ -237,7 +236,7 @@ export function divergingStack(pages, { perRow = 2, pitch = 18, gap = 12 }) {
 // the change worth naming for a run: the first page that turned negative, else positive, else any
 export const topChange = (changes) => changes.find((c) => c.to === 'negative') ?? changes.find((c) => c.to === 'positive') ?? changes[0] ?? null
 
-// ---- What AI reads about you: reach, and a lead quote per side -----------------------------------------------------
+// ---- What AI says about you: reach, and a lead quote per side -----------------------------------------------------
 
 // reach: the share of all pages analysed that say the theme (0–1)
 export const reachOf = (theme, total) => (total ? theme.pages.length / total : 0)
@@ -329,11 +328,34 @@ export function alsoSaidOn(lead, themes, pages, tone) {
 
 // ---- Over time, per column ------------------------------------------------------------------------------------------
 
-// the change line under a run's date: how many more / fewer positive and negative pages than the run before
-// → [{ tone, d }] (non-zero only; [] = no change); null for the first run
+// pages cited last time that this run does not cite. Missing is not "became negative".
+export function citedGone(prev, next) {
+  if (!prev?.length || !next) return []
+  const now = new Set(next.map((p) => urlKey(p.url ?? `${p.domain}${p.path ?? ''}`)))
+  return prev.filter((p) => !now.has(urlKey(p.url ?? `${p.domain}${p.path ?? ''}`)))
+}
+
+// how many cited pages turned positive or negative (pages in both runs only)
+export function flipTotals(changes) {
+  return {
+    toPositive: changes.filter((c) => c.to === 'positive').length,
+    toNegative: changes.filter((c) => c.to === 'negative').length,
+  }
+}
+
+// the change line under a run's date: pages present in both runs whose tone changed.
+// A smaller cited set is not a change. → [{ tone, d }] (non-zero only; [] = no tone change); null for the first run
 export function changeSummary(prev, now) {
-  if (!prev) return null
-  return ['positive', 'negative'].map((tone) => ({ tone, d: now[tone] - prev[tone] })).filter((x) => x.d !== 0)
+  if (!prev || !now) return null
+  if (!Array.isArray(prev) || !Array.isArray(now)) return null
+  const d = { positive: 0, negative: 0 }
+  for (const c of toneChanges(prev, now)) {
+    if (c.from === 'positive') d.positive -= 1
+    if (c.to === 'positive') d.positive += 1
+    if (c.from === 'negative') d.negative -= 1
+    if (c.to === 'negative') d.negative += 1
+  }
+  return ['positive', 'negative'].map((tone) => ({ tone, d: d[tone] })).filter((x) => x.d !== 0)
 }
 // the ribbons for one column: only the pages that changed tone from the previous run into this one (none for the first)
 export const ribbonsInto = (runsPages, i) => (i > 0 ? toneChanges(runsPages[i - 1], runsPages[i]) : [])
@@ -355,3 +377,157 @@ export function chartLayout({ width, n, up, down, L = 64, R = 8, minCol = 96, pi
   const H = dotsBottom + dates + change + pad
   return { scroll: !fits, colW, plotW, contentW: L + plotW + R, base, dotsBottom, H, scoreY: base - gap - up * pitch - 8 }
 }
+
+// ---- the tone grid (2×2): Neutral · Positive over Negative · Mixed. Each quadrant's dots are packed left to right in
+// rows (centred, `gap` apart, never overlapping), at most `rows` rows; more than fit → the last two slots become one
+// "+n more" button. A quadrant's label row sits on its outer edge (top for the top row, bottom for the bottom row), so
+// the dots use the rest of its height, centred.
+// items: [{ key, tone }] in placing order → { pos: { key: { x, y } }, more: { tone: { n, x, y, w } }, perRow }
+export const QUADRANT = { neutral: [0, 0], positive: [1, 0], negative: [0, 1], mixed: [1, 1] } // [column, row]
+export function quadrantPack(items, { width, height, r, gap = 8, rows = 2, label = 20, pad = 8 }) {
+  const qw = width / 2, qh = height / 2, d = 2 * r, pitch = d + gap
+  const perRow = Math.max(2, Math.floor((qw - 2 * pad + gap) / pitch))
+  const cap = perRow * rows
+  const pos = {}, more = {}
+  for (const [tone, [cx, cy]] of Object.entries(QUADRANT)) {
+    const list = items.filter((it) => it.tone === tone)
+    if (!list.length) continue
+    const over = list.length > cap
+    const shown = over ? list.slice(0, cap - 2) : list
+    const slots = shown.length + (over ? 2 : 0)
+    const nRows = Math.min(rows, Math.ceil(slots / perRow))
+    const areaTop = cy * qh + (cy === 0 ? label : 0)
+    const blockH = nRows * d + (nRows - 1) * gap
+    const y0 = areaTop + (qh - label - blockH) / 2 + r
+    const slotAt = (i) => {
+      const row = Math.floor(i / perRow)
+      const inRow = Math.min(perRow, slots - row * perRow)
+      const rowW = inRow * d + (inRow - 1) * gap
+      return { x: cx * qw + (qw - rowW) / 2 + (i % perRow) * pitch + r, y: y0 + row * pitch }
+    }
+    shown.forEach((it, i) => { pos[it.key] = slotAt(i) })
+    if (over) {
+      const a = slotAt(cap - 2), b = slotAt(cap - 1)
+      more[tone] = { n: list.length - shown.length, x: (a.x + b.x) / 2, y: a.y, w: 2 * d + gap }
+    }
+  }
+  return { pos, more, perRow }
+}
+// the smallest grid height that still fits two rows of dots in every quadrant
+export const quadrantMinH = (r, { gap = 8, rows = 2, label = 20, inset = 4 } = {}) => 2 * (label + rows * 2 * r + (rows - 1) * gap + 2 * inset)
+
+// ---- the tone grid, scattered (owner, 2026-11-04): each quadrant's dots sit at organic-looking spots that mean nothing
+// (purely visual), the same on every load. A jittered hex lattice per quadrant: dots keep `edge` px clear of the
+// quadrant's edges (so of the cross too) and of its corner label, and at least `gap` px between each other (the
+// jitter is capped by the lattice's slack, so they can't touch). Each dot's slot comes from a hash of its seed (the
+// page URL), so a dot keeps its spot when others come and go; 1–2 dots take the slots nearest the centre. More than
+// fit → the two slots farthest from the label become one "+n more" pill.
+// items: [{ key, tone, seed }] → { pos: { key: { x, y } }, more: { tone: { n, x, y, w } } }
+const seed01 = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return (h >>> 0) / 4294967296 }
+export function quadrantScatter(items, { width, height, r, gap = 10, edge = 24, labelW = {}, labelH = 18 }) {
+  const qw = width / 2, qh = height / 2, d = 2 * r + gap
+  const pos = {}, more = {}
+  for (const [tone, [cx, cy]] of Object.entries(QUADRANT)) {
+    const list = items.filter((it) => it.tone === tone)
+    if (!list.length) continue
+    const x0 = cx * qw + edge + r, x1 = (cx + 1) * qw - edge - r
+    const y0 = cy * qh + edge + r, y1 = (cy + 1) * qh - edge - r
+    const rows = Math.max(1, Math.floor(Math.max(0, y1 - y0) / (d * 0.866)) + 1)
+    const maxCols = Math.max(1, Math.floor(Math.max(0, x1 - x0) / d) + 1)
+    // only as many columns as the dots need (with a third spare, so the seeds have a choice): wider spacing, more
+    // room for each dot to wander
+    const cols = Math.min(maxCols, Math.max(2, Math.ceil((list.length * 1.35 + 2) / rows)))
+    const dx = cols > 1 ? (x1 - x0) / (cols - 1) : 0
+    const dy = rows > 1 ? (y1 - y0) / (rows - 1) : 0
+    // the corner label's box, grown by `edge` (top-left / top-right / bottom-left / bottom-right)
+    const lw = (labelW[tone] ?? 80) + edge, lh = labelH + edge
+    const lx0 = cx ? (cx + 1) * qw - lw : cx * qw, ly0 = cy ? (cy + 1) * qh - lh : cy * qh
+    const clearOfLabel = (x, y) => x + r <= lx0 || x - r >= lx0 + lw || y + r <= ly0 || y - r >= ly0 + lh
+    const slots = []
+    for (let i = 0; i < rows; i++) {
+      const odd = rows > 1 && i % 2 === 1
+      const n = odd && cols > 1 ? cols - 1 : cols
+      for (let j = 0; j < n; j++) {
+        const x = cols > 1 ? x0 + (odd ? dx / 2 : 0) + j * dx : (x0 + x1) / 2
+        const y = rows > 1 ? y0 + i * dy : (y0 + y1) / 2
+        if (clearOfLabel(x, y)) slots.push({ x, y, row: i })
+      }
+    }
+    // how far a dot may wander from its slot and still never come within `gap` of a neighbour
+    const near = Math.min(cols > 1 ? dx : Infinity, rows > 1 ? Math.hypot(cols > 1 ? dx / 2 : 0, dy) : Infinity)
+    const jit = Number.isFinite(near) ? Math.max(0, (near - d) / 2) : Math.min((x1 - x0) / 2, (y1 - y0) / 2)
+    const mid = { x: cx * qw + qw / 2, y: cy * qh + qh / 2 }
+    const over = list.length > slots.length
+    let free = [...slots]
+    if (over) {
+      // "+n more": two neighbouring slots in the row by the cross (farthest from the label), next to the middle; any
+      // slot within `gap` of the pill is left empty too
+      const rowY = cy ? Math.min(...free.map((s) => s.y)) : Math.max(...free.map((s) => s.y))
+      const row = free.filter((s) => s.y === rowY).sort((a, b) => a.x - b.x)
+      const i = Math.max(0, row.reduce((bi, s, k) => (Math.abs(s.x - mid.x) < Math.abs(row[bi].x - mid.x) ? k : bi), 0))
+      const a = row[i], b = row[i + 1] ?? row[i - 1] ?? null
+      const px = b ? (a.x + b.x) / 2 : a.x
+      const w = b ? Math.abs(b.x - a.x) + 2 * r : 2 * r
+      const m = { n: 0, x: px, y: a.y, w }
+      const hits = (s) => Math.abs(s.x - m.x) < m.w / 2 + r + gap && Math.abs(s.y - m.y) < 2 * r + gap
+      free = free.filter((s) => !hits(s))
+      more[tone] = { ...m, n: list.length - free.length }
+    }
+    // 1–2 dots: near the centre (side by side for two), each nudged a little by its seed, never a corner
+    if (list.length <= 2) {
+      const cxm = Math.min(x1, Math.max(x0, mid.x)), cym = Math.min(y1, Math.max(y0, mid.y))
+      list.forEach((it, i) => {
+        const s = it.seed ?? it.key
+        const off = list.length === 2 ? (i ? 1 : -1) * (d / 2 + 4 + seed01(`${s}|a`) * 8) : (seed01(`${s}|a`) - 0.5) * 16
+        pos[it.key] = { x: Math.min(x1, Math.max(x0, cxm + off)), y: Math.min(y1, Math.max(y0, cym + (seed01(`${s}|m`) - 0.5) * 12)) }
+      })
+      continue
+    }
+    const shown = list.slice(0, free.length)
+    const taken = new Set()
+    const clamp = (p) => ({ x: Math.min(x1, Math.max(x0, p.x)), y: Math.min(y1, Math.max(y0, p.y)) })
+    const placed = shown.map((it) => {
+      const s = it.seed ?? it.key
+      // the slot its seed points at; taken → the next free one along
+      let k = Math.floor(seed01(s) * free.length)
+      while (taken.has(k)) k = (k + 1) % free.length
+      taken.add(k)
+      return { it, s, slot: free[k] }
+    })
+    // organic: a seeded nudge of up to 14px, then a few deterministic passes push apart any two dots closer than d;
+    // if a pair is still too close, the safe nudge (capped by the lattice's slack) is used instead
+    const loose = placed.map(({ s, slot }) => { const a = seed01(`${s}|a`) * Math.PI * 2, m = seed01(`${s}|m`) * Math.max(jit, 14); return clamp({ x: slot.x + Math.cos(a) * m, y: slot.y + Math.sin(a) * m }) })
+    for (let pass = 0; pass < 40; pass++) {
+      let moved = false
+      for (let i = 0; i < loose.length; i++) for (let j = i + 1; j < loose.length; j++) {
+        const p = loose[i], q = loose[j], dist = Math.hypot(p.x - q.x, p.y - q.y)
+        if (dist >= d) continue
+        moved = true
+        const ux = dist ? (p.x - q.x) / dist : 1, uy = dist ? (p.y - q.y) / dist : 0, push = (d - dist) / 2 + 0.01
+        loose[i] = clamp({ x: p.x + ux * push, y: p.y + uy * push })
+        loose[j] = clamp({ x: q.x - ux * push, y: q.y - uy * push })
+      }
+      // the "+n more" pill is an obstacle too: a dot on it moves away up or down
+      const pill = more[tone]
+      if (pill) for (let i = 0; i < loose.length; i++) {
+        const p = loose[i]
+        if (Math.abs(p.x - pill.x) < pill.w / 2 + r + gap && Math.abs(p.y - pill.y) < 2 * r + gap) {
+          moved = true
+          loose[i] = clamp({ x: p.x, y: pill.y + (p.y >= pill.y ? 1 : -1) * (2 * r + gap + 0.01) })
+        }
+      }
+      if (!moved) break
+    }
+    const pill = more[tone]
+    const offPill = (p) => !pill || !(Math.abs(p.x - pill.x) < pill.w / 2 + r + gap - 0.01 && Math.abs(p.y - pill.y) < 2 * r + gap - 0.01)
+    const ok = loose.every(offPill) && loose.every((p, i) => loose.every((q, j) => j <= i || Math.hypot(p.x - q.x, p.y - q.y) >= d - 0.01))
+    placed.forEach(({ it, s, slot }, i) => {
+      if (ok) { pos[it.key] = loose[i]; return }
+      const a = seed01(`${s}|a`) * Math.PI * 2, m = seed01(`${s}|m`) * jit
+      pos[it.key] = clamp({ x: slot.x + Math.cos(a) * m, y: slot.y + Math.sin(a) * m })
+    })
+  }
+  return { pos, more }
+}
+// the grid height that gives every quadrant two staggered rows of dots, `edge` clear all round
+export const scatterMinH = (r, { gap = 10, edge = 24 } = {}) => 2 * Math.ceil(2 * edge + 2 * r + (2 * r + gap) * 0.866)

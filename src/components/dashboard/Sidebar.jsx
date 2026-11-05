@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { BarChart3, Check, ChevronsUpDown, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2 } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, FilePenLine } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
 import { Wordmark } from '../ui/Logo'
 import SiteLogo from '../ui/SiteLogo'
+import BetaTag from '../ui/BetaTag'
 import { agency, brand, recentBrands, role, switchBrand, visibleDirectory } from '../../store/workspace'
 
 // grouped nav (same items and order as production); items without an href have no page yet.
@@ -13,8 +15,16 @@ export const groups = [
   { label: 'Insights', items: [
     { label: 'Visibility Overview', icon: BarChart3, href: '/overview' },
     { label: 'Prompt Hub', icon: MessageSquareText, href: '/tracker' },
-    { label: 'Sentiment', icon: Gauge, href: '/sentiment' },
+    { label: 'Sentiment', icon: Gauge, href: '/sentiment', beta: true },
     { label: 'Trends', icon: TrendingUp, href: '/trends' },
+  ] },
+  { label: 'Reports', items: [
+    { label: 'New report', icon: Sparkles, href: '/reports', beta: true },
+    { label: 'All reports', icon: FileText, href: '/reports/all' },
+    { label: 'Scheduled', icon: CalendarClock, href: '/reports/scheduled' },
+  ] },
+  { label: 'Opportunities', items: [
+    { label: 'Content', icon: FilePenLine, href: '/opportunities/content', beta: true },
   ] },
   { label: 'Optimize', items: [
     { label: 'Structured Data', icon: Code2, href: '/structured-data' },
@@ -57,7 +67,7 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
     return (
       <button type="button" role="menuitem" onClick={() => (current ? onDone?.() : pick(b))} aria-current={current || undefined}
         className={`${item} ${current ? 'font-medium text-stone-900' : 'text-stone-900'}`}>
-        <SiteLogo domain={b.domain} name={b.name} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" plate />
+        <SiteLogo domain={b.domain} name={b.name} className="h-5 w-5 rounded-md" initialClass="text-[10px]" />
         <span className="min-w-0 flex-1 truncate">{b.name}</span>
         {current && <Check size={14} className="shrink-0 text-ink" aria-label="Current brand" />}
       </button>
@@ -82,7 +92,7 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
       <div className="min-h-0 flex-1 overflow-y-auto p-1 pt-0">
         {agencyUser && !q && (
           <a role="menuitem" href={HOME} className={`${item} font-medium text-stone-900`}>
-            <SiteLogo domain={agency.domain} name={agency.name} className="h-5 w-5 rounded-md" imgPad="p-0.5" initialClass="text-[10px]" plate />
+            <SiteLogo domain={agency.domain} name={agency.name} className="h-5 w-5 rounded-md" initialClass="text-[10px]" />
             <span className="min-w-0 flex-1 truncate">{agency.name}</span>
             <span className="shrink-0 text-[12px] text-stone-500">Agency home</span>
           </a>
@@ -134,37 +144,52 @@ export function WorkspaceSwitcher() {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false) // kept mounted for the closing fade
   const [shown, setShown] = useState(false)
+  const [pos, setPos] = useState(null) // { left, bottom } of the menu, from the card
   const wrap = useRef(null)
   const trigger = useRef(null)
+  const menu = useRef(null)
+  // The menu is wider than the sidebar, so it renders at the top level (a portal on body, like the other overlays):
+  // inside the sticky <aside> its overhang sat under the page content. It's fixed above the card, left edges aligned.
+  const place = () => {
+    const r = trigger.current?.getBoundingClientRect()
+    if (r) setPos({ left: r.left, bottom: window.innerHeight - r.top + 4 })
+  }
   useEffect(() => {
     if (open) {
+      place()
       setMounted(true)
       const r = requestAnimationFrame(() => setShown(true))
-      const out = (e) => { if (!wrap.current?.contains(e.target)) setOpen(false) }
+      const out = (e) => { if (!wrap.current?.contains(e.target) && !menu.current?.contains(e.target)) setOpen(false) }
       document.addEventListener('mousedown', out)
-      return () => { cancelAnimationFrame(r); document.removeEventListener('mousedown', out) }
+      window.addEventListener('resize', place)
+      return () => { cancelAnimationFrame(r); document.removeEventListener('mousedown', out); window.removeEventListener('resize', place) }
     }
     setShown(false)
     const t = setTimeout(() => setMounted(false), 150)
     return () => clearTimeout(t)
   }, [open])
   const close = () => { setOpen(false); trigger.current?.focus() }
-  const agencyUser = role() === 'agency'
+  const onKey = (e) => {
+    if (open && e.key === 'Escape') { e.preventDefault(); close() }
+    else if (open && e.key === 'Tab' && !e.shiftKey && e.target === menu.current?.querySelector('[role=menuitem]:last-of-type')) setOpen(false)
+  }
   return (
-    <div ref={wrap} className="relative" onKeyDown={(e) => { if (open && e.key === 'Escape') { e.preventDefault(); close() } else if (open && e.key === 'Tab' && !e.shiftKey && e.target === wrap.current?.querySelector('[role=menu] [role=menuitem]:last-of-type')) setOpen(false) }}>
-      {mounted && (
-        <div role="menu" aria-label="Workspace"
-          className={`absolute bottom-full left-0 z-30 mb-1 flex w-[min(320px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-line bg-raised shadow-md transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none ${shown ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'}`}>
+    <div ref={wrap} className="relative" onKeyDown={onKey}>
+      {mounted && pos && createPortal(
+        <div ref={menu} role="menu" aria-label="Workspace" style={{ left: pos.left, bottom: pos.bottom }}
+          className={`fixed z-[80] flex w-[min(320px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-line bg-raised shadow-md transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none ${shown ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'}`}>
           <WorkspaceList onDone={() => setOpen(false)} />
-        </div>
+        </div>,
+        document.body,
       )}
       <button ref={trigger} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => { if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !open) { e.preventDefault(); setOpen(true) } }}
         className="flex h-12 w-full items-center gap-3 rounded-lg border border-line bg-surface px-3 text-left outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus">
-        <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" imgPad="p-0.5" initialClass="text-[12px]" plate />
+        <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{account.name}</span>
-          <span className="block truncate text-[12px] leading-4 text-stone-500">{agencyUser ? brand.client : account.plan}</span>
+          {/* as the live site: the brand's domain, then its short name */}
+          <span className="block truncate text-[14px] leading-5 font-medium text-stone-900">{account.domain}</span>
+          <span className="block truncate text-[12px] leading-4 text-stone-500">{account.shortName}</span>
         </span>
         <ChevronsUpDown size={14} className="ml-auto shrink-0 text-stone-500" aria-hidden />
       </button>
@@ -172,34 +197,75 @@ export function WorkspaceSwitcher() {
   )
 }
 
+// a small filled caret (▾) before each nav section label
+function Caret({ className = '' }) {
+  return <svg viewBox="0 0 10 10" aria-hidden className={`size-2.5 shrink-0 fill-current ${className}`}><path d="M2 3.5h6L5 7.2z" /></svg>
+}
+
+// Nav density (owner, 2026-11-04, after peec.ai): rows 30px (44px below lg, the phone drawer's touch rows), 8px side
+// padding, 6px radius, 1px apart; 14/500 ink text; 16px icons at a 1.5 stroke, muted (ink when selected), 10px to the
+// text. Selected = the soft --tint background (no left bar). Section labels 12/500 muted with a caret that collapses the
+// section (200ms height), 16px above a section and 4px below its label.
+// Collapsed sections are remembered per account in this browser. A collapsed section keeps the current page's row.
+const COLLAPSED_KEY = `kraffic:nav:collapsed:${account.domain}`
+const readCollapsed = () => { try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]')) } catch { return new Set() } }
+
+// one row's (or one section's) collapsible box: animates its height between 0 and auto (grid rows 0fr ↔ 1fr)
+function Fold({ open, children }) {
+  return (
+    <div className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+      inert={open ? undefined : ''} aria-hidden={open ? undefined : true}>
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  )
+}
+
 // the grouped nav links (sidebar on desktop, the drawer on phones); onNavigate runs before an in-app link navigates.
 // nav: another set of groups (First-time setup's setup mode)
 export function NavLinks({ path, onNavigate, nav = groups }) {
+  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const toggle = (label) => setCollapsed((prev) => {
+    const next = new Set(prev)
+    if (next.has(label)) next.delete(label); else next.add(label)
+    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next])) } catch { /* private mode: this visit only */ }
+    return next
+  })
   return (
     <nav className="flex flex-col" aria-label="Main">
-      {nav.map((g, gi) => (
-      <div key={g.label} role="group" aria-labelledby={`nav-${g.label}`} className="flex flex-col gap-0.5">
-      <div id={`nav-${g.label}`} className={`mb-1.5 px-3 text-[12px] leading-4 font-medium text-stone-500 ${gi ? 'mt-6' : ''}`}>{g.label}</div>
-      {g.items.map(({ label, icon: Icon, href }) => {
+      {nav.map((g, gi) => {
+        const open = !collapsed.has(g.label)
+        const id = `nav-${g.label.replace(/\W+/g, '-')}`
+        return (
+      <div key={g.label} role="group" aria-labelledby={`${id}-label`} className={`flex flex-col ${gi ? 'pt-4' : ''}`}>
+      <button type="button" id={`${id}-label`} aria-expanded={open} aria-controls={id} onClick={() => toggle(g.label)}
+        className="group/sec relative mb-1 flex h-4 items-center gap-1 self-start rounded-sm px-2 text-[12px] leading-4 font-medium text-stone-500 outline-none transition-colors duration-150 before:absolute before:-inset-y-1 before:inset-x-0 hover:text-stone-700 focus-visible:ring-2 focus-visible:ring-focus">
+        <Caret className={`-ml-0.5 transition-transform duration-200 motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
+        {g.label}
+      </button>
+      <div id={id}>
+      {g.items.map(({ label, icon: Icon, href, beta }, i) => {
         const active = href === path
         return (
+        <Fold key={label} open={open || active}>
         <a
-          key={label}
           href={href ?? '#'}
           onClick={href ? (e) => { onNavigate?.(); linkClick(href)(e) } : (e) => e.preventDefault()}
           aria-current={active ? 'page' : undefined}
-          className={`relative flex h-11 items-center gap-3 rounded-lg px-3 text-body font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus lg:h-10 ${
-            active ? 'bg-tint text-ink' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+          className={`flex h-11 items-center gap-2.5 rounded-md px-2 text-[14px] leading-5 font-medium text-ink outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus lg:h-[30px] ${i ? 'mt-px' : ''} ${
+            active ? 'bg-[var(--tint)]' : 'hover:bg-nav-hover'
           }`}
         >
-          {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-ink" aria-hidden />}
-          <Icon size={18} strokeWidth={2} className={active ? 'text-ink' : undefined} />
-          {label}
+          <Icon size={16} strokeWidth={1.5} aria-hidden className={`shrink-0 ${active ? 'text-ink' : 'text-stone-500'}`} />
+          <span className="min-w-0 truncate">{label}</span>
+          {beta && <BetaTag className="ml-auto" />}
         </a>
+        </Fold>
         )
       })}
       </div>
-      ))}
+      </div>
+        )
+      })}
     </nav>
   )
 }
@@ -207,14 +273,16 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
 export default function Sidebar({ path = '/overview', nav }) {
   return (
     // below lg the sidebar is replaced by the top bar + drawer (MobileNav)
-    <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-stone-200 bg-stone-50 lg:flex">
+    // 232px wide (owner, 2026-11-04). Logo and footer stay pinned; when the nav doesn't fit (1366×768 with every section
+    // open) only the nav list scrolls, with a thin scrollbar shown on hover (.nav-scroll in index.css)
+    <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col border-r border-sidebar-line bg-sidebar lg:flex">
       {/* top: the logo (a link home). px-3 everywhere: logo, nav icons and the footer blocks share one x */}
       <div className="shrink-0 px-3 pt-4">
         <a href={HOME} title="Home" aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
       </div>
-      <div className="mt-6 px-3"><NavLinks path={path} nav={nav} /></div>
+      <div className="nav-scroll mt-6 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 pb-2"><NavLinks path={path} nav={nav} /></div>
       {/* footer: theme, then the workspace (its menu holds Home) */}
-      <div className="mt-auto flex flex-col gap-2 px-3 pb-3">
+      <div className="flex shrink-0 flex-col gap-2 px-3 pb-3 pt-1">
         <ThemeToggle />
         <WorkspaceSwitcher />
       </div>

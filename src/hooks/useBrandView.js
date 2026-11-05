@@ -1,6 +1,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { ENGINES, OWN, TRACKED_BRANDS, getBrandView } from '../data/brandViews'
 import { withSyncChanges } from '../utils/syncChange'
+import { isScore } from '../utils/score'
 
 // "Viewing as": which brand the dashboard is seen from (?view=<key>, absent = Dermasuri), and the
 // engine filter every card follows (?engine=gemini, absent = all engines). replaceState, so switching
@@ -63,12 +64,13 @@ export function useBrandView(focalDomain) {
 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-// Numbers count from the old value to the new one (300ms ease-out) when the view changes.
+// Numbers count from the old value to the new one (300ms ease-out) when the view changes. No number (null: an engine
+// with no result) is never animated, to or from: it's shown as it is (the caller prints "—"), never counted to 0.
 export function useCountUp(target, duration = 300) {
   const [shown, setShown] = useState(target)
   const from = useRef(target)
   useEffect(() => {
-    if (from.current === target || reduced()) { from.current = target; setShown(target); return }
+    if (from.current === target || !isScore(target) || !isScore(from.current) || reduced()) { from.current = target; setShown(target); return }
     const start = performance.now(), a = from.current
     let raf
     const tick = (t) => {
@@ -81,5 +83,6 @@ export function useCountUp(target, duration = 300) {
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [target, duration])
+  if (!isScore(target) || !isScore(shown)) return target
   return Number.isInteger(target) ? Math.round(shown) : shown
 }

@@ -104,7 +104,7 @@ export default function TeamPage() {
         <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Team</h1>
         <p className="mt-2 flex items-center gap-2.5 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">
           {/* the brand switcher's tile (28px) */}
-          <SiteLogo domain={brand.domain} name={brand.name} className="h-7 w-7 rounded-md" imgPad="p-0.5" initialClass="text-[12px]" plate />
+          <SiteLogo domain={brand.domain} name={brand.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
           People who can access {brand.name}.
         </p>
       </header>

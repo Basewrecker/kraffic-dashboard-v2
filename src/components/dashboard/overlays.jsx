@@ -4,11 +4,11 @@ import { X } from 'lucide-react'
 import SiteLogo from '../ui/SiteLogo'
 import { brandName } from '../../utils/brand'
 
-// A brand's real logo (favicon on a white plate, letter fallback) in a round 20px / 16px box — same source as Setup.
+// A brand's real logo (favicon full-bleed, letter fallback) in a round 20px / 16px box — same source as Setup.
 export function Favicon({ domain, size = 20, className = '' }) {
   return (
     <span title={brandName(domain)} className={`inline-flex shrink-0 rounded-full ${className}`} aria-hidden>
-      <SiteLogo domain={domain} name={brandName(domain)} className={`${size === 16 ? 'h-4 w-4' : 'h-5 w-5'} rounded-full`} imgPad="p-0.5" initialClass="text-[10px]" plate />
+      <SiteLogo domain={domain} name={brandName(domain)} className={`${size === 16 ? 'h-4 w-4' : 'h-5 w-5'} rounded-full`} initialClass="text-[10px]" />
     </span>
   )
 }

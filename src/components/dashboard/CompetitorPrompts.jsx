@@ -7,7 +7,8 @@ import { BriefModal } from './MissedPromptSheet'
 import { Favicon, useToast } from './overlays'
 import { PlatformIcon } from './icons'
 import { account, competitorPrompts, competitorSummary, guessCategory, platformNames, recentSyncs, visiblePrompts } from '../../data/mock'
-import { TRACKED_BRANDS, appearances } from '../../data/brandViews'
+import { TRACKED_BRANDS, appearances, hasResult } from '../../data/brandViews'
+import { useBrandView } from '../../hooks/useBrandView'
 import { openAnswer } from '../answer/AnswerDrawer'
 import { buildBrief } from '../../utils/brief'
 import { PlatformFilterPill, usePlatformFilter } from './PlatformFilter'
@@ -100,6 +101,10 @@ export default function CompetitorPrompts() {
   const [brief, setBrief] = useState(null)
   const [toastNode, toast] = useToast()
   const { platform, setPlatform, matches } = usePlatformFilter()
+  // no result from the page's engine in the latest scan: one muted line instead of the list, no brand tabs (their counts
+  // would mislead), as the other prompt tables
+  const { engine } = useBrandView()
+  const noResult = hasResult(engine) ? null : engine
 
   const rows = useMemo(
     () => allRows.filter((r) => (!tab || r.competitor === tab) && (!newOnly || r.isNew) && matches(r.platforms)),
@@ -271,10 +276,11 @@ export default function CompetitorPrompts() {
         csvName={`prompt-mix-${today()}.csv`}
         loading={loading}
         defaultSort={{ key: 'you', dir: 'desc' }}
-        filterBar={filterBar}
+        noResult={noResult}
+        filterBar={noResult ? <div className="flex gap-1.5"><PlatformFilterPill /></div> : filterBar}
         onRowClick={(r, el) => (r.own ? openOwn(r, el) : setOpenId(r.id))}
         rowHeight="h-[52px]"
-        notice={topNew && prevSync && alertOpen && (
+        notice={!noResult && topNew && prevSync && alertOpen && (
           <span role="status" className="proportional-nums">
             {brandName(topNew.domain)} won {topNew.newWins} new prompt{topNew.newWins === 1 ? '' : 's'} since {prevSync} ·{' '}
             <button onClick={() => { setTab(topNew.domain); setNewOnly(true) }} className="rounded font-medium text-ink underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">Review</button>

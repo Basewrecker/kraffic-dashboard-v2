@@ -61,7 +61,7 @@ function NavDrawer({ open, onClose, path, nav }) {
     <div className="fixed inset-0 z-[70] lg:hidden">
       <div className={`absolute inset-0 bg-black/40 transition-opacity duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'opacity-100' : 'opacity-0'}`} onClick={close} aria-hidden />
       <div ref={panel} role="dialog" aria-modal="true" aria-label="Menu" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-        className={`absolute inset-y-0 left-0 flex w-[288px] max-w-[85vw] flex-col border-r border-line bg-stone-50 pt-[env(safe-area-inset-top)] shadow-xl outline-none transition-transform duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'translate-x-0' : '-translate-x-full'}`}>
+        className={`absolute inset-y-0 left-0 flex w-[288px] max-w-[85vw] flex-col border-r border-sidebar-line bg-sidebar pt-[env(safe-area-inset-top)] shadow-xl outline-none transition-transform duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-14 shrink-0 items-center justify-between px-3">
           <a href={HOME} aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /><span className="ml-2 text-[16px] font-bold text-stone-900">Kraffic</span></a>
           <button type="button" onClick={close} aria-label="Close menu" className="grid h-10 w-10 place-items-center rounded-md text-stone-600 outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus"><X size={20} aria-hidden /></button>
@@ -98,7 +98,7 @@ export default function MobileNav({ path, nav }) {
         <a href={HOME} aria-label="Kraffic — Home" className="grid h-10 w-10 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /></a>
         <button type="button" onClick={() => setWorkspace(true)} aria-label={`Workspace: ${account.name}`}
           className="ml-auto grid h-10 w-10 place-items-center rounded-md outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
-          <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" imgPad="p-0.5" initialClass="text-[12px]" plate />
+          <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
         </button>
       </header>
       <NavDrawer open={menu} onClose={() => setMenu(false)} path={path} nav={nav} />

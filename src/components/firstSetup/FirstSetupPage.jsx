@@ -45,7 +45,7 @@ export default function FirstSetupPage() {
   const summary = {
     brand: s.brand && (
       <span className="flex min-w-0 items-center gap-2">
-        <SiteLogo domain={s.brand.domain} name={s.brand.name} className="h-5 w-5 shrink-0 rounded" imgPad="p-0" initialClass="text-[10px]" bordered={false} />
+        <SiteLogo domain={s.brand.domain} name={s.brand.name} className="h-5 w-5 shrink-0 rounded" initialClass="text-[10px]" />
         <span className="truncate"><span className="text-stone-900">{s.brand.name}</span> · {s.brand.domain ?? 'Name-only brand'}</span>
       </span>
     ),

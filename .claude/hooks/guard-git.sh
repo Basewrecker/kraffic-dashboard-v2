@@ -125,15 +125,19 @@ if [ "$kind" = "pr-create" ]; then
   [ "$n" -gt 0 ] && block "$ONE_PR Already open: $(printf '%s' "$open" | jq -r '[.[] | "#\(.number) \(.headRefName) → \(.baseRefName)"] | join(", ")')."
 fi
 
-# a merge in progress: the commit that finishes it brings origin/main in, so count against both parents
-if merge_head=$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null); then
-  behind=$(git rev-list --count origin/main ^HEAD "^${merge_head}" 2>/dev/null || echo 0)
-  m=$(conflict_marker)
-  if [ -f "$m" ] && [ "$(sed -n 1p "$m")" = "$merge_head" ] && ! sed -n 2p "$m" | grep -qx approved; then
+# a merge in progress (normal or --squash) whose conflicts the owner hasn't approved resolving: no commit
+m=$(conflict_marker)
+if key=$(merge_key); then
+  if [ -f "$m" ] && [ "$(sed -n 1p "$m")" = "$key" ] && ! sed -n 2p "$m" | grep -qx approved; then
     block "This merge had conflicts the owner hasn't approved resolving: $(sed '1,2d' "$m" | tr '\n' ' ')— show them the files and wait for: ! .claude/hooks/approve-merge.sh conflicts"
   fi
 else
-  rm -f "$(conflict_marker)" 2>/dev/null
+  rm -f "$m" 2>/dev/null
+fi
+# a normal merge in progress: the commit that finishes it brings origin/main in, so count against both parents
+if merge_head=$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null); then
+  behind=$(git rev-list --count origin/main ^HEAD "^${merge_head}" 2>/dev/null || echo 0)
+else
   behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
 fi
 [ "$behind" -gt 0 ] && block "${branch} is ${behind} commit(s) behind origin/main: git fetch origin && git merge origin/main (no rebase), re-run build + tests. On a conflict STOP and show the owner the files."

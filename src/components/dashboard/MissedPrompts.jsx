@@ -12,7 +12,7 @@ import { PromptSetPill, usePromptSet } from './promptSet'
 import { account, missedPrompts, missedTopics, platformNames } from '../../data/mock'
 import { assignPriorities } from '../../utils/priority'
 import LogoStack from './LogoStack'
-import { OWN, TRACKED_BRANDS, appearances } from '../../data/brandViews'
+import { OWN, TRACKED_BRANDS, appearances, hasResult } from '../../data/brandViews'
 import { buildBrief } from '../../utils/brief'
 import { brandName } from '../../utils/brand'
 
@@ -61,7 +61,13 @@ const csvColumns = [
   { label: 'Status', csv: (r) => (r.status ? STATUSES[r.status].label : '') },
 ]
 
-export default function MissedPrompts() {
+// Optional (Opportunities → Content reuses this table as is; the Overview passes none of these):
+//   statusColumn: a column that replaces Status · onOpen(row): a row click opens this instead of the sheet ·
+//   bulkExtra(rows, clear): an extra bulk action, first in the bulk bar · rowFilter(row): keep only these rows ·
+//   onRowHover(row | null, element) · promptStyle(row): a style for the prompt text (Content: its view-transition-name) ·
+//   bulkOnly: the bulk bar is just the count, bulkExtra and Clear, sliding up from the table's bottom ·
+//   extraColumns: columns placed before Status (Content: Best page) · omit: column keys to leave out (Content: missedBy)
+export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilter, onRowHover, promptStyle, bulkOnly = false, extraColumns = [], omit = [] } = {}) {
   const [statuses, setStatuses] = useState(() => Object.fromEntries(missedPrompts.map((r) => [r.id, r.status])))
   const [topic, setTopic] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
@@ -70,7 +76,9 @@ export default function MissedPrompts() {
   const setSort = (s) => { setSortState(s); writeSort(s) }
   const [brief, setBrief] = useState(null)
   const [toastNode, toast] = useToast()
-  const { platform, setPlatform, matches, label } = usePlatformFilter()
+  const { platform, setPlatform, matches, label, engine } = usePlatformFilter()
+  // the engine filter's latest scan had no result: the list is one line, and the topic chips (counts) go
+  const noResult = hasResult(engine) ? null : engine
   const syncF = useSyncFilter('lost')
   const set = usePromptSet('missed-prompts')
   // arriving from Sync history: show that sync's lost prompts, not whatever topic was picked
@@ -78,9 +86,9 @@ export default function MissedPrompts() {
 
   const rows = useMemo(
     () => missedPrompts
-      .filter((r) => (!topic || r.topic === topic) && matches(r.platforms) && (!syncF.ids || syncF.ids.has(r.id)) && (!set.ids || set.ids.has(r.id)))
+      .filter((r) => (!topic || r.topic === topic) && matches(r.platforms) && (!syncF.ids || syncF.ids.has(r.id)) && (!set.ids || set.ids.has(r.id)) && (!rowFilter || rowFilter(r)))
       .map((r) => ({ ...r, status: statuses[r.id] })),
-    [topic, platform, statuses, syncF.sync, set.ids],
+    [topic, platform, statuses, syncF.sync, set.ids, rowFilter],
   )
   const byId = (ids) => missedPrompts.filter((r) => ids.includes(r.id)).map((r) => ({ ...r, status: statuses[r.id] }))
 
@@ -109,7 +117,7 @@ export default function MissedPrompts() {
       sort: { value: (r) => r.prompt.toLowerCase(), first: 'asc' },
       cell: (r) => (
         <div className="min-w-0">
-          <div title={r.prompt} className="truncate text-body text-stone-900">{r.prompt}</div>
+          <div title={r.prompt} className="truncate text-body text-stone-900" style={promptStyle?.(r)}>{r.prompt}</div>
           {/* meta line: only what the active filters don't already say (topic pill / engine filter) */}
           {showMeta && (
             <div className="mt-0.5 flex items-center gap-2 text-[13px] leading-[18px] text-stone-500">
@@ -147,7 +155,8 @@ export default function MissedPrompts() {
       skeleton: '56px',
       cell: (r) => <LogoStack domains={alsoMissing(`m${r.id}`, r.competitors)} />,
     },
-    {
+    ...extraColumns,
+    statusColumn ?? {
       key: 'status',
       label: 'Status',
       mobile: 'extra', // phones: line 3, next to the logos
@@ -158,6 +167,7 @@ export default function MissedPrompts() {
       cell: (r) => <StatusControl status={r.status} onChange={(s) => setStatus([r.id], s)} onCreate={() => openBrief([r])} />,
     },
   ]
+  const shownColumns = columns.filter((c) => !omit.includes(c.key))
 
   const chip = (active) =>
     `inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-small font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
@@ -169,6 +179,7 @@ export default function MissedPrompts() {
       <PromptSetPill set={set} />
       {syncF.ids && <SyncFilterPill kind="lost" sync={syncF.sync} onClear={syncF.clear} />}
       <PlatformFilterPill />
+      {!noResult && <>
       <button className={chip(!topic)} style={topic ? { background: 'var(--tint)', color: 'var(--color-stone-700)' } : undefined} aria-pressed={!topic} onClick={() => { setTopic(null); setSelected(new Set()) }}>
         All <span className={chipCount(!topic)}>{missedPrompts.length}</span>
       </button>
@@ -177,6 +188,7 @@ export default function MissedPrompts() {
           {t} <span className={chipCount(topic === t)}>{n}</span>
         </button>
       ))}
+      </>}
     </div>
   )
 
@@ -184,9 +196,12 @@ export default function MissedPrompts() {
     <>
       <span className="px-2 text-small font-medium text-stone-900 proportional-nums">{count} selected</span>
       <span className="mx-1 h-5 w-px bg-stone-200" aria-hidden />
-      <GhostButton icon={FileText} onClick={() => openBrief(byId([...selected]))}>Create one brief</GhostButton>
-      <GhostButton icon={Loader} onClick={() => markInProgress([...selected])}>Mark in progress</GhostButton>
-      <GhostButton icon={Download} onClick={() => downloadCsv('missed-prompts-selected.csv', byId([...selected]), csvColumns)}>Export</GhostButton>
+      {bulkExtra?.(byId([...selected]), () => setSelected(new Set()))}
+      {!bulkOnly && <>
+        <GhostButton icon={FileText} onClick={() => openBrief(byId([...selected]))}>Create one brief</GhostButton>
+        <GhostButton icon={Loader} onClick={() => markInProgress([...selected])}>Mark in progress</GhostButton>
+        <GhostButton icon={Download} onClick={() => downloadCsv('missed-prompts-selected.csv', byId([...selected]), csvColumns)}>Export</GhostButton>
+      </>}
       <GhostButton icon={X} onClick={() => setSelected(new Set())}>Clear</GhostButton>
     </>
   )
@@ -197,20 +212,23 @@ export default function MissedPrompts() {
     <>
       <PromptTable
         id="missed-prompts"
+        noResult={noResult}
         title="Missed prompts"
         subtitle={`Prompts where ${account.name} doesn't appear yet`}
         count={missedPrompts.length}
         rows={rows}
-        columns={columns}
+        columns={shownColumns}
         csvName="missed-prompts.csv"
         loading={loading}
         sort={sort}
         onSortChange={setSort}
         selection={{ selected, setSelected }}
         bulkBar={bulkBar}
+        bulkAt={bulkOnly ? 'bottom' : 'header'}
         filterBar={filterBar}
         rowHeight={showMeta ? 'h-[52px]' : 'h-11'}
-        onRowClick={(r) => setOpenId(r.id)}
+        onRowClick={(r) => (onOpen ? onOpen(r) : setOpenId(r.id))}
+        onRowHover={onRowHover}
         emptyMessage={platform ? `No missed prompts on ${label}${topic ? ` in ${topic}` : ''}` : `No missed prompts in ${topic ?? 'this view'}`}
         onClearFilters={() => { setTopic(null); setPlatform(null); syncF.clear(); set.clear() }}
       />

@@ -4,7 +4,8 @@ import { Check } from 'lucide-react'
 // A trigger button + a small menu of actions (the ⋯ on /audit, Export ▾ on /structured-data).
 // items: [{ label, onClick, checked?, danger? }] (danger: a destructive action, in the negative colour; checked: a choice, ticked when it's the current one; the first ticked item
 // gets focus). heading: a small title over the items. ↓/↑ move, Esc closes and refocuses the trigger, click-outside closes.
-export default function ActionMenu({ label, items, heading, className, align = 'right', children }) {
+// side: 'bottom' (default) or 'top' (opens upward, e.g. from a footer at a panel's bottom edge)
+export default function ActionMenu({ label, items, heading, className, align = 'right', side = 'bottom', children }) {
   const [open, setOpen] = useState(false)
   const wrap = useRef(null)
   const btn = useRef(null)
@@ -32,7 +33,7 @@ export default function ActionMenu({ label, items, heading, className, align = '
         {children}
       </button>
       {open && (
-        <div ref={menu} role="menu" aria-label={label} className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full z-30 mt-1 w-48 rounded-lg border border-line bg-raised p-1 shadow-md`}>
+        <div ref={menu} role="menu" aria-label={label} className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} ${side === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'} z-30 w-48 rounded-lg border border-line bg-raised p-1 shadow-md`}>
           {heading && <div className="px-2 pb-1 pt-1.5 text-[12px] leading-4 font-medium text-stone-500">{heading}</div>}
           {items.map((it) => (
             <button key={it.label} type="button" role={it.checked == null ? 'menuitem' : 'menuitemradio'} aria-checked={it.checked ?? undefined} onClick={() => pick(it.onClick)} className={`${item} ${it.danger ? 'font-medium text-negative' : 'text-stone-900'}`}>
