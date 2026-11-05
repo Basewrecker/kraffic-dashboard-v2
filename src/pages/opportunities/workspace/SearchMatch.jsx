@@ -1,18 +1,16 @@
 // Target page (v1): "Search Console for this prompt", between the rank ladder and the format matrix. The app's GET
 // …/gsc-match response (data/gscMatch.js, lib/gsc-match.js analyzePrompt), one section under the same header style as
 // the ladder and the matrix (18/600 over a --line-strong rule, a muted meta right with the range and an ⓘ).
-//   One flow visual (owner, 2026-11-05): the prompt → its matching searches → your pages (see Flow below), and one
-//   line under it: "Using this page: <path> · Change page". No other text blocks.
+//   One table (owner, 2026-11-05; see QueriesTable): Search query | Impressions | Match | Lands on, and one line under
+//   it: "Publishing on <path> · Change page". Nothing else in the section.
 //   States: not connected (Connect) · reconnect (Reconnect) · no property for the domain · connected with no data yet
 //   (the new page it would suggest). The ladder and the matrix render in every state.
-// Stacked below 1100px (the chain, then Your pages).
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Check, Info, Loader2, Plus } from 'lucide-react'
 import { GoogleIcon } from '../../../components/dashboard/icons'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { useWidth } from '../../../components/ui/motion'
 import { MidText } from '../parts'
-import { BRAND_PALETTE, BRAND_PALETTE_DARK, cssColor } from '../../../utils/brandColors'
 let measureCtx = null
 
 const nf = new Intl.NumberFormat('en-US')
@@ -161,141 +159,71 @@ const UseButton = ({ using, label, onClick }) => (
 //   left to right once on load (600ms, ease-out); none with prefers-reduced-motion.
 //   Under it: "Using this page: <path> · Change page" (a small menu: your pages, or a new page). The payoff bar and
 //   the draft request's target follow.
-const FLOW_H = 300
-const tagged = (q) => Boolean(q.intent || q.lowVolume)
-// the middle column's order: the Best query, then 10+ impressions, then low volume (display only)
-const searchOrder = (qs) => {
-  const best = qs.filter((q) => q.best)
-  const rest = qs.filter((q) => !q.best)
-  return [...best, ...rest.filter((q) => !q.lowVolume), ...rest.filter((q) => q.lowVolume)]
-}
 function FlowSection({ gsc, page, onPick, newPath, prompt }) {
   const sc = gsc.publishOn
   const usingPath = page?.action === 'create' ? page.path : page?.path ?? (sc.action === 'create' ? sc.suggestedPath : sc.path)
   const usingCreate = page ? page.action === 'create' : sc.action === 'create'
   return (
     <div className="pt-5">
-      <Flow gsc={gsc} prompt={prompt} usingPath={usingPath} usingCreate={usingCreate} />
+      <QueriesTable gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} />
       <UsingLine gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} onPick={onPick} newPath={newPath} />
     </div>
   )
 }
 
-// the right column's colours, in the owner's order (Share of voice's palette, light / dark steps; no new colours):
-// indigo, sky, lavender, pink, soft indigo
-const PAGE_COLORS = [0, 2, 4, 6, 3].map((i) => cssColor({ light: BRAND_PALETTE[i], dark: BRAND_PALETTE_DARK[i] }))
-const PORT = 8 // a port dot's size; every ribbon starts and ends on one
-function Flow({ gsc, prompt, usingPath, usingCreate }) {
-  const [ref, width] = useWidth()
-  const [hot, setHot] = useState(null) // { kind: 'q' | 'p', key }
-  const reduce = reducedMotion()
-  const W = Math.max(640, width || 1000)
-  const qs = searchOrder(gsc.queries)
-  // the right column: the page in use first (outlined in its colour), then the pages the searches land on (5 colours)
-  const landing = [...new Set(qs.map((q) => q.topPage.path))].filter((p) => p !== usingPath)
-  const pages = [usingPath, ...landing].slice(0, PAGE_COLORS.length)
-  const colorOf = (path) => PAGE_COLORS[pages.indexOf(path)] ?? 'var(--color-stone-400)'
-  const pageOfQ = (q) => (pages.includes(q.topPage.path) ? q.topPage.path : null)
-  // geometry: prompt node | ribbons | searches (a port dot each side) | ribbons | pages
-  const P1 = W * 0.17, Q0 = W * 0.33, Q1 = W * 0.58, R0 = W * 0.68
-  // the searches' right ports share one column, right after the longest search (measured), never past Q1
-  const textRefs = useRef([])
-  const [textW, setTextW] = useState(0)
-  useLayoutEffect(() => {
-    const m = Math.max(0, ...textRefs.current.filter(Boolean).map((el) => el.scrollWidth))
-    setTextW((v) => (Math.abs(v - m) > 0.5 ? m : v))
-  })
-  const QL = Q0 + PORT / 2, QTEXT = QL + PORT / 2 + 8
-  const QR = Math.min(Q1, QTEXT + (textW || (Q1 - QTEXT - 12)) + 10)
-  const rowY = (i, n) => (i + 0.5) * (FLOW_H / n)
-  const into = (q) => Math.round(q.impressions * (q.topPage.share ?? 1))
-  const max = Math.max(1, ...qs.map((q) => q.impressions))
-  const thick = (v) => Math.max(2, (v / max) * 18)
-  const curve = (x0, y0, x1, y1) => { const m = (x0 + x1) / 2; return `M${x0},${y0} C${m},${y0} ${m},${y1} ${x1},${y1}` }
-  // the chain in use: the strongest untagged search into the page in use (by default the Best query → Publish on)
-  const bestQ = usingCreate ? null : qs.find((q) => pageOfQ(q) === usingPath && !tagged(q))
-  const isBest = (q) => q === bestQ
-  const lit = (q) => (hot?.kind === 'q' ? hot.key === q.query : hot?.kind === 'p' ? pageOfQ(q) === hot.key : true)
-  const litPage = (path) => (hot?.kind === 'p' ? hot.key === path : hot?.kind === 'q' ? qs.some((q) => q.query === hot.key && pageOfQ(q) === path) : true)
-  // a chain's look: its landing page's colour; the best one full, the others ~45%, tagged / low-volume ~20% dashed
-  // (dark mode: the --flow-* opacities are raised so they read the same); hover: that chain full and +2px, the rest 15%
-  const op = (q) => (hot ? (lit(q) ? 1 : 0.15) : isBest(q) ? 1 : tagged(q) ? 'var(--flow-faint)' : 'var(--flow-other)')
-  const ribbon = (q, k, part) => ({
-    stroke: pageOfQ(q) ? colorOf(pageOfQ(q)) : 'var(--color-stone-400)',
-    strokeWidth: thick(part === 'r' ? into(q) : q.impressions) + (hot && lit(q) ? 2 : 0),
-    strokeDasharray: tagged(q) && !(hot && lit(q)) ? '6 5' : undefined,
-    opacity: op(q),
-    transition: 'opacity 150ms ease-out, stroke-width 150ms ease-out, stroke 250ms ease-out',
-    // drawn in left to right once (~700ms: the left half, then the right), 60ms per chain
-    animation: reduce ? undefined : `co-flow-reveal 350ms ease-out ${k * 60 + (part === 'r' ? 350 : 0)}ms both`,
-  })
-  const promptY = FLOW_H / 2
-  const pageImpr = (path) => qs.filter((q) => pageOfQ(q) === path).reduce((n, q) => n + into(q), 0)
-  const Dot = ({ x, y, color, o = 1 }) => <circle cx={x} cy={y} r={PORT / 2} fill={color} style={{ opacity: o, transition: 'opacity 150ms ease-out' }} />
-  const bestI = bestQ ? qs.indexOf(bestQ) : -1
+// The queries table (owner, 2026-11-05: replaces the flow visual): Search query | Impressions | Match | Lands on.
+// Rows: the Best query first (a "Best" tag, a light tint), then the 10+ impression queries by impressions (high → low),
+// then the low-volume ones; at most 6, "+N more" shows the rest. Local / site / account queries: muted text with their
+// tag. Numbers right-aligned, tabular. "Lands on": the full path, middle-truncated only if it overflows; rows landing
+// on the page being published get a "Publishing here" tag. 52px rows and the same borders as the winners table.
+const ROWS = 6
+const QCOLS = 'grid grid-cols-[minmax(0,1.4fr)_96px_72px_minmax(0,1.3fr)] items-center gap-x-4'
+const byImpr = (a, b) => b.impressions - a.impressions
+function QueriesTable({ gsc, usingPath, usingCreate }) {
+  const [all, setAll] = useState(false)
+  const best = gsc.queries.filter((q) => q.best)
+  const rest = gsc.queries.filter((q) => !q.best)
+  const rows = [...best, ...rest.filter((q) => !q.lowVolume).sort(byImpr), ...rest.filter((q) => q.lowVolume).sort(byImpr)]
+  const shown = all ? rows : rows.slice(0, ROWS)
   return (
-    <div ref={ref} className="relative" style={{ height: FLOW_H }} data-sc-flow onMouseLeave={() => setHot(null)}>
-      <svg width={W} height={FLOW_H} className="absolute inset-0 overflow-visible" aria-hidden fill="none">
-        {qs.map((q, i) => <path key={`l${q.query}`} data-ribbon={`prompt|${q.query}`} data-chain={isBest(q) || undefined} d={curve(P1, promptY, QL, rowY(i, qs.length))} style={ribbon(q, i, 'l')} />)}
-        {qs.map((q, i) => (pageOfQ(q)
-          ? <path key={`r${q.query}`} data-ribbon={`${q.query}|${pageOfQ(q)}`} data-chain={isBest(q) || undefined} d={curve(QR, rowY(i, qs.length), R0, rowY(pages.indexOf(pageOfQ(q)), pages.length))} style={ribbon(q, i, 'r')} />
-          : null))}
-        {/* after the draw-in, a soft light travels along the best chain every ~3s (none with reduced motion) */}
-        {!reduce && bestQ && !hot && <>
-          <path d={curve(P1, promptY, QL, rowY(bestI, qs.length))} pathLength={100} className="co-flow-pulse" style={{ stroke: 'var(--color-surface)', strokeWidth: thick(bestQ.impressions) * 0.6, animationDelay: '1.1s' }} />
-          <path d={curve(QR, rowY(bestI, qs.length), R0, rowY(0, pages.length))} pathLength={100} className="co-flow-pulse" style={{ stroke: 'var(--color-surface)', strokeWidth: thick(into(bestQ)) * 0.6, animationDelay: '1.6s' }} />
-        </>}
-        {/* the port dots: the prompt's right edge, each search's two sides, each page's left edge */}
-        <Dot x={P1} y={promptY} color={bestQ ? colorOf(usingPath) : 'var(--color-stone-400)'} />
-        {qs.map((q, i) => {
-          const c = pageOfQ(q) ? colorOf(pageOfQ(q)) : 'var(--color-stone-400)'
-          const o = hot && !lit(q) ? 0.15 : 1
-          return <g key={`d${q.query}`}><Dot x={QL} y={rowY(i, qs.length)} color={c} o={o} /><Dot x={QR} y={rowY(i, qs.length)} color={c} o={o} /></g>
-        })}
-        {pages.map((path, i) => <Dot key={`p${path}`} x={R0} y={rowY(i, pages.length)} color={colorOf(path)} o={hot && !litPage(path) ? 0.15 : 1} />)}
-      </svg>
-      {/* the prompt */}
-      <div className="absolute left-0 flex items-center rounded-lg border border-line bg-surface px-3 py-2.5" style={{ top: promptY - 32, width: P1, minHeight: 64 }} data-flow-prompt>
-        <span className="line-clamp-3 text-[14px] leading-5 font-semibold text-stone-900">{prompt}</span>
+    <div role="table" aria-label="Search queries for this prompt" className="text-[14px] leading-5" data-sc-queries>
+      <div role="row" className={`${QCOLS} pb-2 pt-3 ${META}`}>
+        <span role="columnheader">Search query</span>
+        <span role="columnheader" className="text-right">Impressions</span>
+        <span role="columnheader" className="text-right">Match</span>
+        <span role="columnheader">Lands on</span>
       </div>
-      {/* the searches: text between the two port dots */}
-      <ul aria-label="Matching searches" className="absolute top-0" style={{ left: QTEXT, width: Q1 - QTEXT }}>
-        {qs.map((q, i) => (
-          <li key={q.query} tabIndex={0} data-flow-query={q.query} data-intent={q.intent ?? undefined} data-low-volume={q.lowVolume || undefined} data-best={q.best || undefined}
-            onMouseEnter={() => setHot({ kind: 'q', key: q.query })} onFocus={() => setHot({ kind: 'q', key: q.query })} onBlur={() => setHot(null)}
-            className="absolute left-0 flex flex-col justify-center rounded-md outline-none transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-focus"
-            style={{ top: rowY(i, qs.length) - 21, height: 42, maxWidth: Q1 - QTEXT - 14, opacity: hot && !lit(q) ? 0.15 : 1, animation: reduce ? undefined : `fade-in 240ms ease-out ${i * 40}ms backwards` }}>
-            <span ref={(el) => { textRefs.current[i] = el }} className="flex min-w-0 items-center gap-1.5">
-              <span title={q.query} className={`truncate text-[14px] leading-5 ${tagged(q) ? 'text-stone-500' : isBest(q) || q.best ? 'font-semibold text-stone-900' : 'font-medium text-stone-900'}`}>{q.query}</span>
+      {shown.map((q) => {
+        const muted = Boolean(q.intent)
+        const here = !usingCreate && q.topPage?.path === usingPath
+        return (
+          <div role="row" key={q.query} data-query={q.query} data-best={q.best || undefined} data-intent={q.intent ?? undefined} data-low-volume={q.lowVolume || undefined}
+            className={`${QCOLS} h-[52px] border-t border-[var(--div)] ${q.best ? 'bg-tint' : ''}`}>
+            <span role="cell" className="flex min-w-0 items-center gap-1.5 pl-1">
+              <span title={q.query} className={`truncate ${muted ? 'text-stone-500' : q.best ? 'font-semibold text-stone-900' : 'font-medium text-stone-900'}`}>{q.query}</span>
+              {q.best && <Tag intent="Best" />}
               {q.intent && <Tag intent={q.intent} />}
               {q.lowVolume && <Tag intent="low volume" />}
             </span>
-            <span className="text-[12px] leading-4 tabular-nums text-stone-500">{num(q.impressions)} impr · {q.adjusted}% match</span>
-          </li>
-        ))}
-      </ul>
-      {/* your pages: a 3px left border in each page's colour; the page in use on top, outlined in its colour */}
-      <ul aria-label="Your pages" className="absolute right-0 top-0" style={{ left: R0 + PORT / 2 }}>
-        {pages.map((path, i) => {
-          const top = i === 0
-          return (
-            <li key={path} tabIndex={0} data-flow-page={path} data-using={top || undefined}
-              onMouseEnter={() => setHot({ kind: 'p', key: path })} onFocus={() => setHot({ kind: 'p', key: path })} onBlur={() => setHot(null)}
-              className="absolute left-0 right-0 flex flex-col justify-center rounded-r-lg bg-surface py-1 pl-2.5 pr-2.5 outline-none transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-focus"
-              style={{ top: rowY(i, pages.length) - 21, height: 42, borderLeft: `3px solid ${colorOf(path)}`, boxShadow: top ? `inset 0 0 0 1.5px ${colorOf(path)}` : undefined, opacity: hot && !litPage(path) ? 0.15 : 1, animation: reduce ? undefined : `fade-in 240ms ease-out ${120 + i * 40}ms backwards` }}>
-              <MidText text={path} className={`text-[14px] leading-5 ${top ? 'font-semibold' : 'font-medium'} text-stone-900`} />
-              <span className="text-[12px] leading-4 tabular-nums text-stone-500">
-                {top && usingCreate ? 'New page' : `${num(pageImpr(path))} impr`}
-              </span>
-            </li>
-          )
-        })}
-      </ul>
+            <span role="cell" className={`text-right tabular-nums ${muted ? 'text-stone-500' : 'text-stone-700'}`}>{num(q.impressions)}</span>
+            <span role="cell" className={`text-right tabular-nums ${muted ? 'text-stone-500' : 'text-stone-700'}`}>{q.adjusted}%</span>
+            <span role="cell" className="flex min-w-0 items-center gap-1.5">
+              <span className="min-w-0 flex-1"><MidText text={q.topPage?.path ?? ''} className={muted ? 'text-stone-500' : 'text-stone-700'} /></span>
+              {here && <Tag intent="Publishing here" />}
+            </span>
+          </div>
+        )
+      })}
+      {rows.length > ROWS && (
+        <button type="button" onClick={() => setAll((v) => !v)} className={`mt-2 ${textLink} text-[13px]`}>
+          {all ? 'Show fewer' : `+${rows.length - ROWS} more`}
+        </button>
+      )}
     </div>
   )
 }
 
-// one line under the visual: the page in use and "Change page" (a small menu: your pages, or a new page)
+// one line under the table: "Publishing on <path> · Change page" (a small menu: your pages, or a new page)
 function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath }) {
   const [open, setOpen] = useState(false)
   const pages = gsc.pages.slice(0, 5)
@@ -318,7 +246,7 @@ function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath }) {
   return (
     <div ref={rowRef} className="relative mt-3 flex min-w-0 items-center gap-2 border-t border-line pt-3 text-[14px] leading-5" data-sc-using={usingCreate ? 'create' : usingPath}
       onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}>
-      <span ref={labelRef} className="shrink-0 text-stone-500">Using this page:</span>
+      <span ref={labelRef} className="shrink-0 text-stone-500">Publishing on</span>
       {/* a fixed width (the full path, or the room the line has), so it only truncates in the middle when it overflows */}
       <span className="min-w-0 shrink-0" style={{ width: pathW }}><MidText text={usingPath} className="w-full font-semibold text-stone-900" /></span>
       <span aria-hidden className="text-stone-400">·</span>
