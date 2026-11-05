@@ -479,3 +479,16 @@ never the Best query, so it never decides where to publish (the app's matcher d7
 page 1 ladder has no gaps: every rank 1–10 shows that result's favicon, non-competitor sites too (content-recommend's
 `citedPages` already lists every page-1 result; empty slots only when Google returned fewer). (3) Your pages: no "Not
 cited"; engine icons only when cited.
+
+## 13. A site on two page-1 spots (owner, 2026-11-05)
+content-recommend keeps every page-1 result, so one site can hold two ranks (the sample: about half the prompts, the
+best-ranked competitor also at a lower rank, e.g. prompt 11 "sunscreen for oily skin for humid weather": The Ordinary
+#1 and #5).
+- **Google page 1 ladder:** both spots, the same favicon (it draws every ranked page; no change).
+- **Format matrix:** one row per site at its best rank (`recommend.js` `bySite(evidence)`; "n of m" counts sites).
+  The site cell has two lines: the site, then "#1 · +1 page". "+1 page" / "+2 pages" (`parts.jsx` `MorePages`) is a
+  12px muted dotted-underline button; hover or focus shows "Also on Google page 1" with each other page's path and rank.
+- **Who you're up against (Draft rail) and the rank strip:** one row / one mark per site at its best rank
+  (`upAgainstRows` via `bySite`; rows carry `others: [{ url, path, rank }]`). The row shows a plain "+1 page" after the
+  name; its existing hover card adds "Also on Google page 1" with the other page(s) (one card, not two).
+

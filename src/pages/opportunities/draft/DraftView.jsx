@@ -401,7 +401,11 @@ function Rail({ res, flags, ready, ticked, onTick, competitors, onRecheck, onSho
           {(more ? rows : rows.slice(0, 5)).map((r, i, shownRows) => (
             <li key={r.host} onMouseEnter={() => setHot(r.host)} className={`group/ua relative flex h-11 min-w-0 items-center gap-2.5 border-b border-[var(--div)] transition-colors duration-150 ${hot === r.host ? 'bg-tint' : ''}`}>
               <LogoPlate domain={r.host} name={r.name} size={22} />
-              <span className="min-w-0 flex-1 truncate text-[14px] leading-5 font-semibold text-stone-900">{r.name}</span>
+              <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                <span className="truncate text-[14px] leading-5 font-semibold text-stone-900">{r.name}</span>
+                {/* the row's own hover card lists the other page(s), so here the note is plain text (no second card) */}
+                {r.others?.length > 0 && <span className="shrink-0 text-[12px] leading-4 tabular-nums text-stone-500">+{r.others.length} {r.others.length === 1 ? 'page' : 'pages'}</span>}
+              </span>
               <span className="w-8 text-right text-[13px] leading-[18px] tabular-nums text-stone-700">{r.rank ? `#${r.rank}` : ''}</span>
               {/* room for all five engines (5 × 14px + gaps): the rank column stays put whatever a row has */}
               <span className="flex w-[86px] shrink-0 justify-end">{(eng(r.page).engines.length || eng(r.page).unknown) ? <EngineIconRow e={eng(r.page)} /> : <span className="text-[13px] text-stone-500" aria-label="Not cited in AI answers">—</span>}</span>
@@ -409,6 +413,12 @@ function Rail({ res, flags, ready, ticked, onTick, competitors, onRecheck, onSho
                 <span role="tooltip" className={`${CARD} right-0 w-[260px] text-stone-700 group-hover/ua:block ${i >= shownRows.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
                   <span className="block truncate font-medium text-stone-900" title={r.url}>{r.url.replace(/^https?:\/\/(www\.)?/, '')}</span>
                   <span className="mt-0.5 block text-stone-500">{r.formats.length ? r.formats.map(formatLabel).join(' · ') : 'No format detected'}</span>
+                  {r.others?.length > 0 && (
+                    <span className="mt-1.5 block border-t border-[var(--div)] pt-1.5">
+                      <span className="block font-medium text-stone-900">Also on Google page 1</span>
+                      {r.others.map((o) => <span key={o.path} className="block truncate tabular-nums">{o.path}{o.rank ? <span className="text-stone-500"> · #{o.rank}</span> : null}</span>)}
+                    </span>
+                  )}
                 </span>
               )}
             </li>

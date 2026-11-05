@@ -27,7 +27,7 @@ import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import { PlatformIcon } from '../../../components/dashboard/icons'
 import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
 import { formatLabel } from '../../../data/contentRecommend'
-import { LogoPlate, withResults } from '../parts'
+import { LogoPlate, MorePages, withResults } from '../parts'
 import { afterRow, draftPlan, draftPreview, enginesOf, formatMatrix, pageOf, rankLadder } from '../draft/recommend'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { RingDraw, TickDraw } from './ui'
@@ -231,8 +231,14 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
           <div key={w.url} role="row" onMouseEnter={() => setHost(w.host)} className={`grid h-[52px] items-center border-t border-[var(--div)] transition-colors duration-150 ${host === w.host ? 'bg-tint' : ''}`} style={{ gridTemplateColumns: cols }}>
             <span role="rowheader" className="flex min-w-0 items-center gap-2.5 pl-1 pr-2">
               <LogoPlate domain={w.host} size={24} logoClass="h-4 w-4" />
-              <span className="truncate text-[14px] leading-5 font-semibold text-stone-900">{w.host}</span>
-              <span className="shrink-0 text-[12px] leading-4 tabular-nums text-stone-500">{w.rank ? `#${w.rank}` : 'AI only'}</span>
+              {/* two lines: the site, then its rank (and "+1 page" when it holds more page-1 spots), so the name stays whole */}
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate text-[14px] leading-5 font-semibold text-stone-900">{w.host}</span>
+                <span className="flex items-center gap-1.5 text-[12px] leading-4 tabular-nums text-stone-500">
+                  {w.rank ? `#${w.rank}` : 'AI only'}
+                  {w.others?.length > 0 && <><span aria-hidden>·</span><MorePages others={w.others} /></>}
+                </span>
+              </span>
             </span>
             <span role="cell" className="flex justify-center">{(eng(w).engines.length || eng(w).unknown) ? <EngineIcons e={eng(w)} size={16} /> : <span className={META} aria-label="Not cited in AI answers">—</span>}</span>
             {m.columns.map((c, i) => (

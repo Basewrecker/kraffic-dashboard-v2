@@ -208,3 +208,23 @@ test('R28: the "After this draft" row: have / adds / missing per matrix column; 
     assert.equal(a.show, beforeAfter(r).added.length > 0)
   }
 })
+
+test('a site on two page-1 spots: the ladder keeps both; the matrix and the competitor lists show it once, at its best rank, with "+1 page"', async () => {
+  const { bySite, formatMatrix, upAgainstRows, rankStrip } = await import('./recommend.js')
+  const { CONTENT_RECOMMEND } = await import('../../../data/contentRecommend.js')
+  const res = CONTENT_RECOMMEND[3] // "best spf 50 gel sunscreen": cerave.com at #2 and #9
+  const cerave = res.citedPages.filter((p) => p.host === 'cerave.com' && p.rank)
+  assert.deepEqual(cerave.map((p) => p.rank).sort((a, b) => a - b), [2, 9], 'the route (and the ladder) keep both spots')
+  const m = formatMatrix(res)
+  const rows = m.winners.filter((w) => w.host === 'cerave.com')
+  assert.equal(rows.length, 1, 'one matrix row for the site')
+  assert.equal(rows[0].rank, 2, 'at its best rank')
+  assert.deepEqual(rows[0].others.map((o) => o.rank), [9])
+  assert.ok(m.columns.every((c) => c.of === m.winners.length), '"n of m" counts sites')
+  const ua = upAgainstRows(res, [], (d) => d).filter((r) => r.host === 'cerave.com')
+  assert.equal(ua.length, 1); assert.equal(ua[0].rank, 2); assert.equal(ua[0].others[0].rank, 9)
+  assert.deepEqual(rankStrip(res, [], (d) => d).marks.filter((x) => x.host === 'cerave.com').map((x) => x.rank), [2], 'the rank strip: once')
+  // the worse page listed first still collapses onto the better one
+  const flipped = bySite([{ host: 'a.com', url: 'https://a.com/x', rank: 7 }, { host: 'a.com', url: 'https://a.com/y/', rank: 3 }, { host: 'b.com', url: 'https://b.com/', rank: 5 }])
+  assert.deepEqual(flipped.map((p) => [p.host, p.rank, p.others.map((o) => `${o.path}#${o.rank}`)]), [['a.com', 3, ['/x#7']], ['b.com', 5, []]])
+})

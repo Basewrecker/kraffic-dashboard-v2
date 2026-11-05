@@ -233,9 +233,25 @@ export function rankLadder(citedPages) {
 //   route's own source for coverage); for a create, none (the page doesn't exist yet). Columns: the formats at least one
 //   row has (CONTENT_FORMATS labels), most-used first; each with how many winners use it and its score from
 //   recommendations[]. missing: the formats winners use that your page doesn't (what the draft adds).
+// A site on two page-1 spots (owner, 2026-11-05): the ladder shows both; the matrix and the competitor lists show the
+// site once, at its best rank, and its other page(s) in `others` [{ url, path, rank }] (the "+1 page" note).
+const rankOrder = (r) => r ?? 99
+export function bySite(list) {
+  const out = new Map()
+  for (const p of list) {
+    const cur = out.get(p.host)
+    if (!cur) { out.set(p.host, { ...p, others: [] }); continue }
+    const [keep, other] = rankOrder(p.rank) < rankOrder(cur.rank) ? [{ ...p, others: cur.others }, cur] : [cur, p]
+    keep.others = [...keep.others, { url: other.url, path: pathOfUrl(other.url), rank: other.rank ?? null }].sort((a, b) => rankOrder(a.rank) - rankOrder(b.rank))
+    out.set(p.host, keep)
+  }
+  return [...out.values()]
+}
+const pathOfUrl = (u) => { try { return new URL(u).pathname.replace(/\/$/, '') || '/' } catch { return u } }
 export function formatMatrix(res) {
   const rec = res.pageRecommendation
-  const winners = rec.evidence
+  // one row per site, at its best rank (its other page(s) in `others`)
+  const winners = bySite(rec.evidence)
   const own = rec.action === 'update' ? res.citedPages.find((p) => p.isOurs && p.url === rec.url) : null
   const yours = rec.action === 'create' ? [] : (own ? own.formats : res.ourFormats)
   const yoursFrom = rec.action === 'create' ? 'none (a new page)' : own ? 'the page in citedPages' : 'ourFormats'
@@ -273,12 +289,14 @@ export function enginesOf(page, resolve = () => null) {
 }
 
 // R22 · Who you're up against (the Draft rail): ONE list for the request's competitors (names from settings) and the
-//   cited pages that aren't yours, merged by host (a competitor's cited page carries its rank and engines). By Google
+//   cited pages that aren't yours, merged by host (a competitor's cited page carries its rank and engines; a site on
+//   two page-1 spots: one row at its best rank, the other page(s) in `others`). By Google
 //   rank, then AI-only pages, then competitors that aren't cited for this prompt.
 export function upAgainstRows(res, competitors, nameOf) {
   const rows = new Map()
-  for (const p of res.citedPages.filter((x) => !x.isOurs)) rows.set(p.host, { host: p.host, name: nameOf(p.host), url: p.url, rank: p.rank, page: p, formats: p.formats, competitor: competitors.includes(p.host) })
-  for (const d of competitors) if (!rows.has(d)) rows.set(d, { host: d, name: nameOf(d), url: null, rank: null, page: null, formats: [], competitor: true })
+  // one row per site, at its best-ranked page; its other page(s) in `others` (the "+1 page" note)
+  for (const p of bySite(res.citedPages.filter((x) => !x.isOurs))) rows.set(p.host, { host: p.host, name: nameOf(p.host), url: p.url, rank: p.rank, page: p, formats: p.formats, competitor: competitors.includes(p.host), others: p.others })
+  for (const d of competitors) if (!rows.has(d)) rows.set(d, { host: d, name: nameOf(d), url: null, rank: null, page: null, formats: [], competitor: true, others: [] })
   const order = (r) => r.rank ?? (r.page?.aiCited ? 50 : 99)
   return [...rows.values()].sort((a, b) => order(a) - order(b))
 }

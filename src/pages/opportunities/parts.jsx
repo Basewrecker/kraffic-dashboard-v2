@@ -156,3 +156,23 @@ export const pathOf = (url) => { try { return new URL(url).pathname } catch { re
 // never shows where it's excluded, e.g. Missed by)
 export const uniqueDomains = (domains, exclude = []) => [...new Set(domains)].filter((d) => !exclude.includes(d))
 export const OWN_DOMAIN = CO_BRAND.domain
+
+// "+1 page" / "+2 pages": a site on more than one page-1 spot, shown once at its best rank (owner, 2026-11-05). Sits
+// right after the rank, 12px muted; hover or focus lists the site's other page(s) with their rank. others: [{ path, rank }]
+export function MorePages({ others = [], align = 'left' }) {
+  if (!others.length) return null
+  const label = `+${others.length} ${others.length === 1 ? 'page' : 'pages'}`
+  const list = others.map((o) => `${o.path}${o.rank ? ` (#${o.rank})` : ''}`).join(', ')
+  return (
+    <span className="group/mp relative inline-flex shrink-0">
+      <button type="button" aria-label={`${label} on page 1: ${list}`} onClick={(e) => e.stopPropagation()}
+        className="rounded text-[12px] leading-4 tabular-nums text-stone-500 underline decoration-dotted decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:text-stone-700 focus-visible:ring-2 focus-visible:ring-focus">
+        {label}
+      </button>
+      <span role="tooltip" className={`pointer-events-none absolute top-full z-30 mt-1 hidden w-max max-w-[280px] rounded-lg border border-line bg-raised px-3 py-2 text-left text-[12px] leading-4 text-stone-700 shadow-lg group-hover/mp:block group-focus-within/mp:block ${align === 'right' ? 'right-0' : 'left-0'}`}>
+        <span className="mb-1 block font-medium text-stone-900">Also on Google page 1</span>
+        {others.map((o) => <span key={o.path} className="block truncate tabular-nums">{o.path}{o.rank ? <span className="text-stone-500"> · #{o.rank}</span> : null}</span>)}
+      </span>
+    </span>
+  )
+}

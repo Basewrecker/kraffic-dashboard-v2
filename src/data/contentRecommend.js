@@ -161,6 +161,18 @@ function citedPagesFor(row, family) {
   // every rank 1–10 a page above doesn't hold: the next filler site (Google returned 10 for every sample prompt; the
   // ladder keeps an empty slot only when a response has fewer)
   const results = 10
+  // a site holding two page-1 spots (owner, 2026-11-05: the route keeps both): about half the prompts, the best-ranked
+  // competitor page gets a second page a few ranks lower (no format detected, not AI-cited, so the scores don't move)
+  const firstOf = pages.filter((p) => p.rank != null && p.rank <= 6 && p.host !== CO_BRAND.domain).sort((a, b) => a.rank - b.rank)[0]
+  let second = null
+  if (firstOf && rnd(key, 'two-spots') < 0.5) {
+    let r2 = firstOf.rank + 3 + Math.floor(rnd(key, 'two-r') * 3)
+    while (r2 <= results && used.has(r2)) r2 += 1
+    if (r2 <= results) {
+      used.add(r2)
+      second = { after: firstOf.host, page: { url: `https://${firstOf.host}/blog/${slug}-guide`, host: firstOf.host, rank: r2, engines: ['google'], aiCited: false, formats: [], isOurs: false, title: titleFor(row.prompt, firstOf.host, r2) } }
+    }
+  }
   const fill = PAGE1_FILL.filter((h) => !seen.has(h))
   const filled = []
   for (let r = 1; r <= results && fill.length; r++) {
@@ -168,7 +180,7 @@ function citedPagesFor(row, family) {
     const h = fill.shift()
     filled.push({ url: `https://${h}/${slug}`, host: h, rank: r, engines: ['google'], aiCited: false, formats: [], isOurs: false, title: titleFor(row.prompt, h, r) })
   }
-  return [...pages.slice(0, 12).map((p, i) => {
+  const main = pages.slice(0, 12).map((p, i) => {
     const isOurs = p.host === CO_BRAND.domain
     const aiCited = p.src || rnd(key, `ai${i}`) < 0.2
     const rank = p.rank != null && p.rank > 10 ? null : p.rank // Google's organic top 10 only
@@ -179,7 +191,10 @@ function citedPagesFor(row, family) {
     const engines = [...(rank != null && rank <= 10 ? ['google'] : []), ...(aiCited ? google : [])]
     const title = isOurs ? `${cap(productOf(row.prompt))}: the Dermasuri guide` : titleFor(row.prompt, p.host, i)
     return { url: p.url, host: p.host, rank, engines, aiCited, formats, isOurs, title }
-  }), ...filled]
+  })
+  // the site's second page sits right after its first in the list (as the route lists a site's pages together)
+  if (second) main.splice(main.findIndex((p) => p.host === second.after) + 1, 0, second.page)
+  return [...main, ...filled]
 }
 const TITLES = [(p) => `${cap(p)}: what to know`, (p) => `${cap(p)}, explained`, (p) => `The best picks: ${p}`, (p) => `${cap(p)} (tested)`, (p) => `${cap(p)}: a dermatologist’s view`]
 const titleFor = (prompt, host, i) => TITLES[Math.floor(rnd(`${prompt}|${host}`, i) * TITLES.length)](prompt)
