@@ -10,9 +10,8 @@ import { ArrowDown, ArrowRight, ArrowUpRight, Check, Info, Loader2, Plus } from 
 import { GoogleIcon, PlatformIcon } from '../../../components/dashboard/icons'
 import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
 import { lineBtn } from '../../../components/tool/ToolPage'
-import { Seg, useWidth } from '../../../components/ui/motion'
+import { Seg } from '../../../components/ui/motion'
 import { LogoPlate, MidText, midTruncate } from '../parts'
-let measureCtx = null
 
 const nf = new Intl.NumberFormat('en-US')
 const num = (n) => nf.format(n)
@@ -265,12 +264,12 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
                 {q.topPage?.url
                   ? <a href={q.topPage.url} target="_blank" rel="noopener noreferrer" onFocus={() => setHot(q.query)} className="group/l flex min-w-0 items-center gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-focus" aria-label={`${q.topPage.path} (opens in a new tab)`}>
                       <LandingPath path={q.topPage.path} />
-                      <ArrowUpRight size={12} aria-hidden className={`shrink-0 text-stone-500 transition-transform duration-150 ${reduce ? '' : 'group-hover/l:-translate-y-0.5 group-hover/l:translate-x-0.5'}`} />
+                      <ArrowUpRight size={12} aria-hidden className={`ml-auto shrink-0 text-stone-500 transition-transform duration-150 ${reduce ? '' : 'group-hover/l:-translate-y-0.5 group-hover/l:translate-x-0.5'}`} />
                     </a>
                   : <LandingPath path={q.topPage?.path ?? ''} />}
               </span>
               <span className="text-right text-[14px] leading-5 font-semibold tabular-nums text-stone-900">{num(q.impressions)}</span>
-              <span className={`text-right text-[14px] leading-5 font-semibold tabular-nums ${muted && !q.best ? 'text-stone-500' : v.cls}`}>{v.text}</span>
+              <span className={`text-right text-[14px] leading-5 font-semibold tabular-nums ${muted && !q.best && q.adjusted >= 40 ? 'text-stone-500' : v.cls}`}>{v.text}</span>
             </li>
           )
         })}
@@ -300,6 +299,18 @@ function CitedBy({ e, position }) {
 function LandingPath({ path }) {
   const cut = path.lastIndexOf('/', path.length - 2) + 1
   const folder = path.slice(0, cut), slug = path.slice(cut)
+  return (
+    <span className="flex min-w-0 flex-1 items-center whitespace-nowrap" title={path} data-landing>
+      <span className="shrink-0 text-stone-500 underline-offset-2 group-hover/l:underline">{folder}</span>
+      <FitMid text={slug} className="font-medium text-stone-700" inner="underline-offset-2 group-hover/l:underline" />
+    </span>
+  )
+}
+// text that is its own rendered width and shrinks only by truncating its middle: an invisible copy holds the natural
+// width (so a flex row never leaves a gap after it), the shown text is fitted to the room it gets. className: the
+// font and colour (measured from here); inner: classes for the shown text (an underline doesn't reach it otherwise).
+function FitMid({ text, className = '', inner = '' }) {
+  const slug = text
   const ref = useRef(null)
   const [shown, setShown] = useState(slug)
   useLayoutEffect(() => {
@@ -325,12 +336,9 @@ function LandingPath({ path }) {
     return () => ro.disconnect()
   }, [slug])
   return (
-    <span className="flex min-w-0 items-center whitespace-nowrap" title={path} data-landing>
-      <span className="shrink-0 text-stone-500 group-hover/l:underline underline-offset-2">{folder}</span>
-      <span ref={ref} className="relative min-w-0 overflow-hidden">
-        <span aria-hidden className="invisible">{slug}</span>
-        <span className="absolute inset-0 text-stone-600 underline-offset-2 group-hover/l:underline">{shown}</span>
-      </span>
+    <span ref={ref} className={`relative min-w-0 overflow-hidden whitespace-nowrap ${className}`}>
+      <span aria-hidden className="invisible">{slug}</span>
+      <span className={`absolute inset-0 ${inner}`}>{shown}</span>
     </span>
   )
 }
@@ -405,28 +413,16 @@ function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath }) {
   const pages = gsc.pages.slice(0, 5)
   const options = [...pages.map((p) => ({ key: p.path, label: p.path, pick: { action: 'update', path: p.path, url: p.url } })), ...(newPath ? [{ key: 'create', label: `Create a new page · ${newPath}`, pick: { action: 'create', path: newPath } }] : [])]
   const choose = (o) => { onPick(o.pick); setOpen(false) }
-  const [rowRef, rowW] = useWidth()
+  const rowRef = useRef(null)
   const labelRef = useRef(null)
   const changeRef = useRef(null)
-  const [pathW, setPathW] = useState(undefined)
-  useLayoutEffect(() => {
-    const row = rowW, label = labelRef.current?.offsetWidth ?? 0, change = changeRef.current?.offsetWidth ?? 0
-    if (!row) return
-    measureCtx ??= document.createElement('canvas').getContext('2d')
-    // the page's own font stack (the label's), so the estimate matches what MidText measures
-    const fam = labelRef.current ? getComputedStyle(labelRef.current).fontFamily : 'sans-serif'
-    measureCtx.font = `600 14px ${fam}`
-    const full = Math.ceil(measureCtx.measureText(usingPath).width) + 1
-    const room = row - label - change - 40
-    // only a fixed width when it overflows (then it middle-truncates); otherwise its own width, so no gap before "·"
-    setPathW(full > room ? Math.max(40, room) : full)
-  }, [rowW, usingPath])
   return (
     <div ref={rowRef} className="relative mt-3 flex min-w-0 items-center gap-1.5 border-t border-line pt-3 text-[14px] leading-5" data-sc-using={usingCreate ? 'create' : usingPath}
       onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}>
       <span ref={labelRef} className="shrink-0 text-stone-500">Publishing on</span>
-      {/* a fixed width (the full path, or the room the line has), so it only truncates in the middle when it overflows */}
-      <span className="min-w-0 shrink-0" style={{ width: pathW }}><MidText text={usingPath} className="w-full font-semibold text-stone-900" /></span>
+      {/* its own rendered width (no measured box: that ran before the font loaded and left a gap before "·"); it
+          truncates in the middle only when the line overflows */}
+      <span title={usingPath} className="flex min-w-0"><FitMid text={usingPath} className="font-semibold text-stone-900" /></span>
       <span aria-hidden className="text-stone-400">·</span>
       <button ref={changeRef} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}
         className="shrink-0 rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Change page</button>
