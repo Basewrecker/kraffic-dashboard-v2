@@ -227,7 +227,7 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
       </div>
       {/* the column labels (12/600, muted), on the rows' grid; a bottom border as the winners table's header */}
       <div aria-hidden className={`${Q_GRID} mt-3 border-b border-[var(--div)] pb-2 pl-1 text-[12px] leading-4 font-semibold text-stone-500`} data-sc-head>
-        <span /><span /><span>Lands on</span><span className="text-right">Impr.</span><span className="text-right">Match</span>
+        <span /><span /><span>Best targeted URL</span><span className="text-right">Impr.</span><span className="text-right">Match</span>
       </div>
       <ul onMouseLeave={() => setHot(null)}>
         {shown.map((q, i) => {
