@@ -237,7 +237,11 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
           <ArrowDown size={14} aria-hidden />CSV
         </button>
       </div>
-      <ul className="mt-3 border-t border-[var(--div)]" onMouseLeave={() => setHot(null)}>
+      {/* the column labels (12/600, muted), on the rows' grid; a bottom border as the winners table's header */}
+      <div aria-hidden className={`${Q_GRID} mt-3 border-b border-[var(--div)] pb-2 pl-1 text-[12px] leading-4 font-semibold text-stone-500`} data-sc-head>
+        <span /><span /><span>Trend</span><span>Google</span><span>Lands on</span><span className="text-right">Impr.</span><span className="text-right">Match</span>
+      </div>
+      <ul onMouseLeave={() => setHot(null)}>
         {shown.map((q, i) => {
           const v = verdict(q)
           const muted = Boolean(q.intent || q.lowVolume)
@@ -257,13 +261,13 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
               </span>
               <Trend values={weeksOf(q)} tone={q.best ? 'best' : q.adjusted < 40 ? 'weak' : null} hot={on} />
               <CitedBy e={enginesFor(q.topPage?.path)} position={q.position} />
-              <span className="min-w-0 text-[14px] leading-5 font-medium text-stone-900">
+              <span className="min-w-0 text-[14px] leading-5 font-medium">
                 {q.topPage?.url
-                  ? <a href={q.topPage.url} target="_blank" rel="noopener noreferrer" onFocus={() => setHot(q.query)} className="flex min-w-0 items-center gap-1 rounded outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus" aria-label={`${q.topPage.path} (opens in a new tab)`}>
-                      <span className="min-w-0 truncate">{q.topPage.path}</span>
-                      <ArrowUpRight size={12} aria-hidden className={`shrink-0 transition-transform duration-150 ${reduce ? '' : 'group-hover/q:-translate-y-0.5 group-hover/q:translate-x-0.5'}`} />
+                  ? <a href={q.topPage.url} target="_blank" rel="noopener noreferrer" onFocus={() => setHot(q.query)} className="group/l flex min-w-0 items-center gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-focus" aria-label={`${q.topPage.path} (opens in a new tab)`}>
+                      <LandingPath path={q.topPage.path} />
+                      <ArrowUpRight size={12} aria-hidden className={`shrink-0 text-stone-500 transition-transform duration-150 ${reduce ? '' : 'group-hover/l:-translate-y-0.5 group-hover/l:translate-x-0.5'}`} />
                     </a>
-                  : q.topPage?.path}
+                  : <LandingPath path={q.topPage?.path ?? ''} />}
               </span>
               <span className="text-right text-[14px] leading-5 font-semibold tabular-nums text-stone-900">{num(q.impressions)}</span>
               <span className={`text-right text-[14px] leading-5 font-semibold tabular-nums ${muted && !q.best ? 'text-stone-500' : v.cls}`}>{v.text}</span>
@@ -281,15 +285,56 @@ function QueriesList({ gsc, usingPath, usingCreate, enginesFor, titleFor, domain
   )
 }
 // "Cited by": the AI engines (in colour, 18px) that already cite the landing page (real data only: nothing when none
-// do), then "Google #8", the query's average position in Search Console
+// do), then the query's average Google position as a small neutral chip ("#8"; the column header says Google)
 function CitedBy({ e, position }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5" data-cited-by>
       {e.engines.map((id) => <span key={id} title={`Cited by ${ENGINE_NAME[id]}`} className="flex"><PlatformIcon id={engineIcon(id)} size={18} /></span>)}
-      {position != null && <span className="whitespace-nowrap text-[14px] leading-5 font-medium tabular-nums text-stone-900">Google #{Math.round(position)}</span>}
+      {position != null && <span title={`Average Google position ${Math.round(position)}`} data-gpos className="whitespace-nowrap rounded-[12px] bg-tint px-2 py-0.5 text-[13px] leading-[18px] font-semibold tabular-nums text-stone-600">#{Math.round(position)}</span>}
     </span>
   )
 }
+// a landing page as a link (owner, 2026-11-05): the folder ("/blog/") muted, the slug secondary and truncated in the
+// middle only; underline on the link's hover. An invisible copy of the slug keeps its natural width, so the row gives
+// it the room it has; the shown text is fitted to that room.
+function LandingPath({ path }) {
+  const cut = path.lastIndexOf('/', path.length - 2) + 1
+  const folder = path.slice(0, cut), slug = path.slice(cut)
+  const ref = useRef(null)
+  const [shown, setShown] = useState(slug)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return undefined
+    const fit = () => {
+      const w = el.clientWidth
+      if (!w) return
+      slugCtx ??= document.createElement('canvas').getContext('2d')
+      const cs = getComputedStyle(el)
+      slugCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+      const width = (t) => slugCtx.measureText(t).width
+      if (width(slug) <= w) { setShown(slug); return }
+      const mid = (n) => `${slug.slice(0, Math.ceil(n / 2))}…${slug.slice(slug.length - Math.floor(n / 2))}`
+      let lo = 2, hi = slug.length - 1
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; if (width(mid(m)) <= w) lo = m; else hi = m - 1 }
+      setShown(mid(lo))
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    document.fonts?.ready.then(fit)
+    return () => ro.disconnect()
+  }, [slug])
+  return (
+    <span className="flex min-w-0 items-center whitespace-nowrap" title={path} data-landing>
+      <span className="shrink-0 text-stone-500 group-hover/l:underline underline-offset-2">{folder}</span>
+      <span ref={ref} className="relative min-w-0 overflow-hidden">
+        <span aria-hidden className="invisible">{slug}</span>
+        <span className="absolute inset-0 text-stone-600 underline-offset-2 group-hover/l:underline">{shown}</span>
+      </span>
+    </span>
+  )
+}
+let slugCtx = null
 // a page tab's card: drops 4px under the tab (fade + slide, 150ms ease-out; none with reduced motion): the full path,
 // the page's title, the site logo, the impressions from these queries, the engines that cite it, and Open ↗
 function TabCard({ show, path, url, title, domain, impressions, e }) {
