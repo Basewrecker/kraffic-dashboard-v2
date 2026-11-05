@@ -199,7 +199,7 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
           <h3 id="co-matrix-h" className={H}>What the winners have that you don’t</h3>
           <p className={`mt-0.5 ${META}`} data-draft-adds>{line}</p>
         </div>
-        {write && <button type="button" onClick={write.onClick} className={`${lineBtn} shrink-0`}>{write.label}<ArrowRight size={14} aria-hidden /></button>}
+        {/* no "Add your data" here: the step card at the top has the main one (owner, 2026-11-05, "your call") */}
       </div>
       <div role="table" aria-label="Formats by page" onMouseLeave={() => { hoverCol(null); setHost(null) }}>
         <div role="row" className="grid items-end" style={{ gridTemplateColumns: cols }}>

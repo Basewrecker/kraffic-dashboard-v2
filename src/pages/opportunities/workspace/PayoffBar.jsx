@@ -12,7 +12,7 @@
 // busy (the draft writing in the background): a small turning ring before the headline (an owner's exception to the
 // no-looping-animation rule, DESIGN.md; static under reduced motion).
 // Reduced motion: no stagger, scale or lift; fades only.
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { PlatformIcon } from '../../../components/dashboard/icons'
 import { CrossFade } from '../../../components/ui/motion'
@@ -26,9 +26,9 @@ const LINK = 'rounded text-[13px] leading-[18px] font-medium text-stone-600 unde
 export default function PayoffBar({ barRef, current, open, values = [], onPick, headline, line, engines = [], named = [], engineName = (e) => e, action, secondary = null, onClose = null, headingId, busy = false, steps }) {
   const still = reduced()
   return (
-    <div ref={barRef} className="flex items-center gap-x-6 rounded-[12px] border border-line bg-surface px-5 shadow-[var(--rep-shadow)] lg:h-[88px] max-lg:flex-wrap max-lg:gap-y-4 max-lg:py-4">
-      {/* LEFT: progress, the headline (never wraps at lg+), the sub-line (may truncate) */}
-      <div className="min-w-0 shrink-0 max-lg:shrink lg:min-w-[300px]">
+    // one row (owner, 2026-11-05): left the progress over the headline and the sub-line; right the actions, centred
+    <div ref={barRef} className="flex items-center gap-x-6 rounded-[12px] border border-line bg-surface px-5 py-4 shadow-[var(--rep-shadow)] max-lg:flex-wrap max-lg:gap-y-4">
+      <div className="min-w-0 flex-1">
         <Pills current={current} open={open} values={values} onPick={onPick} still={still} steps={steps} />
         <div aria-live="polite" className="mt-2">
           <CrossFade k={`${open}|${headline}`} ms={180}>
@@ -36,15 +36,10 @@ export default function PayoffBar({ barRef, current, open, values = [], onPick, 
               <h2 id={headingId} className="whitespace-nowrap text-[18px] leading-[26px] font-semibold text-stone-900 max-lg:whitespace-normal">
                 <span className="sr-only">Step {stepPos(steps ?? STEPS.map((s, i) => ({ i })), open).n} of {(steps ?? STEPS).length}: </span>{busy && <Turning />}{headline}
               </h2>
-              {line && <p className="w-0 min-w-full truncate text-[13px] leading-[18px] text-stone-500 tabular-nums">{line}</p>}
+              {line && <SubLine line={line} engines={engines} named={named} engineName={engineName} />}
             </div>
           </CrossFade>
         </div>
-      </div>
-
-      {/* MIDDLE: the engines, centred in the free space */}
-      <div className="flex min-w-0 flex-1 justify-center max-lg:hidden">
-        <Engines engines={engines} named={named} engineName={engineName} />
       </div>
 
       {/* RIGHT: the step's text link, then the button */}
@@ -57,25 +52,59 @@ export default function PayoffBar({ barRef, current, open, values = [], onPick, 
   )
 }
 
-// the stakes: the engines over "Named on n of 5". Named: full colour on a small ink ring; missed: plain (greyed, on a
-// the engines that name the brand now, in colour, over "Named on n of 5" (owner, 2026-11-04: no greyed icons for the
-// missed ones, so the button's "light up the missed engines" hover has nothing to light and is gone)
-function Engines({ engines, named, engineName }) {
+// the sub-line (owner, 2026-11-05): its first part (the path), then "Named on n of 5" with the engines that name you
+// (in colour, 16px, only those), then the rest ("5 pages win this prompt today"). Nothing truncates at the end: when the
+// line overflows, the path truncates in the middle.
+function SubLine({ line, engines, named, engineName }) {
+  const [first, ...rest] = line.split(' · ')
+  const sep = <span aria-hidden className="shrink-0">·</span>
   return (
-    <div className="flex flex-col items-center" role="img" aria-label={`Named on ${named.length} of ${engines.length}${named.length ? `: ${named.map(engineName).join(', ')}` : ''}`}>
-      {named.length > 0 && (
-        <span className="flex items-center gap-2">
-          {named.map((e) => (
-            <span key={e} title={`${engineName(e)} names you`} className="grid h-7 w-7 place-items-center rounded-full border border-line bg-surface">
-              <PlatformIcon id={engineIcon(e)} size={15} />
-            </span>
-          ))}
-        </span>
-      )}
-      <span className="mt-1.5 text-[14px] leading-5 font-semibold text-stone-900 tabular-nums">Named on {named.length} of {engines.length}</span>
-    </div>
+    <p className="flex min-w-0 items-center gap-1.5 text-[13px] leading-[18px] text-stone-500 tabular-nums">
+      {first.startsWith('/') ? <MidPath text={first} /> : <span className="shrink-0">{first}</span>}
+      {engines.length > 0 && <>{sep}
+        <span className="flex shrink-0 items-center gap-1.5" role="img" aria-label={`Named on ${named.length} of ${engines.length}${named.length ? `: ${named.map(engineName).join(', ')}` : ''}`}>
+          <span className="whitespace-nowrap">Named on {named.length} of {engines.length}</span>
+          {named.map((e) => <span key={e} title={`${engineName(e)} names you`} className="flex"><PlatformIcon id={engineIcon(e)} size={16} /></span>)}
+        </span></>}
+      {rest.map((r) => <span key={r} className="flex shrink-0 items-center gap-1.5">{sep}<span className="whitespace-nowrap">{r}</span></span>)}
+    </p>
   )
 }
+// a path that shrinks only by truncating its middle: an invisible copy keeps its natural width (so the flex row gives it
+// the room it has, not the room its shortened text takes); the shown text is measured against that room
+function MidPath({ text }) {
+  const ref = useRef(null)
+  const [shown, setShown] = useState(text)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return undefined
+    const fit = () => {
+      const w = el.clientWidth
+      if (!w) return
+      measure ??= document.createElement('canvas').getContext('2d')
+      const cs = getComputedStyle(el)
+      measure.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+      const width = (t) => measure.measureText(t).width
+      if (width(text) <= w) { setShown(text); return }
+      let lo = 3, hi = text.length - 1
+      const cut = (n) => `${text.slice(0, Math.ceil(n / 2))}…${text.slice(text.length - Math.floor(n / 2))}`
+      while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (width(cut(mid)) <= w) lo = mid; else hi = mid - 1 }
+      setShown(cut(lo))
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    document.fonts?.ready.then(fit)
+    return () => ro.disconnect()
+  }, [text])
+  return (
+    <span ref={ref} className="relative min-w-0 overflow-hidden whitespace-nowrap" title={shown !== text ? text : undefined}>
+      <span aria-hidden className="invisible">{text}</span>
+      <span className="absolute inset-0">{shown}</span>
+    </span>
+  )
+}
+let measure = null
 
 // the step progress: 5 small pills (done / current = ink 28px, upcoming = --line-strong 12px) + "3 of 5"; hover a pill for
 // the step and what was chosen; click a done one (or the current one, from a reopened step) to go there. Shared with the
