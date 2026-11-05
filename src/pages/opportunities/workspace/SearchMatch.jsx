@@ -183,7 +183,7 @@ const orderRows = (qs) => { const best = qs.filter((q) => q.best), rest = qs.fil
 function QueriesHeader({ gsc, count, domain, onChange }) {
   return (
     <div>
-      <h3 id="co-sc-h" className="flex items-baseline gap-2 text-[20px] leading-[28px] font-semibold"><span className="text-ink">Search queries</span><span className="tabular-nums text-stone-500">{count}</span></h3>
+      <h3 id="co-sc-h" className="flex items-baseline gap-2 text-[20px] leading-[28px] font-semibold"><span className="text-ink">Prompts</span><span className="tabular-nums text-stone-500">{count}</span></h3>
       <p className="flex flex-wrap items-center gap-x-1.5 text-[14px] leading-5 font-medium text-stone-600" data-sc-connected>
         <GoogleIcon size={16} />
         <span>{domain}</span><span aria-hidden>·</span>
