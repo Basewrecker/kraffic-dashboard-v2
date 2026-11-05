@@ -210,10 +210,9 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
           <span role="columnheader" className={`pb-2 pt-3 pr-4 ${META}`}>Cited by</span>
           {columns.map((c) => (
             <span key={c.id} role="columnheader" onMouseEnter={() => hoverCol(c.id)} data-adds={added(c.id) || undefined}
-              className={`flex flex-col items-center gap-1 px-1 pb-2 pt-3 text-center transition-colors duration-150 ${tint(c.id)}`}>
-              <ProgressRing value={c.used} of={c.of} label={`${c.used} of ${c.of} winners`} />
+              className={`flex flex-col items-center px-1 pb-2 pt-3 text-center transition-colors duration-150 ${tint(c.id)}`}>
               <span className="whitespace-nowrap text-[13px] leading-[18px] font-semibold text-stone-900" title={formatLabel(c.id)}>{SHORT[c.id] ?? c.label}</span>
-              {added(c.id) && c.score != null && <span className="whitespace-nowrap text-[12px] leading-4 tabular-nums text-stone-500">score {c.score}</span>}
+              <span className="whitespace-nowrap text-[12px] leading-4 tabular-nums text-stone-500" aria-label={`${c.used} of ${c.of} winners${added(c.id) && c.score != null ? `, score ${c.score}` : ''}`}>{c.used} of {c.of}{added(c.id) && c.score != null ? ` · ${c.score}` : ''}</span>
             </span>
           ))}
           <span role="columnheader" className={`pb-2 pt-3 text-center ${META}`}>Coverage</span>
@@ -231,12 +230,10 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
             <span role="cell" className="flex items-center pr-4"><EngineIcons e={eng(w)} size={16} /></span>
             {columns.map((c, i) => (
               <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} className={`grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
-                {w.formats.includes(c.id)
-                  ? <span className="grid h-5 w-5 place-items-center rounded-full bg-[color-mix(in_srgb,var(--rep-up-fg)_16%,transparent)]" role="img" aria-label="Has it" style={anim('co-cell-in', T.sweep + i * T.col + 60 + r * T.cell, 220)}><Check size={12} strokeWidth={2.6} className="text-[var(--rep-up-fg)]" aria-hidden /></span>
-                  : <span className="text-[13px] leading-none text-stone-300" aria-label="Doesn’t have it">–</span>}
+                {w.formats.includes(c.id) && <Sq kind="have" style={anim('co-cell-in', T.sweep + i * T.col + 60 + r * T.cell, 220)} />}
               </span>
             ))}
-            <span role="cell" className="grid place-items-center"><CoverageRing have={columns.filter((c) => w.formats.includes(c.id)).length} of={columns.length} /></span>
+            <span role="cell" className="grid place-items-center"><CoverageBar have={columns.filter((c) => w.formats.includes(c.id)).length} of={columns.length} /></span>
           </div>
         ))}
         {/* your page: one tinted row, under a stronger rule */}
@@ -252,16 +249,14 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
             const st = stateOf(c.id)
             return (
               <span key={c.id} role="cell" onMouseEnter={() => hoverCol(c.id)} data-state={st} className={`grid h-full place-items-center transition-colors duration-150 ${tint(c.id)}`}>
-                {st === 'have' ? <TickDraw delay={yourEnd + i * 40} />
-                  : st === 'adds' ? <span className="flex items-center gap-1"><span className="opacity-45"><TickDraw delay={yourEnd + 360 + i * 60} ms={320} label="This draft adds it" /></span><span className="text-[11px] leading-none font-medium text-[var(--rep-up-fg)]">+ draft</span></span>
-                    : <span key={col === c.id ? `p${pulse}` : 'still'} className="grid place-items-center rounded-full" style={col === c.id && !reduced() ? { animation: 'co-pulse-once 600ms ease-out both' } : undefined}>
-                      <RingDraw size={20} delay={col === c.id ? 0 : yourEnd + i * 40} label="Still missing after this draft" />
-                    </span>}
+                {st === 'have' ? <Sq kind="have" />
+                  : st === 'adds' ? <span className="flex items-center gap-1.5"><Sq kind="adds" /><span className="text-[11px] leading-none font-medium text-stone-600">+draft</span></span>
+                    : <span key={col === c.id ? `p${pulse}` : 'still'} style={col === c.id && !reduced() ? { animation: 'co-pulse-once 600ms ease-out both' } : undefined}><Sq kind="missing" /></span>}
               </span>
             )
           })}
           <span role="cell" className="grid place-items-center">
-            <CoverageRing have={columns.filter((c) => stateOf(c.id) === 'have').length} adds={columns.filter((c) => stateOf(c.id) === 'adds').length} of={columns.length} />
+            <CoverageBar have={columns.filter((c) => stateOf(c.id) === 'have').length} adds={columns.filter((c) => stateOf(c.id) === 'adds').length} of={columns.length} />
           </span>
         </div>
       </div>
@@ -269,37 +264,22 @@ function Matrix({ m, path, eng, named, host, setHost, col, hoverCol, pulse, your
   )
 }
 
-// a 28px ring over a format's name: how many winners use it ("3 of 5"), filling on load (400ms)
-function ProgressRing({ value, of, label }) {
-  const r = 11, c = 2 * Math.PI * r, f = of ? value / of : 0
-  const still = reduced()
-  return (
-    <svg width="28" height="28" viewBox="0 0 28 28" role="img" aria-label={label} className="shrink-0">
-      <circle cx="14" cy="14" r={r} fill="none" stroke="var(--color-line)" strokeWidth="3" />
-      <circle cx="14" cy="14" r={r} fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinecap="round" transform="rotate(-90 14 14)"
-        strokeDasharray={`${c * f} ${c}`} style={still ? undefined : { animation: 'co-ring-fill 400ms ease-out both', '--len': `${c * f}` }} />
-      <text x="14" y="17.5" textAnchor="middle" fontSize="9" fontWeight="600" className="num" fill="var(--color-stone-700)">{value}/{of}</text>
-    </svg>
-  )
+// a cell (owner's sketch, 2026-11-05): ■ has it · ▨ this draft adds it (hatched) · a red dashed square: still missing
+const HATCH = 'repeating-linear-gradient(135deg, var(--ink) 0 1.5px, transparent 1.5px 4px)'
+function Sq({ kind, size = 12, style }) {
+  const label = kind === 'have' ? 'Has it' : kind === 'adds' ? 'This draft adds it' : kind === 'missing' ? 'Still missing after this draft' : 'Doesn’t have it'
+  const look = kind === 'have' ? { background: 'var(--ink)' }
+    : kind === 'adds' ? { backgroundImage: HATCH, boxShadow: 'inset 0 0 0 1.5px var(--ink)' }
+      : kind === 'missing' ? { boxShadow: 'inset 0 0 0 1.5px var(--negative)', outline: '1px dashed transparent' }
+        : { boxShadow: 'inset 0 0 0 1.5px var(--color-line-strong)' }
+  return <span role="img" aria-label={label} className="block shrink-0 rounded-[2px]" style={{ width: size, height: size, ...(kind === 'missing' ? { border: '1.5px dashed var(--negative)' } : look), ...style }} />
 }
-// a row's coverage: how many of these formats the page has (n/m in the centre). Your page: from now to after this
-// draft on load, the draft's part in light green
-function CoverageRing({ have, adds = 0, of }) {
-  const r = 13, c = 2 * Math.PI * r
-  const still = reduced()
-  const a = of ? have / of : 0, b = of ? adds / of : 0
-  const [after, setAfter] = useState(still || !adds)
-  useEffect(() => { if (!after) { const t = setTimeout(() => setAfter(true), 700); return () => clearTimeout(t) } return undefined }, [after])
-  const shown = have + (after ? adds : 0)
+// coverage: one small square per format, ■ the ones the page has, ▨ the ones this draft adds, □ the rest
+function CoverageBar({ have, adds = 0, of }) {
   return (
-    <svg width="32" height="32" viewBox="0 0 32 32" role="img" aria-label={`${have + adds} of ${of} formats${adds ? ` (${have} now, ${adds} from this draft)` : ''}`} className="shrink-0">
-      <circle cx="16" cy="16" r={r} fill="none" stroke="var(--color-line)" strokeWidth="3" />
-      {b > 0 && <circle cx="16" cy="16" r={r} fill="none" stroke="color-mix(in srgb, var(--rep-up-fg) 40%, transparent)" strokeWidth="3" transform={`rotate(${-90 + a * 360} 16 16)`}
-        strokeDasharray={`${after ? c * b : 0} ${c}`} style={{ transition: still ? 'none' : 'stroke-dasharray 600ms ease-out' }} />}
-      <circle cx="16" cy="16" r={r} fill="none" stroke="var(--rep-up-fg)" strokeWidth="3" transform="rotate(-90 16 16)"
-        strokeDasharray={`${c * a} ${c}`} style={still ? undefined : { animation: 'co-ring-fill 400ms ease-out both', '--len': `${c * a}` }} />
-      <text x="16" y="19.5" textAnchor="middle" fontSize="10" fontWeight="600" className="num" fill="var(--color-stone-900)">{shown}/{of}</text>
-    </svg>
+    <span className="flex items-center gap-[3px]" role="img" aria-label={`${have + adds} of ${of} formats${adds ? ` (${have} now, ${adds} from this draft)` : ''}`}>
+      {Array.from({ length: of }, (_, k) => <Sq key={k} size={10} kind={k < have ? 'have' : k < have + adds ? 'adds' : 'empty'} />)}
+    </span>
   )
 }
 
