@@ -3,15 +3,15 @@
 // its four actions (confirm, reject, add a fact, read the website again) on sample data (data/websiteFacts.js).
 // Layout, as Sentiment: a hero card (how many facts are confirmed, by status; the sources we checked against; Read
 // website again) → Where we read it → a 2×2 grid of equal columns (Your call · Checked against outside sources / Ready
-// to confirm · the fact sheet, as tiles; a row's two cards share their top and bottom edge) → Read, but not facts.
-// Nothing above it moves when something opens: Add a fact is a popover, and Read, but not facts (the last row of the
-// page) opens downward. Rows are never spread to fill a card.
+// to confirm · the fact sheet; a row's two cards share their top and bottom edge).
+// Text we read that isn't a fact (the home page's title, meta description and heading) is the last group of Ready to
+// confirm, "Also on your site": unticked, and not counted until ticked. Add a fact is a popover (no card grows).
 // Type: section titles 700, values 600 in ink, everything supporting 400 in stone-600. One helper line per section.
 // Colour: graphite, with one solid-ink element per card at most (its primary button); --negative (Sentiment's red) where
 // the site and a source disagree, on "Your call", and for pages we couldn't read. No AI engine logos: engines don't read the site.
 // Previews: ?wf=empty (never read) · ?wf=done (nothing left to review). "Read website again" plays the reading state.
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { AlignLeft, AppWindow, ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Heading1, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote, X } from 'lucide-react'
+import { AlignLeft, AppWindow, ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Heading1, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote } from 'lucide-react'
 import { brand } from '../../store/workspace'
 import SiteLogo from '../../components/ui/SiteLogo'
 import BetaTag from '../../components/ui/BetaTag'
@@ -209,8 +209,8 @@ const ResolvedLine = ({ r, onUndo }) => (
 )
 
 // ---- Ready to confirm: one tight line per fact (tick · logo or line icon · the value, its key part a weight heavier),
-// in three labelled groups split by hairlines. Hover or focus the value for the page(s) it came from. Roomy rows, so
-// the card meets the fact sheet beside it; a few pixels of difference go evenly between them.
+// in labelled groups split by hairlines. Hover or focus the value for the page(s) it came from. The card meets the
+// fact sheet beside it; a few pixels of difference go evenly between the rows.
 const READY_GROUPS = [
   ['Contact', (g) => groupOf(g.lead) === 'contact'],
   ['Awards and accreditations', (g) => ['ratings', 'awards', 'accreditations'].includes(groupOf(g.lead))],
@@ -220,7 +220,7 @@ function ReadyLine({ g, on, sent, onToggle }) {
   const f = g.lead
   const value = <span className={`text-[14px] leading-6 ${val}`} data-wf-from={g.id}><KeyValue fact={f} kept /></span>
   return (
-    <li {...useHot(g.pages)} className={`flex items-center gap-2.5 py-[11px] transition-opacity duration-200 ${sent ? 'opacity-30' : on ? '' : 'opacity-50'}`}>
+    <li {...useHot(g.pages)} className={`flex items-center gap-2.5 py-1 transition-opacity duration-200 ${sent ? 'opacity-30' : on ? '' : 'opacity-50'}`}>
       <Tick on={on} onChange={onToggle} disabled={sent} label={`Confirm “${f.value}”`} />
       {/* a logo is a little larger than a line icon, so the groups read differently */}
       <span className="grid h-6 w-6 shrink-0 place-items-center"><Mark fact={f} size={markOf(f) ? 22 : 17} /></span>
@@ -230,86 +230,44 @@ function ReadyLine({ g, on, sent, onToggle }) {
     </li>
   )
 }
-function ReadyList({ rows, skipped, sent, onToggle }) {
-  const groups = READY_GROUPS.map(([label, has]) => ({ label, list: rows.filter(has) })).filter((grp) => grp.list.length)
+// "Also on your site": text we read that isn't a fact. Same row, unticked by default (400 until ticked, then 600), its
+// type at the right; one line, the full text on hover.
+function AlsoLine({ f, on, onToggle }) {
+  const Icon = KIND_ICON[f.field] ?? StickyNote
   return (
-    <div className="flex flex-1 flex-col divide-y divide-[var(--div)]">
+    <li className="flex items-center gap-2.5 py-1">
+      <Tick on={on} onChange={onToggle} label={`Confirm “${f.value}”`} />
+      <span className="grid h-6 w-6 shrink-0 place-items-center text-stone-600"><Icon size={17} strokeWidth={1.75} aria-hidden /></span>
+      <span title={f.value} className={`wf-anim min-w-0 flex-1 truncate text-[14px] leading-6 text-stone-900 transition-[font-weight] duration-200 ${on ? 'font-semibold' : 'font-normal'}`}><span data-wf-from={f.id}>{f.value}</span></span>
+      <span className={`shrink-0 ${sub}`}>{KIND[f.field]}</span>
+    </li>
+  )
+}
+function ReadyList({ rows, skipped, sent, onToggle, also, extra, onExtra }) {
+  const fill = rows.length > 0 // with facts to confirm the list takes the card's height; with only the extra texts left it keeps its own
+  const groups = READY_GROUPS.map(([label, has]) => ({ label, list: rows.filter(has) })).filter((grp) => grp.list.length)
+  const group = 'flex flex-col py-3 first:pt-0 last:pb-0'
+  const title = 'pb-1 text-[13px] leading-[18px] font-semibold text-stone-600'
+  return (
+    <div className={`flex flex-col divide-y divide-[var(--div)] ${fill ? 'flex-1' : ''}`}>
       {groups.map((grp) => (
-        <div key={grp.label} style={{ flexGrow: grp.list.length }} className="flex flex-col py-3 first:pt-0 last:pb-0">
-          <h3 className="pb-1 text-[13px] leading-[18px] font-semibold text-stone-600">{grp.label}</h3>
+        <div key={grp.label} style={{ flexGrow: grp.list.length }} className={group}>
+          <h3 className={title}>{grp.label}</h3>
           <ul className="flex flex-1 flex-col justify-around">{grp.list.map((g) => <ReadyLine key={g.id} g={g} on={!skipped.has(g.id)} sent={sent.has(g.id)} onToggle={() => onToggle(g)} />)}</ul>
         </div>
       ))}
-    </div>
-  )
-}
-
-// ---- Add a fact: our own kind picker (searchable, icons, grouped), a text field, Add --------------------------------
-function KindPicker({ value, onChange }) {
-  const [open, setOpen] = useState(false)
-  const [q, setQ] = useState('')
-  const [at, setAt] = useState(0)
-  const box = useRef(null)
-  const all = ADD_KINDS.flatMap((g) => g.items)
-  const hit = (it) => `${it.label} ${it.hint}`.toLowerCase().includes(q.trim().toLowerCase())
-  const shown = all.filter(hit)
-  const cur = all.find((it) => it.field === value) ?? all[0]
-  const Cur = KIND_ICON[cur.field]
-  useEffect(() => {
-    if (!open) return undefined
-    const away = (e) => { if (!box.current?.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', away)
-    return () => document.removeEventListener('mousedown', away)
-  }, [open])
-  const pick = (it) => { onChange(it.field); setOpen(false); setQ('') }
-  const onKey = (e) => {
-    if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); return }
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setAt((i) => (i + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % Math.max(1, shown.length)) }
-    if (e.key === 'Enter' && shown[at]) { e.preventDefault(); pick(shown[at]) }
-  }
-  return (
-    <div ref={box} className="relative">
-      <button type="button" aria-haspopup="listbox" aria-expanded={open} aria-label={`Kind: ${cur.label}`} onClick={() => { setOpen((o) => !o); setAt(Math.max(0, shown.indexOf(cur))) }}
-        className={`flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-raised px-3 text-[14px] font-semibold text-stone-900 transition-colors duration-150 hover:border-[var(--color-line-strong)] ${focus}`}>
-        <Cur size={15} aria-hidden className="text-stone-600" />{cur.label}<ChevronDown size={14} aria-hidden className="ml-auto text-stone-600" />
-      </button>
-      {open && (
-        <div className="wf-anim card-in absolute left-0 top-full z-40 mt-1.5 w-[300px] max-w-[calc(100vw-48px)] rounded-xl border border-line bg-raised p-1.5 shadow-lg" onKeyDown={onKey}>
-          <label className="flex h-9 items-center gap-2 px-2 text-stone-600">
-            <Search size={14} aria-hidden />
-            <input autoFocus value={q} onChange={(e) => { setQ(e.target.value); setAt(0) }} placeholder="Search kinds…" aria-label="Search kinds" className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-stone-900 outline-none placeholder:text-stone-600" />
-          </label>
-          <div role="listbox" aria-label="Kind of fact" className="border-t border-[var(--div)] pt-1">
-            {ADD_KINDS.map((g) => {
-              const items = g.items.filter(hit)
-              if (!items.length) return null
-              return (
-                <div key={g.group}>
-                  <p className="px-2 pb-1 pt-2 text-[12px] leading-4 text-stone-600">{g.group}</p>
-                  {items.map((it) => {
-                    const I = KIND_ICON[it.field]
-                    return (
-                      <button key={it.field} type="button" role="option" aria-selected={it.field === value} onMouseEnter={() => setAt(shown.indexOf(it))} onClick={() => pick(it)}
-                        className={`flex min-h-11 w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left ${shown[at] === it ? 'bg-tint' : ''} ${focus}`}>
-                        <I size={15} aria-hidden className="shrink-0 text-stone-600" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[14px] leading-5 font-semibold text-stone-900">{it.label}</span>
-                          <span className="block text-[12px] leading-4 text-stone-600">{it.hint}</span>
-                        </span>
-                        {it.field === value && <Check size={14} aria-hidden className="shrink-0 text-stone-700" />}
-                      </button>
-                    )
-                  })}
-                </div>
-              )
-            })}
-            {!shown.length && <p className="px-2 py-3 text-[13px] text-stone-600">No kind matches “{q}”.</p>}
-          </div>
+      {also.length > 0 && (
+        <div style={fill ? { flexGrow: also.length } : undefined} className={group}>
+          <h3 className={title}>Also on your site <span className="font-normal">· not counted unless you tick them</span></h3>
+          <ul className="flex flex-1 flex-col justify-around">{also.map((f) => <AlsoLine key={f.id} f={f} on={extra.has(f.id)} onToggle={() => onExtra(f)} />)}</ul>
         </div>
       )}
     </div>
   )
 }
+// the Confirm button's number ticks to its new value
+const Ticking = ({ n }) => <span className="num">{useCountUp(n, 200)}</span>
+
 // A floating panel anchored to the control that opened it: Esc and a click outside close it, Tab stays inside it, and
 // focus goes back to the control. (An open kind list inside it takes Esc first.)
 function usePanel(open, close, wrap, opener) {
@@ -758,115 +716,6 @@ function PagesRead({ list, facts, merged, scan, hasRead, onRetry, k }) {
   )
 }
 
-// ---- Read, but not facts: one slim full-width row at the end of the page. Clicking it opens it in place, downward (it
-// only lengthens the page): the texts as three open columns split by hairlines, each drawn where it lives, with Use
-// as a fact (it joins the fact sheet, waiting) and Reject (a small ×; Undo for a few seconds).
-// A text shown where it really lives, drawn in graphite outlines and neutral fills; the real text is the darkest thing
-// in it. title → a browser tab · description → a search result · heading → the top of a page. All three are one height.
-const realText = 'rounded-sm text-stone-900 transition-colors duration-150 group-hover/col:bg-tint'
-function TextScene({ f, i, title }) {
-  const text = <span data-wf-from={f.id}>{f.value}</span>
-  const later = { animationDelay: `${260 + i * 110}ms`, animationFillMode: 'backwards', animationDuration: '260ms' } // the text comes in after its outline
-  const line = 'h-1.5 rounded-full bg-stone-300'
-  return (
-    <div className="wf-anim card-in flex h-[124px] flex-col justify-center overflow-hidden rounded-lg bg-tint px-3.5 transition-[transform,box-shadow] duration-200 group-hover/col:-translate-y-0.5 group-hover/col:shadow-sm" style={{ animationDelay: `${80 + i * 110}ms`, animationFillMode: 'backwards' }} aria-hidden={false}>
-      {f.field === 'title' ? (
-        // a browser tab, with the address bar under it
-        <div>
-          <div className="flex w-fit max-w-full items-center gap-2 rounded-t-lg border border-b-0 border-stone-300 bg-surface px-2.5 py-2">
-            <BrandLogo size="h-4 w-4 rounded-sm" className="shrink-0" />
-            <span className={`wf-anim fade-in min-w-0 text-[13px] leading-[18px] font-semibold [overflow-wrap:anywhere] ${realText}`} style={later}>{text}</span>
-          </div>
-          <div className="flex h-8 items-center gap-2 rounded-b-lg rounded-tr-lg border border-stone-300 bg-surface px-2.5">
-            <span className="h-3 w-3 shrink-0 rounded-full border border-stone-300" />
-            <span className="truncate text-[12px] leading-4 text-stone-600">{brand.domain}</span>
-          </div>
-        </div>
-      ) : f.field === 'description' ? (
-        // a search result: the site line, the page title as the result's heading, the description as its text
-        <div className="flex flex-col gap-0.5">
-          <span className="flex items-center gap-1.5 text-[12px] leading-4 text-stone-600"><BrandLogo size="h-4 w-4 rounded-full" className="shrink-0" />{brand.domain}</span>
-          <span className="truncate text-[13px] leading-[18px] text-stone-600 underline decoration-stone-300 underline-offset-2">{title ?? brand.name}</span>
-          <span className={`wf-anim fade-in line-clamp-3 text-[13px] leading-[18px] font-semibold ${realText}`} style={later}>{text}</span>
-        </div>
-      ) : (
-        // the top of a page: a thin nav line, the heading, two lines of text to come
-        <div className="flex flex-col gap-2.5">
-          <span className="flex items-center gap-2 border-b border-stone-300 pb-2"><BrandLogo size="h-3.5 w-3.5 rounded-sm" className="shrink-0" /><span className={`${line} w-8`} /><span className={`${line} w-8`} /><span className={`${line} ml-auto w-10`} /></span>
-          <span className={`wf-anim fade-in line-clamp-2 text-[18px] leading-6 font-bold tracking-[-0.01em] ${realText}`} style={later}>{text}</span>
-          <span className="flex flex-col gap-1.5"><span className={`${line} w-11/12`} /><span className={`${line} w-2/3`} /></span>
-        </div>
-      )}
-    </div>
-  )
-}
-// one text: a label row (with Reject as a small × at its right), the text where it lives, and Use as a fact.
-// leaving: it was just used or rejected, and closes while the columns beside it widen.
-function NotFactColumn({ f, i, title, leaving, onUse, onReject }) {
-  const Icon = KIND_ICON[f.field] ?? StickyNote
-  const site = siteEvidence(f)
-  return (
-    <li aria-hidden={leaving || undefined} className={`group/col wf-anim relative flex min-w-0 basis-0 flex-col gap-3 overflow-hidden transition-[flex-grow,opacity,padding] duration-300 ease-out max-sm:py-4 max-sm:first:pt-0 max-sm:last:pb-0 ${leaving ? 'grow-0 opacity-0 sm:px-0' : 'grow sm:px-5 sm:first:pl-0 sm:last:pr-0'}`}>
-      <div className={`flex items-center gap-2 ${sub}`}>
-        <Icon size={15} strokeWidth={1.75} aria-hidden className="shrink-0" />
-        <span className="min-w-0 truncate">{KIND[f.field]}{site ? ` · ${where(site.url)}` : ''}</span>
-        <span className="group/x relative ml-auto shrink-0">
-          <button type="button" aria-label={`Reject “${f.value}”`} disabled={leaving} onClick={() => onReject(f)} className={`grid h-7 w-7 place-items-center rounded-md text-stone-600 transition-colors duration-150 hover:bg-tint hover:text-stone-900 ${focus}`}><X size={15} aria-hidden /></button>
-          <span role="tooltip" className="pointer-events-none absolute right-0 top-full z-30 mt-1 hidden rounded-md border border-line bg-raised px-2 py-1 text-[12px] leading-4 text-stone-900 shadow-sm group-focus-within/x:block group-hover/x:block">Reject</span>
-        </span>
-      </div>
-      <TextScene f={f} i={i} title={title} />
-      <button type="button" disabled={leaving} className={`${secondary} self-start`} onClick={() => onUse(f)}>Use as a fact</button>
-    </li>
-  )
-}
-function NotFacts({ items, gone, onUse, onReject, onUndo }) {
-  const [open, setOpen] = useState(false)
-  const [run, setRun] = useState(0) // each opening draws the three in again
-  // a text that was just used or rejected stays for a moment as a closing column, so the others widen instead of jumping
-  const [shown, setShown] = useState(items)
-  useEffect(() => {
-    if (reduced()) { setShown(items); return undefined }
-    setShown((was) => [...was, ...items.filter((f) => !was.some((x) => x.id === f.id))].map((f) => items.find((x) => x.id === f.id) ?? f).sort((x, y) => x.id.localeCompare(y.id, undefined, { numeric: true })))
-    const t = setTimeout(() => setShown(items), 320)
-    return () => clearTimeout(t)
-  }, [items])
-  const title = items.find((f) => f.field === 'title')?.value
-  return (
-    <section className={card}>
-      <button type="button" aria-expanded={open} onClick={() => { setOpen((o) => !o); setRun((r) => r + 1) }} className={`flex w-full items-baseline gap-2 rounded-xl px-5 py-4 text-left ${focus}`}>
-        <span className="shrink-0 text-[15px] leading-[22px] font-bold text-stone-900">Read, but not facts</span>
-        <Count n={items.length} />
-        {/* the closed bar previews its texts (the first words of each); the preview fades out when the row opens */}
-        <span aria-hidden className={`ml-2 flex min-w-0 flex-1 items-center gap-4 self-center transition-opacity duration-200 ${open ? 'opacity-0' : ''}`}>
-          <BrandLogo size="h-5 w-5 rounded" className="shrink-0" />
-          {items.map((f) => {
-            const Icon = KIND_ICON[f.field] ?? StickyNote
-            return <span key={f.id} className={`flex min-w-0 flex-1 basis-0 items-center gap-1.5 ${sub}`}><Icon size={14} strokeWidth={1.75} className="shrink-0" /><span className="truncate">{KIND[f.field]} · {f.value}</span></span>
-          })}
-        </span>
-        <ChevronDown size={15} aria-hidden className={`ml-auto shrink-0 self-center text-stone-600 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {/* the height eases open; closed, what's inside can't be reached */}
-      <div className="wf-anim grid transition-[grid-template-rows] duration-300 ease-out" style={{ gridTemplateRows: open ? '1fr' : '0fr' }} inert={open ? undefined : ''}>
-        <div className={`min-h-0 ${open ? '' : 'overflow-hidden'}`}>
-          <div key={run} className="flex flex-col gap-4 px-5 pb-5">
-            <p className={sub}>We read these but didn’t treat them as facts.</p>
-            {/* three open columns of equal width, split by the standard hairline */}
-            {shown.length > 0 && (
-              <ul className="flex flex-col divide-line max-sm:divide-y sm:flex-row sm:items-start sm:divide-x">
-                {shown.map((f, i) => <NotFactColumn key={f.id} f={f} i={i} title={title} leaving={!items.some((x) => x.id === f.id)} onUse={onUse} onReject={onReject} />)}
-              </ul>
-            )}
-            {gone && <p className={`wf-anim card-in ${sub}`} aria-live="polite">Rejected “{gone.value}” · <button type="button" onClick={onUndo} className={link}>Undo</button></p>}
-            {!items.length && !gone && <p className={sub}>Nothing left here.</p>}
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
 function Fold({ title, count, children }) {
   const [open, setOpen] = useState(false)
   return (
@@ -897,7 +746,7 @@ export default function WebsiteFactsPage() {
   const [picked, setPicked] = useState(null) // the claim kept in a contradiction, while it resolves
   const [skipped, setSkipped] = useState(() => new Set()) // Ready to confirm rows the user unticked
   const [batch, setBatch] = useState(null) // a Confirm in flight: { rows, sent: Set }
-  const [gone, setGone] = useState(null) // the text just rejected in Read, but not facts (Undo for a few seconds)
+  const [extra, setExtra] = useState(() => new Set()) // "Also on your site" rows the user ticked
   const [undo, setUndo] = useState(null) // the last Confirm: { ids, n }
   const [resolved, setResolved] = useState([]) // calls already made: { key, name, result, ids, pos }
   const [hot, setHot] = useState(null)
@@ -927,20 +776,25 @@ export default function WebsiteFactsPage() {
       a.onfinish = a.oncancel = () => { ghost.remove(); land() }
     }))
   }
-  // Confirm: the ticked facts are confirmed one after another (each row moves up to "In use" in the fact sheet)
+  // Confirm: the ticked facts are confirmed one after another (each block moves up to "In use" in the fact sheet); a
+  // ticked "Also on your site" text isn't in the sheet yet, so it travels there
+  const alsoTicked = b.notFacts.filter((f) => extra.has(f.id))
+  const confirmCount = ticked.length + alsoTicked.length
   const confirmTicked = () => {
-    const go = ticked
-    const done = { ids: go.flatMap((g) => g.ids), n: go.length }
+    const go = [...ticked.map((g) => ({ g })), ...alsoTicked.map((f) => ({ f }))]
+    const done = { ids: go.flatMap((x) => (x.g ? x.g.ids : [x.f.id])), n: go.length }
     if (!go.length) return
+    setExtra(new Set())
     if (reduced()) { setStatus(done.ids, 'CONFIRMED'); setUndo(done); return }
     setBatch({ rows: b.ready, sent: new Set() })
-    go.forEach((g, i) => setTimeout(() => { setStatus(g.ids, 'CONFIRMED'); setBatch((bt) => bt && { ...bt, sent: new Set(bt.sent).add(g.id) }) }, i * 130))
+    go.forEach((x, i) => setTimeout(() => {
+      if (x.f) { flyToSheet(x.f.id, x.f.value, () => setStatus([x.f.id], 'CONFIRMED')); return }
+      setStatus(x.g.ids, 'CONFIRMED')
+      setBatch((bt) => bt && { ...bt, sent: new Set(bt.sent).add(x.g.id) })
+    }, i * 130))
     setTimeout(() => { setBatch(null); setUndo(done) }, go.length * 130 + 450)
   }
-  // Read, but not facts: "Use as a fact" makes it a fact waiting to be confirmed; "Reject" leaves an Undo for a few seconds
-  const useAsFact = (f) => flyToSheet(f.id, f.value, () => setFacts((fs) => fs.map((x) => (x.id === f.id ? { ...x, category: 'custom' } : x))))
-  const rejectText = (f) => { setStatus([f.id], 'REJECTED'); setGone(f) }
-  const undoText = () => { setStatus([gone.id], 'DISCOVERED'); setGone(null) }
+  const toggleExtra = (f) => setExtra((was) => { const n = new Set(was); if (n.has(f.id)) n.delete(f.id); else n.add(f.id); return n })
   const undoConfirm = () => { setStatus(undo.ids, 'DISCOVERED'); setUndo(null) }
   const toggle = (g) => setSkipped((s) => { const n = new Set(s); if (n.has(g.id)) n.delete(g.id); else n.add(g.id); return n })
   // Your call: the open decisions, in order, and the ones already made (each collapses to one line with Undo)
@@ -969,11 +823,6 @@ export default function WebsiteFactsPage() {
     setFacts((fs) => [...fs, { id: `you${fs.length + 1}`, category: kind?.category ?? 'custom', field, value, status: 'ADDED_BY_YOU', source: 'YOU', notes: null, evidence: [] }])
   }
 
-  useEffect(() => {
-    if (!gone) return undefined
-    const t = setTimeout(() => setGone(null), 6000)
-    return () => clearTimeout(t)
-  }, [gone])
   // "Read website again": the rings fill page by page, section by section, then each source is checked in turn
   const read = () => { if (scan) return; if (reduced()) { setHasRead(true); return } setScan({ read: 0 }) }
   useEffect(() => {
@@ -1020,35 +869,31 @@ export default function WebsiteFactsPage() {
         <div className="min-w-0">{b.cards.length > 0 && <SourcesCard cards={b.cards} scan={scan} onCheck={read} loose={b.merged.filter((g) => g.lead.status !== 'REJECTED' && g.lead.source !== 'YOU' && !sourceOf(g.lead))} />}</div>
 
         <section className={`${card} flex min-w-0 flex-col gap-3 p-5`}>
-          {rows.length > 0 ? (
-            <>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className={h2}>Ready to confirm <Count n={rows.length} /></h2>
-                  <p className={sub}>Untick anything drafts shouldn’t use.</p>
-                </div>
-                <button type="button" className={primary} disabled={!ticked.length || !!batch} onClick={confirmTicked}>
-                  <Check size={15} aria-hidden />{ticked.length === b.ready.length || batch ? `Confirm all ${batch ? rows.length : ticked.length}` : `Confirm ${ticked.length}`}
-                </button>
-              </div>
-              <ReadyList rows={rows} skipped={skipped} sent={batch?.sent ?? new Set()} onToggle={toggle} />
-              {undoLine && <p className={`border-t border-[var(--div)] pt-3 ${sub}`}>{undoLine}</p>}
-            </>
-          ) : (
-            <>
-              <h2 className={h2}>Ready to confirm <Count n={0} /></h2>
-              <div className={doneBox}>
-                {doneMark}
-                <p className={`text-[15px] leading-[22px] ${val}`}>{calls ? 'Nothing left to confirm' : 'Nothing needs you'}</p>
-                {undo && <p className={`num ${sub}`}>{undo.n} confirmed, now in use in the fact sheet. <button type="button" onClick={undoConfirm} className={link}>Undo</button></p>}
-              </div>
-            </>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className={h2}>Ready to confirm <Count n={rows.length} /></h2>
+              {rows.length > 0 && <p className={sub}>Untick anything drafts shouldn’t use.</p>}
+            </div>
+            {(rows.length > 0 || b.notFacts.length > 0) && (
+              <button type="button" className={primary} disabled={!confirmCount || !!batch} onClick={confirmTicked}>
+                <Check size={15} aria-hidden />Confirm {confirmCount > 0 && confirmCount === b.ready.length && !alsoTicked.length ? 'all ' : ''}<Ticking n={confirmCount} />
+              </button>
+            )}
+          </div>
+          {/* nothing left to confirm: the done state takes the room; "Also on your site" stays under it at its own height */}
+          {rows.length === 0 && (
+            <div className={doneBox}>
+              {doneMark}
+              <p className={`text-[15px] leading-[22px] ${val}`}>{calls ? 'Nothing left to confirm' : 'Nothing needs you'}</p>
+              {undo && <p className={`num ${sub}`}>{undo.n} confirmed, now in use in the fact sheet. <button type="button" onClick={undoConfirm} className={link}>Undo</button></p>}
+            </div>
           )}
+          {(rows.length > 0 || b.notFacts.length > 0) && <ReadyList rows={rows} skipped={skipped} sent={batch?.sent ?? new Set()} onToggle={toggle} also={b.notFacts} extra={extra} onExtra={toggleExtra} />}
+          {rows.length > 0 && undoLine && <p className={`border-t border-[var(--div)] pt-3 ${sub}`}>{undoLine}</p>}
         </section>
         <div className="min-w-0"><FactSheet b={b} landing={landing} onAdd={add} /></div>
       </div>
 
-      {(b.notFacts.length > 0 || gone) && <NotFacts items={b.notFacts} gone={gone} onUse={useAsFact} onReject={rejectText} onUndo={undoText} />}
 
       {b.rejected.length > 0 && (
         <Fold title="Rejected" count={b.rejected.length}>
