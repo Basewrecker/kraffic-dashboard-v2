@@ -2,13 +2,13 @@
 // site, which claims an outside source backs up, and the facts Content drafts may use. Design only: the app's data and
 // its four actions (confirm, reject, add a fact, read the website again) on sample data (data/websiteFacts.js).
 // Layout, as Sentiment: a hero card (how many facts are confirmed, by status; the sources we checked against; Read
-// website again) → two columns (Your call, Ready to confirm | the fact sheet) → full width: the source cards, Where we
-// read it, Read but not facts. When nothing needs the user the two columns give way to one line and a full-width sheet.
+// website again) → Where we read it → two columns that end on the same line (Your call, Ready to confirm | the fact
+// sheet) → the source cards → Read, but not facts.
 // Type: section titles 700, values 600 in ink, everything supporting 400 in stone-600. One helper line per section.
 // Colour: graphite, with one solid-ink element per card at most (its primary button); --copper only where the site and
 // a source disagree; --negative only for a page we couldn't read. No AI engine logos: engines don't read the site.
 // Previews: ?wf=empty (never read) · ?wf=done (nothing left to review). "Read website again" plays the reading state.
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Layers, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote, X } from 'lucide-react'
 import { brand } from '../../store/workspace'
 import SiteLogo from '../../components/ui/SiteLogo'
@@ -369,7 +369,8 @@ function AddSlot({ onAdd }) {
 }
 
 // ---- the fact sheet: what Content drafts may use, by kind. Kept: logo or kind icon + the value. Waiting: a hollow
-// dot + the claim in the secondary colour (no box), wrapping to two lines. A hairline between groups.
+// dot + the claim in the secondary colour (no box), wrapping to two lines. One column of groups with a hairline
+// between them; the card is as tall as the column beside it, with "+ Add a fact" at its foot.
 const sheetRow = 'flex items-start gap-2 rounded-md px-1.5 py-1 -mx-1.5 text-[14px] leading-5 transition-colors duration-150'
 const Hollow = ({ call }) => <span aria-hidden className="grid h-5 w-4 shrink-0 place-items-center"><span className={`h-2 w-2 rounded-full border-[1.5px] ${call ? 'border-[var(--copper)]' : 'border-stone-400'}`} /></span>
 const isLit = (hot, g) => !!hot && g.pages.some((u) => hot.urls.has(u))
@@ -392,7 +393,7 @@ function WaitingRow({ g, call }) {
     </p>
   )
 }
-function FactSheet({ b, landing, onAdd, wide = false }) {
+function FactSheet({ b, landing, onAdd }) {
   const callIds = new Set(b.differs.map((g) => g.id))
   const waiting = [...b.ready, ...b.differs]
   const groups = GROUPS.map((grp) => ({
@@ -402,7 +403,7 @@ function FactSheet({ b, landing, onAdd, wide = false }) {
     picks: b.conflicts.filter((c) => groupOf(c.a.lead) === grp.id),
   })).filter((grp) => grp.kept.length || grp.open.length || grp.picks.length)
   return (
-    <aside aria-label="Your fact sheet" className={`${card} flex flex-col gap-4 p-5`}>
+    <aside aria-label="Your fact sheet" className={`${card} flex h-full flex-col gap-4 p-5`}>
       <header className="flex items-center gap-3">
         <BrandLogo size="h-9 w-9 rounded-lg" />
         <div className="min-w-0">
@@ -410,7 +411,7 @@ function FactSheet({ b, landing, onAdd, wide = false }) {
           <p className={sub}>What Content drafts may use</p>
         </div>
       </header>
-      <div className={`grid grid-cols-1 gap-x-8 ${wide ? 'sm:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2'}`}>
+      <div className="flex flex-col">
         {groups.map((grp) => (
           <section key={grp.id} className="flex min-w-0 flex-col gap-0.5 border-t border-[var(--div)] py-3">
             <h3 className={`${sub} pb-1`}>{grp.label}</h3>
@@ -420,7 +421,7 @@ function FactSheet({ b, landing, onAdd, wide = false }) {
           </section>
         ))}
       </div>
-      <AddSlot onAdd={onAdd} />
+      <div className="mt-auto"><AddSlot onAdd={onAdd} /></div>
     </aside>
   )
 }
@@ -633,20 +634,6 @@ export default function WebsiteFactsPage() {
   const calls = b.conflicts.length + b.differs.length
   const ticked = b.ready.filter((g) => !skipped.has(g.id))
 
-  // the fact sheet sticks while the left column scrolls; a sheet taller than the window sticks by its bottom edge
-  const sheet = useRef(null)
-  const [stickTop, setStickTop] = useState(24)
-  useLayoutEffect(() => {
-    const el = sheet.current
-    if (!el) return undefined
-    const fit = () => setStickTop(Math.min(24, window.innerHeight - el.offsetHeight - 24))
-    const ro = new ResizeObserver(fit)
-    ro.observe(el)
-    window.addEventListener('resize', fit)
-    fit()
-    return () => { ro.disconnect(); window.removeEventListener('resize', fit) }
-  })
-
   const setStatus = (ids, status) => setFacts((fs) => fs.map((f) => (ids.includes(f.id) ? { ...f, status } : f)))
   // "Into the sheet": the value leaves its row and lands in its slot in the fact sheet
   const flyToSheet = (g) => {
@@ -714,57 +701,56 @@ export default function WebsiteFactsPage() {
   if (!hasRead) return <Hot.Provider value={hotCtx}>{hero}{pagesRead}</Hot.Provider>
 
   const rows = batch ? batch.rows : b.ready
-  const done = !calls && !rows.length // nothing needs the user: one line, and the fact sheet at full width
+  const done = !calls && !rows.length // nothing needs the user
   const undoLine = undo && !batch && <><b className={`num ${val}`}>{undo.n} confirmed</b> · <button type="button" onClick={undoConfirm} className={link}>Undo</button></>
   return (
     <Hot.Provider value={hotCtx}>
       {hero}
+      {pagesRead}
 
-      {done ? (
-        <>
-          <Slim><b className={val}>Nothing needs you.</b>{undoLine && <> {undoLine}</>}</Slim>
-          <FactSheet b={b} landing={landing} onAdd={add} wide />
-        </>
-      ) : (
-        // two columns, as Sentiment's charts and list: what needs the user | the fact sheet. Ready to confirm (or Your
-        // call, once everything is confirmed) grows to the sheet's height, so a short left column leaves no empty band.
-        <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-          <div className="flex min-w-0 flex-col gap-3 md:gap-4">
-            {calls > 0 && (
-              <section className={`${card} ${rows.length ? '' : 'flex-1'}`}>
-                <h2 className={`${h2} px-5 pt-5`}>Your call <Count n={calls} /></h2>
-                <div className="divide-y divide-[var(--div)]">
-                  {b.conflicts.map((c) => <ConflictCard key={`${c.a.id}-${c.b.id}`} c={c} onPick={pickOne} picked={picked} />)}
-                  {b.differs.map((g) => <DiffersCard key={g.id} g={g} onConfirm={flyToSheet} onReject={reject} />)}
-                </div>
-              </section>
-            )}
-            {undoLine && <Slim>{undoLine}</Slim>}
-            {rows.length > 0 && (
-              // closes by height when every row was confirmed, so what's below slides up
-              <div className="grid flex-1 transition-[grid-template-rows] duration-300 ease-out" style={{ gridTemplateRows: batch?.closing ? '0fr' : '1fr' }}>
-                <section className={`${card} flex min-h-0 flex-col gap-3 p-5 transition-opacity duration-300 ${batch?.closing ? 'overflow-hidden opacity-0' : ''}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className={h2}>Ready to confirm <Count n={rows.length} /></h2>
-                      <p className={sub}>Untick anything drafts shouldn’t use.</p>
-                    </div>
-                    <button type="button" className={primary} disabled={!ticked.length || !!batch} onClick={confirmTicked}>
-                      <Check size={15} aria-hidden />{ticked.length === b.ready.length || batch ? `Confirm all ${batch ? rows.length : ticked.length}` : `Confirm ${ticked.length}`}
-                    </button>
-                  </div>
-                  <ReadyList rows={rows} skipped={skipped} sent={batch?.sent ?? new Set()} onToggle={toggle} />
-                </section>
+      {/* two columns that end on the same line: what needs the user | the fact sheet. Whichever side is shorter grows:
+          the fact sheet (its "+ Add a fact" stays at the foot), or the left column's last card (Ready to confirm, Your
+          call once everything is confirmed, or "Nothing needs you" when the column is empty). */}
+      <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-3 md:gap-4">
+          {calls > 0 && (
+            <section className={`${card} ${rows.length ? '' : 'flex-1'}`}>
+              <h2 className={`${h2} px-5 pt-5`}>Your call <Count n={calls} /></h2>
+              <div className="divide-y divide-[var(--div)]">
+                {b.conflicts.map((c) => <ConflictCard key={`${c.a.id}-${c.b.id}`} c={c} onPick={pickOne} picked={picked} />)}
+                {b.differs.map((g) => <DiffersCard key={g.id} g={g} onConfirm={flyToSheet} onReject={reject} />)}
               </div>
-            )}
-          </div>
-          <div className="min-w-0">
-            <div ref={sheet} className="lg:sticky" style={{ top: stickTop }}><FactSheet b={b} landing={landing} onAdd={add} /></div>
-          </div>
+            </section>
+          )}
+          {done ? (
+            <section className={`${card} wf-anim card-in flex flex-1 flex-col items-center justify-center gap-2 p-5 text-center`}>
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-tint text-stone-700"><Check size={20} aria-hidden /></span>
+              <h2 className={h2}>Nothing needs you</h2>
+              <p className={sub}>Every fact in the sheet can be used in your drafts.</p>
+              {undoLine && <p className={sub}>{undoLine}</p>}
+            </section>
+          ) : undoLine && <Slim>{undoLine}</Slim>}
+          {rows.length > 0 && (
+            // closes by height when every row was confirmed
+            <div className="grid flex-1 transition-[grid-template-rows] duration-300 ease-out" style={{ gridTemplateRows: batch?.closing ? '0fr' : '1fr' }}>
+              <section className={`${card} flex min-h-0 flex-col gap-3 p-5 transition-opacity duration-300 ${batch?.closing ? 'overflow-hidden opacity-0' : ''}`}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className={h2}>Ready to confirm <Count n={rows.length} /></h2>
+                    <p className={sub}>Untick anything drafts shouldn’t use.</p>
+                  </div>
+                  <button type="button" className={primary} disabled={!ticked.length || !!batch} onClick={confirmTicked}>
+                    <Check size={15} aria-hidden />{ticked.length === b.ready.length || batch ? `Confirm all ${batch ? rows.length : ticked.length}` : `Confirm ${ticked.length}`}
+                  </button>
+                </div>
+                <ReadyList rows={rows} skipped={skipped} sent={batch?.sent ?? new Set()} onToggle={toggle} />
+              </section>
+            </div>
+          )}
         </div>
-      )}
+        <div className="min-w-0"><FactSheet b={b} landing={landing} onAdd={add} /></div>
+      </div>
 
-      {/* full width: the source cards, the pages, what isn't a fact */}
       {b.cards.length > 0 && (
         <section className="flex flex-col gap-3">
           <h2 className={h2}>Checked against outside sources <Count n={b.cards.length} /></h2>
@@ -773,7 +759,6 @@ export default function WebsiteFactsPage() {
           </div>
         </section>
       )}
-      {pagesRead}
       {b.notFacts.length > 0 && (
         <Fold title="Read, but not facts" count={b.notFacts.length}>
           <ul className="py-2">
