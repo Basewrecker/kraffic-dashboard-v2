@@ -695,15 +695,13 @@ html[data-theme="dark"] .co-logo-plate { background: rgb(244 244 245 / 0.9); }
 @keyframes co-dot-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
 
 /* ---- Website facts (pages/facts/WebsiteFactsPage.jsx) ----------------------------------------------------------------
-   --copper: this page's one colour, ONLY where the site and an outside source disagree (the Differs verdict and the
-   "Your call" items). Everything else is ink / graphite; --negative only for a page that couldn't be read. */
-:root { --copper: #B5532A; --logo-plate: #FFFFFF; } /* --logo-plate: white in both themes, behind a source's logo */
-html[data-theme="dark"] { --copper: #E08A5B; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --copper: #E08A5B; } }
+   Colour: graphite, plus --negative (the red Sentiment uses) where the site and an outside source disagree, where a
+   decision is the user's ("Your call"), and for pages that couldn't be read. No colour of its own. */
+:root { --logo-plate: #FFFFFF; } /* white in both themes, behind a source's logo */
 @keyframes wf-settle { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes wf-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes wf-pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
-@keyframes wf-diff { 0%, 100% { background-color: transparent; } 40% { background-color: color-mix(in srgb, var(--copper) 24%, transparent); } }
+@keyframes wf-diff { 0%, 100% { background-color: transparent; } 40% { background-color: color-mix(in srgb, var(--negative) 20%, transparent); } }
 @keyframes wf-fold { from { opacity: 1; transform: translateY(var(--wf-y, 6px)); } to { opacity: 0; transform: none; } }
 @keyframes wf-strike { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes wf-spin { to { transform: rotate(360deg); } }
@@ -711,7 +709,7 @@ html[data-theme="dark"] { --copper: #E08A5B; }
 .wf-settle { animation: wf-settle 420ms cubic-bezier(.2,.8,.2,1) both; }
 .wf-draw { stroke-dasharray: 1; animation: wf-draw 320ms ease-out both; }
 .wf-pop { animation: wf-pop 240ms cubic-bezier(.2,.8,.2,1) both; }
-.wf-diff { color: var(--copper); border-radius: 3px; animation: wf-diff 800ms ease-out 1000ms 1 both; } /* the part that differs: copper, one pulse */
+.wf-diff { color: var(--negative); border-radius: 3px; animation: wf-diff 800ms ease-out 1000ms 1 both; } /* the part that differs: red, one pulse */
 .wf-fold { animation: wf-fold 700ms cubic-bezier(.2,.8,.2,1) 350ms both; }
 .wf-strike { transform-origin: left; animation: wf-strike 320ms ease-out both; }
 .wf-spin { transform-box: fill-box; transform-origin: center; animation: wf-spin 900ms linear infinite; }
