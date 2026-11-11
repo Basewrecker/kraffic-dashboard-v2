@@ -143,16 +143,18 @@ function Hero({ b, calls, scan, hasRead, onRead, scanLine }) {
   )
 }
 
-// ---- Your call: every decision has the same shape. A numbered header (the fact's name, "Doesn't match"), two equal
-// cards side by side (who says it, the value, the quoted line), and the action at the foot of each card. Resolved, it
-// collapses to one line with Undo.
-function CallSide({ g, logo, label, value, quote, kept, dim, children }) {
+// ---- Your call: every decision has the same shape and no boxes. A numbered header (the fact's name, "Doesn't match",
+// and "Drop this fact" at the right where the fact can simply be left out), then two plain columns split by one
+// hairline: who says it, the value, the quote, the action. Hovering a side that can be kept underlines its value in
+// copper; choosing it fades the other side, and the decision collapses to one line with Undo.
+function CallSide({ g, logo, label, value, quote, kept, dim, pick = false, children }) {
+  const line = kept ? 'decoration-[var(--copper)]' : pick && !dim ? 'decoration-transparent group-hover/side:decoration-[var(--copper)] group-focus-within/side:decoration-[var(--copper)]' : 'decoration-transparent'
   return (
-    <div {...useHot(g.pages)} className={`flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg border p-4 transition-[border-color,opacity] duration-200 ${kept ? 'border-[var(--copper)]' : 'border-line'} ${dim ? 'opacity-40' : ''}`}>
+    <div {...useHot(g.pages)} className={`group/side flex min-w-0 flex-col gap-1.5 px-5 transition-opacity duration-300 first:pl-0 last:pr-0 ${dim ? 'opacity-25' : ''}`}>
       <span className={`flex items-center gap-2 ${sub}`}>{logo}<span className="min-w-0 truncate">{label}</span></span>
-      <span className={`${big} [text-wrap:balance]`}>{value}</span>
+      <span className={`${big} w-fit underline decoration-2 underline-offset-[6px] transition-[text-decoration-color] duration-150 [text-wrap:balance] ${line}`}>{value}</span>
       {quote}
-      <div className="mt-auto flex min-h-9 items-center pt-2">{children}</div>
+      <div className="mt-auto flex min-h-9 items-center pt-1">{children}</div>
     </div>
   )
 }
@@ -160,21 +162,21 @@ function SiteSide({ g, value, onKeep, picked }) {
   const site = siteEvidence(g.lead)
   const kept = picked === g.id
   return (
-    <CallSide g={g} kept={kept} dim={!!picked && !kept} logo={<BrandLogo size="h-5 w-5 rounded" />} label={`Your site${site ? ` · ${where(site.url)}` : ''}`}
-      value={<span data-wf-from={g.id}>{value ?? g.lead.value}</span>} quote={site && <Sentence fact={g.lead} quoted className="text-[13px] leading-[18px]" />}>
+    <CallSide g={g} pick kept={kept} dim={!!picked && !kept} logo={<BrandLogo size="h-5 w-5 rounded" />} label={`Your site${site ? ` · ${where(site.url)}` : ''}`}
+      value={value ?? g.lead.value} quote={site && <p className={`${sub} [text-wrap:pretty]`}>“{site.snippet}”</p>}>
       <button type="button" disabled={!!picked} onClick={onKeep} className={`${secondary} ${kept ? 'disabled:opacity-100' : ''}`}>{kept && <Check size={15} aria-hidden />}{kept ? 'Kept' : 'Keep this one'}</button>
     </CallSide>
   )
 }
-const CallItem = ({ n, name, children, foot }) => (
+const CallItem = ({ n, name, children, drop }) => (
   <div className="flex flex-col gap-3 p-5">
     <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
       <span className="num grid h-5 w-5 shrink-0 place-items-center rounded-full bg-tint text-[12px] font-semibold text-stone-900">{n}</span>
       <b className={`text-[15px] leading-[22px] ${val}`}>{name}</b>
       <span className="text-[13px] leading-[18px] font-semibold text-[var(--copper)]">Doesn’t match</span>
+      {drop && <span className="ml-auto">{drop}</span>}
     </p>
-    <div className="flex flex-col gap-3 sm:flex-row">{children}</div>
-    {foot}
+    <div className="grid grid-cols-2 divide-x divide-[var(--div)]">{children}</div>
   </div>
 )
 const ConflictItem = ({ c, n, onPick, picked }) => (
@@ -189,7 +191,7 @@ function DiffersItem({ g, n, onKeep, onDrop, picked }) {
   const out = outsideEvidence(f)
   const diff = diffOf(f)
   return (
-    <CallItem n={n} name={KIND[f.field]} foot={<button type="button" disabled={!!picked} onClick={() => onDrop(g)} className={`${link} self-start`}>Drop this fact</button>}>
+    <CallItem n={n} name={KIND[f.field]} drop={<button type="button" disabled={!!picked} onClick={() => onDrop(g)} className={`rounded text-[13px] leading-[18px] font-normal text-stone-600 underline-offset-2 hover:text-stone-900 hover:underline ${focus}`}>Drop this fact</button>}>
       <SiteSide g={g} picked={picked} onKeep={() => onKeep(g)} value={diff ? <Diff parts={diff.site} /> : claimParts(f)[1]} />
       <CallSide g={g} dim={picked === g.id} logo={src && <SourceLogo src={src} size="h-5 w-5 rounded" />} label={src?.name ?? 'The source'} value={diff ? <Diff parts={diff.source} /> : out?.snippet}>
         {out && <a href={out.url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-0.5 ${link}`}>Open the source<ArrowUpRight size={14} aria-hidden /></a>}
@@ -414,8 +416,9 @@ function FactSheet({ b, landing, onAdd }) {
   )
 }
 
-// ---- Checked against outside sources: one compact card, a row per source. Logo · name and kind · the value · the
-// result in plain words · the source's link. A mismatch shows both values. Click a row for where it is on the site.
+// ---- Checked against outside sources: one compact card. A summary line ("2 match · 1 doesn't match · 1 not found"),
+// then a row per source at the same rhythm as Ready to confirm: logo · name and kind · the result in plain words ·
+// the source's link; under it the value (a mismatch shows both) and where it is on the site. Click a row for the quote.
 const KIND_SHORT = { trustpilot_rating: 'rating', bbb_rating: 'rating', award: 'award' }
 const Tok = ({ parts }) => <b className={val}>{parts[0]}{parts[1] && <span className="wf-anim wf-diff">{parts[1]}</span>}</b>
 function SourceRow({ g, checking, waiting }) {
@@ -431,15 +434,16 @@ function SourceRow({ g, checking, waiting }) {
   const value = v === 'differs' && diff ? <span className="font-normal text-stone-600"><Tok parts={diff.tokens.site} /> on your site · <Tok parts={diff.tokens.source} /> on {src.name}</span>
     : ['trustpilot_rating', 'bbb_rating'].includes(f.field) && out && v === 'agrees' ? out.snippet : claimParts(f)[1]
   return (
-    <li {...useHot(g.pages)} className={`flex flex-col justify-center transition-opacity duration-200 ${waiting ? 'opacity-50' : ''}`}>
-      <div className="flex items-start gap-3 py-3">
+    <li {...useHot(g.pages)} className={`transition-opacity duration-200 ${waiting ? 'opacity-50' : ''}`}>
+      <div className="flex items-start gap-3 py-3.5">
         <SourceLogo src={src} />
         <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`min-w-0 flex-1 rounded text-left ${focus}`}>
           <span className="flex flex-wrap items-baseline justify-between gap-x-3">
             <span className={sub}><b className={`text-[14px] ${val}`}>{src.name}</b> · {KIND_SHORT[f.field] ?? KIND[f.field].toLowerCase()}</span>
             <span className={!checking && v === 'differs' ? 'text-[13px] leading-[18px] font-semibold text-[var(--copper)]' : sub}>{result}</span>
           </span>
-          <span className={`mt-0.5 block text-[15px] leading-[22px] ${val} [overflow-wrap:anywhere]`}>{value}</span>
+          <span className={`block text-[15px] leading-[22px] ${val} [overflow-wrap:anywhere]`}>{value}</span>
+          {site && <span className={`block ${sub}`}>On your site · {where(site.url)}{more > 0 ? ` · and ${plural(more, 'page')} more` : ''}</span>}
         </button>
         {out
           ? <a href={out.url} target="_blank" rel="noreferrer" aria-label={`Open ${src.name}`} className={`grid h-7 w-7 shrink-0 place-items-center rounded-md text-stone-600 transition-colors duration-150 hover:bg-tint hover:text-stone-900 ${focus}`}><ArrowUpRight size={15} aria-hidden /></a>
@@ -447,100 +451,105 @@ function SourceRow({ g, checking, waiting }) {
       </div>
       {open && (
         <div className="wf-anim card-in flex flex-col gap-1 pb-3 pl-10 pr-10">
-          {site && <PageLink url={site.url} />}
           <Sentence fact={f} quoted className="text-[13px] leading-[18px]" />
-          {more > 0 && <p className={sub}>and {plural(more, 'page')} more: {g.pages.slice(1).map(where).join(', ')}</p>}
+          {more > 0 && <p className={sub}>Also on {g.pages.slice(1).map(where).join(', ')}</p>}
         </div>
       )}
     </li>
   )
 }
-const SourcesCard = ({ cards, scan }) => (
-  <section className={`${card} flex h-full flex-col p-5`}>
-    <h2 className={h2}>Checked against outside sources <Count n={cards.length} /></h2>
-    {/* leftover height goes between the rows, never under them */}
-    <ul className="mt-1 grid flex-1 divide-y divide-[var(--div)]" style={{ gridTemplateRows: `repeat(${cards.length}, minmax(min-content, 1fr))` }}>
-      {cards.map((g, i) => <SourceRow key={g.id} g={g} checking={scan?.checking === i} waiting={scan?.read != null || scan?.checking < i} />)}
-    </ul>
-  </section>
-)
-
-// ---- Where we read it: a headline, one tile per site section that gave facts, the rest in one line. Each tile: a ring
-// (the fact count in its centre; the arc is the share of the section's pages a fact came from; a small red notch per
-// page we couldn't read), and beside it the section's name and its facts by name.
-function Ring({ n, share, fails, run, delay }) {
-  const S = 64, SW = 7
-  const c = { cx: S / 2, cy: S / 2, r: (S - SW) / 2, fill: 'none', strokeWidth: SW, pathLength: 100 }
+function SourcesCard({ cards, scan }) {
+  const count = (v) => cards.filter((g) => verdictOf(g.lead) === v).length
+  const [same, off, none] = [count('agrees'), count('differs'), count('unchecked')]
+  const parts = [
+    same > 0 && <span key="s">{same} {same === 1 ? 'matches' : 'match'}</span>,
+    off > 0 && <span key="o" className="font-semibold text-[var(--copper)]">{off} {off === 1 ? 'doesn’t' : 'don’t'} match</span>,
+    none > 0 && <span key="n">{none} not found</span>,
+  ].filter(Boolean)
   return (
-    <span className="relative grid shrink-0 place-items-center" style={{ width: S, height: S }}>
-      <svg width={S} height={S} viewBox={`0 0 ${S} ${S}`} className="-rotate-90" aria-hidden>
-        <circle {...c} stroke="var(--data-track)" />
-        {share > 0 && <circle key={run} {...c} stroke="var(--color-stone-700)" strokeLinecap={share >= 1 ? 'butt' : 'round'} strokeDasharray={`${share * 100} 100`} className="wf-anim wf-arc" style={{ animationDelay: `${delay}ms` }} />}
-        {Array.from({ length: fails }, (_, k) => <circle key={k} {...c} stroke="var(--negative)" strokeDasharray="2.5 97.5" strokeDashoffset={-(100 - (k + 1) * 5)} />)}
-      </svg>
-      <b className="num absolute text-[20px] leading-none font-semibold text-stone-900">{n}</b>
-    </span>
+    // any height left over from the card beside it stays under the last row (never between rows)
+    <section className={`${card} h-full p-5`}>
+      <h2 className={h2}>Checked against outside sources <Count n={cards.length} /></h2>
+      <p className={`num ${sub}`}>{parts.map((x, i) => <span key={x.key}>{i > 0 && ' · '}{x}</span>)}</p>
+      <ul className="mt-2 divide-y divide-[var(--div)]">
+        {cards.map((g, i) => <SourceRow key={g.id} g={g} checking={scan?.checking === i} waiting={scan?.read != null || scan?.checking < i} />)}
+      </ul>
+    </section>
   )
 }
-const TILE_ROWS = 3
-const FactName = ({ g, i = 0, run }) => (
-  <span key={run} title={g.lead.value} className={`flex items-center gap-2 text-[13px] leading-5 ${val} ${run ? 'wf-anim wf-chip' : ''}`} style={{ animationDelay: `${i * 40}ms` }}>
-    <Mark fact={g.lead} size={18} /><span className="min-w-0 truncate">{shortName(g.lead)}</span>
-  </span>
-)
-function SectionTile({ s, si, groups, facts, scan, index }) {
+
+// ---- Where we read it: one ring for the whole site (pages read of pages tried, a small red notch per page we
+// couldn't read) and, beside it, the sections that gave facts as compact blocks: the fact count, the section's name
+// and page count, and one row of the logos / icons of its facts. Names show on hover or focus only.
+function SiteRing({ shown, total, share, fails, reading, tip }) {
+  const S = 132, SW = 10
+  const c = { cx: S / 2, cy: S / 2, r: (S - SW) / 2, fill: 'none', strokeWidth: SW, pathLength: 100 }
+  const step = 100 / total // one page's share of the ring
+  return (
+    <EdgeTip className="block !rounded-full" label={`${shown} of ${total} pages read`} tip={tip}>
+      <span className="relative grid shrink-0 place-items-center" style={{ width: S, height: S }}>
+        <svg width={S} height={S} viewBox={`0 0 ${S} ${S}`} className="-rotate-90" aria-hidden>
+          <circle {...c} stroke="var(--data-track)" />
+          {share > 0 && <circle {...c} stroke="var(--color-stone-700)" strokeDasharray={`${share * 100} 100`} className={reading ? '' : 'wf-anim wf-arc'} style={{ animationDelay: '200ms' }} />}
+          {!reading && Array.from({ length: fails }, (_, k) => <circle key={k} {...c} stroke="var(--negative)" strokeDasharray={`${step * 0.6} ${100 - step * 0.6}`} strokeDashoffset={-(share * 100 + step * (k + 0.2))} className="wf-anim fade-in" style={{ animationDelay: '900ms', animationFillMode: 'backwards' }} />)}
+        </svg>
+        <span className="absolute flex flex-col items-center">
+          <b className="num text-[20px] leading-6 font-semibold tracking-[-0.01em] text-stone-900">{shown} of {total}</b>
+          <span className="text-[12px] leading-4 text-stone-600">{reading ? 'reading' : 'pages read'}</span>
+        </span>
+      </span>
+    </EdgeTip>
+  )
+}
+const TILE_MARKS = 6
+function SectionBlock({ s, si, groups }) {
   const { hot, setHot } = useContext(Hot)
   const [active, setActive] = useState(false)
-  const [run, setRun] = useState(0) // each hover replays the arc's sweep and the facts' entrance
-  const reading = scan?.read != null
-  const more = groups.length - TILE_ROWS
-  const read = s.pages.filter((p) => !reading || index.get(p.id) <= scan.read)
-  const from = read.filter((p) => p.ok && factsOnPage(facts, p.url).length)
-  const failed = read.filter((p) => !p.ok)
+  const urls = new Set(s.pages.map((p) => p.url))
+  const here = (g) => g.pages.filter((u) => urls.has(u)).map(where).join(', ')
+  const more = groups.length - TILE_MARKS
   const lit = hot?.src === 'fact' && s.pages.some((p) => hot.urls.has(p.url))
-  const enter = () => { if (active) return; setActive(true); setRun((r) => r + 1); setHot({ urls: new Set(s.pages.map((p) => p.url)), src: 'tile' }) }
+  const enter = () => { if (active) return; setActive(true); setHot({ urls, src: 'tile' }) }
   const leave = () => { setActive(false); setHot(null) }
   return (
-    <div tabIndex={0} role="group" aria-label={`${s.label}: ${plural(groups.length, 'fact')} from ${from.length} of ${plural(s.pages.length, 'page')}`}
+    <div tabIndex={0} role="group" aria-label={`${s.label}: ${plural(groups.length, 'fact')} from ${plural(s.pages.length, 'page')}`}
       onMouseEnter={enter} onMouseLeave={leave} onFocus={enter} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) leave() }}
-      className={`relative flex h-full gap-3.5 rounded-lg border bg-surface p-4 transition-[transform,box-shadow,border-color] duration-200 ${lit ? 'border-stone-600' : 'border-line'} ${active ? 'z-20 -translate-y-0.5 shadow-md' : ''} ${focus}`}>
-      <div className="flex shrink-0 flex-col items-center gap-1.5">
-        <EdgeTip className="block !rounded-full" label={`${from.length} of ${plural(s.pages.length, 'page')} gave facts`}
-          tip={(
-            <span className="flex flex-col gap-1">
-              <span className={val}>Facts came from</span>
-              {from.map((p) => <span key={p.id}>{p.title} · {where(p.url)}</span>)}
-              {failed.map((p) => <span key={p.id} className="text-negative">Couldn’t read {where(p.url)}</span>)}
-            </span>
-          )}>
-          <Ring n={groups.length} share={from.length / s.pages.length} fails={failed.length} run={run} delay={run > 1 ? 0 : 250 + si * 140} />
-        </EdgeTip>
-        <span className={`num whitespace-nowrap text-[12px] leading-4 font-normal text-stone-600`}>{from.length} of {plural(s.pages.length, 'page')}</span>
+      style={{ animationDelay: `${150 + si * 90}ms`, animationFillMode: 'backwards' }}
+      className={`wf-anim card-in relative flex min-w-0 flex-col gap-1 rounded-lg border bg-surface p-4 transition-[transform,box-shadow,border-color] duration-200 ${lit ? 'border-stone-600' : 'border-line'} ${active ? 'z-20 -translate-y-0.5 shadow-md' : ''} ${focus}`}>
+      <b className="num text-[32px] leading-9 font-semibold tracking-[-0.02em] text-stone-900">{groups.length}</b>
+      <p className="flex flex-wrap items-baseline gap-x-2"><span className={`text-[14px] leading-5 ${val}`}>{s.label}</span><span className={`num ${sub}`}>{plural(s.pages.length, 'page')}</span></p>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {groups.slice(0, TILE_MARKS).map((g, i) => (
+          <EdgeTip key={g.id} className="block" label={shortName(g.lead)} tip={<span className="flex flex-col gap-0.5"><span className={val}>{shortName(g.lead)}</span><span className="text-stone-600">{here(g)}</span></span>}>
+            <span className="wf-anim wf-pop block" style={{ animationDelay: `${450 + si * 90 + i * 60}ms` }}><Mark fact={g.lead} size={20} /></span>
+          </EdgeTip>
+        ))}
+        {more > 0 && <span className={`num ${sub}`}>+{more}</span>}
       </div>
-      <div className="relative flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-          <span className={`text-[14px] leading-5 ${val}`}>{s.label}</span>
-          <span className={`num ${sub}`}>{plural(s.pages.length, 'page')}</span>
+      {/* hover or focus: the facts found here by name, and the pages they came from */}
+      {active && (
+        <div className="absolute -inset-x-px top-full z-20 pt-1.5">
+          <ul className="wf-anim card-in flex flex-col gap-2 rounded-lg border border-line bg-raised p-3 shadow-lg">
+            {groups.map((g) => (
+              <li key={g.id} className="flex items-start gap-2">
+                <Mark fact={g.lead} size={18} />
+                <span className="min-w-0">
+                  <span className={`block text-[13px] leading-[18px] ${val} [overflow-wrap:anywhere]`}>{shortName(g.lead)}</span>
+                  <span className="block text-[12px] leading-4 text-stone-600 [overflow-wrap:anywhere]">{here(g)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
-        {groups.slice(0, TILE_ROWS).map((g, i) => <FactName key={g.id} g={g} i={i} run={active && more <= 0 ? run : 0} />)}
-        {more > 0 && <span className={sub}>+{more} more</span>}
-        {/* hover opens every fact found here, over what's below */}
-        {active && more > 0 && (
-          <div className="absolute -inset-x-[17px] top-5 z-20 flex flex-col gap-1 rounded-b-lg border border-t-0 border-line bg-surface px-4 pb-4 pt-1 shadow-md">
-            {groups.map((g, i) => <FactName key={g.id} g={g} i={i} run={run} />)}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }
 function PagesRead({ list, facts, merged, scan, hasRead, onRetry, k }) {
   const sections = useMemo(() => pageSections(list), [list])
-  const index = useMemo(() => new Map(list.map((p, i) => [p.id, i])), [list])
   const okPages = list.filter((p) => p.ok).length
   const factPages = list.filter((p) => factsOnPage(facts, p.url).length).length
   const counted = useCountUp(hasRead ? okPages : 0, 700, 0)
-  const countedFacts = useCountUp(hasRead ? factPages : 0, 700, 0)
   const reading = scan?.read != null
   const withFacts = sections.map((s) => {
     const urls = new Set(s.pages.map((p) => p.url))
@@ -548,28 +557,29 @@ function PagesRead({ list, facts, merged, scan, hasRead, onRetry, k }) {
   })
   const tiles = withFacts.filter((x) => x.groups.length)
   const none = withFacts.filter((x) => !x.groups.length).map((x) => x.s.label)
-  const failed = list.length - okPages
+  const bad = list.filter((p) => !p.ok)
+  const shown = reading ? scan.read + 1 : hasRead || scan ? (scan ? list.length : counted) : 0
   return (
     <section className={`${card} flex flex-col gap-4 p-5 lg:p-6`}>
       <h2 className={h2}>Where we read it</h2>
-      <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <b className="num text-kpi text-stone-900">{reading ? scan.read + 1 : counted} of {list.length}</b>
-        <span className="text-[15px] leading-[22px] text-stone-600">{reading ? `reading ${where(list[scan.read].url)}` : hasRead ? 'pages read' : 'pages from your sitemap, at most'}</span>
-        {hasRead && !scan && <span className="text-[15px] leading-[22px] text-stone-600">Facts came from <b className={`num ${val}`}>{countedFacts}</b></span>}
-        {scan?.checking != null && <span className="text-[15px] leading-[22px] text-stone-600">checking the sources</span>}
-      </p>
-      {hasRead ? (
-        <div key={k} className="grid grid-cols-1 items-stretch gap-3 sm:max-[1099px]:grid-cols-2 min-[1100px]:grid-cols-4">
-          {tiles.map(({ s, groups }, si) => <SectionTile key={s.label} s={s} si={si} groups={groups} facts={facts} scan={scan} index={index} />)}
+      <div className="flex flex-col gap-5 min-[900px]:flex-row min-[900px]:items-center">
+        <div className="flex shrink-0 items-center gap-4">
+          <SiteRing key={k} shown={shown} total={list.length} reading={reading} share={reading ? (scan.read + 1) / list.length : hasRead || scan ? okPages / list.length : 0} fails={hasRead && !scan ? bad.length : 0}
+            tip={hasRead && bad.length ? <span className="flex flex-col gap-1"><span className={val}>Couldn’t be read</span>{bad.map((p) => <span key={p.id}>{where(p.url)} · {p.error}</span>)}</span> : `Up to ${list.length} pages from your sitemap`} />
+          <p className="max-w-[10rem] text-[15px] leading-[22px] text-stone-600 [text-wrap:balance]" aria-live="polite">
+            {reading ? <>Reading {where(list[scan.read].url)}</> : scan ? 'Checking the sources' : hasRead ? <>Facts came from <b className={`num ${val}`}>{factPages}</b> pages</> : <>Up to <b className={`num ${val}`}>{list.length}</b> pages from your sitemap</>}
+          </p>
         </div>
-      ) : (
-        // never read: one line that fills as the site is read
-        <div className="h-2 overflow-hidden rounded-full bg-[var(--data-track)]"><div className="h-full rounded-full bg-stone-600 transition-[width] duration-100 ease-linear" style={{ width: `${reading ? ((scan.read + 1) / list.length) * 100 : scan ? 100 : 0}%` }} /></div>
-      )}
-      {hasRead && !scan && (none.length > 0 || failed > 0) && (
+        {hasRead && (
+          <div key={k} className="grid min-w-0 flex-1 grid-cols-2 items-stretch gap-3 min-[1100px]:grid-cols-4">
+            {tiles.map(({ s, groups }, si) => <SectionBlock key={s.label} s={s} si={si} groups={groups} />)}
+          </div>
+        )}
+      </div>
+      {hasRead && !scan && (none.length > 0 || bad.length > 0) && (
         <div className={`flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 ${sub}`}>
           <p>{none.length > 0 && <>{none.join(', ')} · read, no facts</>}</p>
-          {failed > 0 && <p>{plural(failed, 'page')} couldn’t be read · <button type="button" onClick={onRetry} className={link}>Retry</button></p>}
+          {bad.length > 0 && <p>{plural(bad.length, 'page')} couldn’t be read · <button type="button" onClick={onRetry} className={link}>Retry</button></p>}
         </div>
       )}
     </section>
@@ -758,9 +768,10 @@ export default function WebsiteFactsPage() {
           share their top and bottom edge; in the shorter one the leftover height goes between its rows. A left card
           that has nothing left shows its done state in the same cell. */}
       <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-2">
+        {/* any height left over from the card beside it stays under the last decision */}
         <section className={`${card} flex min-w-0 flex-col`}>
           <h2 className={`${h2} px-5 pt-5`}>Your call <Count n={calls} /></h2>
-          <div className="flex flex-1 flex-col divide-y divide-[var(--div)]">
+          <div className={`flex flex-col divide-y divide-[var(--div)] ${calls ? '' : 'flex-1'}`}>
             {callItems.map((it) => (it.r ? <ResolvedLine key={it.key} r={it.r} onUndo={undoCall} />
               : it.c ? <ConflictItem key={it.key} c={it.c} n={n += 1} onPick={pickOne} picked={picked} />
                 : <DiffersItem key={it.key} g={it.g} n={n += 1} onKeep={keepSite} onDrop={dropFact} picked={picked} />))}
