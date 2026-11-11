@@ -72,6 +72,25 @@ export function shortName(fact) {
   }
   return v
 }
+// The part of a value that carries it (the number, the rating, the award's name), to set it a weight heavier:
+// "Over 2 million bottles sold" → ['Over ', '2 million', ' bottles sold']. null when the value has no such part.
+const KEY_RE = {
+  trustpilot_rating: /\d(?:\.\d)?\s*(?:\/|out of)\s*5/i,
+  bbb_rating: /\b[A-D][+-]?(?![a-z])/,
+  award: /(?:America['’]s\s+)?Best\s+[A-Z][^.,;:]*?(?:19|20)\d{2}/,
+  years: /\d{1,2}\s+years|(?:19|20)\d{2}/i,
+  accreditation: /^.+?(?=\s+(?:certified|accredited)\b)/i,
+}
+const KEY_NUMBER = /\d+\s+(?:in|out of)\s+\d+|\$?\d[\d,.]*\s*(?:million|billion|thousand|%)?/i
+export function keyPart(fact) {
+  const v = String(fact.value)
+  if (['brand_name', 'phone', 'email', 'address', 'title', 'description', 'heading'].includes(fact.field)) return null
+  const m = (KEY_RE[fact.field] ?? KEY_NUMBER).exec(v)
+  if (!m || !m[0].trim() || m[0].trim() === v) return null
+  const key = m[0].trimEnd()
+  return [v.slice(0, m.index), key, v.slice(m.index + key.length)]
+}
+
 // The number a site claim leads with, as a short numeral: "2M", "9/10", "98%"; null when it has none
 export function numeralOf(value) {
   const v = String(value)

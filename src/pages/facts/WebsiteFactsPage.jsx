@@ -2,24 +2,24 @@
 // site, which claims an outside source backs up, and the facts Content drafts may use. Design only: the app's data and
 // its four actions (confirm, reject, add a fact, read the website again) on sample data (data/websiteFacts.js).
 // Layout, as Sentiment: a hero card (how many facts are confirmed, by status; the sources we checked against; Read
-// website again) → Where we read it → two columns (Your call, Ready to confirm | the fact sheet, Checked against
-// outside sources) → Read, but not facts.
+// website again) → Where we read it → a 2×2 grid of equal columns (Your call · Checked against outside sources / Ready
+// to confirm · the fact sheet; the two cards of a row share their top and bottom edge) → Read, but not facts.
 // Type: section titles 700, values 600 in ink, everything supporting 400 in stone-600. One helper line per section.
 // Colour: graphite, with one solid-ink element per card at most (its primary button); --copper only where the site and
 // a source disagree; --negative only for a page we couldn't read. No AI engine logos: engines don't read the site.
 // Previews: ?wf=empty (never read) · ?wf=done (nothing left to review). "Read website again" plays the reading state.
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote } from 'lucide-react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { AlignLeft, AppWindow, ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Heading1, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote } from 'lucide-react'
 import { brand } from '../../store/workspace'
 import SiteLogo from '../../components/ui/SiteLogo'
 import BetaTag from '../../components/ui/BetaTag'
 import EdgeTip from '../../components/ui/EdgeTip'
 import { GLIDE, useCountUp } from '../../components/ui/motion'
-import { ADD_KINDS, GROUPS, KIND, READ_AT, bucketsOf, claimParts, diffOf, factsOnPage, groupOf, markOf, outsideEvidence, pageSections, pathOf, sampleFacts, samplePages, shortName, siteEvidence, sourceOf, verdictOf } from '../../data/websiteFacts'
+import { ADD_KINDS, GROUPS, KIND, READ_AT, bucketsOf, claimParts, diffOf, factsOnPage, groupOf, keyPart, markOf, outsideEvidence, pageSections, pathOf, sampleFacts, samplePages, shortName, siteEvidence, sourceOf, verdictOf } from '../../data/websiteFacts'
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const READ_YEAR = new Date(READ_AT).getUTCFullYear()
-const KIND_ICON = { brand_name: Building2, phone: Phone, email: Mail, address: MapPin, trustpilot_rating: Star, bbb_rating: Star, award: Award, years: CalendarDays, accreditation: BadgeCheck, claim: Quote, note: StickyNote, title: StickyNote, description: StickyNote, heading: StickyNote }
+const KIND_ICON = { brand_name: Building2, phone: Phone, email: Mail, address: MapPin, trustpilot_rating: Star, bbb_rating: Star, award: Award, years: CalendarDays, accreditation: BadgeCheck, claim: Quote, note: StickyNote, title: AppWindow, description: AlignLeft, heading: Heading1 }
 const focus = 'outline-none focus-visible:ring-2 focus-visible:ring-focus'
 const btn = `inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3.5 text-[14px] font-semibold transition-colors duration-150 disabled:opacity-50 ${focus}`
 const primary = `${btn} bg-ink text-on-ink hover:bg-ink-hover`
@@ -225,9 +225,10 @@ function ReadyList({ rows, skipped, sent, onToggle }) {
   const kindOf = (g) => (groupOf(g.lead) === 'contact' ? 0 : ['ratings', 'awards', 'accreditations'].includes(groupOf(g.lead)) ? 1 : 2)
   const groups = [0, 1, 2].map((k) => rows.filter((g) => kindOf(g) === k)).filter((list) => list.length)
   return (
-    <div className="flex flex-col divide-y divide-[var(--div)]">
+    <div className="flex flex-1 flex-col divide-y divide-[var(--div)]">
       {groups.map((list) => (
-        <ul key={list[0].id} className="py-2 first:pt-0 last:pb-0">
+        // leftover height goes between the lines, never under them
+        <ul key={list[0].id} style={{ flexGrow: list.length }} className="flex flex-col justify-around py-2 first:pt-0 last:pb-0">
           {list.map((g) => <ReadyLine key={g.id} g={g} on={!skipped.has(g.id)} sent={sent.has(g.id)} onToggle={() => onToggle(g)} />)}
         </ul>
       ))}
@@ -329,37 +330,74 @@ function AddSlot({ onAdd }) {
   )
 }
 
-// ---- the fact sheet: what Content drafts may use, by kind. Every row: its logo or a line icon, the value in the
-// primary colour, and at the right a tick (confirmed, 600), "To confirm" (waiting, 400) or "Your call" (copper).
+// ---- the fact sheet: what Content drafts may use, by status. "In use": the confirmed facts (600, a tick). "Waiting":
+// everything else (400; the two decisions carry "Your call" in copper). No kind headings: the icon carries the kind,
+// and names it on hover. The key part of a value is a weight heavier. A confirmed row moves up from Waiting to In use.
 const sheetRow = 'flex items-start gap-2 rounded-md px-1.5 py-[3px] -mx-1.5 text-[14px] leading-5 text-stone-900 transition-colors duration-150'
-const isLit = (hot, g) => !!hot && g.pages.some((u) => hot.urls.has(u))
+const isLit = (hot, pages) => !!hot && pages.some((u) => hot.urls.has(u))
 const Lead = ({ children }) => <span className="grid h-5 w-4 shrink-0 place-items-center">{children}</span>
-const toConfirm = <span className={`shrink-0 pl-2 ${sub} leading-5`}>To confirm</span>
 const yourCall = <span className="shrink-0 pl-2 text-[13px] leading-5 font-semibold text-[var(--copper)]">Your call</span>
-function SheetRow({ g, landing, state }) {
+const KeyValue = ({ fact, kept = false }) => {
+  const k = keyPart(fact)
+  return k ? <>{k[0]}<b className={kept ? 'font-bold' : 'font-semibold'}>{k[1]}</b>{k[2]}</> : fact.value
+}
+const KindMark = ({ fact }) => <EdgeTip tip={KIND[fact.field] ?? 'Fact'} label={KIND[fact.field] ?? 'Fact'} className="block"><Lead><Mark fact={fact} size={16} /></Lead></EdgeTip>
+function SheetRow({ row, landing }) {
   const { hot } = useContext(Hot)
+  const { g, pair, state } = row
+  const pages = pair ? [...pair.a.pages, ...pair.b.pages] : g.pages
   const kept = state === 'kept'
   return (
-    <p {...useHot(g.pages)} data-wf-slot={kept ? g.id : undefined} className={`${sheetRow} ${kept ? 'font-semibold' : 'font-normal'} ${isLit(hot, g) ? 'bg-tint' : ''}`}>
-      <Lead><Mark fact={g.lead} size={16} /></Lead>
-      <span className={`min-w-0 flex-1 [overflow-wrap:anywhere] transition-opacity duration-200 ${landing.has(g.id) ? 'opacity-0' : ''}`}>
-        {g.lead.value}{g.lead.status === 'ADDED_BY_YOU' && <span className="font-normal text-stone-600"> · added by you</span>}
+    <p {...useHot(pages)} data-flip={row.id} data-wf-slot={g?.id} className={`${sheetRow} ${kept ? 'font-semibold' : 'font-normal'} ${isLit(hot, pages) ? 'bg-tint' : ''}`}>
+      <KindMark fact={(pair ? pair.a : g).lead} />
+      <span className={`min-w-0 flex-1 [overflow-wrap:anywhere] transition-opacity duration-200 ${g && landing.has(g.id) ? 'opacity-0' : ''}`}>
+        {pair ? <><KeyValue fact={pair.a.lead} /> <span className="text-stone-600">/</span> <KeyValue fact={pair.b.lead} /></> : <KeyValue fact={g.lead} kept={kept} />}
+        {g?.lead.status === 'ADDED_BY_YOU' && <span className="font-normal text-stone-600"> · added by you</span>}
       </span>
-      {kept ? <Lead><Check size={14} aria-label="Confirmed" className="text-stone-600" /></Lead> : state === 'call' ? yourCall : toConfirm}
+      {kept ? <Lead><Check size={14} aria-label="Confirmed" className="text-stone-600" /></Lead> : state === 'call' ? yourCall : null}
     </p>
   )
 }
-function FactSheet({ b, landing, onAdd }) {
-  const callIds = new Set(b.differs.map((g) => g.id))
-  const waiting = [...b.ready, ...b.differs]
-  const groups = GROUPS.map((grp) => ({
-    ...grp,
-    kept: b.kept.filter((g) => groupOf(g.lead) === grp.id),
-    open: waiting.filter((g) => groupOf(g.lead) === grp.id),
-    picks: b.conflicts.filter((c) => groupOf(c.a.lead) === grp.id),
-  })).filter((grp) => grp.kept.length || grp.open.length || grp.picks.length)
+function SheetList({ title, rows, landing, empty }) {
+  const n = useCountUp(rows.length, 300)
   return (
-    <aside aria-label="Your fact sheet" className={`${card} flex flex-col gap-3 p-5`}>
+    // leftover height goes between the rows, never under them
+    <section style={{ flexGrow: Math.max(1, rows.length) }} className="flex min-w-0 flex-col border-t border-[var(--div)] py-2.5">
+      <h3 className="pb-1 text-[13px] leading-[18px] font-semibold text-stone-600">{title} <span className="num font-normal">{n}</span></h3>
+      {rows.length ? <div className="flex flex-1 flex-col justify-around">{rows.map((row) => <SheetRow key={row.id} row={row} landing={landing} />)}</div>
+        : <p className={`${sub} py-[3px]`}>{empty}</p>}
+    </section>
+  )
+}
+function FactSheet({ b, landing, onAdd }) {
+  const inUse = b.kept.map((g) => ({ id: g.id, g, state: 'kept' }))
+  const waiting = [
+    ...b.conflicts.map((c) => ({ id: `pair-${c.a.id}`, pair: c, state: 'call' })),
+    ...b.differs.map((g) => ({ id: g.id, g, state: 'call' })),
+    ...GROUPS.flatMap((grp) => b.ready.filter((g) => groupOf(g.lead) === grp.id)).map((g) => ({ id: g.id, g, state: 'wait' })),
+  ]
+  // a row that changes list (confirmed, undone) travels to its new place; a new row fades in
+  const box = useRef(null)
+  const seen = useRef(new Map())
+  const order = [...inUse, ...waiting].map((r) => r.id).join('|')
+  useLayoutEffect(() => {
+    const host = box.current
+    if (!host) return
+    const top = host.getBoundingClientRect().top
+    const next = new Map()
+    host.querySelectorAll('[data-flip]').forEach((el) => {
+      el.getAnimations().forEach((a) => a.cancel())
+      const y = el.getBoundingClientRect().top - top
+      next.set(el.dataset.flip, y)
+      if (reduced() || !seen.current.size) return
+      const was = seen.current.get(el.dataset.flip)
+      if (was == null) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, easing: 'ease-out' })
+      else if (Math.abs(was - y) > 1) el.animate([{ transform: `translateY(${was - y}px)` }, { transform: 'none' }], { duration: 420, easing: GLIDE })
+    })
+    seen.current = next
+  }, [order])
+  return (
+    <aside aria-label="Your fact sheet" className={`${card} flex h-full flex-col gap-3 p-5`}>
       <header className="flex items-center gap-3">
         <BrandLogo size="h-9 w-9 rounded-lg" />
         <div className="min-w-0">
@@ -367,22 +405,9 @@ function FactSheet({ b, landing, onAdd }) {
           <p className={sub}>What Content drafts may use</p>
         </div>
       </header>
-      <div className="flex flex-col">
-        {groups.map((grp) => (
-          <section key={grp.id} className="flex min-w-0 flex-col border-t border-[var(--div)] py-2.5">
-            <h3 className="pb-1 text-[13px] leading-[18px] font-semibold text-stone-600">{grp.label}</h3>
-            {grp.kept.map((g) => <SheetRow key={g.id} g={g} landing={landing} state="kept" />)}
-            {grp.open.map((g) => <SheetRow key={g.id} g={g} landing={landing} state={callIds.has(g.id) ? 'call' : 'wait'} />)}
-            {/* a contradiction: both candidate values on one row */}
-            {grp.picks.map((c) => (
-              <p key={c.a.id} className={`${sheetRow} font-normal`}>
-                <Lead><Mark fact={c.a.lead} size={16} /></Lead>
-                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{c.a.lead.value} <span className="text-stone-600">/</span> {c.b.lead.value}</span>
-                {yourCall}
-              </p>
-            ))}
-          </section>
-        ))}
+      <div ref={box} className="flex flex-1 flex-col">
+        <SheetList title="In use" rows={inUse} landing={landing} empty="Nothing confirmed yet." />
+        <SheetList title="Waiting" rows={waiting} landing={landing} empty="Nothing is waiting." />
       </div>
       <AddSlot onAdd={onAdd} />
     </aside>
@@ -406,7 +431,7 @@ function SourceRow({ g, checking, waiting }) {
   const value = v === 'differs' && diff ? <span className="font-normal text-stone-600"><Tok parts={diff.tokens.site} /> on your site · <Tok parts={diff.tokens.source} /> on {src.name}</span>
     : ['trustpilot_rating', 'bbb_rating'].includes(f.field) && out && v === 'agrees' ? out.snippet : claimParts(f)[1]
   return (
-    <li {...useHot(g.pages)} className={`transition-opacity duration-200 ${waiting ? 'opacity-50' : ''}`}>
+    <li {...useHot(g.pages)} className={`flex flex-col justify-center transition-opacity duration-200 ${waiting ? 'opacity-50' : ''}`}>
       <div className="flex items-start gap-3 py-3">
         <SourceLogo src={src} />
         <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`min-w-0 flex-1 rounded text-left ${focus}`}>
@@ -430,78 +455,78 @@ function SourceRow({ g, checking, waiting }) {
     </li>
   )
 }
-const SourcesCard = ({ cards, scan, className = '' }) => (
-  <section className={`${card} p-5 ${className}`}>
+const SourcesCard = ({ cards, scan }) => (
+  <section className={`${card} flex h-full flex-col p-5`}>
     <h2 className={h2}>Checked against outside sources <Count n={cards.length} /></h2>
-    <ul className="mt-1 divide-y divide-[var(--div)]">
+    {/* leftover height goes between the rows, never under them */}
+    <ul className="mt-1 grid flex-1 divide-y divide-[var(--div)]" style={{ gridTemplateRows: `repeat(${cards.length}, minmax(min-content, 1fr))` }}>
       {cards.map((g, i) => <SourceRow key={g.id} g={g} checking={scan?.checking === i} waiting={scan?.read != null || scan?.checking < i} />)}
     </ul>
   </section>
 )
 
-// ---- Where we read it: a headline, one tile per site section that gave facts, the rest in one line ------------------
-// A page segment: filled = a fact came from it, outline = read, red outline = couldn't be read. Hover: the page's card.
-function Segment({ p, found, todo, now, lit, delay, run }) {
-  const look = todo ? 'bg-[var(--data-track)]'
-    : now ? 'wf-anim wf-pulse bg-stone-600'
-      : !p.ok ? 'border-[1.5px] border-negative'
-        : found.length ? 'bg-stone-300' : 'border-[1.5px] border-stone-300'
-  const bar = (
-    <span className={`relative block h-2 w-full rounded-[2px] transition-shadow duration-150 ${look} ${lit ? 'shadow-[0_0_0_2px_var(--color-surface),0_0_0_3.5px_var(--color-stone-600)]' : ''}`}>
-      {!todo && !now && p.ok && found.length > 0 && <span key={run} className="wf-anim wf-seg absolute inset-0 rounded-[2px] bg-stone-600" style={{ animationDelay: `${delay}ms` }} />}
-    </span>
-  )
-  if (todo) return <span className="block min-w-0 flex-1 py-1">{bar}</span>
+// ---- Where we read it: a headline, one tile per site section that gave facts, the rest in one line. Each tile: a ring
+// (the fact count in its centre; the arc is the share of the section's pages a fact came from; a small red notch per
+// page we couldn't read), and beside it the section's name and its facts by name.
+function Ring({ n, share, fails, run, delay }) {
+  const S = 64, SW = 7
+  const c = { cx: S / 2, cy: S / 2, r: (S - SW) / 2, fill: 'none', strokeWidth: SW, pathLength: 100 }
   return (
-    <EdgeTip className="block min-w-0 flex-1 py-1" label={`${p.title ?? pathOf(p.url)}: ${p.ok ? plural(found.length, 'fact') : 'could not be read'}`}
-      tip={(
-        <span className="flex flex-col gap-1">
-          <span className={val}>{p.title ?? 'Couldn’t be read'}</span>
-          <span className="text-stone-600">{brand.domain}{pathOf(p.url) === '/' ? '' : pathOf(p.url)}</span>
-          {!p.ok ? <span className="text-negative">{p.error}</span>
-            : found.length ? <>{found.map((f) => <span key={f.id} className="text-stone-900">· {f.value}</span>)}</>
-              : <span className="text-stone-600">No facts found here</span>}
-        </span>
-      )}>
-      {bar}
-    </EdgeTip>
+    <span className="relative grid shrink-0 place-items-center" style={{ width: S, height: S }}>
+      <svg width={S} height={S} viewBox={`0 0 ${S} ${S}`} className="-rotate-90" aria-hidden>
+        <circle {...c} stroke="var(--data-track)" />
+        {share > 0 && <circle key={run} {...c} stroke="var(--color-stone-700)" strokeLinecap={share >= 1 ? 'butt' : 'round'} strokeDasharray={`${share * 100} 100`} className="wf-anim wf-arc" style={{ animationDelay: `${delay}ms` }} />}
+        {Array.from({ length: fails }, (_, k) => <circle key={k} {...c} stroke="var(--negative)" strokeDasharray="2.5 97.5" strokeDashoffset={-(100 - (k + 1) * 5)} />)}
+      </svg>
+      <b className="num absolute text-[20px] leading-none font-semibold text-stone-900">{n}</b>
+    </span>
   )
 }
 const TILE_ROWS = 3
 const FactName = ({ g, i = 0, run }) => (
-  <span key={run} className={`flex items-center gap-2 text-[13px] leading-5 ${val} ${run ? 'wf-anim wf-chip' : ''}`} style={{ animationDelay: `${i * 40}ms` }}>
+  <span key={run} title={g.lead.value} className={`flex items-center gap-2 text-[13px] leading-5 ${val} ${run ? 'wf-anim wf-chip' : ''}`} style={{ animationDelay: `${i * 40}ms` }}>
     <Mark fact={g.lead} size={18} /><span className="min-w-0 truncate">{shortName(g.lead)}</span>
   </span>
 )
 function SectionTile({ s, si, groups, facts, scan, index }) {
   const { hot, setHot } = useContext(Hot)
   const [active, setActive] = useState(false)
-  const [run, setRun] = useState(0) // each hover replays the segments' fill and the facts' entrance
+  const [run, setRun] = useState(0) // each hover replays the arc's sweep and the facts' entrance
   const reading = scan?.read != null
   const more = groups.length - TILE_ROWS
+  const read = s.pages.filter((p) => !reading || index.get(p.id) <= scan.read)
+  const from = read.filter((p) => p.ok && factsOnPage(facts, p.url).length)
+  const failed = read.filter((p) => !p.ok)
+  const lit = hot?.src === 'fact' && s.pages.some((p) => hot.urls.has(p.url))
   const enter = () => { if (active) return; setActive(true); setRun((r) => r + 1); setHot({ urls: new Set(s.pages.map((p) => p.url)), src: 'tile' }) }
   const leave = () => { setActive(false); setHot(null) }
   return (
-    <div tabIndex={0} role="group" aria-label={`${s.label}: ${plural(groups.length, 'fact')} from ${plural(s.pages.length, 'page')}`}
+    <div tabIndex={0} role="group" aria-label={`${s.label}: ${plural(groups.length, 'fact')} from ${from.length} of ${plural(s.pages.length, 'page')}`}
       onMouseEnter={enter} onMouseLeave={leave} onFocus={enter} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) leave() }}
-      className={`relative flex h-full flex-col gap-2.5 rounded-lg border border-line bg-surface p-4 transition-[transform,box-shadow] duration-200 ${active ? 'z-20 -translate-y-0.5 shadow-md' : ''} ${focus}`}>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className={`text-[14px] leading-5 ${val}`}>{s.label}</span>
-        <span className={`num ${sub}`}>{plural(s.pages.length, 'page')}</span>
+      className={`relative flex h-full gap-3.5 rounded-lg border bg-surface p-4 transition-[transform,box-shadow,border-color] duration-200 ${lit ? 'border-stone-600' : 'border-line'} ${active ? 'z-20 -translate-y-0.5 shadow-md' : ''} ${focus}`}>
+      <div className="flex shrink-0 flex-col items-center gap-1.5">
+        <EdgeTip className="block !rounded-full" label={`${from.length} of ${plural(s.pages.length, 'page')} gave facts`}
+          tip={(
+            <span className="flex flex-col gap-1">
+              <span className={val}>Facts came from</span>
+              {from.map((p) => <span key={p.id}>{p.title} · {where(p.url)}</span>)}
+              {failed.map((p) => <span key={p.id} className="text-negative">Couldn’t read {where(p.url)}</span>)}
+            </span>
+          )}>
+          <Ring n={groups.length} share={from.length / s.pages.length} fails={failed.length} run={run} delay={run > 1 ? 0 : 250 + si * 140} />
+        </EdgeTip>
+        <span className={`num whitespace-nowrap text-[12px] leading-4 font-normal text-stone-600`}>{from.length} of {plural(s.pages.length, 'page')}</span>
       </div>
-      <p className="flex items-baseline gap-1.5"><b className="num text-[32px] leading-9 font-semibold tracking-[-0.02em] text-stone-900">{groups.length}</b><span className={sub}>{groups.length === 1 ? 'fact' : 'facts'}</span></p>
-      <div className="flex gap-[3px]">
-        {s.pages.map((p, j) => {
-          const i = index.get(p.id)
-          return <Segment key={p.id} p={p} found={factsOnPage(facts, p.url)} todo={reading && i > scan.read} now={reading && i === scan.read} lit={hot?.src === 'fact' && hot.urls.has(p.url)} run={run} delay={(run ? 0 : 300 + si * 160) + j * 45} />
-        })}
-      </div>
-      {/* the facts found here, by name (3 at most; hover opens the rest over what's below) */}
-      <div className="relative flex flex-col gap-1 pt-1">
+      <div className="relative flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+          <span className={`text-[14px] leading-5 ${val}`}>{s.label}</span>
+          <span className={`num ${sub}`}>{plural(s.pages.length, 'page')}</span>
+        </div>
         {groups.slice(0, TILE_ROWS).map((g, i) => <FactName key={g.id} g={g} i={i} run={active && more <= 0 ? run : 0} />)}
         {more > 0 && <span className={sub}>+{more} more</span>}
+        {/* hover opens every fact found here, over what's below */}
         {active && more > 0 && (
-          <div className="absolute -inset-x-[17px] -top-0.5 z-20 flex flex-col gap-1 rounded-b-lg border border-t-0 border-line bg-surface px-4 pb-4 pt-1.5 shadow-md">
+          <div className="absolute -inset-x-[17px] top-5 z-20 flex flex-col gap-1 rounded-b-lg border border-t-0 border-line bg-surface px-4 pb-4 pt-1 shadow-md">
             {groups.map((g, i) => <FactName key={g.id} g={g} i={i} run={run} />)}
           </div>
         )}
@@ -538,13 +563,55 @@ function PagesRead({ list, facts, merged, scan, hasRead, onRetry, k }) {
           {tiles.map(({ s, groups }, si) => <SectionTile key={s.label} s={s} si={si} groups={groups} facts={facts} scan={scan} index={index} />)}
         </div>
       ) : (
-        // never read: every page as one segment, filling as the site is read
-        <div className="flex gap-[3px]">{list.map((p, i) => <span key={p.id} className={`h-2 min-w-0 flex-1 rounded-[2px] ${reading && i < scan.read ? 'bg-stone-600' : reading && i === scan.read ? 'wf-anim wf-pulse bg-stone-600' : scan?.checking != null ? 'bg-stone-600' : 'bg-[var(--data-track)]'}`} />)}</div>
+        // never read: one line that fills as the site is read
+        <div className="h-2 overflow-hidden rounded-full bg-[var(--data-track)]"><div className="h-full rounded-full bg-stone-600 transition-[width] duration-100 ease-linear" style={{ width: `${reading ? ((scan.read + 1) / list.length) * 100 : scan ? 100 : 0}%` }} /></div>
       )}
       {hasRead && !scan && (none.length > 0 || failed > 0) && (
         <div className={`flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 ${sub}`}>
           <p>{none.length > 0 && <>{none.join(', ')} · read, no facts</>}</p>
           {failed > 0 && <p>{plural(failed, 'page')} couldn’t be read · <button type="button" onClick={onRetry} className={link}>Retry</button></p>}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ---- Read, but not facts: text from the home page, a card each. Use as a fact (it joins the fact sheet's Waiting
+// list) or Reject (the card fades, with Undo for a few seconds); both appear on hover or focus, always on touch.
+function NotFactCard({ f, i, onUse, onReject }) {
+  const [out, setOut] = useState(false)
+  const Icon = KIND_ICON[f.field] ?? StickyNote
+  const site = siteEvidence(f)
+  const small = `${secondary} h-8 px-2.5 text-[13px]`
+  const reject = () => { if (reduced()) { onReject(f); return } setOut(true); setTimeout(() => onReject(f), 220) }
+  return (
+    <li className={`group wf-anim card-in flex min-w-0 flex-1 basis-56 flex-col gap-2 rounded-lg border border-line bg-surface p-4 transition-[transform,box-shadow,opacity] duration-200 hover:-translate-y-0.5 hover:shadow-md ${out ? 'opacity-0' : ''}`} style={{ animationDelay: `${i * 70}ms`, animationFillMode: 'both' }}>
+      <span className={`flex items-center gap-2 ${sub}`}><Icon size={15} strokeWidth={1.75} aria-hidden />{KIND[f.field]}</span>
+      <p className={`text-[15px] leading-[22px] ${val} [overflow-wrap:anywhere] [text-wrap:pretty]`}>“<span data-wf-from={f.id}>{f.value}</span>”</p>
+      {site && <span className={sub}>{where(site.url)}</span>}
+      <div className="mt-auto flex gap-2 pt-1 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 touch:opacity-100">
+        <button type="button" className={small} onClick={() => onUse(f)}>Use as a fact</button>
+        <button type="button" className={small} onClick={reject}>Reject</button>
+      </div>
+    </li>
+  )
+}
+function NotFacts({ items, gone, onUse, onReject, onUndo }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <section className={card}>
+      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`flex w-full items-center gap-3 rounded-xl px-5 py-4 text-left ${focus}`}>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline gap-2"><span className={h2}>Read, but not facts</span><Count n={items.length} /></span>
+          <span className={`block ${sub}`}>We read these but didn’t treat them as facts.</span>
+        </span>
+        <ChevronDown size={16} aria-hidden className={`shrink-0 text-stone-600 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="flex flex-col gap-3 px-5 pb-5">
+          {items.length > 0 && <ul className="flex flex-col gap-3 sm:flex-row">{items.map((f, i) => <NotFactCard key={f.id} f={f} i={i} onUse={onUse} onReject={onReject} />)}</ul>}
+          {gone && <p className={`wf-anim card-in ${sub}`} aria-live="polite">Rejected “{gone.value}” · <button type="button" onClick={onUndo} className={link}>Undo</button></p>}
+          {!items.length && !gone && <p className={sub}>Nothing left here.</p>}
         </div>
       )}
     </section>
@@ -564,13 +631,6 @@ function Fold({ title, count, children }) {
     </section>
   )
 }
-// a slim one-line card: "8 confirmed · Undo", "Nothing needs you."
-const Slim = ({ children }) => (
-  <div className={`${card} wf-anim card-in flex items-center gap-2.5 px-5 py-3 text-[14px] leading-5 text-stone-600`}>
-    <Check size={16} aria-hidden className="shrink-0 text-stone-700" /><span>{children}</span>
-  </div>
-)
-
 // ---- the page -------------------------------------------------------------------------------------------------------
 export default function WebsiteFactsPage() {
   useEffect(() => { document.title = 'Fact Check · Kraffic' }, [])
@@ -587,7 +647,8 @@ export default function WebsiteFactsPage() {
   const [landing, setLanding] = useState(() => new Set())
   const [picked, setPicked] = useState(null) // the claim kept in a contradiction, while it resolves
   const [skipped, setSkipped] = useState(() => new Set()) // Ready to confirm rows the user unticked
-  const [batch, setBatch] = useState(null) // a Confirm in flight: { rows, sent: Set, closing }
+  const [batch, setBatch] = useState(null) // a Confirm in flight: { rows, sent: Set }
+  const [gone, setGone] = useState(null) // the text just rejected in Read, but not facts (Undo for a few seconds)
   const [undo, setUndo] = useState(null) // the last Confirm: { ids, n }
   const [resolved, setResolved] = useState([]) // calls already made: { key, name, result, ids, pos }
   const [hot, setHot] = useState(null)
@@ -597,19 +658,19 @@ export default function WebsiteFactsPage() {
   const ticked = b.ready.filter((g) => !skipped.has(g.id))
 
   const setStatus = (ids, status) => setFacts((fs) => fs.map((f) => (ids.includes(f.id) ? { ...f, status } : f)))
-  // "Into the sheet": the value leaves its row and lands in its slot in the fact sheet
-  const flyToSheet = (g) => {
-    const r0 = document.querySelector(`[data-wf-from="${g.id}"]`)?.getBoundingClientRect()
-    if (!r0 || reduced()) { setStatus(g.ids, 'CONFIRMED'); return }
-    setLanding((s) => new Set(s).add(g.id))
-    setStatus(g.ids, 'CONFIRMED')
-    const land = () => setLanding((s) => { const n = new Set(s); n.delete(g.id); return n })
+  // "Into the sheet", for text that isn't in the sheet yet (Read, but not facts): it leaves its card and lands on its new row
+  const flyToSheet = (id, text, apply) => {
+    const r0 = document.querySelector(`[data-wf-from="${id}"]`)?.getBoundingClientRect()
+    if (!r0 || reduced()) { apply(); return }
+    setLanding((s) => new Set(s).add(id))
+    apply()
+    const land = () => setLanding((s) => { const n = new Set(s); n.delete(id); return n })
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      const r1 = document.querySelector(`[data-wf-slot="${g.id}"]`)?.getBoundingClientRect()
+      const r1 = document.querySelector(`[data-wf-slot="${id}"]`)?.getBoundingClientRect()
       if (!r1) { land(); return }
       const ghost = document.createElement('div')
       ghost.className = 'wf-ghost'
-      ghost.textContent = g.lead.value
+      ghost.textContent = text
       Object.assign(ghost.style, { left: `${r0.left}px`, top: `${r0.top}px`, maxWidth: `${Math.max(r0.width + 18, 220)}px` })
       document.body.appendChild(ghost)
       const end = `translate(${r1.left - r0.left + 30}px, ${r1.top - r0.top + 4}px)`
@@ -617,19 +678,20 @@ export default function WebsiteFactsPage() {
       a.onfinish = a.oncancel = () => { ghost.remove(); land() }
     }))
   }
-  // Confirm: the ticked values go into the sheet one after another; when every row went, the card closes to one slim row
+  // Confirm: the ticked facts are confirmed one after another (each row moves up to "In use" in the fact sheet)
   const confirmTicked = () => {
     const go = ticked
     const done = { ids: go.flatMap((g) => g.ids), n: go.length }
     if (!go.length) return
     if (reduced()) { setStatus(done.ids, 'CONFIRMED'); setUndo(done); return }
-    const all = go.length === b.ready.length
-    setBatch({ rows: b.ready, sent: new Set(), closing: false })
-    go.forEach((g, i) => setTimeout(() => { flyToSheet(g); setBatch((bt) => bt && { ...bt, sent: new Set(bt.sent).add(g.id) }) }, i * 130))
-    const end = go.length * 130 + 620
-    if (all) setTimeout(() => setBatch((bt) => bt && { ...bt, closing: true }), end)
-    setTimeout(() => { setBatch(null); setUndo(done) }, end + (all ? 340 : 0))
+    setBatch({ rows: b.ready, sent: new Set() })
+    go.forEach((g, i) => setTimeout(() => { setStatus(g.ids, 'CONFIRMED'); setBatch((bt) => bt && { ...bt, sent: new Set(bt.sent).add(g.id) }) }, i * 130))
+    setTimeout(() => { setBatch(null); setUndo(done) }, go.length * 130 + 450)
   }
+  // Read, but not facts: "Use as a fact" makes it a fact waiting to be confirmed; "Reject" leaves an Undo for a few seconds
+  const useAsFact = (f) => flyToSheet(f.id, f.value, () => setFacts((fs) => fs.map((x) => (x.id === f.id ? { ...x, category: 'custom' } : x))))
+  const rejectText = (f) => { setStatus([f.id], 'REJECTED'); setGone(f) }
+  const undoText = () => { setStatus([gone.id], 'DISCOVERED'); setGone(null) }
   const undoConfirm = () => { setStatus(undo.ids, 'DISCOVERED'); setUndo(null) }
   const toggle = (g) => setSkipped((s) => { const n = new Set(s); if (n.has(g.id)) n.delete(g.id); else n.add(g.id); return n })
   // Your call: the open decisions, in order, and the ones already made (each collapses to one line with Undo)
@@ -644,13 +706,13 @@ export default function WebsiteFactsPage() {
     const finish = () => settle(key, KIND[keep.lead.field], keep.lead.value, [...keep.ids, ...drop.ids])
     if (reduced()) { setStatus(drop.ids, 'REJECTED'); setStatus(keep.ids, 'CONFIRMED'); finish(); return }
     setPicked(keep.id)
-    setTimeout(() => { flyToSheet(keep); setStatus(drop.ids, 'REJECTED'); setPicked(null); finish() }, 600)
+    setTimeout(() => { setStatus(keep.ids, 'CONFIRMED'); setStatus(drop.ids, 'REJECTED'); setPicked(null); finish() }, 600)
   }
   const keepSite = (g) => {
     const finish = () => settle(`d:${g.id}`, KIND[g.lead.field], g.lead.value, g.ids)
     if (reduced()) { setStatus(g.ids, 'CONFIRMED'); finish(); return }
     setPicked(g.id)
-    setTimeout(() => { flyToSheet(g); setPicked(null); finish() }, 600)
+    setTimeout(() => { setStatus(g.ids, 'CONFIRMED'); setPicked(null); finish() }, 600)
   }
   const dropFact = (g) => { settle(`d:${g.id}`, KIND[g.lead.field], 'dropped', g.ids); setStatus(g.ids, 'REJECTED') }
   const add = (field, value) => {
@@ -658,7 +720,12 @@ export default function WebsiteFactsPage() {
     setFacts((fs) => [...fs, { id: `you${fs.length + 1}`, category: kind?.category ?? 'custom', field, value, status: 'ADDED_BY_YOU', source: 'YOU', notes: null, evidence: [] }])
   }
 
-  // "Read website again": the segments fill page by page, section by section, then each source is checked in turn
+  useEffect(() => {
+    if (!gone) return undefined
+    const t = setTimeout(() => setGone(null), 6000)
+    return () => clearTimeout(t)
+  }, [gone])
+  // "Read website again": the rings fill page by page, section by section, then each source is checked in turn
   const read = () => { if (scan) return; if (reduced()) { setHasRead(true); return } setScan({ read: 0 }) }
   useEffect(() => {
     if (!scan) return undefined
@@ -678,84 +745,60 @@ export default function WebsiteFactsPage() {
   if (!hasRead) return <Hot.Provider value={hotCtx}>{hero}{pagesRead}</Hot.Provider>
 
   const rows = batch ? batch.rows : b.ready
-  const done = !calls && !rows.length // nothing needs the user
   const undoLine = undo && !batch && <><b className={`num ${val}`}>{undo.n} confirmed</b> · <button type="button" onClick={undoConfirm} className={link}>Undo</button></>
+  const doneMark = <span className="grid h-10 w-10 place-items-center rounded-full bg-tint text-stone-700"><Check size={20} aria-hidden /></span>
+  const doneBox = 'wf-anim card-in flex flex-1 flex-col items-center justify-center gap-2 p-5 text-center'
   let n = 0
   return (
     <Hot.Provider value={hotCtx}>
       {hero}
       {pagesRead}
 
-      {/* two columns: what needs the user | the fact sheet and the sources. Each column's last card grows to the other
-          column's height, so the two end on the same line; the fact sheet and Your call keep their natural height. */}
-      <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col gap-3 md:gap-4">
-          {!done && callItems.length > 0 && (
-            <section className={`${card} ${rows.length || undoLine ? '' : 'flex-1'}`}>
-              <h2 className={`${h2} px-5 pt-5`}>Your call <Count n={calls} /></h2>
-              <div className="divide-y divide-[var(--div)]">
-                {callItems.map((it) => (it.r ? <ResolvedLine key={it.key} r={it.r} onUndo={undoCall} />
-                  : it.c ? <ConflictItem key={it.key} c={it.c} n={n += 1} onPick={pickOne} picked={picked} />
-                    : <DiffersItem key={it.key} g={it.g} n={n += 1} onKeep={keepSite} onDrop={dropFact} picked={picked} />))}
-              </div>
-            </section>
-          )}
-          {done ? (
-            <section className={`${card} wf-anim card-in flex flex-1 flex-col items-center justify-center gap-2 p-5 text-center`}>
-              <span className="grid h-10 w-10 place-items-center rounded-full bg-tint text-stone-700"><Check size={20} aria-hidden /></span>
-              <h2 className={h2}>Nothing needs you</h2>
-              <p className={sub}>Every fact in the sheet can be used in your drafts.</p>
-              {settled.map((r) => <p key={r.key} className={sub}><b className={val}>{r.name}</b> · {r.result} · <button type="button" onClick={() => undoCall(r)} className={link}>Undo</button></p>)}
-              {undoLine && <p className={sub}>{undoLine}</p>}
-            </section>
-          ) : undoLine && (rows.length ? <Slim>{undoLine}</Slim> : (
-            // everything ticked was confirmed and calls are still open: this card takes the rest of the column
-            <section className={`${card} wf-anim card-in flex flex-1 flex-col items-center justify-center gap-2 p-5 text-center`}>
-              <span className="grid h-10 w-10 place-items-center rounded-full bg-tint text-stone-700"><Check size={20} aria-hidden /></span>
-              <h2 className={`num ${h2}`}>{undo.n} confirmed</h2>
-              <p className={sub}>They’re in the fact sheet. <button type="button" onClick={undoConfirm} className={link}>Undo</button></p>
-            </section>
-          ))}
-          {rows.length > 0 && (
-            // closes by height when every row was confirmed
-            <div className="grid flex-1 transition-[grid-template-rows] duration-300 ease-out" style={{ gridTemplateRows: batch?.closing ? '0fr' : '1fr' }}>
-              <section className={`${card} flex min-h-0 flex-col gap-3 p-5 transition-opacity duration-300 ${batch?.closing ? 'overflow-hidden opacity-0' : ''}`}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className={h2}>Ready to confirm <Count n={rows.length} /></h2>
-                    <p className={sub}>Untick anything drafts shouldn’t use.</p>
-                  </div>
-                  <button type="button" className={primary} disabled={!ticked.length || !!batch} onClick={confirmTicked}>
-                    <Check size={15} aria-hidden />{ticked.length === b.ready.length || batch ? `Confirm all ${batch ? rows.length : ticked.length}` : `Confirm ${ticked.length}`}
-                  </button>
+      {/* a 2×2 grid of equal columns: Your call · the sources / Ready to confirm · the fact sheet. The two cards of a row
+          share their top and bottom edge; in the shorter one the leftover height goes between its rows. A left card
+          that has nothing left shows its done state in the same cell. */}
+      <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-2">
+        <section className={`${card} flex min-w-0 flex-col`}>
+          <h2 className={`${h2} px-5 pt-5`}>Your call <Count n={calls} /></h2>
+          <div className="flex flex-1 flex-col divide-y divide-[var(--div)]">
+            {callItems.map((it) => (it.r ? <ResolvedLine key={it.key} r={it.r} onUndo={undoCall} />
+              : it.c ? <ConflictItem key={it.key} c={it.c} n={n += 1} onPick={pickOne} picked={picked} />
+                : <DiffersItem key={it.key} g={it.g} n={n += 1} onKeep={keepSite} onDrop={dropFact} picked={picked} />))}
+            {!calls && <div className={doneBox}>{doneMark}<p className={`text-[15px] leading-[22px] ${val}`}>Nothing needs your call</p></div>}
+          </div>
+        </section>
+        <div className="min-w-0">{b.cards.length > 0 && <SourcesCard cards={b.cards} scan={scan} />}</div>
+
+        <section className={`${card} flex min-w-0 flex-col gap-3 p-5`}>
+          {rows.length > 0 ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className={h2}>Ready to confirm <Count n={rows.length} /></h2>
+                  <p className={sub}>Untick anything drafts shouldn’t use.</p>
                 </div>
-                <ReadyList rows={rows} skipped={skipped} sent={batch?.sent ?? new Set()} onToggle={toggle} />
-              </section>
-            </div>
+                <button type="button" className={primary} disabled={!ticked.length || !!batch} onClick={confirmTicked}>
+                  <Check size={15} aria-hidden />{ticked.length === b.ready.length || batch ? `Confirm all ${batch ? rows.length : ticked.length}` : `Confirm ${ticked.length}`}
+                </button>
+              </div>
+              <ReadyList rows={rows} skipped={skipped} sent={batch?.sent ?? new Set()} onToggle={toggle} />
+              {undoLine && <p className={`border-t border-[var(--div)] pt-3 ${sub}`}>{undoLine}</p>}
+            </>
+          ) : (
+            <>
+              <h2 className={h2}>Ready to confirm <Count n={0} /></h2>
+              <div className={doneBox}>
+                {doneMark}
+                <p className={`num text-[15px] leading-[22px] ${val}`}>{undo ? `${undo.n} confirmed` : 'Nothing left to confirm'}</p>
+                {undo && <p className={sub}>They’re in use in the fact sheet. <button type="button" onClick={undoConfirm} className={link}>Undo</button></p>}
+              </div>
+            </>
           )}
-        </div>
-        <div className="flex min-w-0 flex-col gap-3 md:gap-4">
-          <FactSheet b={b} landing={landing} onAdd={add} />
-          {b.cards.length > 0 && <SourcesCard cards={b.cards} scan={scan} className="flex-1" />}
-        </div>
+        </section>
+        <div className="min-w-0"><FactSheet b={b} landing={landing} onAdd={add} /></div>
       </div>
 
-      {b.notFacts.length > 0 && (
-        <Fold title="Read, but not facts" count={b.notFacts.length}>
-          <ul className="py-2">
-            {b.notFacts.map((f) => (
-              <li key={f.id} className="flex items-center gap-4 px-5 py-2">
-                <div className="min-w-0 flex-1">
-                  <p className={`truncate text-[14px] leading-5 ${val}`}><span data-wf-from={f.id}>{f.value}</span></p>
-                  <p className={sub}>{KIND[f.field]} · home page</p>
-                </div>
-                <button type="button" className={link} onClick={() => flyToSheet({ id: f.id, ids: [f.id], lead: f, pages: [] })}>Use as a fact</button>
-                <button type="button" className={link} onClick={() => setStatus([f.id], 'REJECTED')}>Reject</button>
-              </li>
-            ))}
-          </ul>
-        </Fold>
-      )}
+      {(b.notFacts.length > 0 || gone) && <NotFacts items={b.notFacts} gone={gone} onUse={useAsFact} onReject={rejectText} onUndo={undoText} />}
       {b.rejected.length > 0 && (
         <Fold title="Rejected" count={b.rejected.length}>
           <ul className="py-2">

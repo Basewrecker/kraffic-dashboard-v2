@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bucketsOf, claimParts, diffOf, dupKey, factsOnPage, markOf, mergeFacts, numeralOf, shortName, pageSections, sampleFacts, samplePages, sectionOf, sourceOf, verdictOf, yearConflicts } from './websiteFacts.js'
+import { bucketsOf, claimParts, diffOf, dupKey, factsOnPage, keyPart, markOf, mergeFacts, numeralOf, shortName, pageSections, sampleFacts, samplePages, sectionOf, sourceOf, verdictOf, yearConflicts } from './websiteFacts.js'
 
 const facts = sampleFacts('example.com', 'Example')
 const by = (id) => facts.find((f) => f.id === id)
@@ -101,4 +101,17 @@ test('shortName and numeralOf: tight names for rows, the number a claim leads wi
   assert.equal(numeralOf('Recommended by 9 in 10 dermatologists we surveyed'), '9/10')
   assert.equal(numeralOf('98% would buy again'), '98%')
   assert.equal(numeralOf('Leaping Bunny certified'), null)
+})
+
+test('keyPart picks the part of a value that carries it; none for contact details', () => {
+  assert.deepEqual(keyPart(by('f19')), ['Over ', '2 million', ' bottles sold'])
+  assert.deepEqual(keyPart(by('f20')), ['Recommended by ', '9 in 10', ' dermatologists we surveyed'])
+  assert.deepEqual(keyPart(by('f8')), ['Trustpilot ', '4.6 / 5', ''])
+  assert.deepEqual(keyPart(by('f11')), ['TIME ', 'America’s Best Companies 2024', ''])
+  assert.deepEqual(keyPart(by('f16')), ['Over ', '20 years', ''])
+  assert.deepEqual(keyPart(by('f17')), ['Established ', '2013', ''])
+  assert.deepEqual(keyPart(by('f10')), ['', 'A+', ' rated and accredited by the BBB'])
+  assert.deepEqual(keyPart(by('f18')), ['', 'Leaping Bunny', ' certified'])
+  assert.deepEqual(keyPart(by('f21')), ['Free shipping over ', '$60', ''])
+  assert.equal(keyPart(by('f2')), null)
 })
