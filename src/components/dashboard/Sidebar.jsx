@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, FilePenLine } from 'lucide-react'
+import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, FilePenLine, Globe } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
@@ -29,6 +29,7 @@ export const groups = [
   { label: 'Optimize', items: [
     { label: 'Structured Data', icon: Code2, href: '/structured-data' },
     { label: 'Site Audit', icon: ScanSearch, href: '/audit' },
+    { label: 'Website facts', icon: Globe, href: '/website-facts', beta: true }, // as the app (2026-11-10): after Site Audit, Beta pill
     { label: 'Toolkit', icon: Puzzle, href: '/more-tools' },
   ] },
   { label: 'Settings', items: [

@@ -693,3 +693,34 @@ html[data-theme="dark"] .co-logo-plate { background: rgb(244 244 245 / 0.9); }
 @keyframes co-card-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes co-line-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes co-dot-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
+
+/* ---- Website facts (pages/facts/WebsiteFactsPage.jsx) ----------------------------------------------------------------
+   --copper: this page's one colour, ONLY where the site and an outside source disagree (the Differs verdict and the
+   "Your call" items). Everything else is ink / graphite; --negative only for a page that couldn't be read. */
+:root { --copper: #B5532A; --logo-plate: #FFFFFF; } /* --logo-plate: white in both themes, behind a source's logo */
+html[data-theme="dark"] { --copper: #E08A5B; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --copper: #E08A5B; } }
+@keyframes wf-l { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+@keyframes wf-r { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes wf-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes wf-pop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: none; } }
+@keyframes wf-block { from { opacity: .15; transform: scaleY(.3); } to { opacity: 1; transform: none; } }
+@keyframes wf-fold { from { opacity: 1; transform: translateY(var(--wf-y, 6px)); } to { opacity: 0; transform: none; } }
+@keyframes wf-strike { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes wf-spin { to { transform: rotate(360deg); } }
+@keyframes wf-pulse { 50% { opacity: .3; } }
+@keyframes wf-sweep { from { left: 0; opacity: 1; } 90% { opacity: 1; } to { left: 100%; opacity: 0; } }
+.wf-l { animation: wf-l 520ms cubic-bezier(.2,.8,.2,1) both; }
+.wf-r { animation: wf-r 520ms cubic-bezier(.2,.8,.2,1) both; }
+.wf-draw { stroke-dasharray: 1; animation: wf-draw 420ms ease-out both; }
+.wf-pop { transform-box: fill-box; transform-origin: center; animation: wf-pop 220ms ease-out both; }
+.wf-block { transform-origin: bottom; animation: wf-block 260ms cubic-bezier(.2,.8,.2,1) both; }
+.wf-fold { animation: wf-fold 700ms cubic-bezier(.2,.8,.2,1) 350ms both; }
+.wf-strike { transform-origin: left; animation: wf-strike 320ms ease-out both; }
+.wf-spin { transform-box: fill-box; transform-origin: center; animation: wf-spin 900ms linear infinite; }
+.wf-pulse { animation: wf-pulse 700ms ease-in-out infinite; }
+.wf-sweep { animation: wf-sweep 1100ms cubic-bezier(.4,0,.2,1) 150ms both; }
+@media (prefers-reduced-motion: reduce) { .wf-anim { animation: none !important; transition: none !important; } .wf-sweep { display: none; } }
+/* a confirmed value on its way into the fact sheet (drawn in <body>, see flyToSheet) */
+.wf-ghost { position: fixed; z-index: 80; pointer-events: none; margin: -5px -9px; padding: 4px 8px; border: 1px solid var(--color-line); border-radius: 8px;
+  background: var(--color-raised); color: var(--ink); font: 500 14px/20px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .10); }
