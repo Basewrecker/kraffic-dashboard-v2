@@ -4,6 +4,8 @@
 // Layout, as Sentiment: a hero card (how many facts are confirmed, by status; the sources we checked against; Read
 // website again) → Where we read it → a 2×2 grid of equal columns (Your call · Checked against outside sources / Ready
 // to confirm with Read, but not facts under it · the fact sheet; a row's two sides share their top and bottom edge).
+// Nothing changes a card's height after load: Read, but not facts and Add a fact open floating panels; rows are never
+// spread to fill a card.
 // Type: section titles 700, values 600 in ink, everything supporting 400 in stone-600. One helper line per section.
 // Colour: graphite, with one solid-ink element per card at most (its primary button); --negative (Sentiment's red) where
 // the site and a source disagree, on "Your call", and for pages we couldn't read. No AI engine logos: engines don't read the site.
@@ -176,7 +178,7 @@ const CallItem = ({ n, name, children, drop }) => (
       <span className="text-[13px] leading-[18px] font-semibold text-[var(--negative)]">Doesn’t match</span>
       {drop && <span className="ml-auto">{drop}</span>}
     </p>
-    <div className="grid grid-cols-2 divide-x divide-[var(--div)]">{children}</div>
+    <div className="grid grid-cols-2 divide-x divide-line">{children}</div>
   </div>
 )
 const ConflictItem = ({ c, n, onPick, picked }) => (
@@ -307,31 +309,58 @@ function KindPicker({ value, onChange }) {
     </div>
   )
 }
-// the fact sheet's last slot: "+ Add a fact" (the page's only dashed border), opening to the kind picker and a field
+// A floating panel anchored to the control that opened it: Esc and a click outside close it, Tab stays inside it, and
+// focus goes back to the control. (An open kind list inside it takes Esc first.)
+function usePanel(open, close, wrap, opener) {
+  useEffect(() => {
+    if (!open) return undefined
+    const away = (e) => { if (!wrap.current?.contains(e.target)) close() }
+    const key = (e) => {
+      const panel = wrap.current?.querySelector('[role=dialog]')
+      if (!panel) return
+      if (e.key === 'Escape') { if (panel.querySelector('[role=listbox]')) return; close(); opener.current?.focus(); return }
+      if (e.key !== 'Tab') return
+      const stops = [...panel.querySelectorAll('button:not([disabled]), input, a[href], [tabindex="0"]')]
+      if (!stops.length) return
+      const first = stops[0], last = stops[stops.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() } else if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key) }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+}
+const panelBox = 'wf-anim wf-panel absolute left-0 z-40 rounded-xl border border-line bg-raised shadow-lg'
+
+// the fact sheet's last slot: "+ Add a fact" (the page's only dashed border). It opens a popover over the card (the
+// card doesn't grow): the kind picker, a field, Add fact and Cancel.
 function AddSlot({ onAdd }) {
   const [open, setOpen] = useState(false)
   const [kind, setKind] = useState('note')
   const [value, setValue] = useState('')
-  if (!open) {
-    return (
-      <button type="button" onClick={() => setOpen(true)} className={`flex h-9 w-full items-center gap-1.5 rounded-md border border-dashed border-[var(--dashed-border)] px-2.5 text-[14px] font-semibold text-stone-600 transition-colors duration-150 hover:border-stone-600 hover:text-stone-900 ${focus}`}>
+  const wrap = useRef(null)
+  const opener = useRef(null)
+  usePanel(open, () => setOpen(false), wrap, opener)
+  const submit = (e) => { e.preventDefault(); if (!value.trim()) return; onAdd(kind, value.trim()); setValue(''); setOpen(false); opener.current?.focus() }
+  return (
+    <div ref={wrap} className="relative">
+      <button ref={opener} type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`flex h-9 w-full items-center gap-1.5 rounded-md border border-dashed border-[var(--dashed-border)] px-2.5 text-[14px] font-semibold text-stone-600 transition-colors duration-150 hover:border-stone-600 hover:text-stone-900 ${focus}`}>
         <Plus size={15} aria-hidden />Add a fact
       </button>
-    )
-  }
-  const submit = (e) => { e.preventDefault(); if (!value.trim()) return; onAdd(kind, value.trim()); setValue(''); setOpen(false) }
-  return (
-    <form onSubmit={submit} onKeyDown={(e) => e.key === 'Escape' && setOpen(false)} className="wf-anim card-in flex flex-col gap-2 rounded-lg border border-line p-3">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <div className="sm:w-36"><KindPicker value={kind} onChange={setKind} /></div>
-        <input id="wf-add-value" autoFocus value={value} onChange={(e) => setValue(e.target.value)} aria-label="The fact" placeholder="e.g. Free returns within 30 days"
-          className={`h-9 min-w-0 flex-1 rounded-lg border border-line bg-raised px-3 text-[14px] text-stone-900 placeholder:text-stone-600 hover:border-[var(--color-line-strong)] ${focus}`} />
-      </div>
-      <div className="flex gap-2">
-        <button type="submit" disabled={!value.trim()} className={primary}>Add fact</button>
-        <button type="button" className={secondary} onClick={() => setOpen(false)}>Cancel</button>
-      </div>
-    </form>
+      {open && (
+        <form role="dialog" aria-label="Add a fact" onSubmit={submit} className={`${panelBox} bottom-full mb-2 flex w-full origin-bottom-left flex-col gap-2 p-3`}>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="sm:w-36"><KindPicker value={kind} onChange={setKind} /></div>
+            <input id="wf-add-value" autoFocus value={value} onChange={(e) => setValue(e.target.value)} aria-label="The fact" placeholder="e.g. Free returns within 30 days"
+              className={`h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-[14px] text-stone-900 placeholder:text-stone-600 hover:border-[var(--color-line-strong)] ${focus}`} />
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" disabled={!value.trim()} className={primary}>Add fact</button>
+            <button type="button" className={secondary} onClick={() => { setOpen(false); opener.current?.focus() }}>Cancel</button>
+          </div>
+        </form>
+      )}
+    </div>
   )
 }
 
@@ -366,10 +395,9 @@ function SheetRow({ row, landing }) {
 function SheetList({ title, rows, landing, empty }) {
   const n = useCountUp(rows.length, 300)
   return (
-    // leftover height goes between the rows, never under them
-    <section style={{ flexGrow: Math.max(1, rows.length) }} className="flex min-w-0 flex-col border-t border-[var(--div)] py-2.5">
+    <section className="flex min-w-0 flex-col border-t border-[var(--div)] py-2.5">
       <h3 className="pb-1 text-[13px] leading-[18px] font-semibold text-stone-600">{title} <span className="num font-normal">{n}</span></h3>
-      {rows.length ? <div className="flex flex-1 flex-col justify-around">{rows.map((row) => <SheetRow key={row.id} row={row} landing={landing} />)}</div>
+      {rows.length ? <div className="flex flex-col">{rows.map((row) => <SheetRow key={row.id} row={row} landing={landing} />)}</div>
         : <p className={`${sub} py-[3px]`}>{empty}</p>}
     </section>
   )
@@ -410,7 +438,8 @@ function FactSheet({ b, landing, onAdd }) {
           <p className={sub}>What Content drafts may use</p>
         </div>
       </header>
-      <div ref={box} className="flex flex-1 flex-col">
+      {/* rows at a fixed tight rhythm; any height the card is given beyond its own stays under "+ Add a fact" */}
+      <div ref={box} className="flex flex-col">
         <SheetList title="In use" rows={inUse} landing={landing} empty="Nothing confirmed yet." />
         <SheetList title="Waiting" rows={waiting} landing={landing} empty="Nothing is waiting." />
       </div>
@@ -420,8 +449,9 @@ function FactSheet({ b, landing, onAdd }) {
 }
 
 // ---- Checked against outside sources: one compact card. A summary line ("2 match · 1 doesn't match · 1 not found"),
-// then a row per source at the same rhythm as Ready to confirm: logo · name and kind · the result in plain words ·
-// the source's link; under it the value (a mismatch shows both) and where it is on the site. Click a row for the quote.
+// then a row per source: logo · name and kind, the value (a mismatch shows both) and where it is on the site · the
+// status in one word · the source's link. Click a row for the quote. Under the rows: the facts no outside source
+// covers (their icons, named on hover) and when the check ran.
 const KIND_SHORT = { trustpilot_rating: 'rating', bbb_rating: 'rating', award: 'award' }
 const Tok = ({ parts }) => <b className={val}>{parts[0]}{parts[1] && <span className="wf-anim wf-diff">{parts[1]}</span>}</b>
 function SourceRow({ g, checking, waiting }) {
@@ -433,21 +463,21 @@ function SourceRow({ g, checking, waiting }) {
   const site = siteEvidence(f)
   const diff = diffOf(f)
   const more = g.pages.length - 1
-  const result = checking ? 'Checking…' : v === 'agrees' ? `Same on ${src.name}` : v === 'differs' ? 'Doesn’t match' : `Couldn’t find this on ${src.name}`
+  const result = checking ? 'Checking…' : v === 'agrees' ? 'Matches' : v === 'differs' ? 'Doesn’t match' : 'Not found'
   const value = v === 'differs' && diff ? <span className="font-normal text-stone-600"><Tok parts={diff.tokens.site} /> on your site · <Tok parts={diff.tokens.source} /> on {src.name}</span>
     : ['trustpilot_rating', 'bbb_rating'].includes(f.field) && out && v === 'agrees' ? out.snippet : claimParts(f)[1]
   return (
     <li {...useHot(g.pages)} className={`transition-opacity duration-200 ${waiting ? 'opacity-50' : ''}`}>
       {/* logo · the claim · the status (a fixed column, right-aligned, centred in the row) · the link (its own slot, kept
           empty on a row with no link, so every status lines up) */}
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_112px_28px] items-center gap-x-3 py-3">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_92px_28px] items-center gap-x-3 py-2.5">
         <SourceLogo src={src} className="self-start" />
         <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`min-w-0 rounded text-left ${focus}`}>
           <span className={`block ${sub}`}><b className={`text-[14px] ${val}`}>{src.name}</b> · {KIND_SHORT[f.field] ?? KIND[f.field].toLowerCase()}</span>
           <span className={`block text-[15px] leading-[22px] ${val} [overflow-wrap:anywhere]`}>{value}</span>
           {site && <span className={`block ${sub}`}>On your site · {where(site.url)}{more > 0 ? ` · and ${plural(more, 'page')} more` : ''}</span>}
         </button>
-        <span className={`text-right text-[13px] leading-[18px] font-normal [text-wrap:balance] ${!checking && v === 'differs' ? 'text-negative' : 'text-stone-600'}`}>{result}</span>
+        <span className={`whitespace-nowrap text-right text-[13px] leading-[18px] font-normal ${!checking && v === 'differs' ? 'text-negative' : 'text-stone-600'}`}>{result}</span>
         {out
           ? <a href={out.url} target="_blank" rel="noreferrer" aria-label={`Open ${src.name}`} className={`grid h-7 w-7 place-items-center rounded-md text-stone-600 transition-colors duration-150 hover:bg-tint hover:text-stone-900 ${focus}`}><ArrowUpRight size={15} aria-hidden /></a>
           : <span aria-hidden />}
@@ -461,7 +491,9 @@ function SourceRow({ g, checking, waiting }) {
     </li>
   )
 }
-function SourcesCard({ cards, scan }) {
+function SourcesCard({ cards, scan, loose, onCheck }) {
+  const read = new Date(READ_AT)
+  const when = read.toDateString() === new Date().toDateString() ? 'today' : read.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
   const count = (v) => cards.filter((g) => verdictOf(g.lead) === v).length
   const [same, off, none] = [count('agrees'), count('differs'), count('unchecked')]
   const parts = [
@@ -477,6 +509,18 @@ function SourcesCard({ cards, scan }) {
       <ul className="mt-2 divide-y divide-[var(--div)]">
         {cards.map((g, i) => <SourceRow key={g.id} g={g} checking={scan?.checking === i} waiting={scan?.read != null || scan?.checking < i} />)}
       </ul>
+      {/* what had no outside source to check against, and when the check ran */}
+      <div className="flex flex-col gap-1.5 border-t border-[var(--div)] pt-2.5">
+        {loose.length > 0 && (
+          <>
+            <p className={`num text-[14px] leading-5 ${val}`}>No outside source for {plural(loose.length, 'fact')}</p>
+            <div className="flex flex-wrap items-center gap-1">
+              {loose.map((g) => <EdgeTip key={g.id} tip={g.lead.value} label={g.lead.value} className="block"><span className="grid h-6 w-6 place-items-center"><Mark fact={g.lead} size={markOf(g.lead) ? 20 : 17} /></span></EdgeTip>)}
+            </div>
+          </>
+        )}
+        <p className={sub}>Checked {when} · <button type="button" disabled={!!scan} onClick={onCheck} className={link}>Check again</button></p>
+      </div>
     </section>
   )
 }
@@ -555,10 +599,10 @@ function SectionBlock({ s, si, groups, glow, onBox }) {
     <div tabIndex={0} role="group" aria-label={`${s.label}: ${plural(groups.length, 'fact')} from ${plural(s.pages.length, 'page')}`}
       onMouseEnter={enter} onMouseLeave={leave} onFocus={enter} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) leave() }}
       style={{ animationDelay: `${150 + si * 90}ms`, animationFillMode: 'backwards' }}
-      className={`wf-anim card-in relative flex min-w-0 flex-col gap-1 rounded-lg border bg-surface p-4 transition-[transform,box-shadow,border-color] duration-200 ${lit ? 'border-stone-600' : 'border-line'} ${active ? 'z-20 -translate-y-0.5 shadow-md' : ''} ${focus}`}>
+      className={`wf-anim card-in relative flex min-w-0 flex-col gap-2 rounded-lg border bg-surface p-4 transition-[transform,box-shadow,border-color] duration-200 ${lit ? 'border-stone-600' : 'border-line'} ${active ? 'z-20 -translate-y-0.5 shadow-md' : ''} ${focus}`}>
       <b className="num text-[32px] leading-9 font-semibold tracking-[-0.02em] text-stone-900">{groups.length}</b>
       <p className="flex flex-wrap items-baseline gap-x-2"><span className={`text-[14px] leading-5 ${val}`}>{s.label}</span><span className={`num ${sub}`}>{plural(s.pages.length, 'page')}</span></p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {groups.slice(0, TILE_MARKS).map((g, i) => (
           <EdgeTip key={g.id} className="block" label={shortName(g.lead)} tip={<span className="flex flex-col gap-0.5"><span className={val}>{shortName(g.lead)}</span><span className="text-stone-600">{here(g)}</span></span>}>
             <span className="wf-anim wf-pop block" style={{ animationDelay: `${450 + si * 90 + i * 60}ms` }}><Mark fact={g.lead} size={20} /></span>
@@ -607,27 +651,27 @@ function PagesRead({ list, facts, merged, scan, hasRead, onRetry, k }) {
   const boxPages = box ? sections.find((x) => x.label === box)?.pages.map((p) => p.url) ?? [] : []
   const mine = factUrls.filter((u) => boxPages.includes(u))
   const share = mine.length ? [factUrls.indexOf(mine[0]) / factUrls.length, mine.length / factUrls.length] : null
-  // the ring is as tall as the section boxes beside it (top and bottom edges line up)
+  // the ring is a little smaller than the section boxes beside it (nine tenths of their height), centred on them
   const boxes = useRef(null)
   const [size, setSize] = useState(124)
   useLayoutEffect(() => {
     const el = boxes.current
     if (!el) return undefined
-    const fit = () => setSize(Math.max(96, Math.min(160, Math.round(el.getBoundingClientRect().height))))
+    const fit = () => setSize(Math.max(92, Math.min(150, Math.round(el.getBoundingClientRect().height * 0.9))))
     const ro = new ResizeObserver(fit)
     ro.observe(el)
     fit()
     return () => ro.disconnect()
   }, [hasRead])
   return (
-    <section className={`${card} flex flex-col gap-4 p-5 lg:p-6`}>
+    <section className={`${card} flex flex-col gap-6 p-5 lg:p-6`}>
       <div>
         <h2 className={h2}>Where we read it</h2>
         <p className={`num ${sub}`} aria-live="polite">
           {reading ? <>Reading {where(list[scan.read].url)}</> : scan ? 'Checking the sources' : hasRead ? <>Facts came from <b className={val}>{factPages}</b> pages</> : <>Up to <b className={val}>{list.length}</b> pages from your sitemap</>}
         </p>
       </div>
-      <div className="flex flex-col items-center gap-4 min-[900px]:flex-row">
+      <div className="flex flex-col items-center gap-8 min-[900px]:flex-row">
         <SiteRing key={`ring-${k}`} size={size} counts={scan ? {} : counts} total={list.length} reading={reading || !!scan} shown={shown} part={part} setPart={setPart} share={share} onRetry={onRetry} />
         {hasRead && (
           <div ref={boxes} key={`boxes-${k}`} className="grid w-full min-w-0 flex-1 grid-cols-2 items-stretch gap-3 min-[1100px]:grid-cols-4">
@@ -645,8 +689,9 @@ function PagesRead({ list, facts, merged, scan, hasRead, onRetry, k }) {
   )
 }
 
-// ---- Read, but not facts: text from the home page, a card each. Use as a fact (it joins the fact sheet's Waiting
-// list) or Reject (the card fades, with Undo for a few seconds); both appear on hover or focus, always on touch.
+// ---- Read, but not facts: one slim row under Ready to confirm. Clicking it opens a floating panel anchored to the
+// row (upward when there's no room below): the texts as compact cards with Use as a fact (it joins the fact sheet's
+// Waiting list) and Reject (the card fades, with Undo for a few seconds). The row never changes height.
 function NotFactCard({ f, i, onUse, onReject }) {
   const [out, setOut] = useState(false)
   const Icon = KIND_ICON[f.field] ?? StickyNote
@@ -654,11 +699,10 @@ function NotFactCard({ f, i, onUse, onReject }) {
   const small = `${secondary} h-8 px-2.5 text-[13px]`
   const reject = () => { if (reduced()) { onReject(f); return } setOut(true); setTimeout(() => onReject(f), 220) }
   return (
-    <li className={`group wf-anim card-in flex min-w-0 flex-col gap-1.5 rounded-lg border border-line bg-surface p-4 transition-[transform,box-shadow,opacity] duration-200 hover:-translate-y-0.5 hover:shadow-md ${out ? 'opacity-0' : ''}`} style={{ animationDelay: `${i * 70}ms`, animationFillMode: 'both' }}>
-      <span className={`flex items-center gap-2 ${sub}`}><Icon size={15} strokeWidth={1.75} aria-hidden />{KIND[f.field]}</span>
-      <p className={`text-[15px] leading-[22px] ${val} [overflow-wrap:anywhere] [text-wrap:pretty]`}>“<span data-wf-from={f.id}>{f.value}</span>”</p>
-      {site && <span className={sub}>{where(site.url)}</span>}
-      <div className="mt-auto flex gap-2 pt-1 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 touch:opacity-100">
+    <li className={`wf-anim card-in flex min-w-0 flex-col gap-1.5 rounded-lg border border-line bg-surface p-3 transition-opacity duration-200 ${out ? 'opacity-0' : ''}`} style={{ animationDelay: `${60 + i * 60}ms`, animationFillMode: 'backwards' }}>
+      <span className={`flex items-center gap-2 ${sub}`}><Icon size={15} strokeWidth={1.75} aria-hidden />{KIND[f.field]}{site ? ` · ${where(site.url)}` : ''}</span>
+      <p className={`text-[14px] leading-5 ${val} [overflow-wrap:anywhere] [text-wrap:pretty]`}>“<span data-wf-from={f.id}>{f.value}</span>”</p>
+      <div className="flex gap-2 pt-0.5">
         <button type="button" className={small} onClick={() => onUse(f)}>Use as a fact</button>
         <button type="button" className={small} onClick={reject}>Reject</button>
       </div>
@@ -667,23 +711,31 @@ function NotFactCard({ f, i, onUse, onReject }) {
 }
 function NotFacts({ items, gone, onUse, onReject, onUndo }) {
   const [open, setOpen] = useState(false)
+  const [up, setUp] = useState(false)
+  const wrap = useRef(null)
+  const opener = useRef(null)
+  usePanel(open, () => setOpen(false), wrap, opener)
+  useEffect(() => { if (open) wrap.current?.querySelector('[role=dialog] button')?.focus() }, [open])
+  const toggle = () => {
+    if (!open) { const r = opener.current.getBoundingClientRect(); setUp(window.innerHeight - r.bottom < 440 && r.top > window.innerHeight - r.bottom) }
+    setOpen((o) => !o)
+  }
   return (
-    <section className={card}>
-      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`flex w-full items-center gap-3 rounded-xl px-5 py-4 text-left ${focus}`}>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-baseline gap-2"><span className={h2}>Read, but not facts</span><Count n={items.length} /></span>
-          <span className={`block ${sub}`}>We read these but didn’t treat them as facts.</span>
-        </span>
-        <ChevronDown size={16} aria-hidden className={`shrink-0 text-stone-600 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+    <div ref={wrap} className="relative">
+      <button ref={opener} type="button" aria-haspopup="dialog" aria-expanded={open} onClick={toggle} className={`${card} flex w-full items-baseline gap-2 px-5 py-4 text-left transition-colors duration-150 hover:border-[var(--color-line-strong)] ${focus}`}>
+        <span className="text-[15px] leading-[22px] font-bold text-stone-900">Read, but not facts</span>
+        <Count n={items.length} />
+        <ChevronDown size={15} aria-hidden className={`ml-auto self-center text-stone-600 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="flex flex-col gap-3 px-5 pb-5">
-          {items.length > 0 && <ul className="flex flex-col gap-3">{items.map((f, i) => <NotFactCard key={f.id} f={f} i={i} onUse={onUse} onReject={onReject} />)}</ul>}
+        <div role="dialog" aria-label="Read, but not facts" className={`${panelBox} flex w-full max-w-[480px] flex-col gap-3 p-4 ${up ? 'bottom-full mb-2 origin-bottom-left' : 'top-full mt-2 origin-top-left'}`}>
+          <p className={sub}>We read these but didn’t treat them as facts.</p>
+          {items.length > 0 && <ul className="flex flex-col gap-2">{items.map((f, i) => <NotFactCard key={f.id} f={f} i={i} onUse={onUse} onReject={onReject} />)}</ul>}
           {gone && <p className={`wf-anim card-in ${sub}`} aria-live="polite">Rejected “{gone.value}” · <button type="button" onClick={onUndo} className={link}>Undo</button></p>}
           {!items.length && !gone && <p className={sub}>Nothing left here.</p>}
         </div>
       )}
-    </section>
+    </div>
   )
 }
 
@@ -830,14 +882,14 @@ export default function WebsiteFactsPage() {
         {/* any height left over from the card beside it stays under the last decision */}
         <section className={`${card} flex min-w-0 flex-col`}>
           <h2 className={`${h2} px-5 pt-5`}>Your call <Count n={calls} /></h2>
-          <div className={`flex flex-col divide-y divide-[var(--div)] ${calls ? '' : 'flex-1'}`}>
+          <div className={`flex flex-col divide-y divide-line ${calls ? '' : 'flex-1'}`}>
             {callItems.map((it) => (it.r ? <ResolvedLine key={it.key} r={it.r} onUndo={undoCall} />
               : it.c ? <ConflictItem key={it.key} c={it.c} n={n += 1} onPick={pickOne} picked={picked} />
                 : <DiffersItem key={it.key} g={it.g} n={n += 1} onKeep={keepSite} onDrop={dropFact} picked={picked} />))}
             {!calls && <div className={doneBox}>{doneMark}<p className={`text-[15px] leading-[22px] ${val}`}>Nothing needs your call</p></div>}
           </div>
         </section>
-        <div className="min-w-0">{b.cards.length > 0 && <SourcesCard cards={b.cards} scan={scan} />}</div>
+        <div className="min-w-0">{b.cards.length > 0 && <SourcesCard cards={b.cards} scan={scan} onCheck={read} loose={b.merged.filter((g) => g.lead.status !== 'REJECTED' && g.lead.source !== 'YOU' && !sourceOf(g.lead))} />}</div>
 
         {/* the left cell: Ready to confirm at its natural height, Read, but not facts under it; a small difference with
             the fact sheet goes into the gap between the two. With nothing left to confirm, the done state fills the card. */}
