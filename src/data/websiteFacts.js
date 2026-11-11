@@ -70,6 +70,23 @@ export function claimParts(fact) {
   return m ? [text.slice(0, m.index), m[0], text.slice(m.index + m[0].length)] : ['', text, '']
 }
 
+// Where a claim and its source part ways: the characters after their common start ("A+" against "A" → the "+").
+// → { site: [before, differing, after] of the claim, source: [before, differing, after] of the source's value } | null
+const TOKEN = { bbb_rating: /\b[A-D][+-]?(?![a-z])/, trustpilot_rating: /\d(?:\.\d)?/ }
+export function diffOf(fact) {
+  const re = TOKEN[fact.field]
+  const out = outsideEvidence(fact)
+  if (!re || !out || verdictOf(fact) !== 'differs') return null
+  const claim = claimParts(fact)[1]
+  const a = re.exec(claim)
+  const b = re.exec(out.snippet)
+  if (!a || !b) return null
+  let n = 0
+  while (n < a[0].length && n < b[0].length && a[0][n] === b[0][n]) n += 1
+  const cut = (text, m) => (m[0].length > n ? [text.slice(0, m.index + n), text.slice(m.index + n, m.index + m[0].length), text.slice(m.index + m[0].length)] : [text, '', ''])
+  return { site: cut(claim, a), source: cut(out.snippet, b) }
+}
+
 // ---- duplicates: the same rating or award found more than once, in different words ---------------------------------
 const STOP = new Set(['s', 'a', 'an', 'the', 'to', 'of', 'by', 'in', 'on', 'as', 'for', 'and', 'named', 'awarded', 'recognized', 'rated', 'list', 'out', 'excellent'])
 const words = (s) => String(s).toLowerCase().replace(/[^a-z0-9.+ ]/g, ' ').split(/\s+/).filter((w) => w && !STOP.has(w))
