@@ -209,7 +209,8 @@ const ResolvedLine = ({ r, onUndo }) => (
 )
 
 // ---- Ready to confirm: one tight line per fact (tick · logo or line icon · the value, its key part a weight heavier),
-// in three labelled groups split by hairlines. Hover or focus the value for the page(s) it came from. Natural height.
+// in three labelled groups split by hairlines. Hover or focus the value for the page(s) it came from. Roomy rows, so
+// the card meets the fact sheet beside it; a few pixels of difference go evenly between them.
 const READY_GROUPS = [
   ['Contact', (g) => groupOf(g.lead) === 'contact'],
   ['Awards and accreditations', (g) => ['ratings', 'awards', 'accreditations'].includes(groupOf(g.lead))],
@@ -219,7 +220,7 @@ function ReadyLine({ g, on, sent, onToggle }) {
   const f = g.lead
   const value = <span className={`text-[14px] leading-6 ${val}`} data-wf-from={g.id}><KeyValue fact={f} kept /></span>
   return (
-    <li {...useHot(g.pages)} className={`flex items-center gap-2.5 py-1 transition-opacity duration-200 ${sent ? 'opacity-30' : on ? '' : 'opacity-50'}`}>
+    <li {...useHot(g.pages)} className={`flex items-center gap-2.5 py-[11px] transition-opacity duration-200 ${sent ? 'opacity-30' : on ? '' : 'opacity-50'}`}>
       <Tick on={on} onChange={onToggle} disabled={sent} label={`Confirm “${f.value}”`} />
       {/* a logo is a little larger than a line icon, so the groups read differently */}
       <span className="grid h-6 w-6 shrink-0 place-items-center"><Mark fact={f} size={markOf(f) ? 22 : 17} /></span>
@@ -232,11 +233,11 @@ function ReadyLine({ g, on, sent, onToggle }) {
 function ReadyList({ rows, skipped, sent, onToggle }) {
   const groups = READY_GROUPS.map(([label, has]) => ({ label, list: rows.filter(has) })).filter((grp) => grp.list.length)
   return (
-    <div className="flex flex-col divide-y divide-[var(--div)]">
+    <div className="flex flex-1 flex-col divide-y divide-[var(--div)]">
       {groups.map((grp) => (
-        <div key={grp.label} className="py-2.5 first:pt-0 last:pb-0">
+        <div key={grp.label} style={{ flexGrow: grp.list.length }} className="flex flex-col py-3 first:pt-0 last:pb-0">
           <h3 className="pb-1 text-[13px] leading-[18px] font-semibold text-stone-600">{grp.label}</h3>
-          <ul>{grp.list.map((g) => <ReadyLine key={g.id} g={g} on={!skipped.has(g.id)} sent={sent.has(g.id)} onToggle={() => onToggle(g)} />)}</ul>
+          <ul className="flex flex-1 flex-col justify-around">{grp.list.map((g) => <ReadyLine key={g.id} g={g} on={!skipped.has(g.id)} sent={sent.has(g.id)} onToggle={() => onToggle(g)} />)}</ul>
         </div>
       ))}
     </div>
@@ -273,7 +274,7 @@ function KindPicker({ value, onChange }) {
         <Cur size={15} aria-hidden className="text-stone-600" />{cur.label}<ChevronDown size={14} aria-hidden className="ml-auto text-stone-600" />
       </button>
       {open && (
-        <div className="wf-anim card-in absolute bottom-full left-0 z-40 mb-1.5 w-[300px] max-w-[calc(100vw-48px)] rounded-xl border border-line bg-raised p-1.5 shadow-lg" onKeyDown={onKey}>
+        <div className="wf-anim card-in absolute left-0 top-full z-40 mt-1.5 w-[300px] max-w-[calc(100vw-48px)] rounded-xl border border-line bg-raised p-1.5 shadow-lg" onKeyDown={onKey}>
           <label className="flex h-9 items-center gap-2 px-2 text-stone-600">
             <Search size={14} aria-hidden />
             <input autoFocus value={q} onChange={(e) => { setQ(e.target.value); setAt(0) }} placeholder="Search kinds…" aria-label="Search kinds" className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-stone-900 outline-none placeholder:text-stone-600" />
@@ -331,9 +332,9 @@ function usePanel(open, close, wrap, opener) {
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-// the fact sheet's last tile: "+ Add a fact" (the page's only dashed border). It opens a popover over the card (the
-// card doesn't grow): the kind picker, a field, Add fact and Cancel. right: the tile sits in the right-hand column.
-function AddSlot({ onAdd, right = false }) {
+// "+ Add a fact": a quiet text button at the right of the fact sheet's header. It opens a popover under it (the card doesn't grow): the
+// kind picker, a field, Add fact and Cancel.
+function AddFact({ onAdd }) {
   const [open, setOpen] = useState(false)
   const [kind, setKind] = useState('note')
   const [value, setValue] = useState('')
@@ -342,12 +343,12 @@ function AddSlot({ onAdd, right = false }) {
   usePanel(open, () => setOpen(false), wrap, opener)
   const submit = (e) => { e.preventDefault(); if (!value.trim()) return; onAdd(kind, value.trim()); setValue(''); setOpen(false); opener.current?.focus() }
   return (
-    <div ref={wrap} data-flip="add" className="relative min-w-0">
-      <button ref={opener} type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`flex h-full min-h-[58px] w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--dashed-border)] px-3 text-[14px] font-semibold text-stone-600 transition-colors duration-150 hover:border-stone-600 hover:text-stone-900 ${focus}`}>
-        <Plus size={15} aria-hidden />Add a fact
+    <div ref={wrap} className="relative shrink-0">
+      <button ref={opener} type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-semibold text-stone-600 transition-colors duration-150 hover:text-stone-900 ${focus}`}>
+        <Plus size={13} aria-hidden />Add a fact
       </button>
       {open && (
-        <form role="dialog" aria-label="Add a fact" onSubmit={submit} className={`absolute z-40 rounded-xl border border-line bg-raised shadow-lg wf-anim wf-panel bottom-full mb-2 flex w-[min(360px,calc(100vw-48px))] flex-col gap-2 p-3 ${right ? 'right-0 origin-bottom-right' : 'left-0 origin-bottom-left'}`}>
+        <form role="dialog" aria-label="Add a fact" onSubmit={submit} className="wf-anim wf-panel absolute right-0 top-full z-40 mt-2 flex w-[min(360px,calc(100vw-48px))] origin-top-right flex-col gap-2 rounded-xl border border-line bg-raised p-3 shadow-lg">
           <div className="flex flex-col gap-2 sm:flex-row">
             <div className="sm:w-36"><KindPicker value={kind} onChange={setKind} /></div>
             <input id="wf-add-value" autoFocus value={value} onChange={(e) => setValue(e.target.value)} aria-label="The fact" placeholder="e.g. Free returns within 30 days"
@@ -363,85 +364,76 @@ function AddSlot({ onAdd, right = false }) {
   )
 }
 
-// ---- the fact sheet: what Content drafts may use, as tiles in two columns. A tile: logo or line icon, the key figure
-// large and bold, a short label under it, and a status mark at the top right (a tick = in use · a hollow circle =
-// waiting · "Your call" in red). Contact is one full-width tile. In use first, then your call, then waiting; a
-// confirmed tile moves up. Hover: the full sentence and its page. "+ Add a fact" is the last tile.
+// ---- the fact sheet: what Content drafts may use. Open blocks in a two-column grid (no boxes, no per-block marks):
+// logo or line icon, the key figure large and bold, a short label under it. Status is carried by the section alone:
+// In use · Your call (its label in red) · Waiting, split by one hairline with room around it. Contact is four plain
+// icon + value pairs in the same grid, the address on a full row. Hover: a soft highlight, the full sentence and its
+// page. A confirmed block moves up into In use.
 const isLit = (hot, pages) => !!hot && pages.some((u) => hot.urls.has(u))
 const KeyValue = ({ fact, kept = false }) => {
   const k = keyPart(fact)
   return k ? <>{k[0]}<b className={kept ? 'font-bold' : 'font-semibold'}>{k[1]}</b>{k[2]}</> : fact.value
 }
-const StatusMark = ({ state, className = '' }) => (state === 'kept' ? <Check size={14} aria-label="In use" className={`shrink-0 text-stone-600 ${className}`} />
-  : state === 'call' ? <span className={`shrink-0 text-[12px] leading-4 font-semibold text-negative ${className}`}>Your call</span>
-    : <span role="img" aria-label="Waiting" className={`grid h-3.5 w-3.5 shrink-0 place-items-center ${className}`}><span className="h-2 w-2 rounded-full border-[1.5px] border-stone-400" /></span>)
-const tileBox = 'block h-full !rounded-lg border border-line px-3 py-2 transition-[transform,box-shadow,background-color] duration-150 hover:-translate-y-0.5 hover:shadow-sm'
+const blockHover = '-mx-2 -my-1 block !rounded-lg px-2 py-1 transition-colors duration-150 hover:bg-tint'
 const TileQuote = ({ fact }) => {
   const site = siteEvidence(fact)
   return site ? <><span className="text-stone-900">“{site.snippet}”</span><span className="text-stone-600">{where(site.url)}</span></> : <span className="text-stone-600">{fact.status === 'ADDED_BY_YOU' ? 'Added by you' : KIND[fact.field]}</span>
 }
-function FactTile({ row, landing }) {
+function FactBlock({ row, landing }) {
   const { hot } = useContext(Hot)
-  const { g, pair, state } = row
+  const { g, pair } = row
   const pages = pair ? [...pair.a.pages, ...pair.b.pages] : g.pages
   const f = (pair ? pair.a : g).lead
   const t = pair ? pairTileOf(pair.a.lead, pair.b.lead) : tileOf(f)
   return (
     <div {...useHot(pages)} data-flip={row.id} data-wf-slot={g?.id} className="min-w-0">
-      <EdgeTip className={`${tileBox} ${isLit(hot, pages) ? 'bg-tint' : 'bg-surface'}`} label={`${t.figure}, ${t.label}`}
+      <EdgeTip className={`${blockHover} ${isLit(hot, pages) ? 'bg-tint' : ''}`} label={`${t.figure}, ${t.label}`}
         tip={<span className="flex flex-col gap-1">{pair ? <><TileQuote fact={pair.a.lead} /><TileQuote fact={pair.b.lead} /></> : <TileQuote fact={f} />}</span>}>
-        <span className="flex items-center gap-2">
-          <Mark fact={f} size={18} />
-          <span className={`min-w-0 flex-1 truncate font-bold tracking-[-0.01em] text-stone-900 transition-opacity duration-200 ${t.figure.length > 16 ? 'text-[15px]' : 'text-[17px]'} leading-[22px] ${g && landing.has(g.id) ? 'opacity-0' : ''}`}>{t.figure}</span>
-          <StatusMark state={state} />
+        <span className="flex items-start gap-2.5">
+          <span className="grid h-6 shrink-0 place-items-center"><Mark fact={f} size={20} /></span>
+          <span className="min-w-0 flex-1">
+            <span className={`block font-bold tracking-[-0.01em] text-stone-900 transition-opacity duration-200 [overflow-wrap:anywhere] ${t.figure.length > 18 ? 'text-[15px]' : 'text-[18px]'} leading-6 ${g && landing.has(g.id) ? 'opacity-0' : ''}`}>{t.figure}</span>
+            <span className="block text-[12px] leading-4 text-stone-600 [overflow-wrap:anywhere]">{t.label}</span>
+          </span>
         </span>
-        <span className="mt-0.5 block truncate text-[12px] leading-4 text-stone-600">{t.label}</span>
       </EdgeTip>
     </div>
   )
 }
-// name, phone, email and address in one full-width tile: one mark for the group, each item's own mark on hover
-function ContactTile({ rows, state }) {
+// a contact detail: a line icon and the value at regular size, on one line; the address takes the full row
+function ContactLine({ row, first }) {
   const { hot } = useContext(Hot)
-  const pages = rows.flatMap((r) => r.g.pages)
+  const f = row.g.lead
+  const Icon = KIND_ICON[f.field] ?? StickyNote
   return (
-    <div {...useHot(pages)} data-flip="contact" className={`group/contact relative col-span-2 min-w-0 rounded-lg border border-line px-3 py-2 transition-[transform,box-shadow,background-color] duration-150 hover:-translate-y-0.5 hover:shadow-sm ${isLit(hot, pages) ? 'bg-tint' : 'bg-surface'}`}>
-      <StatusMark state={state} className="absolute right-3 top-2.5" />
-      <ul className="grid grid-cols-2 gap-x-4 gap-y-1 pr-6">
-        {rows.map(({ g, state: own }) => {
-          const Icon = KIND_ICON[g.lead.field] ?? StickyNote
-          return (
-            <li key={g.id} data-wf-slot={g.id} title={`${KIND[g.lead.field]}: ${g.lead.value}`} className="flex min-w-0 items-center gap-2 text-[14px] leading-5">
-              <Icon size={15} strokeWidth={1.75} aria-hidden className="shrink-0 text-stone-600" />
-              <span className={`min-w-0 truncate ${val}`}>{g.lead.value}</span>
-              <StatusMark state={own} className="opacity-0 transition-opacity duration-150 group-hover/contact:opacity-100" />
-            </li>
-          )
-        })}
-      </ul>
+    <div {...useHot(row.g.pages)} data-flip={row.id} data-wf-slot={row.g.id} className={`min-w-0 ${f.field === 'address' ? 'col-span-2' : ''} ${first ? 'col-start-1' : ''}`}>
+      <EdgeTip className={`${blockHover} ${isLit(hot, row.g.pages) ? 'bg-tint' : ''}`} label={`${KIND[f.field]}: ${f.value}`} tip={<span className="flex flex-col gap-1"><TileQuote fact={f} /></span>}>
+        <span className="flex items-center gap-2.5 text-[14px] leading-6">
+          <span className="grid h-6 w-5 shrink-0 place-items-center text-stone-600"><Icon size={16} strokeWidth={1.75} aria-hidden /></span>
+          <span className={`min-w-0 whitespace-nowrap ${val}`}>{f.value}</span>
+        </span>
+      </EdgeTip>
     </div>
   )
 }
+const SHEET_SECTIONS = [['kept', 'In use'], ['call', 'Your call'], ['wait', 'Waiting']]
+const CONTACT_ORDER = ['brand_name', 'phone', 'address', 'email'] // name | phone, the address on its own row, then email
 function FactSheet({ b, landing, onAdd }) {
   const callIds = new Set(b.differs.map((g) => g.id))
   const stateOf = (g) => (g.lead.status === 'CONFIRMED' || g.lead.status === 'ADDED_BY_YOU' ? 'kept' : callIds.has(g.id) ? 'call' : 'wait')
   const all = [...b.kept, ...b.differs, ...b.ready].map((g) => ({ id: g.id, g, state: stateOf(g) }))
-  const contact = all.filter((r) => groupOf(r.g.lead) === 'contact')
-  const contactState = contact.every((r) => r.state === 'kept') ? 'kept' : 'wait'
-  const RANK = { kept: 0, call: 1, wait: 2 }
-  // in use first, then your call, then waiting (inside a rank: the order they were read in)
-  const tiles = [
-    ...all.filter((r) => groupOf(r.g.lead) !== 'contact'),
-    ...b.conflicts.map((c) => ({ id: `pair-${c.a.id}`, pair: c, state: 'call' })),
-    ...(contact.length ? [{ id: 'contact', rows: contact, state: contactState }] : []),
-  ].map((r, i) => ({ r, i })).sort((x, y) => RANK[x.r.state] - RANK[y.r.state] || (x.r.rows ? -1 : y.r.rows ? 1 : x.i - y.i)).map((x) => x.r)
-  const total = b.kept.length + b.differs.length + b.ready.length + b.conflicts.length
-  const inUse = useCountUp(b.kept.length, 300)
-  const singles = tiles.filter((r) => !r.rows).length // the tiles that take one cell ("+ Add a fact" comes after them)
-  // a tile whose status changes travels to its new place; a new tile fades in
+  const isContact = (r) => groupOf(r.g.lead) === 'contact'
+  const blocks = [...all.filter((r) => !isContact(r)), ...b.conflicts.map((c) => ({ id: `pair-${c.a.id}`, pair: c, state: 'call' }))]
+  const contact = all.filter(isContact).sort((x, y) => CONTACT_ORDER.indexOf(x.g.lead.field) - CONTACT_ORDER.indexOf(y.g.lead.field))
+  const counts = { kept: b.kept.length, call: b.differs.length + b.conflicts.length, wait: b.ready.length }
+  const total = counts.kept + counts.call + counts.wait
+  const inUse = useCountUp(counts.kept, 300)
+  const sections = SHEET_SECTIONS.map(([state, label]) => ({ state, label, blocks: blocks.filter((r) => r.state === state), contact: contact.filter((r) => r.state === state) }))
+    .filter((sec) => sec.blocks.length || sec.contact.length)
+  // a block whose status changes travels to its new place; a new block fades in
   const box = useRef(null)
   const seen = useRef(new Map())
-  const order = tiles.map((r) => r.id).join('|')
+  const order = sections.map((sec) => `${sec.state}:${[...sec.blocks, ...sec.contact].map((r) => r.id).join(',')}`).join('|')
   useLayoutEffect(() => {
     const host = box.current
     if (!host) return
@@ -460,65 +452,60 @@ function FactSheet({ b, landing, onAdd }) {
     seen.current = next
   }, [order])
   return (
-    <aside aria-label="Your fact sheet" className={`${card} flex h-full flex-col gap-3 p-5`}>
+    <aside aria-label="Your fact sheet" className={`${card} flex h-full flex-col p-5`}>
       <header className="flex items-center gap-3">
-        <BrandLogo size="h-9 w-9 rounded-lg" />
+        <BrandLogo size="h-8 w-8 rounded-lg" />
         <h2 className={`min-w-0 flex-1 ${h2}`}>{brand.name}’s fact sheet</h2>
         <p className={`num shrink-0 ${sub}`}><b className={val}>{inUse}</b> of {total} in use</p>
+        <AddFact onAdd={onAdd} />
       </header>
-      {/* two columns of equal tiles, packed so the full-width Contact tile never leaves a half-empty row; any height the
-          card is given beyond its own goes into the gaps between the rows */}
-      <div ref={box} className="grid flex-1 grid-flow-dense grid-cols-2 content-between gap-x-2 gap-y-1.5" style={{ gridAutoRows: 'min-content' }}>
-        {tiles.map((row) => (row.rows ? <ContactTile key="contact" rows={row.rows} state={row.state} /> : <FactTile key={row.id} row={row} landing={landing} />))}
-        <AddSlot onAdd={onAdd} right={singles % 2 === 1} />
+      {/* any height the card is given beyond its own goes around the hairlines between the sections */}
+      <div ref={box} className="mt-4 flex flex-1 flex-col justify-between">
+        {sections.map((sec) => (
+          <section key={sec.state} className="border-t border-[var(--div)] py-3.5 last:pb-1">
+            <h3 className={`mb-3 text-[13px] leading-[18px] font-semibold ${sec.state === 'call' ? 'text-negative' : 'text-stone-600'}`}>{sec.label} <span className="num font-normal">{counts[sec.state]}</span></h3>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3.5">
+              {sec.blocks.map((row) => <FactBlock key={row.id} row={row} landing={landing} />)}
+              {sec.contact.map((row, i) => <ContactLine key={row.id} row={row} first={i === 0} />)}
+            </div>
+          </section>
+        ))}
       </div>
     </aside>
   )
 }
 
-// ---- Checked against outside sources: one compact card. A summary line ("2 match · 1 doesn't match · 1 not found"),
-// then a row per source: logo · name and kind, the value (a mismatch shows both) and where it is on the site · the
-// status in one word · the source's link. Click a row for the quote. Under the rows: the facts no outside source
-// covers (their icons, named on hover) and when the check ran.
-const KIND_SHORT = { trustpilot_rating: 'rating', bbb_rating: 'rating', award: 'award' }
+// ---- Checked against outside sources: the visual card. The brand on the left, the sources stacked on the right, a
+// curved connector from the brand to each: a solid graphite line = matches · a red line broken in the middle = doesn't
+// match · a faint dotted line = not found. Beside each source: its name, the value (a mismatch shows both) and its link.
+// Under the diagram: the facts no outside source covers, and when the check ran. The diagram takes the card's height.
 const Tok = ({ parts }) => <b className={val}>{parts[0]}{parts[1] && <span className="wf-anim wf-diff">{parts[1]}</span>}</b>
-function SourceRow({ g, checking, waiting }) {
-  const [open, setOpen] = useState(false)
+const VERDICT_SAYS = { agrees: 'Matches', differs: 'Doesn’t match', unchecked: 'Not found' }
+function SourceNode({ g, i, checking, dim, setOn }) {
   const f = g.lead
   const src = sourceOf(f)
   const v = verdictOf(f)
   const out = outsideEvidence(f)
-  const site = siteEvidence(f)
   const diff = diffOf(f)
-  const more = g.pages.length - 1
-  const result = checking ? 'Checking…' : v === 'agrees' ? 'Matches' : v === 'differs' ? 'Doesn’t match' : 'Not found'
+  const hot = useHot(g.pages)
+  const enter = () => { hot.onMouseEnter(); setOn(i) }
+  const leave = () => { hot.onMouseLeave(); setOn(null) }
   const value = v === 'differs' && diff ? <span className="font-normal text-stone-600"><Tok parts={diff.tokens.site} /> on your site · <Tok parts={diff.tokens.source} /> on {src.name}</span>
     : ['trustpilot_rating', 'bbb_rating'].includes(f.field) && out && v === 'agrees' ? out.snippet : claimParts(f)[1]
   return (
-    <li {...useHot(g.pages)} className={`transition-opacity duration-200 ${waiting ? 'opacity-50' : ''}`}>
-      {/* logo · the claim · the status (a fixed column, right-aligned, centred in the row) · the link (its own slot, kept
-          empty on a row with no link, so every status lines up) */}
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_92px_28px] items-center gap-x-3 py-2.5">
-        <SourceLogo src={src} className="self-start" />
-        <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`min-w-0 rounded text-left ${focus}`}>
-          <span className={`block ${sub}`}><b className={`text-[14px] ${val}`}>{src.name}</b> · {KIND_SHORT[f.field] ?? KIND[f.field].toLowerCase()}</span>
-          <span className={`block text-[15px] leading-[22px] ${val} [overflow-wrap:anywhere]`}>{value}</span>
-          {site && <span className={`block ${sub}`}>On your site · {where(site.url)}{more > 0 ? ` · and ${plural(more, 'page')} more` : ''}</span>}
-        </button>
-        <span className={`whitespace-nowrap text-right text-[13px] leading-[18px] font-normal ${!checking && v === 'differs' ? 'text-negative' : 'text-stone-600'}`}>{result}</span>
-        {out
-          ? <a href={out.url} target="_blank" rel="noreferrer" aria-label={`Open ${src.name}`} className={`grid h-7 w-7 place-items-center rounded-md text-stone-600 transition-colors duration-150 hover:bg-tint hover:text-stone-900 ${focus}`}><ArrowUpRight size={15} aria-hidden /></a>
-          : <span aria-hidden />}
+    <li onMouseEnter={enter} onMouseLeave={leave} onFocus={enter} onBlur={leave} className={`flex min-w-0 items-center gap-3 transition-opacity duration-200 ${dim ? 'opacity-40' : ''}`}>
+      <SourceLogo src={src} size="h-8 w-8 rounded-lg" className="ring-1 ring-[var(--color-line)]" />
+      <div className="min-w-0 flex-1">
+        <p className={`text-[14px] leading-5 ${val}`}>{src.name}<span className="sr-only">: {checking ? 'checking' : VERDICT_SAYS[v]}</span></p>
+        <p className={`text-[14px] leading-5 ${v === 'differs' ? '' : 'text-stone-900'} [overflow-wrap:anywhere]`}>{checking ? <span className="text-stone-600">Checking…</span> : value}</p>
       </div>
-      {open && (
-        <div className="wf-anim card-in flex flex-col gap-1 pb-3 pl-10 pr-10">
-          <Sentence fact={f} quoted className="text-[13px] leading-[18px]" />
-          {more > 0 && <p className={sub}>Also on {g.pages.slice(1).map(where).join(', ')}</p>}
-        </div>
-      )}
+      {out
+        ? <a href={out.url} target="_blank" rel="noreferrer" aria-label={`Open ${src.name}`} className={`grid h-7 w-7 shrink-0 place-items-center rounded-md text-stone-600 transition-colors duration-150 hover:bg-tint hover:text-stone-900 ${focus}`}><ArrowUpRight size={15} aria-hidden /></a>
+        : <span aria-hidden className="w-7 shrink-0" />}
     </li>
   )
 }
+const LOOSE_MARKS = 5
 function SourcesCard({ cards, scan, loose, onCheck }) {
   const read = new Date(READ_AT)
   const when = read.toDateString() === new Date().toDateString() ? 'today' : read.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
@@ -529,25 +516,67 @@ function SourcesCard({ cards, scan, loose, onCheck }) {
     off > 0 && <span key="o" className="text-negative">{off} {off === 1 ? 'doesn’t' : 'don’t'} match</span>,
     none > 0 && <span key="n">{none} not found</span>,
   ].filter(Boolean)
+  // the connectors are drawn to the diagram's real height
+  const box = useRef(null)
+  const [h, setH] = useState(0)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return undefined
+    const fit = () => setH(Math.round(el.getBoundingClientRect().height))
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    fit()
+    return () => ro.disconnect()
+  }, [])
+  const [on, setOn] = useState(null) // the hovered source
+  const W = 84, n = cards.length
+  const busy = (i) => scan?.read != null || scan?.checking <= i
   return (
-    // any height left over from the card beside it stays under the last row (never between rows)
-    <section className={`${card} h-full p-5`}>
-      <h2 className={h2}>Checked against outside sources <Count n={cards.length} /></h2>
-      <p className={`num ${sub}`}>{parts.map((x, i) => <span key={x.key}>{i > 0 && ' · '}{x}</span>)}</p>
-      <ul className="mt-2 divide-y divide-[var(--div)]">
-        {cards.map((g, i) => <SourceRow key={g.id} g={g} checking={scan?.checking === i} waiting={scan?.read != null || scan?.checking < i} />)}
-      </ul>
+    <section className={`${card} flex h-full flex-col gap-3 p-5`}>
+      <div>
+        <h2 className={h2}>Checked against outside sources <Count n={cards.length} /></h2>
+        <p className={`num ${sub}`}>{parts.map((x, i) => <span key={x.key}>{i > 0 && ' · '}{x}</span>)}</p>
+      </div>
+      <div ref={box} className="grid min-h-[216px] flex-1" style={{ gridTemplateColumns: `44px ${W}px minmax(0,1fr)` }}>
+        <div className="flex items-center">
+          <span className="wf-anim wf-pop grid h-11 w-11 place-items-center rounded-full border border-line bg-surface"><BrandLogo size="h-7 w-7 rounded-md" /></span>
+        </div>
+        <div className="relative">
+        <svg width={W} height={h} viewBox={`0 0 ${W} ${Math.max(1, h)}`} fill="none" aria-hidden className="absolute left-0 top-0 overflow-visible">
+          {h > 0 && cards.map((g, i) => {
+            const v = verdictOf(g.lead)
+            const y = ((i + 0.5) * h) / n
+            const d = `M 0 ${h / 2} C ${W * 0.55} ${h / 2}, ${W * 0.45} ${y}, ${W} ${y}`
+            const width = on === i ? 2.75 : 1.5
+            const start = 300 + i * 240 // the connectors draw one after another, left to right
+            const look = { opacity: (on != null && on !== i) || busy(i) ? 0.25 : 1, transition: 'opacity 150ms ease-out, stroke-width 150ms ease-out' }
+            if (v === 'unchecked') return <path key={`${g.id}-${scan ? 'x' : 'r'}`} d={d} stroke="var(--color-stone-400)" strokeWidth={width} strokeLinecap="round" strokeDasharray="1 6" className="wf-anim fade-in" style={{ ...look, animationDuration: '300ms', animationDelay: `${start}ms`, animationFillMode: 'backwards' }} />
+            return (
+              <g key={`${g.id}-${scan ? 'x' : 'r'}`} style={look}>
+                <path d={d} pathLength="1" stroke={v === 'differs' ? 'var(--negative)' : 'var(--color-stone-600)'} strokeWidth={width} strokeLinecap="round" className="wf-anim wf-draw" style={{ animationDuration: '420ms', animationDelay: `${start}ms`, transition: 'stroke-width 150ms ease-out' }} />
+                {/* the mismatch's line breaks in the middle, once it has drawn */}
+                {v === 'differs' && <path d={d} pathLength="1" stroke="var(--color-surface)" strokeWidth="7" strokeDasharray="0.13 1" strokeDashoffset="-0.44" className="wf-anim fade-in" style={{ animationDuration: '200ms', animationDelay: `${start + 460}ms`, animationFillMode: 'backwards' }} />}
+              </g>
+            )
+          })}
+        </svg>
+        </div>
+        <ul className="grid min-w-0 pl-3" style={{ gridTemplateRows: `repeat(${n}, minmax(0, 1fr))` }}>
+          {cards.map((g, i) => <SourceNode key={g.id} g={g} i={i} checking={scan?.checking === i} dim={(on != null && on !== i) || busy(i)} setOn={setOn} />)}
+        </ul>
+      </div>
       {/* what had no outside source to check against, and when the check ran */}
-      <div className="flex flex-col gap-1.5 border-t border-[var(--div)] pt-2.5">
+      <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--div)] pt-3 ${sub}`}>
         {loose.length > 0 && (
-          <>
-            <p className={`num text-[14px] leading-5 ${val}`}>No outside source for {plural(loose.length, 'fact')}</p>
-            <div className="flex flex-wrap items-center gap-1">
-              {loose.map((g) => <EdgeTip key={g.id} tip={g.lead.value} label={g.lead.value} className="block"><span className="grid h-6 w-6 place-items-center"><Mark fact={g.lead} size={markOf(g.lead) ? 20 : 17} /></span></EdgeTip>)}
-            </div>
-          </>
+          <p className="flex items-center gap-2">
+            <span className={`num ${val}`}>No outside source for {plural(loose.length, 'fact')}</span>
+            <span className="flex items-center gap-0.5">
+              {loose.slice(0, LOOSE_MARKS).map((g) => <EdgeTip key={g.id} tip={g.lead.value} label={g.lead.value} className="block"><span className="grid h-5 w-5 place-items-center"><Mark fact={g.lead} size={markOf(g.lead) ? 18 : 15} /></span></EdgeTip>)}
+              {loose.length > LOOSE_MARKS && <EdgeTip className="block" label={`${loose.length - LOOSE_MARKS} more`} tip={<span className="flex flex-col gap-0.5">{loose.slice(LOOSE_MARKS).map((g) => <span key={g.id}>{g.lead.value}</span>)}</span>}><span className="num pl-1">+{loose.length - LOOSE_MARKS}</span></EdgeTip>}
+            </span>
+          </p>
         )}
-        <p className={sub}>Checked {when} · <button type="button" disabled={!!scan} onClick={onCheck} className={link}>Check again</button></p>
+        <p className="ml-auto">Checked {when} · <button type="button" disabled={!!scan} onClick={onCheck} className={link}>Check again</button></p>
       </div>
     </section>
   )
@@ -555,7 +584,7 @@ function SourcesCard({ cards, scan, loose, onCheck }) {
 
 // ---- Where we read it: one ring for every page we tried, in three parts, clockwise from 12 o'clock: pages a fact
 // came from (dark graphite) · pages read with no facts (mid grey) · pages we couldn't read (red). Hover or focus a part:
-// it thickens, the others dim and the centre says what it is. Beside the ring, the sections that gave facts as compact
+// it thickens, the others dim, the centre shows its count and the text beside the ring names it. Beside the ring, the sections that gave facts as compact
 // blocks: the fact count, the section's name and page count, and one row of the logos / icons of its facts.
 const RING_PARTS = [
   { id: 'facts', stroke: 'var(--color-stone-700)', word: 'pages gave facts' },
@@ -575,8 +604,8 @@ function ringArcs(C, SW, counts, total) {
     return { ...part, n, arc }
   })
 }
-function SiteRing({ size, counts, total, reading, shown, part, setPart, share, onRetry }) {
-  const S = size, SW = 7.5
+function SiteRing({ size, counts, total, reading, shown, part, setPart, share }) {
+  const S = size, SW = 6
   const r = (S - SW - 3) / 2 // 3px of room for the hovered part's extra thickness
   const C = 2 * Math.PI * r
   const c = { cx: S / 2, cy: S / 2, r, fill: 'none', strokeLinecap: 'round' }
@@ -601,13 +630,11 @@ function SiteRing({ size, counts, total, reading, shown, part, setPart, share, o
         {/* a hovered section's share of the "facts" part */}
         {!reading && share && facts && <circle {...c} stroke="var(--color-stone-700)" strokeWidth={SW + 3} {...dash(facts.from + share[0] * facts.len, Math.max(0.5, share[1] * facts.len))} style={{ pointerEvents: 'none' }} />}
       </svg>
-      <span className="pointer-events-none absolute grid place-items-center text-center" style={{ width: S - SW * 4 - 12 }}>
+      {/* the centre holds one short number on one line and nothing else ("38/40"; a part's count on hover); what it
+          counts is said beside the ring */}
+      <span className="pointer-events-none absolute grid place-items-center">
         <CrossFade k={reading ? 'reading' : cur?.id ?? 'all'} ms={130}>
-          <span className="flex flex-col items-center">
-            <b className="num text-[20px] leading-6 font-semibold tracking-[-0.01em] text-stone-900">{reading || !cur ? `${shown} of ${total}` : cur.n}</b>
-            <span className="text-[12px] leading-4 text-stone-600">{reading ? 'reading' : cur ? cur.word : 'pages read'}</span>
-            {!reading && cur?.id === 'bad' && <button type="button" onClick={onRetry} className={`pointer-events-auto mt-0.5 ${link} text-[12px] leading-4`}>Retry</button>}
-          </span>
+          <b className="num block whitespace-nowrap text-[14px] leading-4 font-bold tracking-[-0.01em] text-stone-900">{reading || !cur ? `${shown}/${total}` : cur.n}</b>
         </CrossFade>
       </span>
     </span>
@@ -624,19 +651,22 @@ function SectionBlock({ s, si, groups, glow, onBox }) {
   const enter = () => { if (active) return; setActive(true); setHot({ urls, src: 'tile' }); onBox(s.label) }
   const leave = () => { setActive(false); setHot(null); onBox(null) }
   return (
+    // compact: the count at the left; beside it the section's name and page count, and the logos of its facts under them
     <div tabIndex={0} role="group" aria-label={`${s.label}: ${plural(groups.length, 'fact')} from ${plural(s.pages.length, 'page')}`}
       onMouseEnter={enter} onMouseLeave={leave} onFocus={enter} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) leave() }}
       style={{ animationDelay: `${150 + si * 90}ms`, animationFillMode: 'backwards' }}
-      className={`wf-anim card-in relative flex min-w-0 flex-col gap-2 rounded-lg border bg-surface p-4 transition-[transform,box-shadow,border-color] duration-200 ${lit ? 'border-stone-600' : 'border-line'} ${active ? 'z-20 -translate-y-0.5 shadow-md' : ''} ${focus}`}>
-      <b className="num text-[32px] leading-9 font-semibold tracking-[-0.02em] text-stone-900">{groups.length}</b>
-      <p className="flex flex-wrap items-baseline gap-x-2"><span className={`text-[14px] leading-5 ${val}`}>{s.label}</span><span className={`num ${sub}`}>{plural(s.pages.length, 'page')}</span></p>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {groups.slice(0, TILE_MARKS).map((g, i) => (
-          <EdgeTip key={g.id} className="block" label={shortName(g.lead)} tip={<span className="flex flex-col gap-0.5"><span className={val}>{shortName(g.lead)}</span><span className="text-stone-600">{here(g)}</span></span>}>
-            <span className="wf-anim wf-pop block" style={{ animationDelay: `${450 + si * 90 + i * 60}ms` }}><Mark fact={g.lead} size={20} /></span>
-          </EdgeTip>
-        ))}
-        {more > 0 && <span className={`num ${sub}`}>+{more}</span>}
+      className={`wf-anim card-in relative flex min-h-[72px] min-w-0 items-center gap-3 rounded-lg border bg-surface px-3.5 py-2.5 transition-[transform,box-shadow,border-color] duration-200 ${lit ? 'border-stone-600' : 'border-line'} ${active ? 'z-20 -translate-y-0.5 shadow-md' : ''} ${focus}`}>
+      <b className="num shrink-0 text-[30px] leading-9 font-semibold tracking-[-0.02em] text-stone-900">{groups.length}</b>
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-baseline gap-x-2"><span className={`text-[14px] leading-5 ${val}`}>{s.label}</span><span className={`num ${sub}`}>{plural(s.pages.length, 'page')}</span></p>
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          {groups.slice(0, TILE_MARKS).map((g, i) => (
+            <EdgeTip key={g.id} className="block" label={shortName(g.lead)} tip={<span className="flex flex-col gap-0.5"><span className={val}>{shortName(g.lead)}</span><span className="text-stone-600">{here(g)}</span></span>}>
+              <span className="wf-anim wf-pop block" style={{ animationDelay: `${450 + si * 90 + i * 60}ms` }}><Mark fact={g.lead} size={18} /></span>
+            </EdgeTip>
+          ))}
+          {more > 0 && <span className={`num ${sub}`}>+{more}</span>}
+        </div>
       </div>
       {/* hover or focus: the facts found here by name, and the pages they came from */}
       {active && (
@@ -679,28 +709,39 @@ function PagesRead({ list, facts, merged, scan, hasRead, onRetry, k }) {
   const boxPages = box ? sections.find((x) => x.label === box)?.pages.map((p) => p.url) ?? [] : []
   const mine = factUrls.filter((u) => boxPages.includes(u))
   const share = mine.length ? [factUrls.indexOf(mine[0]) / factUrls.length, mine.length / factUrls.length] : null
-  // the ring is a little smaller than the section boxes beside it (nine tenths of their height), centred on them
+  // the ring is as tall as the section boxes beside it, centred on them
   const boxes = useRef(null)
   const [size, setSize] = useState(124)
   useLayoutEffect(() => {
     const el = boxes.current
     if (!el) return undefined
-    const fit = () => setSize(Math.max(92, Math.min(150, Math.round(el.getBoundingClientRect().height * 0.9))))
+    const fit = () => setSize(Math.max(72, Math.min(120, Math.round(el.getBoundingClientRect().height))))
     const ro = new ResizeObserver(fit)
     ro.observe(el)
     fit()
     return () => ro.disconnect()
   }, [hasRead])
   return (
-    <section className={`${card} flex flex-col gap-6 p-5 lg:p-6`}>
-      <div>
+    <section className={`${card} flex flex-col gap-3 p-5 lg:p-6`}>
+      <div className="flex flex-wrap items-baseline gap-x-3">
         <h2 className={h2}>Where we read it</h2>
         <p className={`num ${sub}`} aria-live="polite">
           {reading ? <>Reading {where(list[scan.read].url)}</> : scan ? 'Checking the sources' : hasRead ? <>Facts came from <b className={val}>{factPages}</b> pages</> : <>Up to <b className={val}>{list.length}</b> pages from your sitemap</>}
         </p>
       </div>
-      <div className="flex flex-col items-center gap-8 min-[900px]:flex-row">
-        <SiteRing key={`ring-${k}`} size={size} counts={scan ? {} : counts} total={list.length} reading={reading || !!scan} shown={shown} part={part} setPart={setPart} share={share} onRetry={onRetry} />
+      <div className="flex flex-col items-center gap-6 min-[900px]:flex-row">
+        <div className="flex shrink-0 items-center gap-3">
+          <SiteRing key={`ring-${k}`} size={size} counts={scan ? {} : counts} total={list.length} reading={reading || !!scan} shown={shown} part={part} setPart={setPart} share={share} />
+          {/* what the ring's number counts: a fixed width, so swapping the label on hover moves nothing */}
+          <div className="w-[124px] text-[13px] leading-[18px] text-stone-600">
+            <CrossFade k={reading ? 'reading' : scan ? 'checking' : part ?? 'all'} ms={130}>
+              <span className="block">
+                <b className={`block whitespace-nowrap text-[14px] leading-5 ${val}`}>{reading ? 'reading' : scan ? 'checking' : part ? RING_PARTS.find((x) => x.id === part).word : hasRead ? 'pages read' : 'pages, at most'}</b>
+                <span className="num block whitespace-nowrap">{reading || scan ? `of ${list.length} pages` : part ? `of ${list.length} pages` : hasRead ? (bad.length ? `${bad.length} couldn’t be read` : 'all of them') : 'from your sitemap'}</span>
+              </span>
+            </CrossFade>
+          </div>
+        </div>
         {hasRead && (
           <div ref={boxes} key={`boxes-${k}`} className="grid w-full min-w-0 flex-1 grid-cols-2 items-stretch gap-3 min-[1100px]:grid-cols-4">
             {tiles.map(({ s, groups }, si) => <SectionBlock key={s.label} s={s} si={si} groups={groups} glow={part === 'facts'} onBox={setBox} />)}
@@ -710,7 +751,7 @@ function PagesRead({ list, facts, merged, scan, hasRead, onRetry, k }) {
       {hasRead && !scan && (none.length > 0 || bad.length > 0) && (
         <div className={`flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 ${sub}`}>
           <p>{none.length > 0 && <>{none.join(', ')} · read, no facts</>}</p>
-          {bad.length > 0 && <p>{plural(bad.length, 'page')} couldn’t be read · <button type="button" onClick={onRetry} className={link}>Retry</button></p>}
+          {bad.length > 0 && <button type="button" onClick={onRetry} className={link}>Retry</button>}
         </div>
       )}
     </section>
@@ -744,9 +785,17 @@ function NotFacts({ items, gone, onUse, onReject, onUndo }) {
   return (
     <section className={card}>
       <button type="button" aria-expanded={open} onClick={() => { setOpen((o) => !o); setRun((r) => r + 1) }} className={`flex w-full items-baseline gap-2 rounded-xl px-5 py-4 text-left ${focus}`}>
-        <span className="text-[15px] leading-[22px] font-bold text-stone-900">Read, but not facts</span>
+        <span className="shrink-0 text-[15px] leading-[22px] font-bold text-stone-900">Read, but not facts</span>
         <Count n={items.length} />
-        <ChevronDown size={15} aria-hidden className={`ml-auto self-center text-stone-600 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+        {/* the closed bar previews its texts (the first words of each); the preview fades out when the row opens */}
+        <span aria-hidden className={`ml-2 flex min-w-0 flex-1 items-center gap-4 self-center transition-opacity duration-200 ${open ? 'opacity-0' : ''}`}>
+          <BrandLogo size="h-5 w-5 rounded" className="shrink-0" />
+          {items.map((f) => {
+            const Icon = KIND_ICON[f.field] ?? StickyNote
+            return <span key={f.id} className={`flex min-w-0 flex-1 basis-0 items-center gap-1.5 ${sub}`}><Icon size={14} strokeWidth={1.75} className="shrink-0" /><span className="truncate">{KIND[f.field]} · {f.value}</span></span>
+          })}
+        </span>
+        <ChevronDown size={15} aria-hidden className={`ml-auto shrink-0 self-center text-stone-600 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
       {/* the height eases open; closed, what's inside can't be reached */}
       <div className="wf-anim grid transition-[grid-template-rows] duration-300 ease-out" style={{ gridTemplateRows: open ? '1fr' : '0fr' }} inert={open ? undefined : ''}>

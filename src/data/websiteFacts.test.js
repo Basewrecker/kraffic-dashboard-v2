@@ -119,7 +119,7 @@ test('keyPart picks the part of a value that carries it; none for contact detail
 test('tileOf: a fact as a key figure and a short label', () => {
   assert.deepEqual(tileOf(by('f8')), { figure: '4.6 / 5', label: 'Trustpilot rating' })
   assert.deepEqual(tileOf(by('f11')), { figure: 'Best Companies 2024', label: 'TIME award' })
-  assert.deepEqual(tileOf(by('f14')), { figure: 'Best Clean Skincare Brand 2025', label: 'Money award' })
+  assert.deepEqual(tileOf(by('f14')), { figure: 'Best Clean Skincare 2025', label: 'Money award' })
   assert.deepEqual(tileOf(by('f10')), { figure: 'A+', label: 'BBB rating' })
   assert.deepEqual(tileOf(by('f18')), { figure: 'Certified', label: 'Leaping Bunny' })
   assert.deepEqual(tileOf(by('f19')), { figure: '2 million', label: 'bottles sold' })

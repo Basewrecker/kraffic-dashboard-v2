@@ -106,7 +106,9 @@ export function tileOf(fact) {
   if (fact.field === 'bbb_rating') return { figure: k?.[1] ?? v, label: 'BBB rating' }
   if (fact.field === 'award') {
     const src = sourceOf(fact)
-    return { figure: /Best\s+[A-Z][^.,;:]*?(?:19|20)\d{2}/.exec(v)?.[0] ?? v, label: src ? `${src.name} award` : 'Award' }
+    // a long award name loses its generic noun, so it fits a tile: "Best Clean Skincare Brand 2025" → "Best Clean Skincare 2025"
+    const name = /Best\s+[A-Z][^.,;:]*?(?:19|20)\d{2}/.exec(v)?.[0] ?? v
+    return { figure: name.length > 22 ? name.replace(/\s+(?:Brand|Company)(?=\s+(?:19|20)\d{2}$)/, '') : name, label: src ? `${src.name} award` : 'Award' }
   }
   if (fact.field === 'years') return { figure: k?.[1] ?? v, label: 'years in business' }
   if (fact.field === 'accreditation' && k) return { figure: upper(k[2].trim()) || k[1], label: k[1] }
