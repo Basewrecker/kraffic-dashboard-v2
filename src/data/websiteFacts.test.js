@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bucketsOf, claimParts, diffOf, dupKey, factsOnPage, mergeFacts, pageSections, sampleFacts, samplePages, sectionOf, sourceOf, verdictOf, yearConflicts } from './websiteFacts.js'
+import { bucketsOf, claimParts, diffOf, dupKey, factsOnPage, markOf, mergeFacts, pageSections, sampleFacts, samplePages, sectionOf, sourceOf, verdictOf, yearConflicts } from './websiteFacts.js'
 
 const facts = sampleFacts('example.com', 'Example')
 const by = (id) => facts.find((f) => f.id === id)
@@ -83,4 +83,10 @@ test('diffOf marks only the part that differs: A+ against A is the "+"; nothing 
   assert.equal(diffOf(by('f8')), null)
   const tp = { ...by('f8'), notes: 'Checked on Trustpilot: 4.4 / 5 — site claims 4.6.', evidence: [by('f8').evidence[0], { ...by('f8').evidence[1], snippet: '4.4 / 5' }] }
   assert.deepEqual(diffOf(tp), { site: ['4.', '6', ' out of 5'], source: ['4.', '4', ' / 5'] })
+})
+
+test('markOf: the source\'s logo, a named certifier\'s, or none', () => {
+  assert.equal(markOf(by('f10')).domain, 'bbb.org')
+  assert.equal(markOf(by('f18')).domain, 'leapingbunny.org')
+  assert.equal(markOf(by('f19')), null)
 })

@@ -57,6 +57,9 @@ export function sourceOf(fact) {
   return null
 }
 
+// A logo to show beside a fact: its outside source, or a certifier it names (for display only: no check is implied)
+export const markOf = (fact) => sourceOf(fact) ?? (/leaping bunny/i.test(fact.value) ? { name: 'Leaping Bunny', domain: 'leapingbunny.org' } : null)
+
 // The site's sentence with the claim picked out: [before, claim, after] (the whole sentence as the claim when no rule fits)
 const CLAIM_RE = {
   trustpilot_rating: /\d(?:\.\d)?\s*(?:out of|\/)\s*5/i,
