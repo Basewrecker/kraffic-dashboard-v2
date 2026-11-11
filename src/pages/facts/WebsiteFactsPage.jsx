@@ -3,15 +3,15 @@
 // its four actions (confirm, reject, add a fact, read the website again) on sample data (data/websiteFacts.js).
 // Layout, as Sentiment: a hero card (how many facts are confirmed, by status; the sources we checked against; Read
 // website again) → Where we read it → a 2×2 grid of equal columns (Your call · Checked against outside sources / Ready
-// to confirm · the fact sheet; a row's two cards share their top and bottom edge).
-// Text we read that isn't a fact (the home page's title, meta description and heading) is the last group of Ready to
-// confirm, "Also on your site": unticked, and not counted until ticked. Add a fact is a popover (no card grows).
+// to confirm · the fact sheet; a row's two cards share their top and bottom edge) → Read, but not facts.
+// Text we read that isn't a fact (the home page's title, meta description and heading) has its own slim bar at the end
+// of the page, which opens downward. Add a fact is a popover (no card grows).
 // Type: section titles 700, values 600 in ink, everything supporting 400 in stone-600. One helper line per section.
 // Colour: graphite, with one solid-ink element per card at most (its primary button); --negative (Sentiment's red) where
 // the site and a source disagree, on "Your call", and for pages we couldn't read. No AI engine logos: engines don't read the site.
 // Previews: ?wf=empty (never read) · ?wf=done (nothing left to review). "Read website again" plays the reading state.
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { AlignLeft, AppWindow, ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Heading1, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote } from 'lucide-react'
+import { AlignLeft, AppWindow, ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Heading1, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote, X } from 'lucide-react'
 import { brand } from '../../store/workspace'
 import SiteLogo from '../../components/ui/SiteLogo'
 import BetaTag from '../../components/ui/BetaTag'
@@ -220,7 +220,7 @@ function ReadyLine({ g, on, sent, onToggle }) {
   const f = g.lead
   const value = <span className={`text-[14px] leading-6 ${val}`} data-wf-from={g.id}><KeyValue fact={f} kept /></span>
   return (
-    <li {...useHot(g.pages)} className={`flex items-center gap-2.5 py-1 transition-opacity duration-200 ${sent ? 'opacity-30' : on ? '' : 'opacity-50'}`}>
+    <li {...useHot(g.pages)} className={`flex items-center gap-2.5 py-[11px] transition-opacity duration-200 ${sent ? 'opacity-30' : on ? '' : 'opacity-50'}`}>
       <Tick on={on} onChange={onToggle} disabled={sent} label={`Confirm “${f.value}”`} />
       {/* a logo is a little larger than a line icon, so the groups read differently */}
       <span className="grid h-6 w-6 shrink-0 place-items-center"><Mark fact={f} size={markOf(f) ? 22 : 17} /></span>
@@ -230,42 +230,20 @@ function ReadyLine({ g, on, sent, onToggle }) {
     </li>
   )
 }
-// "Also on your site": text we read that isn't a fact. Same row, unticked by default (400 until ticked, then 600), its
-// type at the right; one line, the full text on hover.
-function AlsoLine({ f, on, onToggle }) {
-  const Icon = KIND_ICON[f.field] ?? StickyNote
-  return (
-    <li className="flex items-center gap-2.5 py-1">
-      <Tick on={on} onChange={onToggle} label={`Confirm “${f.value}”`} />
-      <span className="grid h-6 w-6 shrink-0 place-items-center text-stone-600"><Icon size={17} strokeWidth={1.75} aria-hidden /></span>
-      <span title={f.value} className={`wf-anim min-w-0 flex-1 truncate text-[14px] leading-6 text-stone-900 transition-[font-weight] duration-200 ${on ? 'font-semibold' : 'font-normal'}`}><span data-wf-from={f.id}>{f.value}</span></span>
-      <span className={`shrink-0 ${sub}`}>{KIND[f.field]}</span>
-    </li>
-  )
-}
-function ReadyList({ rows, skipped, sent, onToggle, also, extra, onExtra }) {
-  const fill = rows.length > 0 // with facts to confirm the list takes the card's height; with only the extra texts left it keeps its own
+function ReadyList({ rows, skipped, sent, onToggle }) {
   const groups = READY_GROUPS.map(([label, has]) => ({ label, list: rows.filter(has) })).filter((grp) => grp.list.length)
-  const group = 'flex flex-col py-3 first:pt-0 last:pb-0'
-  const title = 'pb-1 text-[13px] leading-[18px] font-semibold text-stone-600'
   return (
-    <div className={`flex flex-col divide-y divide-[var(--div)] ${fill ? 'flex-1' : ''}`}>
+    <div className="flex flex-1 flex-col divide-y divide-[var(--div)]">
       {groups.map((grp) => (
-        <div key={grp.label} style={{ flexGrow: grp.list.length }} className={group}>
-          <h3 className={title}>{grp.label}</h3>
+        <div key={grp.label} style={{ flexGrow: grp.list.length }} className="flex flex-col py-3 first:pt-0 last:pb-0">
+          <h3 className="pb-1 text-[13px] leading-[18px] font-semibold text-stone-600">{grp.label}</h3>
           <ul className="flex flex-1 flex-col justify-around">{grp.list.map((g) => <ReadyLine key={g.id} g={g} on={!skipped.has(g.id)} sent={sent.has(g.id)} onToggle={() => onToggle(g)} />)}</ul>
         </div>
       ))}
-      {also.length > 0 && (
-        <div style={fill ? { flexGrow: also.length } : undefined} className={group}>
-          <h3 className={title}>Also on your site <span className="font-normal">· not counted unless you tick them</span></h3>
-          <ul className="flex flex-1 flex-col justify-around">{also.map((f) => <AlsoLine key={f.id} f={f} on={extra.has(f.id)} onToggle={() => onExtra(f)} />)}</ul>
-        </div>
-      )}
     </div>
   )
 }
-// the Confirm button's number ticks to its new value
+// a number that ticks to its new value (the Confirm button's, the Read, but not facts bar's)
 const Ticking = ({ n }) => <span className="num">{useCountUp(n, 200)}</span>
 
 // A floating panel anchored to the control that opened it: Esc and a click outside close it, Tab stays inside it, and
@@ -716,6 +694,58 @@ function PagesRead({ list, facts, merged, scan, hasRead, onRetry, k }) {
   )
 }
 
+// ---- Read, but not facts: one slim full-width bar at the end of the page (a preview of its texts while closed). It
+// opens in place, downward: one plain row per text. Row: line icon · the text on one line · its type and page · a quiet
+// "Use as a fact" (the text joins the fact sheet, waiting) · a small × to dismiss it (Undo for a few seconds).
+function NotFactRow({ f, i, onUse, onDismiss }) {
+  const [out, setOut] = useState(false)
+  const Icon = KIND_ICON[f.field] ?? StickyNote
+  const site = siteEvidence(f)
+  const dismiss = () => { if (reduced()) { onDismiss(f); return } setOut(true); setTimeout(() => onDismiss(f), 200) }
+  return (
+    <li className={`wf-anim card-in -mx-2 flex min-h-[47px] items-center gap-2.5 rounded-md px-2 py-[9px] transition-[background-color,opacity] duration-200 hover:bg-tint ${out ? 'opacity-0' : ''}`} style={{ animationDelay: `${80 + i * 70}ms`, animationFillMode: 'backwards' }}>
+      <span className="grid h-6 w-6 shrink-0 place-items-center text-stone-600"><Icon size={17} strokeWidth={1.75} aria-hidden /></span>
+      <span title={f.value} className={`min-w-0 truncate text-[14px] leading-6 ${val}`}><span data-wf-from={f.id}>{f.value}</span></span>
+      <span className={`shrink-0 ${sub}`}>{KIND[f.field]}{site ? ` · ${where(site.url)}` : ''}</span>
+      <button type="button" onClick={() => onUse(f)} className={`ml-auto shrink-0 ${link}`}>Use as a fact</button>
+      <span className="group/x relative shrink-0">
+        <button type="button" aria-label={`Dismiss “${f.value}”`} onClick={dismiss} className={`grid h-7 w-7 place-items-center rounded-md text-stone-600 transition-colors duration-150 hover:bg-[var(--color-line)] hover:text-stone-900 ${focus}`}><X size={15} aria-hidden /></button>
+        <span role="tooltip" className="pointer-events-none absolute bottom-full right-0 z-30 mb-1 hidden rounded-md border border-line bg-raised px-2 py-1 text-[12px] leading-4 text-stone-900 shadow-sm group-focus-within/x:block group-hover/x:block">Dismiss</span>
+      </span>
+    </li>
+  )
+}
+function NotFacts({ items, gone, onUse, onDismiss, onUndo }) {
+  const [open, setOpen] = useState(false)
+  const [run, setRun] = useState(0) // each opening staggers the rows in again
+  return (
+    <section className={card}>
+      <button type="button" aria-expanded={open} onClick={() => { setOpen((o) => !o); setRun((r) => r + 1) }} className={`flex w-full items-baseline gap-2 rounded-xl px-5 py-4 text-left ${focus}`}>
+        <span className="shrink-0 text-[15px] leading-[22px] font-bold text-stone-900">Read, but not facts</span>
+        <span className="text-[14px] leading-5 font-normal text-stone-600"><Ticking n={items.length} /></span>
+        {/* the closed bar previews its texts (the first words of each); the preview fades out when the bar opens */}
+        <span aria-hidden className={`ml-2 flex min-w-0 flex-1 items-center gap-4 self-center transition-opacity duration-200 ${open ? 'opacity-0' : ''}`}>
+          <BrandLogo size="h-5 w-5 rounded" className="shrink-0" />
+          {items.map((f) => {
+            const Icon = KIND_ICON[f.field] ?? StickyNote
+            return <span key={f.id} className={`flex min-w-0 flex-1 basis-0 items-center gap-1.5 ${sub}`}><Icon size={14} strokeWidth={1.75} className="shrink-0" /><span className="truncate">{KIND[f.field]} · {f.value}</span></span>
+          })}
+        </span>
+        <ChevronDown size={15} aria-hidden className={`ml-auto shrink-0 self-center text-stone-600 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {/* the height eases open; closed, what's inside can't be reached */}
+      <div className="wf-anim grid transition-[grid-template-rows] duration-300 ease-out" style={{ gridTemplateRows: open ? '1fr' : '0fr' }} inert={open ? undefined : ''}>
+        <div className={`min-h-0 ${open ? '' : 'overflow-hidden'}`}>
+          <div key={run} className="px-5 pb-3">
+            <ul className="divide-y divide-[var(--div)] border-t border-[var(--div)]">{items.map((f, i) => <NotFactRow key={f.id} f={f} i={i} onUse={onUse} onDismiss={onDismiss} />)}</ul>
+            {gone && <p className={`wf-anim card-in border-t border-[var(--div)] py-[11px] ${sub}`} aria-live="polite">Dismissed “{gone.value}” · <button type="button" onClick={onUndo} className={link}>Undo</button></p>}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function Fold({ title, count, children }) {
   const [open, setOpen] = useState(false)
   return (
@@ -746,7 +776,7 @@ export default function WebsiteFactsPage() {
   const [picked, setPicked] = useState(null) // the claim kept in a contradiction, while it resolves
   const [skipped, setSkipped] = useState(() => new Set()) // Ready to confirm rows the user unticked
   const [batch, setBatch] = useState(null) // a Confirm in flight: { rows, sent: Set }
-  const [extra, setExtra] = useState(() => new Set()) // "Also on your site" rows the user ticked
+  const [gone, setGone] = useState(null) // the text just dismissed in Read, but not facts (Undo for a few seconds)
   const [undo, setUndo] = useState(null) // the last Confirm: { ids, n }
   const [resolved, setResolved] = useState([]) // calls already made: { key, name, result, ids, pos }
   const [hot, setHot] = useState(null)
@@ -776,25 +806,21 @@ export default function WebsiteFactsPage() {
       a.onfinish = a.oncancel = () => { ghost.remove(); land() }
     }))
   }
-  // Confirm: the ticked facts are confirmed one after another (each block moves up to "In use" in the fact sheet); a
-  // ticked "Also on your site" text isn't in the sheet yet, so it travels there
-  const alsoTicked = b.notFacts.filter((f) => extra.has(f.id))
-  const confirmCount = ticked.length + alsoTicked.length
+  // Confirm: the ticked facts are confirmed one after another (each block moves up to "In use" in the fact sheet)
   const confirmTicked = () => {
-    const go = [...ticked.map((g) => ({ g })), ...alsoTicked.map((f) => ({ f }))]
-    const done = { ids: go.flatMap((x) => (x.g ? x.g.ids : [x.f.id])), n: go.length }
+    const go = ticked
+    const done = { ids: go.flatMap((g) => g.ids), n: go.length }
     if (!go.length) return
-    setExtra(new Set())
     if (reduced()) { setStatus(done.ids, 'CONFIRMED'); setUndo(done); return }
     setBatch({ rows: b.ready, sent: new Set() })
-    go.forEach((x, i) => setTimeout(() => {
-      if (x.f) { flyToSheet(x.f.id, x.f.value, () => setStatus([x.f.id], 'CONFIRMED')); return }
-      setStatus(x.g.ids, 'CONFIRMED')
-      setBatch((bt) => bt && { ...bt, sent: new Set(bt.sent).add(x.g.id) })
-    }, i * 130))
+    go.forEach((g, i) => setTimeout(() => { setStatus(g.ids, 'CONFIRMED'); setBatch((bt) => bt && { ...bt, sent: new Set(bt.sent).add(g.id) }) }, i * 130))
     setTimeout(() => { setBatch(null); setUndo(done) }, go.length * 130 + 450)
   }
-  const toggleExtra = (f) => setExtra((was) => { const n = new Set(was); if (n.has(f.id)) n.delete(f.id); else n.add(f.id); return n })
+  // Read, but not facts: "Use as a fact" makes it a fact waiting to be confirmed (it travels to the sheet's Waiting
+  // section); × dismisses it, with Undo for a few seconds
+  const useAsFact = (f) => flyToSheet(f.id, f.value, () => setFacts((fs) => fs.map((x) => (x.id === f.id ? { ...x, category: 'custom' } : x))))
+  const dismissText = (f) => { setStatus([f.id], 'REJECTED'); setGone(f) }
+  const undoText = () => { setStatus([gone.id], 'DISCOVERED'); setGone(null) }
   const undoConfirm = () => { setStatus(undo.ids, 'DISCOVERED'); setUndo(null) }
   const toggle = (g) => setSkipped((s) => { const n = new Set(s); if (n.has(g.id)) n.delete(g.id); else n.add(g.id); return n })
   // Your call: the open decisions, in order, and the ones already made (each collapses to one line with Undo)
@@ -823,6 +849,11 @@ export default function WebsiteFactsPage() {
     setFacts((fs) => [...fs, { id: `you${fs.length + 1}`, category: kind?.category ?? 'custom', field, value, status: 'ADDED_BY_YOU', source: 'YOU', notes: null, evidence: [] }])
   }
 
+  useEffect(() => {
+    if (!gone) return undefined
+    const t = setTimeout(() => setGone(null), 5000)
+    return () => clearTimeout(t)
+  }, [gone])
   // "Read website again": the rings fill page by page, section by section, then each source is checked in turn
   const read = () => { if (scan) return; if (reduced()) { setHasRead(true); return } setScan({ read: 0 }) }
   useEffect(() => {
@@ -869,30 +900,36 @@ export default function WebsiteFactsPage() {
         <div className="min-w-0">{b.cards.length > 0 && <SourcesCard cards={b.cards} scan={scan} onCheck={read} loose={b.merged.filter((g) => g.lead.status !== 'REJECTED' && g.lead.source !== 'YOU' && !sourceOf(g.lead))} />}</div>
 
         <section className={`${card} flex min-w-0 flex-col gap-3 p-5`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className={h2}>Ready to confirm <Count n={rows.length} /></h2>
-              {rows.length > 0 && <p className={sub}>Untick anything drafts shouldn’t use.</p>}
-            </div>
-            {(rows.length > 0 || b.notFacts.length > 0) && (
-              <button type="button" className={primary} disabled={!confirmCount || !!batch} onClick={confirmTicked}>
-                <Check size={15} aria-hidden />Confirm {confirmCount > 0 && confirmCount === b.ready.length && !alsoTicked.length ? 'all ' : ''}<Ticking n={confirmCount} />
-              </button>
-            )}
-          </div>
-          {/* nothing left to confirm: the done state takes the room; "Also on your site" stays under it at its own height */}
-          {rows.length === 0 && (
-            <div className={doneBox}>
-              {doneMark}
-              <p className={`text-[15px] leading-[22px] ${val}`}>{calls ? 'Nothing left to confirm' : 'Nothing needs you'}</p>
-              {undo && <p className={`num ${sub}`}>{undo.n} confirmed, now in use in the fact sheet. <button type="button" onClick={undoConfirm} className={link}>Undo</button></p>}
-            </div>
+          {rows.length > 0 ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className={h2}>Ready to confirm <Count n={rows.length} /></h2>
+                  <p className={sub}>Untick anything drafts shouldn’t use.</p>
+                </div>
+                <button type="button" className={primary} disabled={!ticked.length || !!batch} onClick={confirmTicked}>
+                  <Check size={15} aria-hidden />Confirm {ticked.length === b.ready.length || batch ? 'all ' : ''}<Ticking n={batch ? rows.length : ticked.length} />
+                </button>
+              </div>
+              <ReadyList rows={rows} skipped={skipped} sent={batch?.sent ?? new Set()} onToggle={toggle} />
+              {undoLine && <p className={`border-t border-[var(--div)] pt-3 ${sub}`}>{undoLine}</p>}
+            </>
+          ) : (
+            <>
+              <h2 className={h2}>Ready to confirm <Count n={0} /></h2>
+              <div className={doneBox}>
+                {doneMark}
+                <p className={`text-[15px] leading-[22px] ${val}`}>{calls ? 'Nothing left to confirm' : 'Nothing needs you'}</p>
+                {undo && <p className={`num ${sub}`}>{undo.n} confirmed, now in use in the fact sheet. <button type="button" onClick={undoConfirm} className={link}>Undo</button></p>}
+              </div>
+            </>
           )}
-          {(rows.length > 0 || b.notFacts.length > 0) && <ReadyList rows={rows} skipped={skipped} sent={batch?.sent ?? new Set()} onToggle={toggle} also={b.notFacts} extra={extra} onExtra={toggleExtra} />}
-          {rows.length > 0 && undoLine && <p className={`border-t border-[var(--div)] pt-3 ${sub}`}>{undoLine}</p>}
         </section>
         <div className="min-w-0"><FactSheet b={b} landing={landing} onAdd={add} /></div>
       </div>
+
+      {/* the last thing on the page; it goes once its last text is used or dismissed */}
+      {(b.notFacts.length > 0 || gone) && <NotFacts items={b.notFacts} gone={gone} onUse={useAsFact} onDismiss={dismissText} onUndo={undoText} />}
 
 
       {b.rejected.length > 0 && (
