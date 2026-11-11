@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bucketsOf, claimParts, diffOf, dupKey, factsOnPage, markOf, mergeFacts, pageSections, sampleFacts, samplePages, sectionOf, sourceOf, verdictOf, yearConflicts } from './websiteFacts.js'
+import { bucketsOf, claimParts, diffOf, dupKey, factsOnPage, markOf, mergeFacts, numeralOf, shortName, pageSections, sampleFacts, samplePages, sectionOf, sourceOf, verdictOf, yearConflicts } from './websiteFacts.js'
 
 const facts = sampleFacts('example.com', 'Example')
 const by = (id) => facts.find((f) => f.id === id)
@@ -89,4 +89,16 @@ test('markOf: the source\'s logo, a named certifier\'s, or none', () => {
   assert.equal(markOf(by('f10')).domain, 'bbb.org')
   assert.equal(markOf(by('f18')).domain, 'leapingbunny.org')
   assert.equal(markOf(by('f19')), null)
+})
+
+test('shortName and numeralOf: tight names for rows, the number a claim leads with', () => {
+  assert.equal(shortName(by('f8')), 'Trustpilot 4.6 / 5')
+  assert.equal(shortName(by('f11')), 'TIME Best Companies 2024')
+  assert.equal(shortName(by('f14')), 'Money Best Clean Skincare Brand 2025')
+  assert.equal(shortName(by('f10')), 'BBB A+, accredited')
+  assert.equal(shortName(by('f2')), '(512) 555-0142')
+  assert.equal(numeralOf('Over 2 million bottles sold'), '2M')
+  assert.equal(numeralOf('Recommended by 9 in 10 dermatologists we surveyed'), '9/10')
+  assert.equal(numeralOf('98% would buy again'), '98%')
+  assert.equal(numeralOf('Leaping Bunny certified'), null)
 })

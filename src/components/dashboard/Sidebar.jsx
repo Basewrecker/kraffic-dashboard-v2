@@ -29,7 +29,7 @@ export const groups = [
   { label: 'Optimize', items: [
     { label: 'Structured Data', icon: Code2, href: '/structured-data' },
     { label: 'Site Audit', icon: ScanSearch, href: '/audit' },
-    { label: 'Website facts', icon: Globe, href: '/website-facts', beta: true }, // as the app (2026-11-10): after Site Audit, Beta pill
+    { label: 'Fact Check', icon: Globe, href: '/website-facts', beta: true }, // the app's "Website facts", renamed (owner, 2026-11-11); after Site Audit, Beta pill
     { label: 'Toolkit', icon: Puzzle, href: '/more-tools' },
   ] },
   { label: 'Settings', items: [

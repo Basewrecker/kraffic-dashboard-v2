@@ -5,7 +5,7 @@ import { linkClick } from '../router'
 import { account } from '../data/mock'
 
 // A brand with no data yet (switched to from the workspace menu): every data page shows this instead of its content.
-const TITLES = { '/overview': 'Visibility Overview', '/tracker': 'Prompt Hub', '/trends': 'Trends', '/audit': 'Site Audit', '/structured-data': 'Structured Data', '/more-tools': 'Toolkit', '/more-tools/tool': 'Toolkit', '/citations': 'Citations', '/sentiment': 'Sentiment', '/fact-check': 'Fact Check' }
+const TITLES = { '/overview': 'Visibility Overview', '/tracker': 'Prompt Hub', '/trends': 'Trends', '/audit': 'Site Audit', '/structured-data': 'Structured Data', '/more-tools': 'Toolkit', '/more-tools/tool': 'Toolkit', '/citations': 'Citations', '/sentiment': 'Sentiment', '/fact-check': 'Fact Check', '/website-facts': 'Fact Check' }
 // onSetup (optional): what "Set up {brand}" does instead of linking to /brands (e.g. the app's own Brand Setup route)
 // setUp: the brand has its prompts and competitors, only the first sync is missing → "View prompts" (Prompt Hub);
 // onPrompts (optional): what "View prompts" does instead of linking to /tracker

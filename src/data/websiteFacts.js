@@ -60,6 +60,29 @@ export function sourceOf(fact) {
 // A logo to show beside a fact: its outside source, or a certifier it names (for display only: no check is implied)
 export const markOf = (fact) => sourceOf(fact) ?? (/leaping bunny/i.test(fact.value) ? { name: 'Leaping Bunny', domain: 'leapingbunny.org' } : null)
 
+// A fact's short name for a tight row: "Trustpilot 4.6 / 5", "TIME Best Companies 2024"; otherwise the value itself
+export function shortName(fact) {
+  const v = String(fact.value)
+  if (fact.field === 'trustpilot_rating') return `Trustpilot ${v.match(/\d(?:\.\d)?/)?.[0] ?? ''} / 5`
+  if (fact.field === 'bbb_rating') return `BBB ${v.match(/\b[A-D][+-]?(?![a-z])/)?.[0] ?? ''}${/accredited/i.test(v) ? ', accredited' : ''}`
+  if (fact.field === 'award') {
+    const core = /Best\s+[A-Z][^.,;:]*?(?:19|20)\d{2}/.exec(v)?.[0]
+    const src = sourceOf(fact)
+    if (core) return src ? `${src.name} ${core}` : core
+  }
+  return v
+}
+// The number a site claim leads with, as a short numeral: "2M", "9/10", "98%"; null when it has none
+export function numeralOf(value) {
+  const v = String(value)
+  let m
+  if ((m = /(\d+)\s+(?:in|out of)\s+(\d+)/i.exec(v))) return `${m[1]}/${m[2]}`
+  if ((m = /(\d+(?:\.\d+)?)\s*%/.exec(v))) return `${m[1]}%`
+  if ((m = /(\d+(?:\.\d+)?)\s*(million|billion|thousand)\b/i.exec(v))) return `${m[1]}${{ million: 'M', billion: 'B', thousand: 'K' }[m[2].toLowerCase()]}`
+  if ((m = /\d[\d,]*(?:\.\d+)?/.exec(v))) return m[0]
+  return null
+}
+
 // The site's sentence with the claim picked out: [before, claim, after] (the whole sentence as the claim when no rule fits)
 const CLAIM_RE = {
   trustpilot_rating: /\d(?:\.\d)?\s*(?:out of|\/)\s*5/i,
