@@ -11,7 +11,7 @@
 // the site and a source disagree, on "Your call", and for pages we couldn't read. No AI engine logos: engines don't read the site.
 // Previews: ?wf=empty (never read) · ?wf=done (nothing left to review). "Read website again" plays the reading state.
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { AlignLeft, AppWindow, ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Heading1, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote } from 'lucide-react'
+import { AlignLeft, AppWindow, ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Heading1, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote, X } from 'lucide-react'
 import { brand } from '../../store/workspace'
 import SiteLogo from '../../components/ui/SiteLogo'
 import BetaTag from '../../components/ui/BetaTag'
@@ -759,29 +759,79 @@ function PagesRead({ list, facts, merged, scan, hasRead, onRetry, k }) {
 }
 
 // ---- Read, but not facts: one slim full-width row at the end of the page. Clicking it opens it in place, downward (it
-// only lengthens the page): the texts as cards in a row, each with Use as a fact (it joins the fact sheet, waiting)
-// and Reject (the card fades and the others close the gap, with Undo for a few seconds).
-function NotFactCard({ f, i, onUse, onReject }) {
-  const [out, setOut] = useState(false)
+// only lengthens the page): the texts as three open columns split by hairlines, each drawn where it lives, with Use
+// as a fact (it joins the fact sheet, waiting) and Reject (a small ×; Undo for a few seconds).
+// A text shown where it really lives, drawn in graphite outlines and neutral fills; the real text is the darkest thing
+// in it. title → a browser tab · description → a search result · heading → the top of a page. All three are one height.
+const realText = 'rounded-sm text-stone-900 transition-colors duration-150 group-hover/col:bg-tint'
+function TextScene({ f, i, title }) {
+  const text = <span data-wf-from={f.id}>{f.value}</span>
+  const later = { animationDelay: `${260 + i * 110}ms`, animationFillMode: 'backwards', animationDuration: '260ms' } // the text comes in after its outline
+  const line = 'h-1.5 rounded-full bg-stone-300'
+  return (
+    <div className="wf-anim card-in flex h-[124px] flex-col justify-center overflow-hidden rounded-lg bg-tint px-3.5 transition-[transform,box-shadow] duration-200 group-hover/col:-translate-y-0.5 group-hover/col:shadow-sm" style={{ animationDelay: `${80 + i * 110}ms`, animationFillMode: 'backwards' }} aria-hidden={false}>
+      {f.field === 'title' ? (
+        // a browser tab, with the address bar under it
+        <div>
+          <div className="flex w-fit max-w-full items-center gap-2 rounded-t-lg border border-b-0 border-stone-300 bg-surface px-2.5 py-2">
+            <BrandLogo size="h-4 w-4 rounded-sm" className="shrink-0" />
+            <span className={`wf-anim fade-in min-w-0 text-[13px] leading-[18px] font-semibold [overflow-wrap:anywhere] ${realText}`} style={later}>{text}</span>
+          </div>
+          <div className="flex h-8 items-center gap-2 rounded-b-lg rounded-tr-lg border border-stone-300 bg-surface px-2.5">
+            <span className="h-3 w-3 shrink-0 rounded-full border border-stone-300" />
+            <span className="truncate text-[12px] leading-4 text-stone-600">{brand.domain}</span>
+          </div>
+        </div>
+      ) : f.field === 'description' ? (
+        // a search result: the site line, the page title as the result's heading, the description as its text
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1.5 text-[12px] leading-4 text-stone-600"><BrandLogo size="h-4 w-4 rounded-full" className="shrink-0" />{brand.domain}</span>
+          <span className="truncate text-[13px] leading-[18px] text-stone-600 underline decoration-stone-300 underline-offset-2">{title ?? brand.name}</span>
+          <span className={`wf-anim fade-in line-clamp-3 text-[13px] leading-[18px] font-semibold ${realText}`} style={later}>{text}</span>
+        </div>
+      ) : (
+        // the top of a page: a thin nav line, the heading, two lines of text to come
+        <div className="flex flex-col gap-2.5">
+          <span className="flex items-center gap-2 border-b border-stone-300 pb-2"><BrandLogo size="h-3.5 w-3.5 rounded-sm" className="shrink-0" /><span className={`${line} w-8`} /><span className={`${line} w-8`} /><span className={`${line} ml-auto w-10`} /></span>
+          <span className={`wf-anim fade-in line-clamp-2 text-[18px] leading-6 font-bold tracking-[-0.01em] ${realText}`} style={later}>{text}</span>
+          <span className="flex flex-col gap-1.5"><span className={`${line} w-11/12`} /><span className={`${line} w-2/3`} /></span>
+        </div>
+      )}
+    </div>
+  )
+}
+// one text: a label row (with Reject as a small × at its right), the text where it lives, and Use as a fact.
+// leaving: it was just used or rejected, and closes while the columns beside it widen.
+function NotFactColumn({ f, i, title, leaving, onUse, onReject }) {
   const Icon = KIND_ICON[f.field] ?? StickyNote
   const site = siteEvidence(f)
-  const small = `${secondary} h-8 px-2.5 text-[13px]`
-  const reject = () => { if (reduced()) { onReject(f); return } setOut(true); setTimeout(() => onReject(f), 220) }
   return (
-    <li className={`wf-anim card-in flex min-w-0 flex-1 basis-0 flex-col gap-1.5 rounded-lg border border-line bg-surface p-4 transition-[transform,box-shadow,opacity] duration-200 hover:-translate-y-0.5 hover:shadow-md ${out ? 'opacity-0' : ''}`} style={{ animationDelay: `${120 + i * 70}ms`, animationFillMode: 'backwards' }}>
-      <span className={`flex items-center gap-2 ${sub}`}><Icon size={15} strokeWidth={1.75} aria-hidden />{KIND[f.field]}</span>
-      <p className={`text-[15px] leading-[22px] ${val} [overflow-wrap:anywhere] [text-wrap:pretty]`}>“<span data-wf-from={f.id}>{f.value}</span>”</p>
-      {site && <span className={sub}>{where(site.url)}</span>}
-      <div className="mt-auto flex gap-2 pt-1.5">
-        <button type="button" className={small} onClick={() => onUse(f)}>Use as a fact</button>
-        <button type="button" className={small} onClick={reject}>Reject</button>
+    <li aria-hidden={leaving || undefined} className={`group/col wf-anim relative flex min-w-0 basis-0 flex-col gap-3 overflow-hidden transition-[flex-grow,opacity,padding] duration-300 ease-out max-sm:py-4 max-sm:first:pt-0 max-sm:last:pb-0 ${leaving ? 'grow-0 opacity-0 sm:px-0' : 'grow sm:px-5 sm:first:pl-0 sm:last:pr-0'}`}>
+      <div className={`flex items-center gap-2 ${sub}`}>
+        <Icon size={15} strokeWidth={1.75} aria-hidden className="shrink-0" />
+        <span className="min-w-0 truncate">{KIND[f.field]}{site ? ` · ${where(site.url)}` : ''}</span>
+        <span className="group/x relative ml-auto shrink-0">
+          <button type="button" aria-label={`Reject “${f.value}”`} disabled={leaving} onClick={() => onReject(f)} className={`grid h-7 w-7 place-items-center rounded-md text-stone-600 transition-colors duration-150 hover:bg-tint hover:text-stone-900 ${focus}`}><X size={15} aria-hidden /></button>
+          <span role="tooltip" className="pointer-events-none absolute right-0 top-full z-30 mt-1 hidden rounded-md border border-line bg-raised px-2 py-1 text-[12px] leading-4 text-stone-900 shadow-sm group-focus-within/x:block group-hover/x:block">Reject</span>
+        </span>
       </div>
+      <TextScene f={f} i={i} title={title} />
+      <button type="button" disabled={leaving} className={`${secondary} self-start`} onClick={() => onUse(f)}>Use as a fact</button>
     </li>
   )
 }
 function NotFacts({ items, gone, onUse, onReject, onUndo }) {
   const [open, setOpen] = useState(false)
-  const [run, setRun] = useState(0) // each opening staggers the cards in again
+  const [run, setRun] = useState(0) // each opening draws the three in again
+  // a text that was just used or rejected stays for a moment as a closing column, so the others widen instead of jumping
+  const [shown, setShown] = useState(items)
+  useEffect(() => {
+    if (reduced()) { setShown(items); return undefined }
+    setShown((was) => [...was, ...items.filter((f) => !was.some((x) => x.id === f.id))].map((f) => items.find((x) => x.id === f.id) ?? f).sort((x, y) => x.id.localeCompare(y.id, undefined, { numeric: true })))
+    const t = setTimeout(() => setShown(items), 320)
+    return () => clearTimeout(t)
+  }, [items])
+  const title = items.find((f) => f.field === 'title')?.value
   return (
     <section className={card}>
       <button type="button" aria-expanded={open} onClick={() => { setOpen((o) => !o); setRun((r) => r + 1) }} className={`flex w-full items-baseline gap-2 rounded-xl px-5 py-4 text-left ${focus}`}>
@@ -800,9 +850,14 @@ function NotFacts({ items, gone, onUse, onReject, onUndo }) {
       {/* the height eases open; closed, what's inside can't be reached */}
       <div className="wf-anim grid transition-[grid-template-rows] duration-300 ease-out" style={{ gridTemplateRows: open ? '1fr' : '0fr' }} inert={open ? undefined : ''}>
         <div className={`min-h-0 ${open ? '' : 'overflow-hidden'}`}>
-          <div key={run} className="flex flex-col gap-3 px-5 pb-5">
+          <div key={run} className="flex flex-col gap-4 px-5 pb-5">
             <p className={sub}>We read these but didn’t treat them as facts.</p>
-            {items.length > 0 && <ul className="flex flex-col gap-3 sm:flex-row">{items.map((f, i) => <NotFactCard key={f.id} f={f} i={i} onUse={onUse} onReject={onReject} />)}</ul>}
+            {/* three open columns of equal width, split by the standard hairline */}
+            {shown.length > 0 && (
+              <ul className="flex flex-col divide-line max-sm:divide-y sm:flex-row sm:items-start sm:divide-x">
+                {shown.map((f, i) => <NotFactColumn key={f.id} f={f} i={i} title={title} leaving={!items.some((x) => x.id === f.id)} onUse={onUse} onReject={onReject} />)}
+              </ul>
+            )}
             {gone && <p className={`wf-anim card-in ${sub}`} aria-live="polite">Rejected “{gone.value}” · <button type="button" onClick={onUndo} className={link}>Undo</button></p>}
             {!items.length && !gone && <p className={sub}>Nothing left here.</p>}
           </div>
