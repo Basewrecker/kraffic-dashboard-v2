@@ -481,17 +481,35 @@ function SourcesCard({ cards, scan }) {
 // ---- Where we read it: one ring for the whole site (pages read of pages tried, a small red notch per page we
 // couldn't read) and, beside it, the sections that gave facts as compact blocks: the fact count, the section's name
 // and page count, and one row of the logos / icons of its facts. Names show on hover or focus only.
-function SiteRing({ shown, total, share, fails, reading, tip }) {
-  const S = 132, SW = 10
-  const c = { cx: S / 2, cy: S / 2, r: (S - SW) / 2, fill: 'none', strokeWidth: SW, pathLength: 100 }
-  const step = 100 / total // one page's share of the ring
+// ringParts: where the arcs sit on a ring of circumference C (px), starting at 12 o'clock and running clockwise.
+// The read pages are one arc; the unread ones are the final stretch, ending at 12 o'clock: a short red segment each,
+// with the same gap before, between and after them. Every arc has round caps, so lengths leave room for them (a cap
+// adds half the stroke at each end). More than 4 unread pages: one red arc for their share. → { read: [from, len], bad: [[from, len]] }
+function ringParts(C, SW, share, fails, total) {
+  const GAP = 5, RED = 3 // px between caps; px of a red segment before its caps
+  if (!fails) return { read: [0, share >= 1 ? C : Math.max(0, share * C - SW / 2)], bad: [] }
+  const cell = RED + SW + GAP // one red segment with its caps, and the gap after it
+  if (fails > 4) {
+    const stretch = (fails / total) * C
+    return { read: [0, Math.max(0, C - stretch - SW)], bad: [[C - stretch + GAP, Math.max(1, stretch - GAP * 2 - SW * 1.5)]] }
+  }
+  const start = C - fails * cell // where the first red segment's dash begins (the last one's cap ends GAP before 12 o'clock's cap)
+  return { read: [0, Math.max(0, start - SW - GAP)], bad: Array.from({ length: fails }, (_, k) => [start + k * cell, RED]) }
+}
+function SiteRing({ size, shown, total, share, fails, reading, tip }) {
+  const S = size, SW = 5
+  const r = (S - SW) / 2
+  const C = 2 * Math.PI * r
+  const c = { cx: S / 2, cy: S / 2, r, fill: 'none', strokeWidth: SW, strokeLinecap: 'round' }
+  const parts = ringParts(C, SW, share, reading ? 0 : fails, total)
+  const dash = ([from, len]) => ({ strokeDasharray: `${len} ${C}`, strokeDashoffset: -from })
   return (
     <EdgeTip className="block !rounded-full" label={`${shown} of ${total} pages read`} tip={tip}>
       <span className="relative grid shrink-0 place-items-center" style={{ width: S, height: S }}>
         <svg width={S} height={S} viewBox={`0 0 ${S} ${S}`} className="-rotate-90" aria-hidden>
-          <circle {...c} stroke="var(--data-track)" />
-          {share > 0 && <circle {...c} stroke="var(--color-stone-700)" strokeDasharray={`${share * 100} 100`} className={reading ? '' : 'wf-anim wf-arc'} style={{ animationDelay: '200ms' }} />}
-          {!reading && Array.from({ length: fails }, (_, k) => <circle key={k} {...c} stroke="var(--negative)" strokeDasharray={`${step * 0.6} ${100 - step * 0.6}`} strokeDashoffset={-(share * 100 + step * (k + 0.2))} className="wf-anim fade-in" style={{ animationDelay: '900ms', animationFillMode: 'backwards' }} />)}
+          <circle {...c} stroke="var(--color-line)" />
+          {parts.read[1] > 0 && <circle {...c} stroke="var(--color-stone-600)" {...dash(parts.read)} className={reading ? '' : 'wf-anim wf-ring'} style={{ '--wf-c': C }} />}
+          {parts.bad.map((seg, k) => <circle key={k} {...c} stroke="var(--negative)" {...dash(seg)} className="wf-anim fade-in" style={{ animationDuration: '300ms', animationDelay: `${1000 + k * 120}ms`, animationFillMode: 'backwards' }} />)}
         </svg>
         <span className="absolute flex flex-col items-center">
           <b className="num text-[20px] leading-6 font-semibold tracking-[-0.01em] text-stone-900">{shown} of {total}</b>
@@ -559,19 +577,31 @@ function PagesRead({ list, facts, merged, scan, hasRead, onRetry, k }) {
   const none = withFacts.filter((x) => !x.groups.length).map((x) => x.s.label)
   const bad = list.filter((p) => !p.ok)
   const shown = reading ? scan.read + 1 : hasRead || scan ? (scan ? list.length : counted) : 0
+  // the ring is as tall as the section boxes beside it (top and bottom edges line up)
+  const boxes = useRef(null)
+  const [size, setSize] = useState(124)
+  useLayoutEffect(() => {
+    const el = boxes.current
+    if (!el) return undefined
+    const fit = () => setSize(Math.max(96, Math.min(160, Math.round(el.getBoundingClientRect().height))))
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    fit()
+    return () => ro.disconnect()
+  }, [hasRead])
   return (
     <section className={`${card} flex flex-col gap-4 p-5 lg:p-6`}>
-      <h2 className={h2}>Where we read it</h2>
-      <div className="flex flex-col gap-5 min-[900px]:flex-row min-[900px]:items-center">
-        <div className="flex shrink-0 items-center gap-4">
-          <SiteRing key={k} shown={shown} total={list.length} reading={reading} share={reading ? (scan.read + 1) / list.length : hasRead || scan ? okPages / list.length : 0} fails={hasRead && !scan ? bad.length : 0}
-            tip={hasRead && bad.length ? <span className="flex flex-col gap-1"><span className={val}>Couldn’t be read</span>{bad.map((p) => <span key={p.id}>{where(p.url)} · {p.error}</span>)}</span> : `Up to ${list.length} pages from your sitemap`} />
-          <p className="max-w-[10rem] text-[15px] leading-[22px] text-stone-600 [text-wrap:balance]" aria-live="polite">
-            {reading ? <>Reading {where(list[scan.read].url)}</> : scan ? 'Checking the sources' : hasRead ? <>Facts came from <b className={`num ${val}`}>{factPages}</b> pages</> : <>Up to <b className={`num ${val}`}>{list.length}</b> pages from your sitemap</>}
-          </p>
-        </div>
+      <div>
+        <h2 className={h2}>Where we read it</h2>
+        <p className={`num ${sub}`} aria-live="polite">
+          {reading ? <>Reading {where(list[scan.read].url)}</> : scan ? 'Checking the sources' : hasRead ? <>Facts came from <b className={val}>{factPages}</b> pages</> : <>Up to <b className={val}>{list.length}</b> pages from your sitemap</>}
+        </p>
+      </div>
+      <div className="flex flex-col items-center gap-4 min-[900px]:flex-row">
+        <SiteRing key={`ring-${k}`} size={size} shown={shown} total={list.length} reading={reading} share={reading ? (scan.read + 1) / list.length : hasRead || scan ? okPages / list.length : 0} fails={hasRead && !scan ? bad.length : 0}
+          tip={hasRead && bad.length ? <span className="flex flex-col gap-1"><span className={val}>Couldn’t be read</span>{bad.map((p) => <span key={p.id}>{where(p.url)} · {p.error}</span>)}</span> : `Up to ${list.length} pages from your sitemap`} />
         {hasRead && (
-          <div key={k} className="grid min-w-0 flex-1 grid-cols-2 items-stretch gap-3 min-[1100px]:grid-cols-4">
+          <div ref={boxes} key={`boxes-${k}`} className="grid w-full min-w-0 flex-1 grid-cols-2 items-stretch gap-3 min-[1100px]:grid-cols-4">
             {tiles.map(({ s, groups }, si) => <SectionBlock key={s.label} s={s} si={si} groups={groups} />)}
           </div>
         )}
