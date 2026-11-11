@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bucketsOf, claimParts, diffOf, dupKey, factsOnPage, keyPart, markOf, mergeFacts, numeralOf, shortName, pageSections, sampleFacts, samplePages, sectionOf, sourceOf, verdictOf, yearConflicts } from './websiteFacts.js'
+import { bucketsOf, claimParts, diffOf, dupKey, factsOnPage, keyPart, markOf, mergeFacts, numeralOf, pairTileOf, shortName, tileOf, pageSections, sampleFacts, samplePages, sectionOf, sourceOf, verdictOf, yearConflicts } from './websiteFacts.js'
 
 const facts = sampleFacts('example.com', 'Example')
 const by = (id) => facts.find((f) => f.id === id)
@@ -114,4 +114,17 @@ test('keyPart picks the part of a value that carries it; none for contact detail
   assert.deepEqual(keyPart(by('f18')), ['', 'Leaping Bunny', ' certified'])
   assert.deepEqual(keyPart(by('f21')), ['Free shipping over ', '$60', ''])
   assert.equal(keyPart(by('f2')), null)
+})
+
+test('tileOf: a fact as a key figure and a short label', () => {
+  assert.deepEqual(tileOf(by('f8')), { figure: '4.6 / 5', label: 'Trustpilot rating' })
+  assert.deepEqual(tileOf(by('f11')), { figure: 'Best Companies 2024', label: 'TIME award' })
+  assert.deepEqual(tileOf(by('f14')), { figure: 'Best Clean Skincare Brand 2025', label: 'Money award' })
+  assert.deepEqual(tileOf(by('f10')), { figure: 'A+', label: 'BBB rating' })
+  assert.deepEqual(tileOf(by('f18')), { figure: 'Certified', label: 'Leaping Bunny' })
+  assert.deepEqual(tileOf(by('f19')), { figure: '2 million', label: 'bottles sold' })
+  assert.deepEqual(tileOf(by('f20')), { figure: '9 in 10', label: 'dermatologists we surveyed' })
+  assert.deepEqual(tileOf(by('f21')), { figure: '$60', label: 'free shipping over · added by you' })
+  assert.deepEqual(tileOf(by('f2')), { figure: '(512) 555-0142', label: 'Phone' })
+  assert.deepEqual(pairTileOf(by('f16'), by('f17')), { figure: '20 years / 2013', label: 'years in business' })
 })

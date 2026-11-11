@@ -91,6 +91,31 @@ export function keyPart(fact) {
   return [v.slice(0, m.index), key, v.slice(m.index + key.length)]
 }
 
+// A fact as a tile: its key figure and a short label under it.
+//   "Trustpilot 4.6 / 5" → 4.6 / 5 · Trustpilot rating      "TIME America's Best Companies 2024" → Best Companies 2024 · TIME award
+//   "Over 2 million bottles sold" → 2 million · bottles sold   "Leaping Bunny certified" → Certified · Leaping Bunny
+//   "Free shipping over $60" (added by you) → $60 · free shipping over · added by you
+// A value with no key part is its own figure, labelled with its kind.
+const lower = (t) => (t ? t[0].toLowerCase() + t.slice(1) : t)
+const upper = (t) => (t ? t[0].toUpperCase() + t.slice(1) : t)
+export function tileOf(fact) {
+  const v = String(fact.value)
+  const k = keyPart(fact)
+  const added = fact.status === 'ADDED_BY_YOU' ? ' · added by you' : ''
+  if (fact.field === 'trustpilot_rating') return { figure: k?.[1] ?? v, label: 'Trustpilot rating' }
+  if (fact.field === 'bbb_rating') return { figure: k?.[1] ?? v, label: 'BBB rating' }
+  if (fact.field === 'award') {
+    const src = sourceOf(fact)
+    return { figure: /Best\s+[A-Z][^.,;:]*?(?:19|20)\d{2}/.exec(v)?.[0] ?? v, label: src ? `${src.name} award` : 'Award' }
+  }
+  if (fact.field === 'years') return { figure: k?.[1] ?? v, label: 'years in business' }
+  if (fact.field === 'accreditation' && k) return { figure: upper(k[2].trim()) || k[1], label: k[1] }
+  if (k) return { figure: k[1], label: (lower(k[2].trim() || k[0].trim()) || KIND[fact.field] || 'Fact') + added }
+  return { figure: v, label: (KIND[fact.field] ?? 'Fact') + added }
+}
+// two claims that can't both be true, as one tile: "20 years / 2013 · years in business"
+export const pairTileOf = (a, b) => ({ figure: `${tileOf(a).figure} / ${tileOf(b).figure}`, label: tileOf(a).label })
+
 // The number a site claim leads with, as a short numeral: "2M", "9/10", "98%"; null when it has none
 export function numeralOf(value) {
   const v = String(value)
