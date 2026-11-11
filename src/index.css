@@ -698,32 +698,20 @@ html[data-theme="dark"] .co-logo-plate { background: rgb(244 244 245 / 0.9); }
    Colour: graphite, plus --negative (the red Sentiment uses) where the site and an outside source disagree, where a
    decision is the user's ("Your call"), and for pages that couldn't be read. No colour of its own. */
 :root { --logo-plate: #FFFFFF; } /* white in both themes, behind a source's logo */
-@keyframes wf-settle { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes wf-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes wf-pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
 @keyframes wf-diff { 0%, 100% { background-color: transparent; } 40% { background-color: color-mix(in srgb, var(--negative) 20%, transparent); } }
-@keyframes wf-fold { from { opacity: 1; transform: translateY(var(--wf-y, 6px)); } to { opacity: 0; transform: none; } }
-@keyframes wf-strike { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes wf-spin { to { transform: rotate(360deg); } }
-@keyframes wf-pulse { 50% { opacity: .3; } }
-.wf-settle { animation: wf-settle 420ms cubic-bezier(.2,.8,.2,1) both; }
 .wf-draw { stroke-dasharray: 1; animation: wf-draw 320ms ease-out both; }
 .wf-pop { animation: wf-pop 240ms cubic-bezier(.2,.8,.2,1) both; }
 .wf-diff { color: var(--negative); border-radius: 3px; animation: wf-diff 800ms ease-out 1000ms 1 both; } /* the part that differs: red, one pulse */
-.wf-fold { animation: wf-fold 700ms cubic-bezier(.2,.8,.2,1) 350ms both; }
-.wf-strike { transform-origin: left; animation: wf-strike 320ms ease-out both; }
 .wf-spin { transform-box: fill-box; transform-origin: center; animation: wf-spin 900ms linear infinite; }
-.wf-pulse { animation: wf-pulse 700ms ease-in-out infinite; }
-@keyframes wf-arc { from { stroke-dasharray: 0 100; } }
-.wf-arc { animation: wf-arc 800ms cubic-bezier(.22, 1, .36, 1) both; } /* a section ring's arc sweeping in (as the Insights gauges) */
 @keyframes wf-ring { from { stroke-dasharray: 0 var(--wf-c); } }
 .wf-ring { animation: wf-ring 900ms cubic-bezier(.22, 1, .36, 1) 150ms both; } /* the site ring's arc, once, from 12 o'clock (--wf-c: its circumference) */
 @keyframes wf-panel { from { opacity: 0; transform: scale(.96); } }
 .wf-panel { animation: wf-panel 160ms ease-out both; } /* a floating panel growing from the control that opened it */
 @keyframes wf-seg { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-@keyframes wf-chip { from { opacity: 0; transform: translateY(-8px) scale(.9); } to { opacity: 1; transform: none; } }
 .wf-seg { transform-origin: left; animation: wf-seg 260ms cubic-bezier(.2,.8,.2,1) both; } /* a page segment filling, left to right */
-.wf-chip { animation: wf-chip 220ms cubic-bezier(.2,.8,.2,1) both; } /* a logo opening into its named fact */
 @media (prefers-reduced-motion: reduce) { .wf-anim { animation: none !important; transition: none !important; } }
 /* a confirmed value on its way into the fact sheet (drawn in <body>, see flyToSheet) */
 .wf-ghost { position: fixed; z-index: 80; pointer-events: none; margin: -5px -9px; padding: 4px 8px; border: 1px solid var(--color-line); border-radius: 8px;

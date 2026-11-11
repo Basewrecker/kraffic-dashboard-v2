@@ -17,7 +17,7 @@ import SiteLogo from '../../components/ui/SiteLogo'
 import BetaTag from '../../components/ui/BetaTag'
 import EdgeTip from '../../components/ui/EdgeTip'
 import { CrossFade, GLIDE, useCountUp } from '../../components/ui/motion'
-import { ADD_KINDS, GROUPS, KIND, READ_AT, bucketsOf, claimParts, diffOf, factsOnPage, groupOf, keyPart, markOf, outsideEvidence, pageSections, pairTileOf, pathOf, sampleFacts, samplePages, shortName, siteEvidence, sourceOf, tileOf, verdictOf } from '../../data/websiteFacts'
+import { ADD_KINDS, KIND, READ_AT, bucketsOf, claimParts, diffOf, factsOnPage, groupOf, keyPart, markOf, outsideEvidence, pageSections, pairTileOf, pathOf, sampleFacts, samplePages, shortName, siteEvidence, sourceOf, tileOf, verdictOf } from '../../data/websiteFacts'
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const READ_YEAR = new Date(READ_AT).getUTCFullYear()
@@ -58,21 +58,8 @@ function Mark({ fact, size = 20 }) {
     ? <span style={box} className="grid shrink-0 place-items-center overflow-hidden rounded bg-[var(--logo-plate)]"><SiteLogo domain={m.domain} name={m.name} className="h-full w-full" /></span>
     : <span style={box} className="grid shrink-0 place-items-center text-stone-600"><Icon size={Math.round(size * 0.8)} strokeWidth={1.75} aria-hidden /></span>
 }
-const PageLink = ({ url, pre = 'On your site' }) => (
-  <a href={url} target="_blank" rel="noreferrer" className={`${sub} w-fit rounded hover:text-stone-900 ${focus}`}>{pre} · {where(url)}</a>
-)
 // [before, differing, after]: the differing part in red, with one pulse
 const Diff = ({ parts }) => <>{parts[0]}{parts[1] && <span className="wf-anim wf-diff">{parts[1]}</span>}{parts[2]}</>
-const Sentence = ({ fact, className = '', quoted = false }) => {
-  const [a, b, c] = claimParts(fact)
-  return <p className={`font-normal text-stone-600 [text-wrap:pretty] ${className}`}>{quoted && '“'}{a}<b className={val}>{b}</b>{c}{quoted && '”'}</p>
-}
-// the small split ring that marks a "Your call" item
-const SplitMark = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden className="shrink-0">
-    <path d="M7 2a7 7 0 0 0 0 14M11 2a7 7 0 0 1 0 14" stroke="var(--negative)" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-)
 // a light tick: graphite outline, soft grey fill when on (never a solid ink box)
 const Tick = ({ on, onChange, label, disabled }) => (
   <button type="button" role="checkbox" aria-checked={on} aria-label={label} disabled={disabled} onClick={onChange}
