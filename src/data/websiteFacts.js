@@ -97,7 +97,7 @@ export function claimParts(fact) {
 }
 
 // Where a claim and its source part ways: the characters after their common start ("A+" against "A" → the "+").
-// → { site: [before, differing, after] of the claim, source: [before, differing, after] of the source's value } | null
+// → { site: [before, differing, after] of the claim, source: [before, differing, after] of the source's value, tokens } | null
 const TOKEN = { bbb_rating: /\b[A-D][+-]?(?![a-z])/, trustpilot_rating: /\d(?:\.\d)?/ }
 export function diffOf(fact) {
   const re = TOKEN[fact.field]
@@ -110,7 +110,8 @@ export function diffOf(fact) {
   let n = 0
   while (n < a[0].length && n < b[0].length && a[0][n] === b[0][n]) n += 1
   const cut = (text, m) => (m[0].length > n ? [text.slice(0, m.index + n), text.slice(m.index + n, m.index + m[0].length), text.slice(m.index + m[0].length)] : [text, '', ''])
-  return { site: cut(claim, a), source: cut(out.snippet, b) }
+  // tokens: the two short values on their own, each as [same, differing] ("A+" → ['A', '+'])
+  return { site: cut(claim, a), source: cut(out.snippet, b), tokens: { site: [a[0].slice(0, n), a[0].slice(n)], source: [b[0].slice(0, n), b[0].slice(n)] } }
 }
 
 // ---- duplicates: the same rating or award found more than once, in different words ---------------------------------

@@ -2,20 +2,20 @@
 // site, which claims an outside source backs up, and the facts Content drafts may use. Design only: the app's data and
 // its four actions (confirm, reject, add a fact, read the website again) on sample data (data/websiteFacts.js).
 // Layout, as Sentiment: a hero card (how many facts are confirmed, by status; the sources we checked against; Read
-// website again) → Where we read it → two columns that end on the same line (Your call, Ready to confirm | the fact
-// sheet) → the source cards → Read, but not facts.
+// website again) → Where we read it → two columns (Your call, Ready to confirm | the fact sheet, Checked against
+// outside sources) → Read, but not facts.
 // Type: section titles 700, values 600 in ink, everything supporting 400 in stone-600. One helper line per section.
 // Colour: graphite, with one solid-ink element per card at most (its primary button); --copper only where the site and
 // a source disagree; --negative only for a page we couldn't read. No AI engine logos: engines don't read the site.
 // Previews: ?wf=empty (never read) · ?wf=done (nothing left to review). "Read website again" plays the reading state.
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Layers, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote, X } from 'lucide-react'
+import { ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote } from 'lucide-react'
 import { brand } from '../../store/workspace'
 import SiteLogo from '../../components/ui/SiteLogo'
 import BetaTag from '../../components/ui/BetaTag'
 import EdgeTip from '../../components/ui/EdgeTip'
 import { GLIDE, useCountUp } from '../../components/ui/motion'
-import { ADD_KINDS, GROUPS, KIND, READ_AT, bucketsOf, claimParts, diffOf, factsOnPage, groupOf, markOf, numeralOf, outsideEvidence, pageSections, pathOf, sampleFacts, samplePages, shortName, siteEvidence, sourceOf, verdictOf } from '../../data/websiteFacts'
+import { ADD_KINDS, GROUPS, KIND, READ_AT, bucketsOf, claimParts, diffOf, factsOnPage, groupOf, markOf, outsideEvidence, pageSections, pathOf, sampleFacts, samplePages, shortName, siteEvidence, sourceOf, verdictOf } from '../../data/websiteFacts'
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const READ_YEAR = new Date(READ_AT).getUTCFullYear()
@@ -78,31 +78,6 @@ const Tick = ({ on, onChange, label, disabled }) => (
     {on && <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--color-stone-700)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path pathLength="1" className="wf-anim wf-draw" style={{ animationDuration: '160ms' }} d="M3.5 8.5l3 3 6-7" /></svg>}
   </button>
 )
-// The site's value beside the source's, each under its logo, the differing part in copper, and the words "Doesn't match"
-function Versus({ g, id }) {
-  const f = g.lead
-  const src = sourceOf(f)
-  const out = outsideEvidence(f)
-  const diff = diffOf(f)
-  const side = 'flex min-w-0 flex-col gap-1.5'
-  const who = `flex items-center gap-2 ${sub}`
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-x-6">
-        <div className={`wf-anim wf-settle ${side}`}>
-          <span className={who}><BrandLogo size="h-5 w-5 rounded" />Your site</span>
-          <span className={`${big} [text-wrap:balance]`} data-wf-from={id}>{diff ? <Diff parts={diff.site} /> : claimParts(f)[1]}</span>
-        </div>
-        <div className={`wf-anim wf-settle ${side}`} style={{ animationDelay: '120ms' }}>
-          <span className={who}>{src && <SourceLogo src={src} size="h-5 w-5 rounded" />}{src?.name ?? 'The source'}</span>
-          <span className={`${big} [text-wrap:balance]`}>{diff ? <Diff parts={diff.source} /> : out?.snippet}</span>
-        </div>
-      </div>
-      <span className="text-[13px] leading-[18px] font-semibold text-[var(--copper)]">Doesn’t match</span>
-    </div>
-  )
-}
-
 // ---- the hero: how many facts are confirmed, by status; the sources we checked against; Read website again ----------
 function Hero({ b, calls, scan, hasRead, onRead, scanLine }) {
   const kept = b.kept.length
@@ -168,108 +143,94 @@ function Hero({ b, calls, scan, hasRead, onRead, scanLine }) {
   )
 }
 
-// ---- Your call ------------------------------------------------------------------------------------------------------
-// a contradiction: two choice cards; the kept one takes the copper outline, the other dims
-function ConflictOption({ g, other, onPick, picked }) {
+// ---- Your call: every decision has the same shape. A numbered header (the fact's name, "Doesn't match"), two equal
+// cards side by side (who says it, the value, the quoted line), and the action at the foot of each card. Resolved, it
+// collapses to one line with Undo.
+function CallSide({ g, logo, label, value, quote, kept, dim, children }) {
+  return (
+    <div {...useHot(g.pages)} className={`flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg border p-4 transition-[border-color,opacity] duration-200 ${kept ? 'border-[var(--copper)]' : 'border-line'} ${dim ? 'opacity-40' : ''}`}>
+      <span className={`flex items-center gap-2 ${sub}`}>{logo}<span className="min-w-0 truncate">{label}</span></span>
+      <span className={`${big} [text-wrap:balance]`}>{value}</span>
+      {quote}
+      <div className="mt-auto flex min-h-9 items-center pt-2">{children}</div>
+    </div>
+  )
+}
+function SiteSide({ g, value, onKeep, picked }) {
   const site = siteEvidence(g.lead)
   const kept = picked === g.id
   return (
-    <div {...useHot(g.pages)} className={`flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg border p-4 transition-[border-color,opacity] duration-200 ${kept ? 'border-[var(--copper)]' : 'border-line'} ${picked && !kept ? 'opacity-40' : ''}`}>
-      <span className={`w-fit ${big}`} data-wf-from={g.id}>{g.lead.value}</span>
-      {site && <Sentence fact={g.lead} quoted className="text-[13px] leading-[18px]" />}
-      {site && <span className={sub}>{where(site.url)}</span>}
-      <button type="button" disabled={!!picked} onClick={() => onPick(g, other)} className={`${secondary} mt-auto self-start ${kept ? 'disabled:opacity-100' : ''}`}>{kept && <Check size={15} aria-hidden />}{kept ? 'Kept' : 'Keep this one'}</button>
-    </div>
+    <CallSide g={g} kept={kept} dim={!!picked && !kept} logo={<BrandLogo size="h-5 w-5 rounded" />} label={`Your site${site ? ` · ${where(site.url)}` : ''}`}
+      value={<span data-wf-from={g.id}>{value ?? g.lead.value}</span>} quote={site && <Sentence fact={g.lead} quoted className="text-[13px] leading-[18px]" />}>
+      <button type="button" disabled={!!picked} onClick={onKeep} className={`${secondary} ${kept ? 'disabled:opacity-100' : ''}`}>{kept && <Check size={15} aria-hidden />}{kept ? 'Kept' : 'Keep this one'}</button>
+    </CallSide>
   )
 }
-const ConflictCard = ({ c, onPick, picked }) => (
+const CallItem = ({ n, name, children, foot }) => (
   <div className="flex flex-col gap-3 p-5">
-    <p className="flex items-center gap-2.5 text-[15px] leading-[22px] font-semibold text-stone-900"><SplitMark />These two can’t both be true.</p>
-    <div className="flex flex-col gap-3 sm:flex-row"><ConflictOption g={c.a} other={c.b} onPick={onPick} picked={picked} /><ConflictOption g={c.b} other={c.a} onPick={onPick} picked={picked} /></div>
+    <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+      <span className="num grid h-5 w-5 shrink-0 place-items-center rounded-full bg-tint text-[12px] font-semibold text-stone-900">{n}</span>
+      <b className={`text-[15px] leading-[22px] ${val}`}>{name}</b>
+      <span className="text-[13px] leading-[18px] font-semibold text-[var(--copper)]">Doesn’t match</span>
+    </p>
+    <div className="flex flex-col gap-3 sm:flex-row">{children}</div>
+    {foot}
   </div>
 )
-const DiffersCard = ({ g, onConfirm, onReject }) => (
-  <div className="flex flex-col gap-4 p-5" {...useHot(g.pages)}>
-    <Versus g={g} id={g.id} />
-    <div className="flex flex-wrap gap-2">
-      <button type="button" className={secondary} onClick={() => onConfirm(g)}><Check size={15} aria-hidden />Keep the site’s claim</button>
-      <button type="button" className={secondary} onClick={() => onReject(g)}><X size={15} aria-hidden />Reject</button>
-    </div>
-  </div>
+const ConflictItem = ({ c, n, onPick, picked }) => (
+  <CallItem n={n} name={KIND[c.a.lead.field]}>
+    <SiteSide g={c.a} picked={picked} onKeep={() => onPick(c.a, c.b)} />
+    <SiteSide g={c.b} picked={picked} onKeep={() => onPick(c.b, c.a)} />
+  </CallItem>
+)
+function DiffersItem({ g, n, onKeep, onDrop, picked }) {
+  const f = g.lead
+  const src = sourceOf(f)
+  const out = outsideEvidence(f)
+  const diff = diffOf(f)
+  return (
+    <CallItem n={n} name={KIND[f.field]} foot={<button type="button" disabled={!!picked} onClick={() => onDrop(g)} className={`${link} self-start`}>Drop this fact</button>}>
+      <SiteSide g={g} picked={picked} onKeep={() => onKeep(g)} value={diff ? <Diff parts={diff.site} /> : claimParts(f)[1]} />
+      <CallSide g={g} dim={picked === g.id} logo={src && <SourceLogo src={src} size="h-5 w-5 rounded" />} label={src?.name ?? 'The source'} value={diff ? <Diff parts={diff.source} /> : out?.snippet}>
+        {out && <a href={out.url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-0.5 ${link}`}>Open the source<ArrowUpRight size={14} aria-hidden /></a>}
+      </CallSide>
+    </CallItem>
+  )
+}
+const ResolvedLine = ({ r, onUndo }) => (
+  <p className="wf-anim card-in flex flex-wrap items-center gap-x-1.5 px-5 py-3 text-[14px] leading-5 text-stone-600">
+    <Check size={15} aria-hidden className="mr-1 shrink-0 text-stone-700" />
+    <b className={val}>{r.name}</b> · <span className="min-w-0">{r.result}</span> · <button type="button" onClick={() => onUndo(r)} className={link}>Undo</button>
+  </p>
 )
 
-// ---- Ready to confirm: three kinds of row, each led by something of its own -----------------------------------------
-//   contact: one block led by the brand logo, a short line per detail with a plain line icon
-//   awards / accreditations / ratings: the real logo
-//   site claims: the number the claim leads with, as a bold numeral ("2M", "9/10")
-const rowState = (on, sent) => `transition-opacity duration-200 ${sent ? 'opacity-30' : on ? '' : 'opacity-50'}`
-function ContactLine({ g, on, sent, onToggle }) {
+// ---- Ready to confirm: one line per fact. Tick · logo or line icon · the value · its kind at the right. Hover or
+// focus the value for the page(s) it came from. Three groups, split by hairlines: contact · awards, ratings and
+// accreditations · site claims.
+function ReadyLine({ g, on, sent, onToggle }) {
   const f = g.lead
-  const Icon = KIND_ICON[f.field] ?? StickyNote
+  const value = <span className={`text-[14px] leading-6 ${val}`} data-wf-from={g.id}>{f.value}</span>
   return (
-    <li {...useHot(g.pages)} className={`flex items-center gap-2.5 ${rowState(on, sent)}`}>
+    <li {...useHot(g.pages)} className={`flex items-center gap-2.5 py-1 transition-opacity duration-200 ${sent ? 'opacity-30' : on ? '' : 'opacity-50'}`}>
       <Tick on={on} onChange={onToggle} disabled={sent} label={`Confirm “${f.value}”`} />
-      <Icon size={15} strokeWidth={1.75} aria-hidden className="shrink-0 text-stone-600" />
-      <span className={`min-w-0 truncate text-[14px] leading-6 ${val}`} data-wf-from={g.id}>{f.value}</span>
-      <span className={`shrink-0 ${sub}`}>{KIND[f.field]}</span>
-    </li>
-  )
-}
-function ReadyRow({ g, on, sent, onToggle }) {
-  const f = g.lead
-  const site = siteEvidence(f)
-  const logo = markOf(f)
-  const numeral = !logo && numeralOf(f.value)
-  const Icon = KIND_ICON[f.field] ?? StickyNote
-  const [open, setOpen] = useState(false)
-  const many = g.copies.length > 1
-  return (
-    <li {...useHot(g.pages)} className={`relative flex items-start gap-3 py-2 ${rowState(on, sent)}`}>
-      {/* the copies it was found as, folding into this one row on load */}
-      {many && [10, 5].map((y) => <span key={y} aria-hidden style={{ '--wf-y': `${y}px` }} className="wf-anim wf-fold pointer-events-none absolute -inset-x-2 inset-y-0.5 rounded-lg border border-line opacity-0" />)}
-      <span className="flex h-7 w-9 shrink-0 items-center">
-        {logo ? <SourceLogo src={logo} />
-          : numeral ? <b className="num text-[16px] leading-7 font-semibold tracking-[-0.03em] text-stone-900">{numeral}</b>
-            : <Icon size={18} strokeWidth={1.75} aria-hidden className="text-stone-600" />}
-      </span>
-      <span className="mt-1"><Tick on={on} onChange={onToggle} disabled={sent} label={`Confirm “${f.value}”`} /></span>
-      <div className="min-w-0 flex-1">
-        <p className="flex items-baseline gap-2.5 text-[14px] leading-7">
-          <span className={`min-w-0 leading-5 ${val} [overflow-wrap:anywhere]`} data-wf-from={g.id}>{f.value}</span>
-          {many && (
-            <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`inline-flex shrink-0 items-center gap-1 rounded text-[13px] font-normal text-stone-600 hover:text-stone-900 ${focus}`}>
-              <Layers size={13} aria-hidden className="self-center" />Found {g.copies.length} times<ChevronDown size={13} aria-hidden className={`self-center transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
-            </button>
-          )}
-        </p>
-        <p className={sub}>{KIND[f.field]}{site ? ` · ${where(site.url)}` : ''}{verdictOf(f) === 'unchecked' ? ' · Not checked' : ''}</p>
-        {open && (
-          <ul className="mt-2 flex flex-col gap-2">
-            {g.copies.map((c, i) => (
-              <li key={c.id} className="wf-anim card-in flex flex-col" style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}>
-                <Sentence fact={c} className="text-[13px] leading-[18px]" />
-                {siteEvidence(c) && <PageLink url={siteEvidence(c).url} pre="Found on" />}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <Mark fact={f} size={20} />
+      {g.pages.length
+        ? <EdgeTip className="block min-w-0 truncate" tip={<span className="flex flex-col gap-1"><span className={val}>Found on</span>{g.pages.map((u) => <span key={u}>{where(u)}</span>)}</span>}>{value}</EdgeTip>
+        : <span className="min-w-0 truncate">{value}</span>}
+      <span className={`ml-auto shrink-0 ${sub}`}>{KIND[f.field]}</span>
     </li>
   )
 }
 function ReadyList({ rows, skipped, sent, onToggle }) {
-  const contact = rows.filter((g) => groupOf(g.lead) === 'contact')
-  const rest = GROUPS.filter((grp) => grp.id !== 'contact').flatMap((grp) => rows.filter((g) => groupOf(g.lead) === grp.id))
-  const props = (g) => ({ g, on: !skipped.has(g.id), sent: sent.has(g.id), onToggle: () => onToggle(g) })
+  const kindOf = (g) => (groupOf(g.lead) === 'contact' ? 0 : ['ratings', 'awards', 'accreditations'].includes(groupOf(g.lead)) ? 1 : 2)
+  const groups = [0, 1, 2].map((k) => rows.filter((g) => kindOf(g) === k)).filter((list) => list.length)
   return (
     <div className="flex flex-col divide-y divide-[var(--div)]">
-      {contact.length > 0 && (
-        <div className="flex items-start gap-3 pb-3">
-          <BrandLogo size="h-9 w-9 rounded-lg" />
-          <ul className="flex min-w-0 flex-1 flex-col gap-1.5 pt-1.5">{contact.map((g) => <ContactLine key={g.id} {...props(g)} />)}</ul>
-        </div>
-      )}
-      {rest.length > 0 && <ul className={contact.length ? 'pt-1' : ''}>{rest.map((g) => <ReadyRow key={g.id} {...props(g)} />)}</ul>}
+      {groups.map((list) => (
+        <ul key={list[0].id} className="py-2 first:pt-0 last:pb-0">
+          {list.map((g) => <ReadyLine key={g.id} g={g} on={!skipped.has(g.id)} sent={sent.has(g.id)} onToggle={() => onToggle(g)} />)}
+        </ul>
+      ))}
     </div>
   )
 }
@@ -368,28 +329,23 @@ function AddSlot({ onAdd }) {
   )
 }
 
-// ---- the fact sheet: what Content drafts may use, by kind. Kept: logo or kind icon + the value. Waiting: a hollow
-// dot + the claim in the secondary colour (no box), wrapping to two lines. One column of groups with a hairline
-// between them; the card is as tall as the column beside it, with "+ Add a fact" at its foot.
-const sheetRow = 'flex items-start gap-2 rounded-md px-1.5 py-1 -mx-1.5 text-[14px] leading-5 transition-colors duration-150'
-const Hollow = ({ call }) => <span aria-hidden className="grid h-5 w-4 shrink-0 place-items-center"><span className={`h-2 w-2 rounded-full border-[1.5px] ${call ? 'border-[var(--copper)]' : 'border-stone-400'}`} /></span>
+// ---- the fact sheet: what Content drafts may use, by kind. Every row: its logo or a line icon, the value in the
+// primary colour, and at the right a tick (confirmed, 600), "To confirm" (waiting, 400) or "Your call" (copper).
+const sheetRow = 'flex items-start gap-2 rounded-md px-1.5 py-[3px] -mx-1.5 text-[14px] leading-5 text-stone-900 transition-colors duration-150'
 const isLit = (hot, g) => !!hot && g.pages.some((u) => hot.urls.has(u))
-function KeptRow({ g, landing }) {
+const Lead = ({ children }) => <span className="grid h-5 w-4 shrink-0 place-items-center">{children}</span>
+const toConfirm = <span className={`shrink-0 pl-2 ${sub} leading-5`}>To confirm</span>
+const yourCall = <span className="shrink-0 pl-2 text-[13px] leading-5 font-semibold text-[var(--copper)]">Your call</span>
+function SheetRow({ g, landing, state }) {
   const { hot } = useContext(Hot)
+  const kept = state === 'kept'
   return (
-    <p {...useHot(g.pages)} data-wf-slot={g.id} className={`${sheetRow} ${val} ${isLit(hot, g) ? 'bg-tint' : ''}`}>
-      <span className="grid h-5 w-4 shrink-0 place-items-center"><Mark fact={g.lead} size={16} /></span>
+    <p {...useHot(g.pages)} data-wf-slot={kept ? g.id : undefined} className={`${sheetRow} ${kept ? 'font-semibold' : 'font-normal'} ${isLit(hot, g) ? 'bg-tint' : ''}`}>
+      <Lead><Mark fact={g.lead} size={16} /></Lead>
       <span className={`min-w-0 flex-1 [overflow-wrap:anywhere] transition-opacity duration-200 ${landing.has(g.id) ? 'opacity-0' : ''}`}>
         {g.lead.value}{g.lead.status === 'ADDED_BY_YOU' && <span className="font-normal text-stone-600"> · added by you</span>}
       </span>
-    </p>
-  )
-}
-function WaitingRow({ g, call }) {
-  const { hot } = useContext(Hot)
-  return (
-    <p {...useHot(g.pages)} className={`${sheetRow} font-normal text-stone-600 ${isLit(hot, g) ? 'bg-tint' : ''}`}>
-      <Hollow call={call} /><span className="line-clamp-2 min-w-0 flex-1 [overflow-wrap:anywhere]">{g.lead.value}</span>
+      {kept ? <Lead><Check size={14} aria-label="Confirmed" className="text-stone-600" /></Lead> : state === 'call' ? yourCall : toConfirm}
     </p>
   )
 }
@@ -403,7 +359,7 @@ function FactSheet({ b, landing, onAdd }) {
     picks: b.conflicts.filter((c) => groupOf(c.a.lead) === grp.id),
   })).filter((grp) => grp.kept.length || grp.open.length || grp.picks.length)
   return (
-    <aside aria-label="Your fact sheet" className={`${card} flex h-full flex-col gap-4 p-5`}>
+    <aside aria-label="Your fact sheet" className={`${card} flex flex-col gap-3 p-5`}>
       <header className="flex items-center gap-3">
         <BrandLogo size="h-9 w-9 rounded-lg" />
         <div className="min-w-0">
@@ -413,70 +369,75 @@ function FactSheet({ b, landing, onAdd }) {
       </header>
       <div className="flex flex-col">
         {groups.map((grp) => (
-          <section key={grp.id} className="flex min-w-0 flex-col gap-0.5 border-t border-[var(--div)] py-3">
-            <h3 className={`${sub} pb-1`}>{grp.label}</h3>
-            {grp.kept.map((g) => <KeptRow key={g.id} g={g} landing={landing} />)}
-            {grp.open.map((g) => <WaitingRow key={g.id} g={g} call={callIds.has(g.id)} />)}
-            {grp.picks.map((c) => <p key={c.a.id} className={`${sheetRow} font-normal text-stone-600`}><Hollow call /><span>{grp.label} · pick one</span></p>)}
+          <section key={grp.id} className="flex min-w-0 flex-col border-t border-[var(--div)] py-2.5">
+            <h3 className="pb-1 text-[13px] leading-[18px] font-semibold text-stone-600">{grp.label}</h3>
+            {grp.kept.map((g) => <SheetRow key={g.id} g={g} landing={landing} state="kept" />)}
+            {grp.open.map((g) => <SheetRow key={g.id} g={g} landing={landing} state={callIds.has(g.id) ? 'call' : 'wait'} />)}
+            {/* a contradiction: both candidate values on one row */}
+            {grp.picks.map((c) => (
+              <p key={c.a.id} className={`${sheetRow} font-normal`}>
+                <Lead><Mark fact={c.a.lead} size={16} /></Lead>
+                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{c.a.lead.value} <span className="text-stone-600">/</span> {c.b.lead.value}</span>
+                {yourCall}
+              </p>
+            ))}
           </section>
         ))}
       </div>
-      <div className="mt-auto"><AddSlot onAdd={onAdd} /></div>
+      <AddSlot onAdd={onAdd} />
     </aside>
   )
 }
 
-// ---- the source cards: one per claim that names an outside source. No symbols: the card's shape and plain words say
-// what happened. Match: the value once, both logos, "Same on …". Doesn't match: the two values side by side.
-// Couldn't check: only the site's value and "Couldn't find this on …".
-function SourceCard({ g, checking, waiting, k }) {
+// ---- Checked against outside sources: one compact card, a row per source. Logo · name and kind · the value · the
+// result in plain words · the source's link. A mismatch shows both values. Click a row for where it is on the site.
+const KIND_SHORT = { trustpilot_rating: 'rating', bbb_rating: 'rating', award: 'award' }
+const Tok = ({ parts }) => <b className={val}>{parts[0]}{parts[1] && <span className="wf-anim wf-diff">{parts[1]}</span>}</b>
+function SourceRow({ g, checking, waiting }) {
+  const [open, setOpen] = useState(false)
   const f = g.lead
   const src = sourceOf(f)
   const v = verdictOf(f)
   const out = outsideEvidence(f)
   const site = siteEvidence(f)
+  const diff = diffOf(f)
   const more = g.pages.length - 1
-  const status = checking ? 'Checking…' : f.status === 'CONFIRMED' ? 'In your fact sheet' : v === 'differs' ? 'Needs your call' : 'Ready to confirm'
-  const agreed = ['trustpilot_rating', 'bbb_rating'].includes(f.field) && out ? out.snippet : claimParts(f)[1]
+  const result = checking ? 'Checking…' : v === 'agrees' ? `Same on ${src.name}` : v === 'differs' ? 'Doesn’t match' : `Couldn’t find this on ${src.name}`
+  const value = v === 'differs' && diff ? <span className="font-normal text-stone-600"><Tok parts={diff.tokens.site} /> on your site · <Tok parts={diff.tokens.source} /> on {src.name}</span>
+    : ['trustpilot_rating', 'bbb_rating'].includes(f.field) && out && v === 'agrees' ? out.snippet : claimParts(f)[1]
   return (
-    <article {...useHot(g.pages)} className={`${card} flex flex-col gap-4 p-5 transition-opacity duration-200 lg:p-6 ${waiting ? 'opacity-50' : ''}`}>
-      <header className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-        <span className="flex items-center -space-x-1.5">
-          <SourceLogo src={src} className="relative ring-2 ring-[var(--color-surface)]" />
-          {v === 'agrees' && <BrandLogo className="ring-2 ring-[var(--color-surface)]" />}
-        </span>
-        <span className="text-[15px] leading-[22px] font-semibold text-stone-900">{src.name}</span>
-        <span className={sub}>{KIND[f.field]}</span>
-        <span className={`ml-auto ${sub}`}>{status}</span>
-      </header>
-      <div key={k} className="flex flex-1 flex-col gap-3">
-        {v === 'agrees' && (
-          <div className="wf-anim wf-settle flex flex-col gap-1">
-            <span className="text-[26px] leading-8 font-semibold tracking-[-0.02em] text-stone-900 [text-wrap:balance]">{agreed}</span>
-            <span className={sub}>Same on {src.name}</span>
-          </div>
-        )}
-        {v === 'differs' && <Versus g={g} />}
-        {v === 'unchecked' && (
-          <div className="wf-anim wf-settle flex flex-col gap-1.5">
-            <span className={`flex items-center gap-2 ${sub}`}><BrandLogo size="h-5 w-5 rounded" />Your site</span>
-            <span className={`${big} [text-wrap:balance]`}>{claimParts(f)[1]}</span>
-            <span className={sub}>Couldn’t find this on {src.name}</span>
-          </div>
-        )}
-        <div className={`mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[var(--div)] pt-3 ${sub}`}>
-          {site && <PageLink url={site.url} />}
-          {more > 0 && (
-            <EdgeTip className="w-fit" tip={<span className="flex flex-col gap-1"><span className={val}>The same claim, found on</span>{g.pages.map((u) => <span key={u}>{where(u)}</span>)}</span>}>
-              <span className="inline-flex items-center gap-1"><Layers size={13} aria-hidden />and {plural(more, 'page')} more</span>
-            </EdgeTip>
-          )}
-          {out && <a href={out.url} target="_blank" rel="noreferrer" className={`ml-auto inline-flex items-center gap-0.5 rounded hover:text-stone-900 ${focus}`}>Open the source<ArrowUpRight size={13} aria-hidden /></a>}
-        </div>
+    <li {...useHot(g.pages)} className={`transition-opacity duration-200 ${waiting ? 'opacity-50' : ''}`}>
+      <div className="flex items-start gap-3 py-3">
+        <SourceLogo src={src} />
+        <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={`min-w-0 flex-1 rounded text-left ${focus}`}>
+          <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <span className={sub}><b className={`text-[14px] ${val}`}>{src.name}</b> · {KIND_SHORT[f.field] ?? KIND[f.field].toLowerCase()}</span>
+            <span className={!checking && v === 'differs' ? 'text-[13px] leading-[18px] font-semibold text-[var(--copper)]' : sub}>{result}</span>
+          </span>
+          <span className={`mt-0.5 block text-[15px] leading-[22px] ${val} [overflow-wrap:anywhere]`}>{value}</span>
+        </button>
+        {out
+          ? <a href={out.url} target="_blank" rel="noreferrer" aria-label={`Open ${src.name}`} className={`grid h-7 w-7 shrink-0 place-items-center rounded-md text-stone-600 transition-colors duration-150 hover:bg-tint hover:text-stone-900 ${focus}`}><ArrowUpRight size={15} aria-hidden /></a>
+          : <span className="w-7 shrink-0" />}
       </div>
-    </article>
+      {open && (
+        <div className="wf-anim card-in flex flex-col gap-1 pb-3 pl-10 pr-10">
+          {site && <PageLink url={site.url} />}
+          <Sentence fact={f} quoted className="text-[13px] leading-[18px]" />
+          {more > 0 && <p className={sub}>and {plural(more, 'page')} more: {g.pages.slice(1).map(where).join(', ')}</p>}
+        </div>
+      )}
+    </li>
   )
 }
+const SourcesCard = ({ cards, scan, className = '' }) => (
+  <section className={`${card} p-5 ${className}`}>
+    <h2 className={h2}>Checked against outside sources <Count n={cards.length} /></h2>
+    <ul className="mt-1 divide-y divide-[var(--div)]">
+      {cards.map((g, i) => <SourceRow key={g.id} g={g} checking={scan?.checking === i} waiting={scan?.read != null || scan?.checking < i} />)}
+    </ul>
+  </section>
+)
 
 // ---- Where we read it: a headline, one tile per site section that gave facts, the rest in one line ------------------
 // A page segment: filled = a fact came from it, outline = read, red outline = couldn't be read. Hover: the page's card.
@@ -628,6 +589,7 @@ export default function WebsiteFactsPage() {
   const [skipped, setSkipped] = useState(() => new Set()) // Ready to confirm rows the user unticked
   const [batch, setBatch] = useState(null) // a Confirm in flight: { rows, sent: Set, closing }
   const [undo, setUndo] = useState(null) // the last Confirm: { ids, n }
+  const [resolved, setResolved] = useState([]) // calls already made: { key, name, result, ids, pos }
   const [hot, setHot] = useState(null)
   const hotCtx = useMemo(() => ({ hot, setHot }), [hot])
   const b = useMemo(() => bucketsOf(facts, READ_YEAR), [facts])
@@ -670,12 +632,27 @@ export default function WebsiteFactsPage() {
   }
   const undoConfirm = () => { setStatus(undo.ids, 'DISCOVERED'); setUndo(null) }
   const toggle = (g) => setSkipped((s) => { const n = new Set(s); if (n.has(g.id)) n.delete(g.id); else n.add(g.id); return n })
-  const reject = (g) => setStatus(g.ids, 'REJECTED')
+  // Your call: the open decisions, in order, and the ones already made (each collapses to one line with Undo)
+  const openCalls = [...b.conflicts.map((c) => ({ key: `c:${c.a.id}`, c })), ...b.differs.map((g) => ({ key: `d:${g.id}`, g }))]
+  const settled = resolved.filter((r) => !openCalls.some((o) => o.key === r.key))
+  const callItems = [...openCalls]
+  ;[...settled].sort((x, y) => x.pos - y.pos).forEach((r) => callItems.splice(Math.min(r.pos, callItems.length), 0, { key: r.key, r }))
+  const settle = (key, name, result, ids) => setResolved((rs) => [...rs.filter((r) => r.key !== key), { key, name, result, ids, pos: Math.max(0, callItems.findIndex((it) => it.key === key)) }])
+  const undoCall = (r) => { setStatus(r.ids, 'DISCOVERED'); setResolved((rs) => rs.filter((x) => x.key !== r.key)) }
   const pickOne = (keep, drop) => {
-    if (reduced()) { setStatus(drop.ids, 'REJECTED'); setStatus(keep.ids, 'CONFIRMED'); return }
+    const key = `c:${[keep, drop].find((g) => openCalls.some((o) => o.key === `c:${g.id}`))?.id ?? keep.id}`
+    const finish = () => settle(key, KIND[keep.lead.field], keep.lead.value, [...keep.ids, ...drop.ids])
+    if (reduced()) { setStatus(drop.ids, 'REJECTED'); setStatus(keep.ids, 'CONFIRMED'); finish(); return }
     setPicked(keep.id)
-    setTimeout(() => { flyToSheet(keep); setStatus(drop.ids, 'REJECTED'); setPicked(null) }, 600)
+    setTimeout(() => { flyToSheet(keep); setStatus(drop.ids, 'REJECTED'); setPicked(null); finish() }, 600)
   }
+  const keepSite = (g) => {
+    const finish = () => settle(`d:${g.id}`, KIND[g.lead.field], g.lead.value, g.ids)
+    if (reduced()) { setStatus(g.ids, 'CONFIRMED'); finish(); return }
+    setPicked(g.id)
+    setTimeout(() => { flyToSheet(g); setPicked(null); finish() }, 600)
+  }
+  const dropFact = (g) => { settle(`d:${g.id}`, KIND[g.lead.field], 'dropped', g.ids); setStatus(g.ids, 'REJECTED') }
   const add = (field, value) => {
     const kind = ADD_KINDS.flatMap((g) => g.items).find((it) => it.field === field)
     setFacts((fs) => [...fs, { id: `you${fs.length + 1}`, category: kind?.category ?? 'custom', field, value, status: 'ADDED_BY_YOU', source: 'YOU', notes: null, evidence: [] }])
@@ -703,22 +680,23 @@ export default function WebsiteFactsPage() {
   const rows = batch ? batch.rows : b.ready
   const done = !calls && !rows.length // nothing needs the user
   const undoLine = undo && !batch && <><b className={`num ${val}`}>{undo.n} confirmed</b> · <button type="button" onClick={undoConfirm} className={link}>Undo</button></>
+  let n = 0
   return (
     <Hot.Provider value={hotCtx}>
       {hero}
       {pagesRead}
 
-      {/* two columns that end on the same line: what needs the user | the fact sheet. Whichever side is shorter grows:
-          the fact sheet (its "+ Add a fact" stays at the foot), or the left column's last card (Ready to confirm, Your
-          call once everything is confirmed, or "Nothing needs you" when the column is empty). */}
+      {/* two columns: what needs the user | the fact sheet and the sources. Each column's last card grows to the other
+          column's height, so the two end on the same line; the fact sheet and Your call keep their natural height. */}
       <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-3 md:gap-4">
-          {calls > 0 && (
-            <section className={`${card} ${rows.length ? '' : 'flex-1'}`}>
+          {!done && callItems.length > 0 && (
+            <section className={`${card} ${rows.length || undoLine ? '' : 'flex-1'}`}>
               <h2 className={`${h2} px-5 pt-5`}>Your call <Count n={calls} /></h2>
               <div className="divide-y divide-[var(--div)]">
-                {b.conflicts.map((c) => <ConflictCard key={`${c.a.id}-${c.b.id}`} c={c} onPick={pickOne} picked={picked} />)}
-                {b.differs.map((g) => <DiffersCard key={g.id} g={g} onConfirm={flyToSheet} onReject={reject} />)}
+                {callItems.map((it) => (it.r ? <ResolvedLine key={it.key} r={it.r} onUndo={undoCall} />
+                  : it.c ? <ConflictItem key={it.key} c={it.c} n={n += 1} onPick={pickOne} picked={picked} />
+                    : <DiffersItem key={it.key} g={it.g} n={n += 1} onKeep={keepSite} onDrop={dropFact} picked={picked} />))}
               </div>
             </section>
           )}
@@ -727,9 +705,17 @@ export default function WebsiteFactsPage() {
               <span className="grid h-10 w-10 place-items-center rounded-full bg-tint text-stone-700"><Check size={20} aria-hidden /></span>
               <h2 className={h2}>Nothing needs you</h2>
               <p className={sub}>Every fact in the sheet can be used in your drafts.</p>
+              {settled.map((r) => <p key={r.key} className={sub}><b className={val}>{r.name}</b> · {r.result} · <button type="button" onClick={() => undoCall(r)} className={link}>Undo</button></p>)}
               {undoLine && <p className={sub}>{undoLine}</p>}
             </section>
-          ) : undoLine && <Slim>{undoLine}</Slim>}
+          ) : undoLine && (rows.length ? <Slim>{undoLine}</Slim> : (
+            // everything ticked was confirmed and calls are still open: this card takes the rest of the column
+            <section className={`${card} wf-anim card-in flex flex-1 flex-col items-center justify-center gap-2 p-5 text-center`}>
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-tint text-stone-700"><Check size={20} aria-hidden /></span>
+              <h2 className={`num ${h2}`}>{undo.n} confirmed</h2>
+              <p className={sub}>They’re in the fact sheet. <button type="button" onClick={undoConfirm} className={link}>Undo</button></p>
+            </section>
+          ))}
           {rows.length > 0 && (
             // closes by height when every row was confirmed
             <div className="grid flex-1 transition-[grid-template-rows] duration-300 ease-out" style={{ gridTemplateRows: batch?.closing ? '0fr' : '1fr' }}>
@@ -748,17 +734,12 @@ export default function WebsiteFactsPage() {
             </div>
           )}
         </div>
-        <div className="min-w-0"><FactSheet b={b} landing={landing} onAdd={add} /></div>
+        <div className="flex min-w-0 flex-col gap-3 md:gap-4">
+          <FactSheet b={b} landing={landing} onAdd={add} />
+          {b.cards.length > 0 && <SourcesCard cards={b.cards} scan={scan} className="flex-1" />}
+        </div>
       </div>
 
-      {b.cards.length > 0 && (
-        <section className="flex flex-col gap-3">
-          <h2 className={h2}>Checked against outside sources <Count n={b.cards.length} /></h2>
-          <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-2">
-            {b.cards.map((g, i) => <SourceCard key={g.id} g={g} k={round} checking={scan?.checking === i} waiting={scan?.read != null || scan?.checking < i} />)}
-          </div>
-        </section>
-      )}
       {b.notFacts.length > 0 && (
         <Fold title="Read, but not facts" count={b.notFacts.length}>
           <ul className="py-2">
