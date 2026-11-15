@@ -3,7 +3,7 @@
 // ?walkthrough=new | reset | progress | scanning | done is read once, when the page loads (tour.js fromParam).
 import { useSyncExternalStore } from 'react'
 import { navigate } from '../router'
-import { OFF, TASKS, TOURS, allDone, complete, fresh, fromParam, move, restore, visit } from './tour.js'
+import { OFF, TASKS, TOURS, allDone, complete, fresh, fromParam, move, restore, tourDone, visit } from './tour.js'
 
 const KEY = 'kraffic:walkthrough'
 const read = () => { try { return restore(JSON.parse(localStorage.getItem(KEY) ?? 'null')) } catch { return { ...OFF } } }
@@ -34,10 +34,16 @@ export function startTour(name, { dimmed = false } = {}) {
   setLive({ tour: name, step: 0, dir: 'next', dimmed, list: false })
 }
 // finished: the last pointer's Next (not Skip / Esc). After the menu's pointers the list opens: the last one said
-// "Start with the first one".
+// "Start with the first one". A step that ticked while the pointers were up (its page was opened) ticks now, where it
+// can be seen; so does the step that asked for these pointers to be finished.
 export function endTour(finished = false) {
   const name = live.tour
+  if (!name) return
   setLive({ tour: null, step: 0, dimmed: false, list: finished && name === 'orientation' && saved.show && !saved.closed })
+  const held = pending
+  pending = null
+  if (held) apply(held(saved))
+  if (finished) apply(tourDone(saved, name))
 }
 export function stepTour(action) {
   if (!live.tour) return
@@ -59,46 +65,57 @@ export function skipMissing() {
 export const startWalkthrough = () => { setSaved({ ...saved, welcome: false }); startTour('orientation', { dimmed: true }) }
 export const skipWelcome = () => setSaved({ ...saved, welcome: false })
 // Settings → Restart the walkthrough: everything from the start
-export const restart = () => { setLive({ tour: null, step: 0, list: false, ticked: null, leaving: false }); setSaved({ ...fresh(), hints: saved.hints }) }
+export const restart = () => { clearTimeout(doneTimer); pending = null; setLive({ tour: null, step: 0, list: false, ticked: null, leaving: false }); setSaved({ ...fresh(), hints: saved.hints }) }
 // the brand menu's "Walkthrough": the menu's pointers again (and the Getting started card back, if it was hidden)
 export const startFromMenu = () => { setSaved({ ...saved, welcome: false, show: true, closed: false }); startTour('orientation') }
 
 // ---------------------------------------------------------------- getting started
-let tickTimer
-const afterTick = (before) => {
-  if (saved === before) return
-  const id = saved.done.find((x) => !before.done.includes(x))
+// A step ticking: the list opens so it can be seen (the disc fills, the tick draws, the line and the bar move on, the
+// next step opens: GettingStarted.jsx, for as long as `ticked` names the step). While pointers are up the tick waits
+// for them to close (endTour).
+let tickTimer, doneTimer
+let pending = null
+function apply(next) {
+  if (next === saved) return
+  setSaved(next)
   clearTimeout(tickTimer)
-  // all six: the list opens with the last message
-  setLive({ ticked: id, ...(allDone(saved) ? { list: true } : {}) })
-  tickTimer = setTimeout(() => setLive({ ticked: null }), 1800)
+  setLive({ ticked: next.done.at(-1), list: true })
+  tickTimer = setTimeout(() => setLive({ ticked: null }), 2200)
+  if (allDone(next)) lastMessage()
 }
-export function tick(id) { const before = saved; setSaved(complete(saved, id)); afterTick(before) }
-// a page opened: its task ticks itself (not while Welcome is still up, and not the page a ?walkthrough= link lands on:
-// that link shows a state, which shouldn't change as it draws)
+const tickWith = (fn) => { if (fn(saved) === saved) return; if (live.tour) pending = fn; else apply(fn(saved)) }
+export const tick = (id) => tickWith((s) => complete(s, id))
+// a page opened: the current step ticks if that is all it asks (not while Welcome is still up, and not the page a
+// ?walkthrough= link lands on: that link shows a state, which shouldn't change as it draws)
 let landing = param ? window.location.pathname : null
 export function onPath(path) {
   if (path === landing) return
   landing = null
   if (saved.welcome) return
-  const before = saved
-  setSaved(visit(saved, path))
-  afterTick(before)
+  tickWith((s) => visit(s, path))
 }
+// Start on the current step: its page, and its pointers if it has some
 export function openTask(task) {
   setLive({ list: false })
   if (task.tour) startTour(task.tour)
   else navigate(task.href)
+  if (task.how === 'open') tick(task.id) // already on that page: there is no "opened" to wait for
 }
-export const toggleList = () => setLive({ list: !live.list })
-export const closeList = () => { if (live.list) setLive({ list: false }) }
-export const setShow = (on) => { setLive({ list: false, leaving: false }); setSaved({ ...saved, show: on, closed: on ? false : saved.closed, done: on && saved.closed ? [] : saved.done }) }
+export const toggleList = () => { if (live.list && allDone(saved)) finish(); else setLive({ list: !live.list }) }
+// collapsing the list after the last message is the same as that message running out
+export const closeList = () => { if (!live.list) return; if (allDone(saved)) finish(); else setLive({ list: false }) }
+export const setShow = (on) => { clearTimeout(doneTimer); setLive({ list: false, leaving: false }); setSaved({ ...saved, show: on, closed: on ? false : saved.closed, done: on && saved.closed ? [] : saved.done }) }
 export const setHints = (on) => setSaved({ ...saved, hints: on })
-// the last message's Close: the card fades out (200ms), then it is gone
+// all six: the last message stays up for a while, then the card fades out (200ms) and is gone
+const MESSAGE_MS = 7000
+function lastMessage() { clearTimeout(doneTimer); doneTimer = setTimeout(finish, MESSAGE_MS) }
 export function finish() {
+  clearTimeout(doneTimer)
+  if (!saved.show || live.leaving) return
   setLive({ list: false, leaving: true })
   setTimeout(() => { setLive({ leaving: false }); setSaved({ ...saved, show: false, closed: true }) }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220)
 }
+if (saved.show && allDone(saved)) { live.list = true; snap = { ...saved, ...live }; lastMessage() }
 
 // for looking at states by hand (the console) and the screenshots: window.__walkthrough.tick('brand')
 if (import.meta.env?.DEV) window.__walkthrough = { tick, restart, startTour, toggleList, setShow, state: () => snap, tasks: TASKS }

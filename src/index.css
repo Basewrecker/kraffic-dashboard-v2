@@ -718,13 +718,23 @@ html[data-theme="dark"] .co-logo-plate { background: rgb(244 244 245 / 0.9); }
   background: var(--color-raised); color: var(--ink); font: 500 14px/20px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .10); }
 
 /* ---- Walkthrough (src/walkthrough) ---------------------------------------------------------------------------------
-   .wt-hole: the lit box of a pointer. Its shadow is the dim over the rest of the page (the modal scrim), with a 1px
-   line so the box reads on a dark page too. .wt-fade: the 200ms fade-in of the dim, Welcome and the list.
-   .wt-pop / .wt-check: a task ticking itself (the disc pops in, then the tick draws). Reduced motion: none of it. */
-.wt-hole { position: fixed; border-radius: 10px; pointer-events: none; box-shadow: 0 0 0 1px var(--color-line-strong), 0 0 0 200vmax var(--color-scrim-modal); }
-@keyframes wt-pop { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: none; } }
+   .wt-fade: the 200ms fade-in of the dim layer, Welcome and the list.
+   .wt-btn / .wt-keys: the walkthrough's buttons show a 2px focus ring only while the keyboard is being used.
+   A step ticking itself: .wt-fill (the disc fills) + .wt-check (the tick draws), 300ms; then .wt-line (the line to
+   the next step fills), .wt-bar (the bar runs on from --wt-from) and .wt-open (the next step opens);
+   .wt-message: the last message comes in. Reduced motion: none of it. */
+@keyframes wt-fill { from { background-color: transparent; } }
 @keyframes wt-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes wt-line { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes wt-bar { from { width: var(--wt-from); } }
+@keyframes wt-open { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
 .wt-fade { animation: fade-in 200ms ease-out both; }
-.wt-pop { animation: wt-pop 200ms ease-out both; }
-.wt-check path { stroke-dasharray: 1; animation: wt-draw 260ms ease-out 120ms both; }
-@media (prefers-reduced-motion: reduce) { .wt-fade, .wt-pop, .wt-check path { animation: none; } }
+.wt-fill { animation: wt-fill 300ms ease-out both; }
+.wt-check path { stroke-dasharray: 1; animation: wt-draw 300ms ease-out both; }
+.wt-line { animation: wt-line 300ms ease-out 200ms both; }
+.wt-bar { animation: wt-bar 500ms ease-out 100ms both; }
+.wt-open { animation: wt-open 300ms ease-out 350ms both; }
+.wt-message { animation: fade-in 300ms ease-out 400ms both; }
+.wt-btn:focus-visible { outline: none; }
+.wt-keys .wt-btn:focus { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .wt-fade, .wt-fill, .wt-check path, .wt-line, .wt-bar, .wt-open, .wt-message { animation: none; } }

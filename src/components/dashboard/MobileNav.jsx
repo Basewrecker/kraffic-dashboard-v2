@@ -18,7 +18,8 @@ import { endTour, useWalkthrough } from '../../walkthrough/store'
 // Closes on a link tap, the scrim, Esc, a swipe left, or Back.
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-function NavDrawer({ open, onClose, path, nav }) {
+// plain: no scrim of its own (the walkthrough's dim layer is over everything while its pointers are on the menu)
+function NavDrawer({ open, onClose, path, nav, plain = false }) {
   const [mounted, setMounted] = useState(open)
   const [shown, setShown] = useState(false)
   const panel = useRef(null)
@@ -63,7 +64,7 @@ function NavDrawer({ open, onClose, path, nav }) {
   if (!mounted) return null
   return (
     <div className="fixed inset-0 z-[70] lg:hidden">
-      <div className={`absolute inset-0 bg-black/40 transition-opacity duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'opacity-100' : 'opacity-0'}`} onClick={close} aria-hidden />
+      <div className={`absolute inset-0 ${plain ? '' : 'bg-black/40'} transition-opacity duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'opacity-100' : 'opacity-0'}`} onClick={close} aria-hidden />
       <div ref={panel} role="dialog" aria-modal="true" aria-label="Menu" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
         className={`absolute inset-y-0 left-0 flex w-[288px] max-w-[85vw] flex-col border-r border-sidebar-line bg-sidebar pt-[env(safe-area-inset-top)] shadow-xl outline-none transition-transform duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-14 shrink-0 items-center justify-between px-3">
@@ -113,7 +114,7 @@ export default function MobileNav({ path, nav }) {
           <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
         </button>
       </header>
-      <NavDrawer open={menu || pointing} onClose={() => { setMenu(false); if (pointing) endTour(false) }} path={path} nav={nav} />
+      <NavDrawer open={menu || pointing} onClose={() => { setMenu(false); if (pointing) endTour(false) }} path={path} nav={nav} plain={pointing} />
       <WorkspaceSheet open={workspace} onClose={() => setWorkspace(false)} />
     </>
   )

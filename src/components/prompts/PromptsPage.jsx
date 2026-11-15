@@ -5,6 +5,7 @@ import { useIsMobile } from '../../hooks/useMedia'
 import MobileActions, { exportTable } from '../ui/MobileActions'
 import Segmented from '../dashboard/Segmented'
 import { brandName } from '../../utils/brand'
+import { TourHelp } from '../../walkthrough/Walkthrough'
 import { PrimaryButton, SecondaryButton, useToast } from '../dashboard/overlays'
 import { PlatformIcon } from '../dashboard/icons'
 import { MenuSelect } from '../dashboard/PageHeader'
@@ -602,16 +603,19 @@ function PromptHub() {
       {/* header: title + domain on the left, actions on the right (one row, like the dashboard) */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div>
-          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Prompt Hub</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Prompt Hub</h1>
+            <TourHelp tour="prompt-hub" />
+          </div>
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Manage the prompts tracked for {brandName(account.domain)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2 lg:pt-1">
-          <span className="hidden items-center gap-2 lg:flex">
+          <span data-tour="prompts-find" className="hidden items-center gap-2 lg:flex">
             <SecondaryButton size="sm" icon={FlaskConical} onClick={() => setModal('research')}>Research</SecondaryButton>
             <SecondaryButton size="sm" icon={Upload} onClick={() => setModal('import')}>Import</SecondaryButton>
           </span>
           {/* a second click closes the open row (span: the button doesn't forward refs) */}
-          <span ref={addBtnRef} className="inline-flex max-lg:flex-1 max-lg:[&>button]:h-10 max-lg:[&>button]:w-full max-lg:[&>button]:justify-center">
+          <span ref={addBtnRef} data-tour="prompts-add" className="inline-flex max-lg:flex-1 max-lg:[&>button]:h-10 max-lg:[&>button]:w-full max-lg:[&>button]:justify-center">
             <PrimaryButton size="sm" icon={Plus} aria-expanded={isAdding} onClick={() => (isAdding ? closeAdd() : startAdd())}>Add prompt</PrimaryButton>
           </span>
           <MobileActions items={[

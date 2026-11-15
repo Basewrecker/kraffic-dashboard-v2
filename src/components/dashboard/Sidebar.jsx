@@ -242,7 +242,9 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
         const open = !collapsed.has(g.label)
         const id = `nav-${g.label.replace(/\W+/g, '-')}`
         return (
-      <div key={g.label} role="group" aria-labelledby={`${id}-label`} data-tour={`nav-${g.label.toLowerCase().replace(/\W+/g, '-')}`} className={`flex flex-col ${gi ? 'pt-4' : ''}`}>
+      <div key={g.label} role="group" aria-labelledby={`${id}-label`} className={`flex flex-col ${gi ? 'pt-4' : ''}`}>
+      {/* data-tour: what a walkthrough pointer lights, from the heading's top to the last item's bottom */}
+      <div data-tour={`nav-${g.label.toLowerCase().replace(/\W+/g, '-')}`} className="flex flex-col">
       <button type="button" id={`${id}-label`} aria-expanded={open} aria-controls={id} onClick={() => toggle(g.label)}
         className="group/sec relative mb-1 flex h-4 items-center gap-1 self-start rounded-sm px-2 text-[12px] leading-4 font-medium text-stone-500 outline-none transition-colors duration-150 before:absolute before:-inset-y-1 before:inset-x-0 hover:text-stone-700 focus-visible:ring-2 focus-visible:ring-focus">
         <Caret className={`-ml-0.5 transition-transform duration-200 motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
@@ -269,6 +271,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
         </Fold>
         )
       })}
+      </div>
       </div>
       </div>
         )

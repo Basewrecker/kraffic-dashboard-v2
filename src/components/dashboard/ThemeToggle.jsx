@@ -12,7 +12,7 @@ const options = [
 export default function ThemeToggle() {
   const theme = useTheme()
   return (
-    <div className="@container w-full" role="group" aria-label="Theme">
+    <div className="@container w-full" role="group" aria-label="Theme" data-tour-near>
     <div className="grid h-10 w-full grid-cols-3 gap-1 @max-[215px]:gap-0.5 rounded-lg bg-switch p-1 ring-1 ring-inset ring-switch-line">
       {options.map(([id, label, Icon]) => (
         <button

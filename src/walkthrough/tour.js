@@ -2,9 +2,9 @@
 // so every rule is tested (tour.test.js). The moving parts are in store.js (saved progress) and Walkthrough.jsx /
 // GettingStarted.jsx (what you see).
 //
-// Three sets of pointers (TOURS): the sidebar straight after Welcome, Brand Setup and Visibility Overview. Each
-// pointer names the element it lights (a CSS selector; `all` lights every match as one box) and the side its card
-// prefers. Six Getting started tasks (TASKS), in order.
+// Four sets of pointers (TOURS): the sidebar straight after Welcome, Brand Setup, Prompt Hub and Visibility Overview.
+// Each pointer names the element it lights (a CSS selector; `all` lights every match as one box; `maxHeight` lights
+// only the top of a tall element) and the side its card prefers. Six Getting started steps (TASKS), done in order.
 
 export const APP = 'Kraffic'
 
@@ -41,6 +41,16 @@ export const TOURS = {
       { target: '[data-tour="setup-save"]', side: 'top', text: 'Save when it looks right. You can change it later.' },
     ],
   },
+  // (these three texts are ours: the brief gave none for Prompt Hub)
+  'prompt-hub': {
+    label: 'Prompt Hub',
+    href: '/tracker',
+    steps: [
+      { target: '#tracked-prompts', maxHeight: 319, side: 'bottom', text: 'These are the questions we ask AI about {brand}. Open one to read the answers.' },
+      { target: '[data-tour="prompts-add"]', side: 'bottom', text: 'Add a question your customers would ask.' },
+      { target: '[data-tour="prompts-find"]', side: 'bottom', text: 'Or let us find prompts from your site, or import a list.' },
+    ],
+  },
   overview: {
     label: 'Visibility Overview',
     href: '/overview',
@@ -56,16 +66,18 @@ export const TOURS = {
 // the pointers a page has (its "?" replays them)
 export const tourForPath = (path) => Object.keys(TOURS).find((k) => TOURS[k].href === path) ?? null
 
-// Getting started, in order. href: the page a task opens; tour: that page's pointers; results: it needs the first
-// scan's results. A task ticks itself when its page is opened, except `brand`, which ticks on Brand Setup's Save.
-// (There is no outreach page in the mock yet: task 6 opens Content.)
+// Getting started: six steps, done in order (only the current step can be started or ticked). href: the page a step
+// opens; tour: that page's pointers; results: it needs the first scan's results. how a step ticks itself:
+//   save: Brand Setup's Save · tour: its page's pointers were finished · open: its page was opened ·
+//   demo: "Mark as done" on its page (mock only: the real triggers for these three aren't decided)
+// (There is no outreach page in the mock yet: step 6 opens Content.)
 export const TASKS = [
-  { id: 'brand', title: 'Confirm your brand and competitors', why: 'We track what you tell us here.', href: '/brands', tour: 'brand-setup', manual: true },
-  { id: 'prompts', title: 'Review the prompts we track', why: 'These are the questions people ask AI.', href: '/tracker' },
-  { id: 'results', title: 'See where you stand', why: 'Your first results are in.', href: '/overview', tour: 'overview', results: true },
-  { id: 'tone', title: 'Check what AI says about you', why: 'See the tone, and fix wrong facts.', href: '/sentiment', results: true },
-  { id: 'content', title: 'Create your first content', why: 'Write a page for a prompt you’re missing.', href: '/opportunities/content', results: true },
-  { id: 'outreach', title: 'Reach out on one opportunity', why: 'Ask a publication to mention you.', href: '/opportunities/content', results: true },
+  { id: 'brand', title: 'Confirm your brand and competitors', why: 'We track what you tell us here.', href: '/brands', tour: 'brand-setup', how: 'save' },
+  { id: 'prompts', title: 'Review the prompts we track', why: 'These are the questions people ask AI.', href: '/tracker', tour: 'prompt-hub', how: 'tour' },
+  { id: 'results', title: 'See where you stand', why: 'Your first results are in.', href: '/overview', tour: 'overview', how: 'open', results: true },
+  { id: 'tone', title: 'Check what AI says about you', why: 'See the tone, and fix wrong facts.', href: '/sentiment', how: 'demo', results: true },
+  { id: 'content', title: 'Create your first content', why: 'Write a page for a prompt you’re missing.', href: '/opportunities/content', how: 'demo', results: true },
+  { id: 'outreach', title: 'Reach out on one opportunity', why: 'Ask a publication to mention you.', href: '/opportunities/content', how: 'demo', results: true },
 ]
 export const WAITING = 'Waiting for your first results'
 export const ALL_DONE = 'You’re set up. {app} keeps checking AI for you. Come back each week to see what changed.'
@@ -88,13 +100,16 @@ export function fromParam(value) {
   return null
 }
 
+// the steps are done in order: the ticked ones are always the first few
+const firstDone = (ids) => { const n = TASKS.findIndex((t) => !ids.includes(t.id)); return TASKS.slice(0, n < 0 ? TASKS.length : n).map((t) => t.id) }
+
 // what was saved → a whole state (unknown ids and missing fields are dropped / filled)
 export function restore(saved) {
   if (!saved || typeof saved !== 'object') return { ...OFF }
   return {
     show: Boolean(saved.show),
     welcome: Boolean(saved.welcome),
-    done: Array.isArray(saved.done) ? TASKS.map((t) => t.id).filter((id) => saved.done.includes(id)) : [],
+    done: Array.isArray(saved.done) ? firstDone(saved.done) : [],
     hints: saved.hints !== false,
     scanning: Boolean(saved.scanning),
     closed: Boolean(saved.closed),
@@ -104,30 +119,33 @@ export function restore(saved) {
 export const isDone = (state, id) => state.done.includes(id)
 export const doneCount = (state) => TASKS.filter((t) => isDone(state, t.id)).length
 export const allDone = (state) => doneCount(state) === TASKS.length
-// a task that needs results can't be started while the first scan runs
+// the current step: the first one not ticked (null when all six are)
+export const currentTask = (state) => TASKS.find((t) => !isDone(state, t.id)) ?? null
+// a step that needs results waits while the first scan runs
 export const isWaiting = (state, task) => Boolean(state.scanning && task.results && !isDone(state, task.id))
-// the next task: the first one not ticked that can be started
-export const nextTask = (state) => TASKS.find((t) => !isDone(state, t.id) && !isWaiting(state, t)) ?? null
-// 'done' | 'waiting' | 'next' | 'todo'
+// 'done' | 'current' (open, with Start) | 'waiting' (on the first scan) | 'later'
 export function taskStatus(state, task) {
   if (isDone(state, task.id)) return 'done'
   if (isWaiting(state, task)) return 'waiting'
-  return nextTask(state)?.id === task.id ? 'next' : 'todo'
+  return currentTask(state)?.id === task.id ? 'current' : 'later'
 }
+// the step that can be started now (null: all done, or the current one is waiting)
+export const nextTask = (state) => { const t = currentTask(state); return t && !isWaiting(state, t) ? t : null }
+// the collapsed card's line under its bar
+export const nextLine = (state) => (allDone(state) ? 'All six steps done' : nextTask(state) ? `Next: ${nextTask(state).title}` : WAITING)
 
-// tick a task (the same state back when there is nothing to tick)
+// tick a step: only the current one, and not while it waits (the same state back when there is nothing to tick)
 export function complete(state, id) {
-  const task = TASKS.find((t) => t.id === id)
-  if (!task || isDone(state, id) || isWaiting(state, task)) return state
-  return { ...state, done: TASKS.map((t) => t.id).filter((x) => x === id || state.done.includes(x)) }
+  if (nextTask(state)?.id !== id) return state
+  return { ...state, done: [...state.done, id] }
 }
-
-// opening a page ticks the first open task that lives there (not the ones ticked by hand, not while it waits)
-export function visit(state, path) {
-  if (!state.show || state.closed) return state
-  const task = TASKS.find((t) => !t.manual && t.href === path && !isDone(state, t.id) && !isWaiting(state, t))
-  return task ? complete(state, task.id) : state
-}
+const tickIf = (state, test) => { const t = state.show && !state.closed ? nextTask(state) : null; return t && test(t) ? complete(state, t.id) : state }
+// a page was opened: the current step ticks if opening its page is all it asks (See where you stand)
+export const visit = (state, path) => tickIf(state, (t) => t.how === 'open' && t.href === path)
+// a page's pointers were finished (the last Next, not Skip): the current step ticks if that is what it asks
+export const tourDone = (state, tour) => tickIf(state, (t) => t.how === 'tour' && t.tour === tour)
+// the step a page shows its demo "Mark as done" for
+export const demoTask = (state, path) => { const t = state.show && !state.closed ? nextTask(state) : null; return t && t.how === 'demo' && t.href === path ? t : null }
 
 // ---------------------------------------------------------------- pointers
 // keys while a pointer is up: → ↓ Enter = next · ← ↑ = back · Esc = close
@@ -147,28 +165,57 @@ export function move(i, count, action) {
 
 export const overlaps = (a, b) => a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height
 
-// Where a pointer's card goes: beside the lit box, never over it when a side has room. target / card: { left, top,
-// width, height } (card: width and height only); view: { width, height }. Tries the preferred side, then
-// bottom, top, right, left; the card is lined up with the box's start and kept `edge` px inside the window. When no side has
-// room (a box nearly as big as the window) it takes the side with the most space and stays inside the window.
-export function placeCard(target, card, view, prefer = 'bottom', gap = 12, edge = 12) {
+// The lit area: a hole in the dim layer around the element, `pad` px bigger on each side. It never touches a
+// neighbour: where the gap to one is smaller than the padding, that side's padding shrinks to leave 1px between them.
+// target / neighbours: { left, top, width, height }. maxHeight: light only the top of a tall element.
+export function fitHole(target, neighbours = [], pad = 4, maxHeight = null) {
+  const t = { ...target, height: maxHeight ? Math.min(target.height, maxHeight) : target.height }
+  const r = t.left + t.width, b = t.top + t.height
+  const side = { left: pad, right: pad, top: pad, bottom: pad }
+  const shrink = (k, gap) => { if (gap >= 0) side[k] = Math.min(side[k], Math.max(0, Math.floor(gap) - 1)) }
+  for (const n of neighbours) {
+    const nr = n.left + n.width, nb = n.top + n.height
+    const besideX = n.left < r + pad && nr > t.left - pad // shares some of the width (with the padding on)
+    const besideY = n.top < b + pad && nb > t.top - pad
+    if (besideX && n.top >= b) shrink('bottom', n.top - b)
+    if (besideX && nb <= t.top) shrink('top', t.top - nb)
+    if (besideY && n.left >= r) shrink('right', n.left - r)
+    if (besideY && nr <= t.left) shrink('left', t.left - nr)
+  }
+  return { left: t.left - side.left, top: t.top - side.top, width: t.width + side.left + side.right, height: t.height + side.top + side.bottom }
+}
+
+// Where a pointer's card goes: beside the lit area, never over it when a side has room, with a small caret on the
+// side facing it. hole / card: { left, top, width, height } (card: width and height only); view: { width, height }.
+// The caret's tip is `gap` px from the lit area and sits on its middle (kept `inset` px off the card's corners); the
+// card is centred on that middle too, and kept `edge` px inside the window. Tries the preferred side, then bottom,
+// top, right, left. When no side has room (an area nearly as big as the window) it takes the side with the most
+// space and stays inside the window.
+// → { side, left, top, caret } · caret: its centre along the card's facing edge, from the card's top (left / right)
+// or left (top / bottom)
+export const CARET = 7 // how far the caret sticks out of the card
+export function placeCard(hole, card, view, prefer = 'bottom', gap = 12, edge = 12, inset = 18) {
+  const off = gap + CARET
+  const midX = hole.left + hole.width / 2, midY = hole.top + hole.height / 2
   const clampX = (x) => Math.min(Math.max(edge, x), Math.max(edge, view.width - card.width - edge))
   const clampY = (y) => Math.min(Math.max(edge, y), Math.max(edge, view.height - card.height - edge))
   const at = {
-    right: { left: target.left + target.width + gap, top: clampY(target.top) },
-    left: { left: target.left - gap - card.width, top: clampY(target.top) },
-    bottom: { left: clampX(target.left), top: target.top + target.height + gap },
-    top: { left: clampX(target.left), top: target.top - gap - card.height },
+    right: { left: hole.left + hole.width + off, top: clampY(midY - card.height / 2) },
+    left: { left: hole.left - off - card.width, top: clampY(midY - card.height / 2) },
+    bottom: { left: clampX(midX - card.width / 2), top: hole.top + hole.height + off },
+    top: { left: clampX(midX - card.width / 2), top: hole.top - off - card.height },
   }
   const room = {
-    right: view.width - (target.left + target.width) - gap - edge - card.width,
-    left: target.left - gap - edge - card.width,
-    bottom: view.height - (target.top + target.height) - gap - edge - card.height,
-    top: target.top - gap - edge - card.height,
+    right: view.width - (hole.left + hole.width) - off - edge - card.width,
+    left: hole.left - off - edge - card.width,
+    bottom: view.height - (hole.top + hole.height) - off - edge - card.height,
+    top: hole.top - off - edge - card.height,
   }
   const order = [prefer, 'bottom', 'top', 'right', 'left'].filter((s, i, a) => at[s] && a.indexOf(s) === i)
   const side = order.find((s) => room[s] >= 0) ?? order.slice().sort((a, b) => room[b] - room[a])[0]
-  return { side, left: Math.round(clampX(at[side].left)), top: Math.round(clampY(at[side].top)) }
+  const left = Math.round(clampX(at[side].left)), top = Math.round(clampY(at[side].top))
+  const along = side === 'left' || side === 'right' ? [midY - top, card.height] : [midX - left, card.width]
+  return { side, left, top, caret: Math.round(Math.min(Math.max(inset, along[0]), along[1] - inset)) }
 }
 
 // phones: the card is a sheet at the bottom; at the top when the lit box sits where the sheet would be
