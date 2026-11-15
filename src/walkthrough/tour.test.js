@@ -20,6 +20,9 @@ test('each page with pointers is found by its path', () => {
   assert.equal(tourForPath('/brands'), 'brand-setup')
   assert.equal(tourForPath('/tracker'), 'prompt-hub')
   assert.equal(tourForPath('/overview'), 'overview')
+  assert.equal(tourForPath('/sentiment'), 'sentiment')
+  assert.equal(TOURS.sentiment.steps.length, 4)
+  assert.equal(TOURS.sentiment.steps[3].target, '.k-mo-btn') // the Opportunities button is the fourth
   assert.equal(tourForPath('/team'), null)
 })
 

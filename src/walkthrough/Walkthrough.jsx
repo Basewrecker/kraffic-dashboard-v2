@@ -16,6 +16,7 @@ import { account } from '../data/mock'
 import { usePath } from '../router'
 import { useIsCompact } from '../hooks/useMedia'
 import { TOURS, WELCOME, fill, fitHole, keyAction, placeCard, sheetSide, union } from './tour.js'
+import { uiScale } from '@/lib/ui-scale'
 import { endTour, onPath, skipMissing, skipWelcome, startTour, startWalkthrough, stepTour, useWalkthrough } from './store.js'
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -81,7 +82,7 @@ const holeOf = (step) => {
   const lit = step.all ? els : els.slice(0, 1)
   if (!lit.length) return null
   const near = [...document.querySelectorAll('[data-tour], [data-tour-near]')].filter((el) => visible(el) && !lit.some((l) => l === el || l.contains(el) || el.contains(l)))
-  return { el: lit[0], hole: fitHole(union(lit.map(box)), near.map(box), 4, step.maxHeight ?? null) }
+  return { el: lit[0], hole: fitHole(union(lit.map(box)), near.map(box), 4, step.maxHeight ? step.maxHeight * uiScale() : null) /* the page is drawn at the UI scale, so the cut-off follows it */ }
 }
 const same = (a, b) => a && b && Math.abs(a.left - b.left) < 0.5 && Math.abs(a.top - b.top) < 0.5 && Math.abs(a.width - b.width) < 0.5 && Math.abs(a.height - b.height) < 0.5
 const RADIUS = 10
@@ -204,7 +205,7 @@ function Pointers({ name, step, dimmed }) {
           className={sheet
             ? `fixed inset-x-0 border-line bg-overlay p-4 shadow-xl ${sheet === 'top' ? 'top-0 rounded-b-2xl border-b pt-[max(16px,env(safe-area-inset-top))]' : 'bottom-0 rounded-t-2xl border-t pb-[max(16px,env(safe-area-inset-bottom))]'}`
             : 'fixed w-[300px] max-w-[calc(100vw-24px)] rounded-xl border border-line bg-overlay p-4 shadow-lg'}>
-          {!sheet && pos && <span aria-hidden data-caret className={`absolute h-2.5 w-2.5 rotate-45 border-line bg-overlay ${CARET_SIDE[pos.side]}`} style={{ ...caretAt(pos.side, pos.caret), transition: view.glide ? 'left 260ms ease-out 40ms, top 260ms ease-out 40ms' : 'none' }} />}
+          {!sheet && pos && <span aria-hidden data-caret className={`absolute rotate-45 border-line bg-overlay ${CARET_SIDE[pos.side]}`} style={{ width: 10, height: 10, ...caretAt(pos.side, pos.caret), /* 10px whatever the UI scale: its place is worked out in px */ transition: view.glide ? 'left 260ms ease-out 40ms, top 260ms ease-out 40ms' : 'none' }} />}
           <p aria-live="polite" className="text-[14px] leading-5 text-stone-900">{fill(tour.steps[i].text, names())}</p>
           <div className={`flex items-center gap-2 ${sheet ? 'mt-4' : 'mt-3.5'}`}>
             <span className="text-[12px] leading-4 text-stone-500 tabular-nums">{i + 1} of {n}</span>

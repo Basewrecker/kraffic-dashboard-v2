@@ -88,12 +88,12 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
       const g = await pointer(page, `${i} of 5`, targets[i - 1])
       assert.ok(g, `pointer ${i} is up`)
       assert.equal(g.dims, 1, 'one dim layer')
-      assert.ok(g.pad.every((v) => v >= 0 && v <= 4), `pointer ${i}: at most 4px around the element (${g.pad})`)
-      assert.ok(g.pad[0] === 4 && g.pad[2] === 4, `pointer ${i}: 4px each side of the sidebar's content`)
+      assert.ok(g.pad.every((v) => v >= 0 && v <= 4.2), `pointer ${i}: at most 4px around the element (${g.pad})`) // .2: sizes are fractions of a pixel at the 0.8 UI scale
+      assert.ok(Math.abs(g.pad[0] - 4) < 0.2 && Math.abs(g.pad[2] - 4) < 0.2, `pointer ${i}: 4px each side of the sidebar's content`)
       assert.equal(g.touches, false, `pointer ${i}: the lit area touches nothing else`)
       if (i < 5) {
-        assert.ok(g.fromHeading >= 0 && g.fromHeading <= 4, `pointer ${i}: starts at the group's heading`)
-        assert.ok(g.toLastItem >= 0 && g.toLastItem <= 4, `pointer ${i}: ends at the group's last item`)
+        assert.ok(g.fromHeading >= 0 && g.fromHeading <= 4.2, `pointer ${i}: starts at the group's heading`)
+        assert.ok(g.toLastItem >= 0 && g.toLastItem <= 4.2, `pointer ${i}: ends at the group's last item`)
       }
       assert.equal(g.over, false, `pointer ${i}: the card is not over the lit area`)
       assert.equal(g.inside, true, `pointer ${i}: the card is inside the window`)
@@ -166,6 +166,16 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     // steps 4 to 6: "Mark as done" on their pages
     for (const [n, path] of [[4, '/sentiment'], [5, '/opportunities/content'], [6, '/opportunities/content']]) {
       await start(page).click()
+      if (n === 4) {
+        // Sentiment has pointers of its own; the fourth lights the Opportunities button
+        for (let i = 1; i <= 4; i++) {
+          const g = await pointer(page, `${i} of 4`, i === 4 ? '.k-mo-btn' : null)
+          assert.equal(g.over, false, `Sentiment pointer ${i}: the card is not over the lit area`)
+          if (i === 4) assert.ok(g.pad.every((v) => Math.abs(v - 4) < 0.2), `the Opportunities button is lit with 4px around it (${g.pad})`)
+          await page.locator('[data-next]').click()
+        }
+        await page.waitForFunction(() => !document.querySelector('[data-walkthrough]'))
+      }
       await page.waitForSelector('[data-task-action]')
       assert.equal(new URL(page.url()).pathname, path)
       await page.getByRole('button', { name: 'Mark as done' }).click()
@@ -203,7 +213,7 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     await quiet.waitForFunction(() => document.querySelector('[data-walkthrough] [role=dialog] span.tabular-nums')?.textContent === '2 of 5')
     await quiet.waitForTimeout(60)
     const now = await geom(quiet, '[data-tour="nav-opportunities"]')
-    assert.deepEqual(now.pad, [4, 4, 4, 4])
+    assert.ok(now.pad.every((v) => Math.abs(v - 4) < 0.2), `the hole is at its new place (${now.pad})`)
     await still.close()
 
     // phone width: the card is a sheet across the window, one dim layer; the list is in the menu drawer

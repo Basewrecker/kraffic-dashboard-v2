@@ -2,7 +2,8 @@
 // so every rule is tested (tour.test.js). The moving parts are in store.js (saved progress) and Walkthrough.jsx /
 // GettingStarted.jsx (what you see).
 //
-// Four sets of pointers (TOURS): the sidebar straight after Welcome, Brand Setup, Prompt Hub and Visibility Overview.
+// Five sets of pointers (TOURS): the sidebar straight after Welcome, Brand Setup, Prompt Hub, Sentiment and Visibility
+// Overview.
 // Each pointer names the element it lights (a CSS selector; `all` lights every match as one box; `maxHeight` lights
 // only the top of a tall element) and the side its card prefers. Six Getting started steps (TASKS), done in order.
 
@@ -51,6 +52,18 @@ export const TOURS = {
       { target: '[data-tour="prompts-find"]', side: 'bottom', text: 'Or let us find prompts from your site, or import a list.' },
     ],
   },
+  // Sentiment is the app's own page file, so its pointers find their elements by what the page already has (no
+  // data-tour marks in it). The first three texts are ours; the fourth lights the Opportunities button.
+  sentiment: {
+    label: 'Sentiment',
+    href: '/sentiment',
+    steps: [
+      { target: 'section[aria-label="Sentiment spectrum"] > div:first-child > div:first-child', side: 'right', text: 'This is how the sources AI relies on talk about {brand}, from 0 to 100.' },
+      { target: 'section[aria-label="Sentiment spectrum"] > div:first-child > div.min-w-0', side: 'bottom', text: 'Every publication AI cites, placed by its tone.' },
+      { target: '#pages-on-h, li[data-row="sync"]', all: true, side: 'left', text: 'The pages behind the score. Open one to read what it says.' },
+      { target: '.k-mo-btn', side: 'bottom', text: 'These publications mention {brand} without taking a side. Reach out to turn them in your favour.' },
+    ],
+  },
   overview: {
     label: 'Visibility Overview',
     href: '/overview',
@@ -75,7 +88,7 @@ export const TASKS = [
   { id: 'brand', title: 'Confirm your brand and competitors', why: 'We track what you tell us here.', href: '/brands', tour: 'brand-setup', how: 'save' },
   { id: 'prompts', title: 'Review the prompts we track', why: 'These are the questions people ask AI.', href: '/tracker', tour: 'prompt-hub', how: 'tour' },
   { id: 'results', title: 'See where you stand', why: 'Your first results are in.', href: '/overview', tour: 'overview', how: 'open', results: true },
-  { id: 'tone', title: 'Check what AI says about you', why: 'See the tone, and fix wrong facts.', href: '/sentiment', how: 'demo', results: true },
+  { id: 'tone', title: 'Check what AI says about you', why: 'See the tone, and fix wrong facts.', href: '/sentiment', tour: 'sentiment', how: 'demo', results: true },
   { id: 'content', title: 'Create your first content', why: 'Write a page for a prompt you’re missing.', href: '/opportunities/content', how: 'demo', results: true },
   { id: 'outreach', title: 'Reach out on one opportunity', why: 'Ask a publication to mention you.', href: '/opportunities/content', how: 'demo', results: true },
 ]
