@@ -311,9 +311,9 @@ export default function Board() {
         className="wt-sheet relative flex max-h-full w-full flex-col overflow-y-auto bg-surface shadow-2xl outline-none max-md:h-full md:w-[820px] md:max-w-full md:rounded-[20px] md:border md:border-line">
         {/* top row */}
         <div className="flex items-center gap-3 px-7 pt-5">
-          <h2 className="text-[14px] leading-5 font-semibold text-stone-600">Getting started</h2>
-          <span className="ml-auto text-[13px] leading-5 font-medium text-stone-500 tabular-nums" data-count={`${n} of ${TASKS.length}`}><Swap k={n} roll>{n}</Swap> of {TASKS.length}</span>
-          <Segments w={w} className="wt-segs-top w-[150px]" />
+          <h2 className="whitespace-nowrap text-[14px] leading-5 font-semibold text-stone-600">Getting started</h2>
+          <span className="ml-auto whitespace-nowrap text-[13px] leading-5 font-medium text-stone-500 tabular-nums" data-count={`${n} of ${TASKS.length}`}><Swap k={n} roll>{n}</Swap> of {TASKS.length}</span>
+          <Segments w={w} className="wt-segs-top w-[150px] max-sm:w-[96px]" />
           <button type="button" onClick={closeList} aria-label="Close" className="-mr-2 grid h-8 w-8 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-[var(--tint)] hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><X size={16} aria-hidden /></button>
         </div>
 
