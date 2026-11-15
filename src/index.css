@@ -717,6 +717,99 @@ html[data-theme="dark"] .co-logo-plate { background: rgb(244 244 245 / 0.9); }
 .wf-ghost { position: fixed; z-index: 80; pointer-events: none; margin: -5px -9px; padding: 4px 8px; border: 1px solid var(--color-line); border-radius: 8px;
   background: var(--color-raised); color: var(--ink); font: 500 14px/20px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .10); }
 
+/* ==== Sentiment and its Opportunities view: copied from the app's stylesheet (app_kraffic.ai develop,
+   components/mock-overview/mock.src.css from "Sentiment, Missed opportunities" to its end; synced 2026-11-15).
+   Unchanged except html.k-dash -> html and .mock-scope -> main. ==== */
+/* app (owner, 2026-11-14): Sentiment, Missed opportunities: the view fades up, its rows stagger in, the header button's
+   count ticks in when it changes (the engine filter). Reduced motion: fades only, no stagger, nothing moves */
+@keyframes k-tick-in { from { opacity: 0; transform: translateY(45%); } to { opacity: 1; transform: none; } }
+.k-tick { display: inline-block; animation: k-tick-in 200ms cubic-bezier(.2,.8,.2,1) both; }
+.k-missed-in { animation: co-head-up 220ms cubic-bezier(.2,.8,.2,1) both; }
+.k-missed-rows tbody tr { animation: co-head-up 200ms cubic-bezier(.2,.8,.2,1) both; animation-delay: 420ms; }
+.k-missed-rows tbody tr:nth-child(1) { animation-delay: 120ms; }
+.k-missed-rows tbody tr:nth-child(2) { animation-delay: 150ms; }
+.k-missed-rows tbody tr:nth-child(3) { animation-delay: 180ms; }
+.k-missed-rows tbody tr:nth-child(4) { animation-delay: 210ms; }
+.k-missed-rows tbody tr:nth-child(5) { animation-delay: 240ms; }
+.k-missed-rows tbody tr:nth-child(6) { animation-delay: 270ms; }
+.k-missed-rows tbody tr:nth-child(7) { animation-delay: 300ms; }
+.k-missed-rows tbody tr:nth-child(8) { animation-delay: 330ms; }
+.k-missed-rows tbody tr:nth-child(9) { animation-delay: 360ms; }
+.k-missed-rows tbody tr:nth-child(10) { animation-delay: 390ms; }
+@media (prefers-reduced-motion: reduce) {
+  .k-tick, .k-missed-in, .k-missed-rows tbody tr { animation: fade-in 160ms ease-out both; animation-delay: 0ms; }
+}
+
+/* app (owner, 2026-11-14): Missed opportunities' Reach out button. Hover or keyboard focus: an ink fill wipes in from the
+   left (220ms ease-out; back out 180ms), the label and arrow turn light as it passes; the arrow takes off to the top
+   right while a fresh one comes in from the bottom left (once per hover: it resets without motion on leave); the row's
+   logo tile lifts 2px; press dips to 0.97 (80ms). Transform, opacity and colour only: nothing moves the layout.
+   Dark mode: the tokens invert (a light fill, dark text). Reduced motion: no sweep, no arrow motion, a 100ms fade */
+.k-reach { position: relative; isolation: isolate; overflow: hidden; transition: transform 80ms ease-out, border-color 180ms ease-out; }
+.k-reach-fill { position: absolute; inset: -1px; z-index: -1; background: var(--ink); transform: scaleX(0); transform-origin: left center; transition: transform 180ms ease-out; }
+.k-reach-label, .k-reach-arrows { transition: color 120ms ease-out; }
+.k-reach:hover, .k-reach:focus-visible { border-color: var(--ink); }
+.k-reach:hover .k-reach-fill, .k-reach:focus-visible .k-reach-fill { transform: scaleX(1); transition-duration: 220ms; }
+.k-reach:hover .k-reach-label, .k-reach:focus-visible .k-reach-label { color: var(--on-ink); transition: color 120ms ease-out 70ms; }
+.k-reach:hover .k-reach-arrows, .k-reach:focus-visible .k-reach-arrows { color: var(--on-ink); transition: color 120ms ease-out 140ms; }
+.k-reach:active { transform: scale(.97); }
+.k-reach-arrows { display: inline-grid; width: 13px; height: 13px; overflow: hidden; }
+.k-reach-arrows > * { grid-area: 1 / 1; }
+.k-arrow-b { transform: translate(-110%, 110%); opacity: 0; }
+.k-reach:hover .k-arrow-a, .k-reach:focus-visible .k-arrow-a { transform: translate(110%, -110%); opacity: 0; transition: transform 220ms ease-out 60ms, opacity 160ms ease-out 60ms; }
+.k-reach:hover .k-arrow-b, .k-reach:focus-visible .k-arrow-b { transform: none; opacity: 1; transition: transform 220ms ease-out 120ms, opacity 160ms ease-out 120ms; }
+.k-tile { transition: transform 180ms ease-out; }
+tr:has(.k-reach:hover) .k-tile, tr:has(.k-reach:focus-visible) .k-tile { transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) {
+  .k-reach-fill { transform: none; opacity: 0; transition: opacity 100ms ease-out; }
+  .k-reach:hover .k-reach-fill, .k-reach:focus-visible .k-reach-fill { transform: none; opacity: 1; transition: opacity 100ms ease-out; }
+  .k-reach:hover .k-reach-label, .k-reach:focus-visible .k-reach-label, .k-reach:hover .k-reach-arrows, .k-reach:focus-visible .k-reach-arrows { transition: color 100ms ease-out; }
+  .k-arrow-b { display: none; }
+  .k-reach:hover .k-arrow-a, .k-reach:focus-visible .k-arrow-a { transform: none; opacity: 1; transition: none; }
+  .k-reach:active { transform: none; }
+  tr:has(.k-reach:hover) .k-tile, tr:has(.k-reach:focus-visible) .k-tile { transform: none; }
+}
+
+/* app (owner, 2026-11-14): Missed opportunities' date range picker opens with a short fade and scale (reduced: a fade) */
+@keyframes k-pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+.k-pop-in { transform-origin: top left; animation: k-pop 160ms cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .k-pop-in { animation: fade-in 120ms ease-out both; } }
+
+/* app (owner, 2026-11-14): Missed opportunities: the row opened from the Sentiment list, tinted, then fading out (about
+   1.5s); reduced motion: the tint holds, then goes, no fade */
+@keyframes k-flash-k { 0%, 35% { background-color: color-mix(in srgb, var(--ink) 9%, transparent); } 100% { background-color: transparent; } }
+.k-missed-rows tbody tr.k-flash { animation: k-flash-k 1.6s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .k-missed-rows tbody tr.k-flash { animation: none; background-color: color-mix(in srgb, var(--ink) 9%, transparent); }
+}
+
+/* app (owner, 2026-11-14): Sentiment header, "Missed opportunities n" (MissedHeaderButton): a soft glow under the
+   cursor, clipped to the button, fading in over 200ms and out over 300ms; its position, the button's magnetic drift and
+   the press are set by script (transform only). Reduced motion: no glow, no motion; a background colour change only
+   (the button's motion-reduce:hover class) */
+.k-mo-glow { opacity: 0; transition: opacity 300ms ease-out; will-change: transform, opacity; }
+.k-mo-btn[data-lit] .k-mo-glow { opacity: 1; transition-duration: 200ms; }
+@media (prefers-reduced-motion: reduce) {
+  .k-mo-glow { display: none; }
+}
+
+/* Content, Upload proprietary data (owner, 2026-11-13): a file card fades and rises in, and fades and shrinks out (the
+   grid closes up after); its tick draws. None with reduced motion. */
+@keyframes zone-card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes zone-card-leave { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.96); } }
+@keyframes zone-tick { from { stroke-dashoffset: 16; } to { stroke-dashoffset: 0; } }
+.zone-card-in { animation: zone-card-in 240ms cubic-bezier(.2,.8,.2,1) both; }
+.zone-card-leave { animation: zone-card-leave 180ms ease-in forwards; pointer-events: none; }
+.zone-tick path { stroke-dasharray: 16; animation: zone-tick 320ms ease-out 60ms both; }
+@media (prefers-reduced-motion: reduce) { .zone-card-in, .zone-card-leave, .zone-tick path { animation: none; } }
+
+/* The app's one UI scale (app owner, 2026-11-09; synced 2026-11-15). Laptop-sized windows (1024–1600px wide) draw
+   everything at 0.8; wider windows at 1.0; below 1024px the mobile / tablet layout is unchanged. Every length in this
+   stylesheet follows it (scripts/ui-scale-css.mjs, run by vite.config.js); sizes set in JavaScript read it through
+   src/app/lib/ui-scale.js. Breakpoints stay in real pixels. */
+:root { --ui-scale: 1; }
+@media (min-width: 1024px) and (max-width: 1600px) { :root { --ui-scale: 0.8; } }
+
 /* ---- Walkthrough (src/walkthrough) ---------------------------------------------------------------------------------
    .wt-fade: the 200ms fade-in of the dim layer, Welcome and the list.
    .wt-btn / .wt-keys: the walkthrough's buttons show a 2px focus ring only while the keyboard is being used.

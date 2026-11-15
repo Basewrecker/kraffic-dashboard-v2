@@ -1,6 +1,6 @@
 // The Sentiment spectrum's pure logic: the beeswarm layout (dots placed by tone, never overlapping), the score marker,
 // keyboard neighbours, engine lanes, the filters and the "no number twice" check. Tested in spectrum.test.js.
-import { countTones, scoreOf } from '../data/sentiment.js'
+import { countTones, scoreOf } from '@/lib/sentiment-adapter'
 
 // a stable 0…1 from an id, so a page keeps its place between renders and runs
 export function hash01(id) {
@@ -531,3 +531,100 @@ export function quadrantScatter(items, { width, height, r, gap = 10, edge = 24, 
 }
 // the grid height that gives every quadrant two staggered rows of dots, `edge` clear all round
 export const scatterMinH = (r, { gap = 10, edge = 24 } = {}) => 2 * Math.ceil(2 * edge + 2 * r + (2 * r + gap) * 0.866)
+
+// ---- the tone grid (owner, 2026-11-15): one logo per publication per area with "Split by engine" off
+// (publicationGroups); one logo size for the whole chart: full size while every area has up to 8 logos, else one step
+// smaller; past 16 logos in an area: 16 and a "+N" chip. Placed by quadrantGathered below.
+export const AREA_FULL = 8
+export const AREA_CAP = 16
+export const areaRadius = (n, r, rSmall) => (n <= AREA_FULL ? r : rSmall)
+
+// "Split by engine" off: a page's dots (one per page; its engines are already merged into the page) grouped by
+// publication (domain) and tone. One entry = one page (URL) of that tone; a group's logo stands for its pages.
+// dots: [{ key, page }] in placing order → [{ key, tone, domain, seed, pages, keys }] (key: the group's first dot)
+export function publicationGroups(dots) {
+  const groups = new Map()
+  for (const d of dots) {
+    const domain = d.page.domain || d.page.id
+    const id = `${d.page.tone}|${domain}`
+    const g = groups.get(id)
+    if (g) { if (!g.pages.includes(d.page)) g.pages.push(d.page); g.keys.push(d.key); continue }
+    groups.set(id, { key: d.key, tone: d.page.tone, domain, seed: domain, pages: [d.page], keys: [d.key] })
+  }
+  return [...groups.values()]
+}
+
+// a circle's distance from a box ({ x0, y0, x1, y1 }); 0 inside it
+const boxDist = (x, y, b) => Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.y0 - y, 0, y - b.y1))
+
+// ---- the tone grid, gathered scatter (owner, 2026-11-15): one logo size for the whole chart, chosen by the fullest
+// area (up to AREA_FULL logos everywhere: full size, else one step smaller in all four). Each area has an invisible
+// zone centred in it (`zw` of its width, `zh` of its height); every logo sits inside it at a hand-placed-looking spot:
+// each logo looks at its own seeded spots (seeded by its domain) and takes the free one nearest the zone's middle,
+// give or take a seeded nudge; free = `gap` px from every logo already placed and not level or plumb with a nearby one
+// (`skew` px at least on both axes). Logos are placed in their seed's order, so adding one moves only the ones it
+// collides with. A lone logo sits a little off the middle. If the zone can't hold an area's logos it grows in steps
+// (never past `clear` px from the area's edges, lines and label); if even that can't, fewer logos show and the rest
+// go into the "+N" chip, so the gap always holds. Past `cap`: `cap` logos and a "+N" chip.
+//   items: [{ key, tone, seed }] → { pos: { key: { x, y } }, more: { tone: { n, x, y, r } }, size: { tone: r } }
+export function quadrantGathered(items, { width, height, r, rSmall = r, gap = 14, skew = 6, clear = 12, zw = 0.6, zh = 0.65, labelW = {}, labelH = 22, line = 1, cap = AREA_CAP, tries = 300 }) {
+  const qw = width / 2, qh = height / 2
+  const pos = {}, more = {}, size = {}
+  const byTone = Object.fromEntries(Object.keys(QUADRANT).map((tone) => [tone, items.filter((it) => it.tone === tone)]))
+  const fullest = Math.max(0, ...Object.values(byTone).map((l) => l.length))
+  const rr = areaRadius(fullest, r, rSmall)
+  const D = 2 * rr + gap
+  for (const [tone, [cx, cy]] of Object.entries(QUADRANT)) {
+    const list = byTone[tone]
+      .map((it) => ({ it, h: seed01(String(it.seed ?? it.key)) }))
+      .sort((a, b) => a.h - b.h || String(a.it.seed ?? a.it.key).localeCompare(String(b.it.seed ?? b.it.key)) || String(a.it.key).localeCompare(String(b.it.key)))
+      .map(({ it }) => it)
+    if (!list.length) continue
+    size[tone] = rr
+    const ax0 = cx * qw, ay0 = cy * qh, mx = ax0 + qw / 2, my = ay0 + qh / 2
+    const lw = labelW[tone] ?? 80
+    const label = { x0: cx ? (cx + 1) * qw - lw : cx * qw, x1: cx ? (cx + 1) * qw : cx * qw + lw, y0: cy ? (cy + 1) * qh - labelH : cy * qh, y1: cy ? (cy + 1) * qh : cy * qh + labelH }
+    // the widest the zone may grow: `clear` px (and the line) inside the area, centres a radius further in
+    const maxHx = qw / 2 - line - clear - rr, maxHy = qh / 2 - line - clear - rr
+    const free = (at, x, y) => boxDist(x, y, label) >= rr + clear
+      && !at.some((p) => { const dx = Math.abs(p.x - x), dy = Math.abs(p.y - y), d = Math.hypot(dx, dy); return d < D || (d < 3.5 * D && (dx < skew || dy < skew)) })
+    // the logos shown (in seed order) and, past them, the "+N" chip
+    const orderOf = (shown) => [...list.slice(0, shown).map((it) => ({ key: it.key, seed: String(it.seed ?? it.key) })), ...(list.length > shown ? [{ key: null, seed: `+${tone}` }] : [])]
+    // each logo looks at its own seeded spots in the zone and takes the free one nearest the middle (a seeded nudge
+    // keeps it from settling into rows); null when one has no free spot
+    const place = (order, hx, hy) => {
+      const at = []
+      for (const o of order) {
+        let got = null, best = Infinity
+        for (let k = 0; k < tries; k++) {
+          const u = 2 * seed01(`${o.seed}|x${k}`) - 1, v = 2 * seed01(`${o.seed}|y${k}`) - 1
+          const x = mx + u * hx, y = my + v * hy
+          const ell = Math.hypot(u, v)
+          if (order.length === 1 && ell < 0.12) continue // a lone logo: off the dead centre
+          if (free(at, x, y)) {
+            const score = ell + 0.35 * seed01(`${o.seed}|n${k}`)
+            if (score < best) { best = score; got = { x, y } }
+          }
+        }
+        if (!got) return null
+        at.push(got)
+      }
+      return at
+    }
+    // the zone first, growing in steps up to the area less `clear`; still no room: one logo fewer (into "+N") at a time,
+    // in the largest zone
+    let shown = Math.min(list.length, cap), order = orderOf(shown), at = null
+    for (let s = 0; s <= 8 && !at; s++) {
+      const hx = Math.max(0, Math.min(maxHx, (zw * qw) / 2 - rr + (s / 8) * (qw / 2))), hy = Math.max(0, Math.min(maxHy, (zh * qh) / 2 - rr + (s / 8) * (qh / 2)))
+      at = place(order, hx, hy)
+    }
+    while (!at && shown > 0) { shown -= 1; order = orderOf(shown); at = place(order, Math.max(0, maxHx), Math.max(0, maxHy)) }
+    if (!at) continue
+    order.forEach((o, i) => {
+      if (!at[i]) return
+      if (o.key == null) more[tone] = { n: list.length - shown, x: at[i].x, y: at[i].y, r: rr }
+      else pos[o.key] = at[i]
+    })
+  }
+  return { pos, more, size }
+}
