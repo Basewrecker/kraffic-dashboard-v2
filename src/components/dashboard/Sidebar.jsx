@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, Compass, FilePenLine, Globe } from 'lucide-react'
+import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, Compass, PenLine, Globe } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
@@ -26,12 +26,13 @@ export const groups = [
     { label: 'Scheduled', icon: CalendarClock, href: '/reports/scheduled' },
   ] },
   { label: 'Opportunities', items: [
-    { label: 'Content', icon: FilePenLine, href: '/opportunities/content', beta: true },
+    { label: 'Content', icon: PenLine, href: '/opportunities/content', beta: true }, // the app's icon (synced 2026-11-15)
   ] },
   { label: 'Optimize', items: [
+    // the app's order (synced 2026-11-15): Structured Data, Fact Check, Site Audit, Toolkit
     { label: 'Structured Data', icon: Code2, href: '/structured-data' },
+    { label: 'Fact Check', icon: Globe, href: '/website-facts', beta: true }, // the app's "Website facts", renamed (owner, 2026-11-11); Beta pill
     { label: 'Site Audit', icon: ScanSearch, href: '/audit' },
-    { label: 'Fact Check', icon: Globe, href: '/website-facts', beta: true }, // the app's "Website facts", renamed (owner, 2026-11-11); after Site Audit, Beta pill
     { label: 'Toolkit', icon: Puzzle, href: '/more-tools' },
   ] },
   { label: 'Settings', items: [
