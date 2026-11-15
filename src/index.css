@@ -931,23 +931,99 @@ tr:has(.k-reach:hover) .k-tile, tr:has(.k-reach:focus-visible) .k-tile { transfo
 @media (min-width: 1024px) and (max-width: 1600px) { :root { --ui-scale: 0.8; } }
 
 /* ---- Walkthrough (src/walkthrough) ---------------------------------------------------------------------------------
-   .wt-fade: the 200ms fade-in of the dim layer, Welcome and the list.
-   .wt-btn / .wt-keys: the walkthrough's buttons show a 2px focus ring only while the keyboard is being used.
-   A step ticking itself: .wt-fill (the disc fills) + .wt-check (the tick draws), 300ms; then .wt-line (the line to
-   the next step fills), .wt-bar (the bar runs on from --wt-from) and .wt-open (the next step opens);
-   .wt-message: the last message comes in. Reduced motion: none of it. */
-@keyframes wt-fill { from { background-color: transparent; } }
-@keyframes wt-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-@keyframes wt-line { from { transform: scaleY(0); } to { transform: none; } }
-@keyframes wt-bar { from { width: var(--wt-from); } }
-@keyframes wt-open { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
-.wt-fade { animation: fade-in 200ms ease-out both; }
-.wt-fill { animation: wt-fill 300ms ease-out both; }
-.wt-check path { stroke-dasharray: 1; animation: wt-draw 300ms ease-out both; }
-.wt-line { animation: wt-line 300ms ease-out 200ms both; }
-.wt-bar { animation: wt-bar 500ms ease-out 100ms both; }
-.wt-open { animation: wt-open 300ms ease-out 350ms both; }
-.wt-message { animation: fade-in 300ms ease-out 400ms both; }
+   One motion system (src/walkthrough/motion.js sets --wt-k: 1, or 4 with ?walkthrough=slow):
+   one easing; fades 200ms, moves 320ms, large moves 450ms; transform and opacity (the exceptions are named in
+   motion.js). Reduced motion, at the end of this block: fades only, no movement. */
+:root { --wt-k: 1; --wt-ease: cubic-bezier(0.22, 1, 0.36, 1); --wt-fade: calc(200ms * var(--wt-k)); --wt-move: calc(320ms * var(--wt-k)); --wt-large: calc(450ms * var(--wt-k)); }
+@keyframes wt-fade-in { from { opacity: 0; } }
+@keyframes wt-fade-out { to { opacity: 0; } }
+@keyframes wt-rise { from { opacity: 0; transform: translateY(6px); } }
+.wt-fade { animation: wt-fade-in var(--wt-fade) var(--wt-ease) both; }
+/* the walkthrough's buttons show a 2px focus ring only while the keyboard is being used */
 .wt-btn:focus-visible { outline: none; }
 .wt-keys .wt-btn:focus { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { .wt-fade, .wt-fill, .wt-check path, .wt-line, .wt-bar, .wt-open, .wt-message { animation: none; } }
+
+/* Welcome: the page dims over 300ms; the card fades in, rises 12px and scales from 0.96; its parts follow 50ms apart */
+@keyframes wt-welcome { from { opacity: 0; transform: translateY(12px) scale(.96); } }
+.wt-scrim { animation: wt-fade-in calc(300ms * var(--wt-k)) var(--wt-ease) both; }
+.wt-welcome { animation: wt-welcome var(--wt-move) var(--wt-ease) both; }
+.wt-stagger > * { animation: wt-rise var(--wt-move) var(--wt-ease) both; animation-delay: calc((120ms + var(--i) * 50ms) * var(--wt-k)); }
+
+/* a text giving way to another (Swap.jsx): out and up, in from below; .wt-roll: a counter, a whole line each way */
+@keyframes wt-swap-in { from { opacity: 0; transform: translateY(var(--wt-shift, 4px)); } }
+@keyframes wt-swap-out { to { opacity: 0; transform: translateY(calc(var(--wt-shift, 4px) * -1)); } }
+.wt-swap-in { animation: wt-swap-in var(--wt-fade) var(--wt-ease) both; }
+.wt-swap-out { animation: wt-swap-out var(--wt-fade) var(--wt-ease) both; }
+.wt-roll { --wt-shift: 100%; }
+
+/* a pointer arriving: one soft ring, once, around the lit area */
+@keyframes wt-pulse { 0% { opacity: 0; transform: scale(1); } 35% { opacity: .55; } 100% { opacity: 0; transform: scale(1.035); } }
+.wt-pulse { box-shadow: 0 0 0 2px var(--color-focus); opacity: 0; animation: wt-pulse var(--wt-large) var(--wt-ease) both; }
+
+/* the collapsed card: it lifts 1px over a soft shadow, the chevron slides 3px, the current segment brightens, a faint
+   light follows the cursor; pressed: 0.98, and back */
+.wt-card { transition: transform var(--wt-fade) var(--wt-ease); }
+.wt-card:hover { transform: translateY(-1px); }
+.wt-card:active { transform: scale(.98); }
+.wt-card-shadow { position: absolute; inset: 0; border-radius: 8px; box-shadow: 0 4px 12px rgb(0 0 0 / .08); opacity: 0; transition: opacity var(--wt-fade) var(--wt-ease); pointer-events: none; }
+.wt-card:hover .wt-card-shadow { opacity: 1; }
+.wt-chev { transition: transform var(--wt-fade) var(--wt-ease); }
+.wt-card:hover .wt-chev { translate: 3px 0; }
+.wt-chev { transition: translate var(--wt-fade) var(--wt-ease); }
+.wt-glow { position: absolute; left: 0; top: 0; width: 120px; height: 120px; border-radius: 999px; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, color-mix(in srgb, var(--ink) 9%, transparent) 0%, transparent 70%);
+  transition: opacity calc(300ms * var(--wt-k)) var(--wt-ease), transform 150ms ease-out; will-change: transform, opacity; }
+.wt-card:hover .wt-glow { opacity: 1; transition-duration: var(--wt-fade), 150ms; }
+.wt-ring { transition: stroke-dashoffset var(--wt-large) var(--wt-ease), opacity var(--wt-fade) var(--wt-ease); }
+/* the six segments: done in ink (it fills from the left), the current one ink at half strength, the rest the track */
+.wt-seg { position: relative; flex: 1 1 0; height: 4px; border-radius: 999px; overflow: hidden; background: var(--data-track); }
+.wt-seg-half, .wt-seg-full { position: absolute; inset: 0; background: var(--ink); }
+.wt-seg-half { opacity: 0; transition: opacity var(--wt-fade) var(--wt-ease); }
+.wt-seg[data-state="current"] .wt-seg-half, .wt-seg[data-state="done"] .wt-seg-half { opacity: .5; }
+.wt-card:hover .wt-seg[data-state="current"] .wt-seg-half { opacity: .8; }
+.wt-seg-full { transform: scaleX(0); transform-origin: left; transition: transform var(--wt-move) var(--wt-ease); }
+.wt-seg[data-state="done"] .wt-seg-full { transform: none; }
+/* all six done: the segments light up one after another, and one soft band of light crosses the card */
+@keyframes wt-seg-lit { 0% { opacity: .35; } 100% { opacity: 1; } }
+.wt-segs[data-lit] .wt-seg-full { animation: wt-seg-lit var(--wt-move) var(--wt-ease) both; animation-delay: calc((200ms + var(--i) * 90ms) * var(--wt-k)); }
+@keyframes wt-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.wt-sweep { position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--ink) 10%, transparent) 50%, transparent 70%);
+  animation: wt-sweep calc(900ms * var(--wt-k)) var(--wt-ease) calc(800ms * var(--wt-k)) both; }
+/* the card going away after the last message: it fades and the sidebar closes the gap */
+.wt-leave { transition: grid-template-rows var(--wt-move) var(--wt-ease), opacity var(--wt-fade) var(--wt-ease), margin var(--wt-move) var(--wt-ease); }
+
+/* the list grows out of the card (its bottom-left corner sits at the card's), and folds back into it */
+.wt-panel { opacity: 0; transform: translate3d(-12px, 4px, 0) scale(.92); transform-origin: left bottom; pointer-events: none;
+  transition: transform var(--wt-move) var(--wt-ease), opacity var(--wt-fade) var(--wt-ease); }
+.wt-panel[data-shown] { opacity: 1; transform: none; pointer-events: auto; }
+.wt-step { animation: wt-rise var(--wt-move) var(--wt-ease) both; animation-delay: calc((60ms + var(--i) * 30ms) * var(--wt-k)); }
+
+/* a step ticking itself: the disc fills and the tick draws (300ms), the line to the next step fills downward, what was
+   achieved fades in, the finished step's card folds up while the next one's opens */
+@keyframes wt-fill { from { background-color: transparent; } }
+@keyframes wt-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes wt-line { from { transform: scaleY(0); } }
+@keyframes wt-open { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
+@keyframes wt-close { from { grid-template-rows: 1fr; opacity: 1; } to { grid-template-rows: 0fr; opacity: 0; } }
+.wt-fill { animation: wt-fill calc(300ms * var(--wt-k)) var(--wt-ease) calc(380ms * var(--wt-k)) both; }
+.wt-check path { stroke-dasharray: 1; animation: wt-draw calc(300ms * var(--wt-k)) var(--wt-ease) calc(480ms * var(--wt-k)) both; }
+.wt-line { animation: wt-line var(--wt-move) var(--wt-ease) calc(700ms * var(--wt-k)) both; }
+.wt-got { animation: wt-fade-in var(--wt-fade) var(--wt-ease) calc(780ms * var(--wt-k)) both; }
+.wt-close { animation: wt-close var(--wt-move) var(--wt-ease) calc(700ms * var(--wt-k)) both; }
+.wt-open { animation: wt-open var(--wt-move) var(--wt-ease) calc(700ms * var(--wt-k)) both; }
+.wt-message { animation: wt-fade-in calc(300ms * var(--wt-k)) var(--wt-ease) calc(900ms * var(--wt-k)) both; }
+
+/* reduced motion: fades only, no movement */
+@media (prefers-reduced-motion: reduce) {
+  .wt-welcome, .wt-stagger > *, .wt-step, .wt-swap-in { animation-name: wt-fade-in; }
+  .wt-swap-out { animation-name: wt-fade-out; }
+  .wt-pulse, .wt-sweep, .wt-glow { display: none; }
+  .wt-card, .wt-card:hover, .wt-card:active { transform: none; }
+  .wt-card:hover .wt-chev { translate: none; }
+  .wt-panel { transform: none; }
+  .wt-seg-full, .wt-ring { transition: none; }
+  .wt-line, .wt-open, .wt-close, .wt-fill, .wt-check path { animation: none; }
+  .wt-close { display: none; }
+  .wt-leave { transition: opacity var(--wt-fade) var(--wt-ease); }
+}

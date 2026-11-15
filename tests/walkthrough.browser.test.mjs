@@ -56,9 +56,12 @@ const pointer = async (page, at, target) => {
   await page.waitForTimeout(450) // the glide (260ms) and the card behind it
   return geom(page, target)
 }
-const steps = (page) => page.locator('[data-task]').evaluateAll((els) => els.map((el) => el.dataset.status))
+// the list's steps (the list is drawn a frame or two after it is asked for: it grows out of the card)
+const steps = async (page) => { await page.waitForSelector('[role=dialog][aria-label="Getting started"][data-shown] [data-task]'); return page.locator('[data-task]').evaluateAll((els) => els.map((el) => el.dataset.status)) }
 const card = (page) => page.locator('[data-getting-started=sidebar] [data-tour="getting-started"]')
 const start = (page) => page.getByRole('button', { name: 'Start', exact: true })
+// the collapsed card: its count (the ring's number) and its "Next:" line
+const cardSays = async (page) => `${await card(page).getAttribute('data-count')} · ${(await card(page).locator('[data-next-line]').last().innerText()).trim()}`
 
 test('first-time run: Welcome, the menu pointers as a cut-out, then the six steps ticking in order', async () => {
   const server = await createServer({ root, logLevel: 'silent', server: { port: 0, strictPort: false } })
@@ -78,7 +81,7 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
 
     await page.goto(at('/overview?walkthrough=new'), { waitUntil: 'networkidle' })
     assert.equal(await page.getByRole('dialog').getByRole('heading').innerText(), 'Welcome to Kraffic')
-    assert.match(await card(page).innerText(), /0 of 6[\s\S]*Next: Confirm your brand and competitors/)
+    assert.equal(await cardSays(page), '0 of 6 · Next: Confirm your brand and competitors')
     await page.getByRole('button', { name: 'Start walkthrough' }).click()
 
     // ---- the five menu pointers
@@ -136,19 +139,24 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     }
     await page.waitForFunction(() => !document.querySelector('[data-walkthrough]'))
     assert.equal(new URL(page.url()).pathname, '/brands')
-    assert.match(await card(page).innerText(), /0 of 6/) // the pointers alone don't tick it
+    assert.equal(await card(page).getAttribute('data-count'), '0 of 6') // the pointers alone don't tick it
     await page.locator('[data-tour="setup-save"] button').click()
     // at the same moment: the card's count and its Next line, and the list opens on the tick
-    assert.match(await card(page).innerText(), /1 of 6[\s\S]*Next: Review the prompts we track/)
+    assert.equal(await card(page).getAttribute('data-count'), '1 of 6')
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-getting-started=sidebar] [data-next-line]')].at(-1)?.textContent === 'Next: Review the prompts we track')
     assert.deepEqual(await steps(page), ['done', 'current', 'later', 'later', 'later', 'later'])
     assert.equal(await page.locator('[data-tour="setup-save"]').count(), 0)
+    // the done step says what was achieved; the current one is a card with its page as a chip
+    assert.match(await page.locator('[data-task=brand] [data-achieved]').innerText(), /Dermasuri · \d+ competitors?/)
+    assert.deepEqual(await page.locator('[data-task=prompts] [data-page-chip]').allInnerTexts(), ['Prompt Hub'])
+    assert.equal(await page.locator('[role=dialog][aria-label="Getting started"] .wt-seg[data-state=done]').count(), 1)
 
     // step 2: Prompt Hub's pointers; skipping them doesn't tick it, finishing them does
     await start(page).click()
     await pointer(page, '1 of 3')
     await page.keyboard.press('Escape')
     await page.waitForFunction(() => !document.querySelector('[data-walkthrough]'))
-    assert.match(await card(page).innerText(), /1 of 6/)
+    assert.equal(await card(page).getAttribute('data-count'), '1 of 6')
     await page.getByRole('button', { name: 'Show me around Prompt Hub' }).click()
     for (let i = 1; i <= 3; i++) { assert.equal((await pointer(page, `${i} of 3`)).over, false); await page.locator('[data-next]').click() }
     await page.waitForSelector('[role=dialog][aria-label="Getting started"]')
@@ -161,10 +169,10 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     await page.keyboard.press('Escape')
     await page.waitForSelector('[role=dialog][aria-label="Getting started"]')
     assert.deepEqual(await steps(page), ['done', 'done', 'done', 'current', 'later', 'later'])
-    assert.match(await card(page).innerText(), /3 of 6[\s\S]*Next: Check what AI says about you/)
+    assert.equal(await card(page).getAttribute('data-count'), '3 of 6')
 
     // steps 4 to 6: "Mark as done" on their pages
-    for (const [n, path] of [[4, '/sentiment'], [5, '/opportunities/content'], [6, '/opportunities/content']]) {
+    for (const [n, path] of [[4, '/sentiment'], [5, '/opportunities/content'], [6, '/sentiment']]) {
       await start(page).click()
       if (n === 4) {
         // Sentiment has pointers of its own; the fourth lights the Opportunities button
@@ -179,7 +187,7 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
       await page.waitForSelector('[data-task-action]')
       assert.equal(new URL(page.url()).pathname, path)
       await page.getByRole('button', { name: 'Mark as done' }).click()
-      await page.waitForFunction((want) => document.querySelector('[data-getting-started=sidebar] [data-count]')?.textContent.includes(`${want} of 6`), n)
+      await page.waitForFunction((want) => document.querySelector('[data-getting-started=sidebar] [data-tour="getting-started"]')?.dataset.count === `${want} of 6`, n)
     }
     // the last message, with all six ticked; then the card goes by itself
     assert.match(await page.locator('[role=dialog][aria-label="Getting started"]').innerText(), /You’re set up\. Kraffic keeps checking AI for you\. Come back each week to see what changed\./)
@@ -188,7 +196,7 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
 
     // a first scan running: the four steps that need results wait
     await page.goto(at('/tracking?walkthrough=scanning'), { waitUntil: 'networkidle' })
-    assert.match(await card(page).innerText(), /2 of 6[\s\S]*Waiting for your first results/)
+    assert.equal(await cardSays(page), '2 of 6 · Waiting for your first results')
     await card(page).click()
     assert.deepEqual(await steps(page), ['done', 'done', 'waiting', 'waiting', 'waiting', 'waiting'])
     assert.equal(await start(page).count(), 0)

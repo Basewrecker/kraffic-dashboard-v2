@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ALL_DONE, CARET, OFF, TASKS, TOURS, WELCOME, allDone, complete, currentTask, demoTask, doneCount, fill, fitHole, fresh, fromParam, keyAction, move, nextLine, nextTask, overlaps, placeCard, restore, sheetSide, taskStatus, tourDone, tourForPath, union, visit } from './tour.js'
+import { bezier, ease } from './motion.js'
 
 const on = { ...fresh(), welcome: false }
 const after = (...ids) => ids.reduce((s, id) => complete(s, id), on)
@@ -28,6 +29,7 @@ test('each page with pointers is found by its path', () => {
 
 test('?walkthrough= states', () => {
   assert.deepEqual(fromParam('new'), { ...OFF, show: true, welcome: true })
+  assert.deepEqual(fromParam('slow'), fromParam('new')) // the same run, in slow motion
   assert.deepEqual(fromParam('reset'), OFF)
   assert.equal(doneCount(fromParam('progress')), 2)
   assert.equal(fromParam('scanning').scanning, true)
@@ -70,12 +72,13 @@ test('how each step ticks: Save, the pointers finished, the page opened, the dem
   assert.equal(visit(one, '/overview'), one)
   const two = after('brand', 'prompts')
   assert.deepEqual(visit(two, '/overview').done, ['brand', 'prompts', 'results'])
-  // 4 to 6: a demo action on their page, one step at a time (5 and 6 share Content)
+  // 4 to 6: a demo action on their page, one step at a time (4 and 6 are both on Sentiment)
   const three = after('brand', 'prompts', 'results')
   assert.equal(demoTask(three, '/sentiment').id, 'tone')
   assert.equal(demoTask(three, '/opportunities/content'), null)
   assert.equal(demoTask(after('brand', 'prompts', 'results', 'tone'), '/opportunities/content').id, 'content')
-  assert.equal(demoTask(after('brand', 'prompts', 'results', 'tone', 'content'), '/opportunities/content').id, 'outreach')
+  assert.equal(demoTask(after('brand', 'prompts', 'results', 'tone', 'content'), '/sentiment').id, 'outreach')
+  assert.equal(demoTask(after('brand', 'prompts', 'results', 'tone', 'content'), '/opportunities/content'), null)
   assert.ok(allDone(after('brand', 'prompts', 'results', 'tone', 'content', 'outreach')))
   // hidden: nothing ticks
   assert.equal(visit({ ...two, show: false }, '/overview').done.length, 2)
@@ -161,4 +164,13 @@ test('phones: the sheet is at the bottom, at the top when the lit area is down t
 test('several boxes are lit as one', () => {
   assert.deepEqual(union([{ left: 10, top: 10, width: 100, height: 50 }, { left: 130, top: 10, width: 100, height: 60 }]), { left: 10, top: 10, width: 220, height: 60 })
   assert.equal(union([]), null)
+})
+
+test('the one easing: cubic-bezier(0.22, 1, 0.36, 1), fast out and settling with no overshoot', () => {
+  assert.equal(ease(0), 0)
+  assert.equal(ease(1), 1)
+  let last = 0
+  for (let i = 1; i <= 20; i++) { const v = ease(i / 20); assert.ok(v >= last && v <= 1, `rises without passing 1 (${v})`); last = v }
+  assert.ok(ease(0.25) > 0.6, 'most of the way a quarter of the time in')
+  assert.ok(Math.abs(bezier(0, 0, 1, 1)(0.3) - 0.3) < 0.001) // a straight line stays one
 })

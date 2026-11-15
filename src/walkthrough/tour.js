@@ -53,15 +53,15 @@ export const TOURS = {
     ],
   },
   // Sentiment is the app's own page file, so its pointers find their elements by what the page already has (no
-  // data-tour marks in it). The first three texts are ours; the fourth lights the Opportunities button.
+  // data-tour marks in it). The four texts are the owner's (2026-11-15); the fourth lights the Opportunities button.
   sentiment: {
     label: 'Sentiment',
     href: '/sentiment',
     steps: [
-      { target: 'section[aria-label="Sentiment spectrum"] > div:first-child > div:first-child', side: 'right', text: 'This is how the sources AI relies on talk about {brand}, from 0 to 100.' },
-      { target: 'section[aria-label="Sentiment spectrum"] > div:first-child > div.min-w-0', side: 'bottom', text: 'Every publication AI cites, placed by its tone.' },
-      { target: '#pages-on-h, li[data-row="sync"]', all: true, side: 'left', text: 'The pages behind the score. Open one to read what it says.' },
-      { target: '.k-mo-btn', side: 'bottom', text: 'These publications mention {brand} without taking a side. Reach out to turn them in your favour.' },
+      { target: 'section[aria-label="Sentiment spectrum"] > div:first-child > div:first-child', side: 'right', text: 'This is the tone of the sources AI relies on when it talks about {brand}.' },
+      { target: 'section[aria-label="Sentiment spectrum"] > div:first-child > div.min-w-0', side: 'bottom', text: 'Each logo is a publication, placed by its tone.' },
+      { target: '#pages-on-h, li[data-row="sync"]', all: true, side: 'left', text: 'Open any page to see what it says about you.' },
+      { target: '.k-mo-btn', side: 'bottom', text: 'Neutral and mixed pages are your chance to win a better mention. This opens the list.' },
     ],
   },
   overview: {
@@ -85,12 +85,12 @@ export const tourForPath = (path) => Object.keys(TOURS).find((k) => TOURS[k].hre
 //   demo: "Mark as done" on its page (mock only: the real triggers for these three aren't decided)
 // (There is no outreach page in the mock yet: step 6 opens Content.)
 export const TASKS = [
-  { id: 'brand', title: 'Confirm your brand and competitors', why: 'We track what you tell us here.', href: '/brands', tour: 'brand-setup', how: 'save' },
-  { id: 'prompts', title: 'Review the prompts we track', why: 'These are the questions people ask AI.', href: '/tracker', tour: 'prompt-hub', how: 'tour' },
-  { id: 'results', title: 'See where you stand', why: 'Your first results are in.', href: '/overview', tour: 'overview', how: 'open', results: true },
-  { id: 'tone', title: 'Check what AI says about you', why: 'See the tone, and fix wrong facts.', href: '/sentiment', tour: 'sentiment', how: 'demo', results: true },
-  { id: 'content', title: 'Create your first content', why: 'Write a page for a prompt you’re missing.', href: '/opportunities/content', how: 'demo', results: true },
-  { id: 'outreach', title: 'Reach out on one opportunity', why: 'Ask a publication to mention you.', href: '/opportunities/content', how: 'demo', results: true },
+  { id: 'brand', title: 'Confirm your brand and competitors', why: 'We track what you tell us here.', href: '/brands', tour: 'brand-setup', how: 'save', pages: ['Brand Setup'] },
+  { id: 'prompts', title: 'Review the prompts we track', why: 'These are the questions people ask AI.', href: '/tracker', tour: 'prompt-hub', how: 'tour', pages: ['Prompt Hub'] },
+  { id: 'results', title: 'See where you stand', why: 'Your first results are in.', href: '/overview', tour: 'overview', how: 'open', results: true, pages: ['Visibility Overview'] },
+  { id: 'tone', title: 'Check what AI says about you', why: 'See the tone, and fix wrong facts.', href: '/sentiment', tour: 'sentiment', how: 'demo', results: true, pages: ['Sentiment', 'Fact Check'] },
+  { id: 'content', title: 'Create your first content', why: 'Write a page for a prompt you’re missing.', href: '/opportunities/content', how: 'demo', results: true, pages: ['Content'] },
+  { id: 'outreach', title: 'Reach out on one opportunity', why: 'Ask a publication to mention you.', href: '/sentiment', how: 'demo', results: true, pages: ['Sentiment', 'Opportunities'] }, // the Opportunities view opens from Sentiment (synced from the app)
 ]
 export const WAITING = 'Waiting for your first results'
 export const ALL_DONE = 'You’re set up. {app} keeps checking AI for you. Come back each week to see what changed.'
@@ -102,10 +102,11 @@ export const ALL_DONE = 'You’re set up. {app} keeps checking AI for you. Come 
 export const OFF = { show: false, welcome: false, done: [], hints: true, scanning: false, closed: false }
 export const fresh = () => ({ ...OFF, show: true, welcome: true })
 
-// ?walkthrough=<value>: new (first time, from the start) · reset (clears progress) · and three more for looking at
+// ?walkthrough=<value>: new (first time, from the start) · slow (the same, in slow motion) · reset (clears progress) ·
+// and three more for looking at
 // states: progress (2 of 6) · scanning (2 of 6, a first scan running) · done (6 of 6, the last message)
 export function fromParam(value) {
-  if (value === 'new') return fresh()
+  if (value === 'new' || value === 'slow') return fresh() // slow: the same run with every animation at 4x (motion.js)
   if (value === 'reset') return { ...OFF }
   if (value === 'progress') return { ...OFF, show: true, done: ['brand', 'prompts'] }
   if (value === 'scanning') return { ...OFF, show: true, done: ['brand', 'prompts'], scanning: true }
