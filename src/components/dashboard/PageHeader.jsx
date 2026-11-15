@@ -7,6 +7,7 @@ import { PlatformIcon } from './icons'
 import { PlatformFilterPill } from './PlatformFilter'
 import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
+import { TourHelp } from '../../walkthrough/Walkthrough'
 
 // size 'sm' = h-8 (header and page toolbars), 'md' = h-10; label optional
 const triggerClass = (size) =>
@@ -173,6 +174,8 @@ export default function PageHeader() {
                 )}
               </>
             )}
+            {/* replays this page's walkthrough pointers */}
+            {isOwnBrand && <TourHelp tour="overview" />}
           </div>
           {/* the only competitor-view indicator: same line, same height (own brand: phones and tablets only) */}
           <p className={`mt-1 text-body font-normal text-stone-600 ${isOwnBrand ? 'lg:hidden' : ''}`}>
@@ -194,8 +197,10 @@ export default function PageHeader() {
         <div className="relative flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:gap-2.5 lg:pt-1">
           {/* engine filter chip sits just above the KPI row's right edge; absolute, so nothing shifts */}
           <PlatformFilterPill className="self-start lg:absolute lg:right-0 lg:top-full lg:mt-1.5" />
-          <MenuSelect prefix="Engine" value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" footer="Filters every card to answers from this engine."
-            className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER} />
+          <div data-tour="overview-engine" className="max-lg:w-full">
+            <MenuSelect prefix="Engine" value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" footer="Filters every card to answers from this engine."
+              className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER} />
+          </div>
           <MenuSelect
             className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER}
             prefix="Viewing as"

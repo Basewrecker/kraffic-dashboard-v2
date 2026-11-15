@@ -8,7 +8,7 @@ import Card from './Card'
 // On screens 800px tall or less (desktop) the card is 16px top and bottom with 8px above its link, so the next row
 // peeks above the fold (owner, 2026-11-03).
 // Optional: linkIcon (the link's arrow; default →) and selected (a card that is also a filter: a 1px ink border).
-export default function KpiCard({ label, icon: Icon, tone, children, footer, link, onOpen, hint, linkIcon: LinkIcon = ArrowRight, selected }) {
+export default function KpiCard({ label, icon: Icon, tone, children, footer, link, onOpen, hint, linkIcon: LinkIcon = ArrowRight, selected, tour }) {
   const [tip, setTip] = useState(false)
   const interactive = Boolean(onOpen)
   const onKeyDown = (e) => {
@@ -18,6 +18,7 @@ export default function KpiCard({ label, icon: Icon, tone, children, footer, lin
   }
   return (
     <Card
+      data-tour={tour}
       {...(interactive && { role: 'link', tabIndex: 0, onClick: onOpen, onKeyDown, 'aria-label': `${label}: ${link}` })}
       {...(selected != null && { 'aria-current': selected ? 'true' : undefined })}
       className={`group flex h-full flex-col p-4 md:p-5 lg:min-h-[148px] lg:[@media(max-height:800px)]:min-h-0 lg:[@media(max-height:800px)]:py-4 ${

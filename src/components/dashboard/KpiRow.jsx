@@ -63,7 +63,7 @@ export default function KpiRow() {
   return (
       // phones / tablets: 2 × 2
       <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
-        <KpiCard label="Visibility score" icon={Gauge} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} hint={scoreHint(engine, isOwnBrand, focal.name)} footer={isScore(kpis.visible) && <><Count value={kpis.visible} />/{kpis.total} prompts visible</>}>
+        <KpiCard tour="overview-score" label="Visibility score" icon={Gauge} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} hint={scoreHint(engine, isOwnBrand, focal.name)} footer={isScore(kpis.visible) && <><Count value={kpis.visible} />/{kpis.total} prompts visible</>}>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <ScoreRing value={kpis.score} />
             {/* no result from this engine's latest scan: the ⓘ says so, and there's no change line */}
@@ -75,10 +75,10 @@ export default function KpiRow() {
             </span>
           </div>
         </KpiCard>
-        <KpiCard label="Visible prompts" icon={Eye} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} link="View prompts" onOpen={() => goToSection('visible-prompts')}>
+        <KpiCard tour="overview-prompts" label="Visible prompts" icon={Eye} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} link="View prompts" onOpen={() => goToSection('visible-prompts')}>
           <Num value={kpis.visible} />
         </KpiCard>
-        <KpiCard label="Missed prompts" icon={EyeOff} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} link="View opportunities" onOpen={() => goToSection('missed-prompts', isOwnBrand ? { sort: { key: 'appearingFor', dir: 'desc' } } : undefined)}>
+        <KpiCard tour="overview-prompts" label="Missed prompts" icon={EyeOff} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} link="View opportunities" onOpen={() => goToSection('missed-prompts', isOwnBrand ? { sort: { key: 'appearingFor', dir: 'desc' } } : undefined)}>
           <Num value={kpis.missed} />
         </KpiCard>
         <KpiCard label="Cited sources" icon={Link} tone={{ bg: 'bg-tint', fg: 'text-stone-600' }} link="View top pages" onOpen={(e) => openEngineDrawer({ engine, tab: 'pages', opener: e?.currentTarget })}>

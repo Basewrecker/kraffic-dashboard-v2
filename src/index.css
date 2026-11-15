@@ -716,3 +716,15 @@ html[data-theme="dark"] .co-logo-plate { background: rgb(244 244 245 / 0.9); }
 /* a confirmed value on its way into the fact sheet (drawn in <body>, see flyToSheet) */
 .wf-ghost { position: fixed; z-index: 80; pointer-events: none; margin: -5px -9px; padding: 4px 8px; border: 1px solid var(--color-line); border-radius: 8px;
   background: var(--color-raised); color: var(--ink); font: 500 14px/20px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .10); }
+
+/* ---- Walkthrough (src/walkthrough) ---------------------------------------------------------------------------------
+   .wt-hole: the lit box of a pointer. Its shadow is the dim over the rest of the page (the modal scrim), with a 1px
+   line so the box reads on a dark page too. .wt-fade: the 200ms fade-in of the dim, Welcome and the list.
+   .wt-pop / .wt-check: a task ticking itself (the disc pops in, then the tick draws). Reduced motion: none of it. */
+.wt-hole { position: fixed; border-radius: 10px; pointer-events: none; box-shadow: 0 0 0 1px var(--color-line-strong), 0 0 0 200vmax var(--color-scrim-modal); }
+@keyframes wt-pop { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: none; } }
+@keyframes wt-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.wt-fade { animation: fade-in 200ms ease-out both; }
+.wt-pop { animation: wt-pop 200ms ease-out both; }
+.wt-check path { stroke-dasharray: 1; animation: wt-draw 260ms ease-out 120ms both; }
+@media (prefers-reduced-motion: reduce) { .wt-fade, .wt-pop, .wt-check path { animation: none; } }

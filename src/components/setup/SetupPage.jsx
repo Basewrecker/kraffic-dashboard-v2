@@ -17,6 +17,8 @@ import { guessTopicType } from '../../data/topics'
 import { EMPTY_GUIDELINES, GUIDE_ACCEPT, guideReject, guidelinesPreview, hasGuidelines, loadGuidelines, removeGuidelines, saveGuidelines } from '../../data/brandGuidelines'
 import { readFile } from '../../pages/opportunities/data/extract'
 import GuidelinesForm from '../../pages/opportunities/workspace/Guidelines'
+import { ConfirmSetup, WalkthroughRows } from '../../walkthrough/GettingStarted'
+import { TourHelp } from '../../walkthrough/Walkthrough'
 
 // /setup: what Kraffic tracks for a brand, in the same settings layout as /llm-settings —
 // cards of 60px rows (name + meta left, one quiet value + hover-only Edit / Remove right),
@@ -80,9 +82,10 @@ function Menu({ items, label: aria }) {
 }
 
 // compact: header pt-4 pb-3 with no rule under it, and `body` (a chip line) instead of a list of rows
-export function SettingsCard({ title, count, description, action, footer, children, body, id, label: aria, compact }) {
+export function SettingsCard({ title, count, description, action, footer, children, body, id, label: aria, compact, tour }) {
   return (
-    <section id={id} aria-label={aria ?? title} className="scroll-mt-6 overflow-hidden rounded-[14px] border border-line bg-surface">
+    // tour: the walkthrough pointer that lights this card (walkthrough/tour.js)
+    <section id={id} data-tour={tour} aria-label={aria ?? title} className="scroll-mt-6 overflow-hidden rounded-[14px] border border-line bg-surface">
       {title && (
         <header className={`flex items-start justify-between gap-4 px-5 ${compact ? 'pb-3 pt-4' : `pb-3.5 pt-[18px] ${children ? 'border-b border-[var(--div)]' : ''}`}`}>
           <div className="min-w-0">
@@ -257,7 +260,7 @@ export const SaveFailed = ({ failed }) => (failed ? ( // also First-time setup's
 function BrandIdentity({ brand, syncing, onEdit, onDelete }) {
   const status = syncing ? 'Syncing…' : brand.lastSync ? `Tracking · updated ${brand.lastSync}` : 'Not synced yet'
   return (
-    <SettingsCard label={`${brand.name} brand`}>
+    <SettingsCard label={`${brand.name} brand`} tour="setup-brand">
       <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3">
         <span className="flex min-w-0 items-center gap-3">
           <SiteLogo domain={brand.domain} name={brand.name} className="h-10 w-10 rounded-lg" initialClass="text-[16px]" />
@@ -374,7 +377,7 @@ function NamesCard({ brand, update, toast }) {
   }
 
   return (
-    <SettingsCard id={`aliases-${brand.id}`} title="Also counts as" count={aliases.length} description={`Name variants that count as a ${brand.name} mention`} compact
+    <SettingsCard id={`aliases-${brand.id}`} tour="setup-names" title="Also counts as" count={aliases.length} description={`Name variants that count as a ${brand.name} mention`} compact
       body={(
         <>
           <div className="flex flex-wrap items-center gap-2.5 px-5 pb-4">
@@ -592,6 +595,7 @@ function CompetitorsCard({ brand, update, toast }) {
   return (
     <SettingsCard
       id={`competitors-${brand.id}`}
+      tour="setup-competitors"
       title="Competitors"
       count={MAX_COMPETITORS != null ? `${list.length} of ${MAX_COMPETITORS}` : list.length}
       description="Brands AI answers compare you with"
@@ -831,7 +835,10 @@ export default function SetupPage() {
     <div className="mx-auto flex w-full max-w-[880px] flex-col gap-4 pt-2">
       <div className="mb-2 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-4">
         <div>
-          <h1 className="text-[22px] leading-7 font-semibold text-stone-900 lg:text-[28px] lg:leading-9">Brand Setup</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-[22px] leading-7 font-semibold text-stone-900 lg:text-[28px] lg:leading-9">Brand Setup</h1>
+            <TourHelp tour="brand-setup" />
+          </div>
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">What Kraffic tracks for your brand</p>
         </div>
         <div className="md:pt-1 max-md:[&>button]:h-10 max-md:[&>button]:w-full max-md:[&>button]:justify-center">
@@ -860,6 +867,9 @@ export default function SetupPage() {
         })
       )}
 
+      {/* Getting started, task 1: where the brand and competitors are confirmed (only while that task is open) */}
+      <ConfirmSetup />
+
       {/* tracking config lives on /llm-settings; this is a read-only summary from the shared store */}
       {primary && (
         <SettingsCard
@@ -872,6 +882,11 @@ export default function SetupPage() {
           )}
         />
       )}
+
+      {/* the walkthrough's settings (mock only): restart, replay a page's pointers, hints, Getting started */}
+      <SettingsCard id="walkthrough" title="Walkthrough" description="The first-time tour and your Getting started steps">
+        <WalkthroughRows />
+      </SettingsCard>
 
       <BrandModal
         open={Boolean(modal)}

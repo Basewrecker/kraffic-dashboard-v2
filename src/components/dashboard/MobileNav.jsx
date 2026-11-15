@@ -8,6 +8,10 @@ import ThemeToggle from './ThemeToggle'
 import { HOME, NavLinks, WorkspaceList, WorkspaceSwitcher } from './Sidebar'
 import { account, agencyClients } from '../../data/mock'
 import { useBackClose } from '../../hooks/useOverlay'
+import { useIsCompact } from '../../hooks/useMedia'
+import GettingStarted from '../../walkthrough/GettingStarted'
+import { TOURS } from '../../walkthrough/tour'
+import { endTour, useWalkthrough } from '../../walkthrough/store'
 
 // Below lg: a sticky top bar (menu · Kraffic mark ······ workspace logo) instead of the sidebar.
 // The menu opens the nav as a left drawer (288px): same groups and items, theme + workspace at the bottom.
@@ -71,6 +75,8 @@ function NavDrawer({ open, onClose, path, nav }) {
           <NavLinks path={path} nav={nav} onNavigate={() => { release(); onClose() }} />
         </div>
         <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+          {/* phones: Getting started lives here, in the menu (its list opens above it) */}
+          <GettingStarted inline onNavigate={() => { release(); onClose() }} />
           <ThemeToggle />
           <WorkspaceSwitcher />
         </div>
@@ -90,6 +96,12 @@ function WorkspaceSheet({ open, onClose }) {
 export default function MobileNav({ path, nav }) {
   const [menu, setMenu] = useState(false)
   const [workspace, setWorkspace] = useState(false)
+  // the walkthrough's pointers on the menu need the menu open (below lg the menu is this drawer)
+  const w = useWalkthrough()
+  const compact = useIsCompact()
+  const pointing = compact && Boolean(w.tour && TOURS[w.tour].nav)
+  // it stays open when they end: the Getting started list is in it
+  useEffect(() => { if (pointing) setMenu(true) }, [pointing])
   return (
     <>
       <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-[var(--div)] bg-[color-mix(in_srgb,var(--color-page)_90%,transparent)] px-4 pt-[env(safe-area-inset-top)] backdrop-blur lg:hidden">
@@ -101,7 +113,7 @@ export default function MobileNav({ path, nav }) {
           <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
         </button>
       </header>
-      <NavDrawer open={menu} onClose={() => setMenu(false)} path={path} nav={nav} />
+      <NavDrawer open={menu || pointing} onClose={() => { setMenu(false); if (pointing) endTour(false) }} path={path} nav={nav} />
       <WorkspaceSheet open={workspace} onClose={() => setWorkspace(false)} />
     </>
   )

@@ -42,6 +42,7 @@ import { AppLoading, PageError, PageLoading, PageNotFound } from './components/u
 import { CardGate } from './components/ui/CardState'
 import CookieBanner from './components/ui/CookieBanner'
 import WebsiteFactsPage from './pages/facts/WebsiteFactsPage'
+import Walkthrough from './walkthrough/Walkthrough'
 
 
 function DashboardPage() {
@@ -124,6 +125,8 @@ export default function App() {
         </div>
       </div>
       {state === 'cookies' && <CookieBanner onChoose={() => {}} />}
+      {/* the first-time walkthrough (mock only): Welcome and the pointers; ?walkthrough=new shows it from the start */}
+      <Walkthrough />
     </TrackingProvider>
   )
 }

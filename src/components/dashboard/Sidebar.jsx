@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, FilePenLine, Globe } from 'lucide-react'
+import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, Compass, FilePenLine, Globe } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
@@ -8,6 +8,8 @@ import { Wordmark } from '../ui/Logo'
 import SiteLogo from '../ui/SiteLogo'
 import BetaTag from '../ui/BetaTag'
 import { agency, brand, recentBrands, role, switchBrand, visibleDirectory } from '../../store/workspace'
+import GettingStarted from '../../walkthrough/GettingStarted'
+import { startFromMenu } from '../../walkthrough/store'
 
 // grouped nav (same items and order as production); items without an href have no page yet.
 // Old routes redirect (see router.js REDIRECTS).
@@ -78,6 +80,7 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
     ['Team', Users, '/team'],
     ['Billing', CreditCard, '/billing'],
     ['Settings', Settings2, '/brands'],
+    ['Walkthrough', Compass, null, startFromMenu], // the menu's pointers again (mock only)
     ['Profile', UserRound, null],
   ]
   return (
@@ -133,7 +136,9 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
         )}
       </div>
       <div className="shrink-0 border-t border-line p-1">
-        {foot.map(([l, Icon, href]) => (href
+        {foot.map(([l, Icon, href, action]) => (action
+          ? <button key={l} type="button" role="menuitem" onClick={() => { onDone?.(); action() }} className={`${item} text-stone-900`}><span className="grid w-5 shrink-0 place-items-center" aria-hidden><Icon size={16} className="text-stone-600" /></span>{l}</button>
+          : href
           ? <a key={l} role="menuitem" href={href} onClick={(e) => { onDone?.(); linkClick(href)(e) }} className={`${item} text-stone-900`}><span className="grid w-5 shrink-0 place-items-center" aria-hidden><Icon size={16} className="text-stone-600" /></span>{l}</a>
           : <span key={l} role="menuitem" aria-disabled="true" title="Not designed in the mock yet" className={`${item} cursor-default text-stone-500 hover:bg-transparent`}><span className="grid w-5 shrink-0 place-items-center" aria-hidden><Icon size={16} /></span>{l}</span>))}
       </div>
@@ -237,7 +242,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
         const open = !collapsed.has(g.label)
         const id = `nav-${g.label.replace(/\W+/g, '-')}`
         return (
-      <div key={g.label} role="group" aria-labelledby={`${id}-label`} className={`flex flex-col ${gi ? 'pt-4' : ''}`}>
+      <div key={g.label} role="group" aria-labelledby={`${id}-label`} data-tour={`nav-${g.label.toLowerCase().replace(/\W+/g, '-')}`} className={`flex flex-col ${gi ? 'pt-4' : ''}`}>
       <button type="button" id={`${id}-label`} aria-expanded={open} aria-controls={id} onClick={() => toggle(g.label)}
         className="group/sec relative mb-1 flex h-4 items-center gap-1 self-start rounded-sm px-2 text-[12px] leading-4 font-medium text-stone-500 outline-none transition-colors duration-150 before:absolute before:-inset-y-1 before:inset-x-0 hover:text-stone-700 focus-visible:ring-2 focus-visible:ring-focus">
         <Caret className={`-ml-0.5 transition-transform duration-200 motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
@@ -283,8 +288,9 @@ export default function Sidebar({ path = '/overview', nav }) {
         <a href={HOME} title="Home" aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
       </div>
       <div className="nav-scroll mt-6 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 pb-2"><NavLinks path={path} nav={nav} /></div>
-      {/* footer: theme, then the workspace (its menu holds Home) */}
+      {/* footer: Getting started (while it is on), theme, then the workspace (its menu holds Home) */}
       <div className="flex shrink-0 flex-col gap-2 px-3 pb-3 pt-1">
+        <GettingStarted />
         <ThemeToggle />
         <WorkspaceSwitcher />
       </div>
