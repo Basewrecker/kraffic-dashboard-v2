@@ -694,6 +694,11 @@ html[data-theme="dark"] .co-logo-plate { background: rgb(244 244 245 / 0.9); }
 @keyframes co-line-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes co-dot-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
 
+/* ==== Fact Check: copied from the app's stylesheet (mock.src.css, its Fact Check blocks; synced 2026-11-15). The mock's
+   own "Website facts" block was the start of this one. Unchanged except html.k-dash -> html and .mock-scope -> main. ==== */
+/* ---- Fact Check (components/mock/pages/facts/WebsiteFactsPage.jsx): the mock's "---- Website facts" block of src/index.css
+   (design/website-facts a3b66c8), copied unchanged. --logo-plate is the design's new token: a white plate behind a
+   source's logo in both themes. --negative is the token the Sentiment page uses for negative (mock-tokens.css). */
 /* ---- Website facts (pages/facts/WebsiteFactsPage.jsx) ----------------------------------------------------------------
    Colour: graphite, plus --negative (the red Sentiment uses) where the site and an outside source disagree, where a
    decision is the user's ("Your call"), and for pages that couldn't be read. No colour of its own. */
@@ -712,10 +717,100 @@ html[data-theme="dark"] .co-logo-plate { background: rgb(244 244 245 / 0.9); }
 .wf-panel { animation: wf-panel 160ms ease-out both; } /* a floating panel growing from the control that opened it */
 @keyframes wf-seg { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .wf-seg { transform-origin: left; animation: wf-seg 260ms cubic-bezier(.2,.8,.2,1) both; } /* a page segment filling, left to right */
+/* app (owner, 2026-11-11): Read, but not facts' rows slide up and fade in on opening; a row that leaves fades and
+   collapses (its 38px row, its hairline). Both carry .wf-anim (none under reduced motion). */
+@keyframes wf-row-in { from { opacity: 0; transform: translateY(6px); } }
+.wf-row-in { animation: wf-row-in 240ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes wf-row-out { from { opacity: 1; max-height: 38px; } to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; border-top-width: 0; } }
+.wf-row-out { overflow: hidden; animation: wf-row-out 200ms ease-out both; }
+/* app (owner, 2026-11-12): while a status link is hovered or focused, its card (on screen) shows a 1px ring in the
+   status colour (--fc-ring: --negative for Your call, else stone-600): 150ms in, 200ms out. A click puts the card in
+   the spotlight instead (no ring): every other card at 35% (250ms in, 200ms back), the target's items rise in (6px +
+   fade, staggered from the page). Reduced motion: the dim is instant, nothing rises. */
+.fc-ring { transition: box-shadow 200ms ease-out; }
+.fc-ring.fc-preview { box-shadow: 0 0 0 1px var(--fc-ring, var(--color-stone-600)); transition-duration: 150ms; }
+.fc-dimmable { transition: opacity 200ms ease-out; }
+.fc-dimmable.fc-dim { opacity: 0.35; transition-duration: 250ms; }
+@keyframes fc-rise { from { opacity: 0; transform: translateY(6px); } }
+.fc-rise { animation: fc-rise 240ms ease-out both; }
+/* app (owner, 2026-11-12): Fact Check's motion values (the page uses only these; the rest of the site can adopt them):
+   fast 120ms, base 180ms, slow 260ms; ease-out entering, ease-in-out moving, ease-in leaving. No bounce or overshoot. */
+:root { --fc-dur-fast: 120ms; --fc-dur-base: 180ms; --fc-dur-slow: 260ms; --fc-ease-out: cubic-bezier(.2,.8,.2,1); --fc-ease-move: cubic-bezier(.4,0,.2,1); --fc-ease-in: cubic-bezier(.4,0,1,1); }
+/* the hero's result groups (owner, 2026-11-12): a hovered group's segments grow to 1.4x from the centre and go to full
+   strength (160ms ease-out in, 200ms ease-in-out out), all together; pressed, they dip to 1.25x; the other groups ease
+   to 45%; its label's "↓" fades and slides in 4px, in space that's always kept. Reduced motion: no size change or
+   slide, colour and opacity at once. */
+.fc-seg { transform-origin: center; transition: transform 200ms ease-in-out, background-color 200ms ease-in-out, border-color 200ms ease-in-out; }
+.fc-seg-fill { transition: background-color 200ms ease-in-out; }
+.fc-seg-on { transform: scaleY(1.4); transition-duration: 160ms; transition-timing-function: ease-out; }
+.fc-segs:active .fc-seg-on, button:active > .fc-segs .fc-seg-on { transform: scaleY(1.25); transition-duration: 80ms; }
+.fc-group { transition: opacity 220ms ease-in-out; }
+.fc-group-dim { opacity: 0.45; transition-duration: 180ms; transition-timing-function: ease-out; }
+/* app (owner, 2026-11-12): the hero segments' hover, smooth: colour and a slight growth from the centre (180ms ease-out in,
+   220ms ease-in-out out); reduced motion: colour at once, no growth */
+.fc-seg2 { transform-origin: center; transition: transform 220ms ease-in-out, background-color 220ms ease-in-out, border-color 220ms ease-in-out; }
+.fc-seg2-on { transform: scaleY(1.2); transition-duration: 180ms; transition-timing-function: ease-out; }
+@media (prefers-reduced-motion: reduce) { .fc-seg2 { transition: none; } .fc-seg2-on { transform: none; } }
+.fc-arrow::after { content: "↓"; display: inline-block; width: 0.8em; margin-left: 2px; opacity: 0; transform: translateX(-4px); transition: opacity 200ms ease-in-out, transform 200ms ease-in-out; }
+.fc-arrow-on::after { opacity: 1; transform: none; transition-duration: 160ms; transition-timing-function: ease-out; }
+@media (prefers-reduced-motion: reduce) { .fc-seg-on, .fc-segs:active .fc-seg-on, button:active > .fc-segs .fc-seg-on { transform: none; } .fc-seg, .fc-seg-fill, .fc-group, .fc-ring, .fc-arrow::after, .fc-dimmable { transition: none; } .fc-arrow::after { transform: none; } }
+/* app (owner, 2026-11-12): Fact Check's motion pass, on its own fc- classes (shared utilities untouched), with the page's
+   motion values: enter fade-up 8px, row hover and tile lift, box lift, filled-button press, text links' underline drawn
+   in from the left with the ↗ nudging up-right, scroll reveal. Only opacity and transform move. Reduced motion: none. */
+@keyframes fc-up { from { opacity: 0; transform: translateY(8px); } }
+.fc-up { animation: fc-up var(--fc-dur-base) var(--fc-ease-out) both; }
+.fc-rows-in > li { animation: fc-up var(--fc-dur-base) var(--fc-ease-out) both; }
+.fc-rows-in > li:nth-child(2) { animation-delay: 30ms; } .fc-rows-in > li:nth-child(3) { animation-delay: 60ms; }
+.fc-rows-in > li:nth-child(4) { animation-delay: 90ms; } .fc-rows-in > li:nth-child(5) { animation-delay: 120ms; }
+.fc-rows-in > li:nth-child(6) { animation-delay: 150ms; } .fc-rows-in > li:nth-child(n+7) { animation-delay: 180ms; }
+.fc-reveal { opacity: 0; transform: translateY(8px); transition: opacity var(--fc-dur-base) var(--fc-ease-out), transform var(--fc-dur-base) var(--fc-ease-out); }
+.fc-reveal.fc-in { opacity: 1; transform: none; }
+.fc-row { transition: background-color var(--fc-dur-fast) var(--fc-ease-out); }
+.fc-tile { transition: transform var(--fc-dur-fast) var(--fc-ease-out); }
+.fc-row:hover .fc-tile { transform: translateY(-1px); }
+.fc-box { transition: border-color var(--fc-dur-base) var(--fc-ease-out), transform var(--fc-dur-base) var(--fc-ease-out); }
+.fc-box:hover { transform: translateY(-2px); border-color: var(--color-line-strong); }
+.fc-btn { transition: background-color var(--fc-dur-fast) var(--fc-ease-out), transform var(--fc-dur-fast) var(--fc-ease-out); }
+.fc-btn:active { transform: scale(.98); }
+.fc-tl { text-decoration: none !important; background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat; background-position: 0 100%; background-size: 0 1px; transition: background-size var(--fc-dur-base) var(--fc-ease-out), color var(--fc-dur-fast) var(--fc-ease-out); }
+.fc-tl:hover, .fc-tl:focus-visible { background-size: 100% 1px; }
+.fc-tl svg { transition: transform var(--fc-dur-fast) var(--fc-ease-out); }
+.fc-tl:hover svg, .fc-tl:focus-visible svg { transform: translate(1px, -1px); }
+.fc-tab-bar { transition: transform var(--fc-dur-base) var(--fc-ease-move), width var(--fc-dur-base) var(--fc-ease-move); }
+.fc-open { transition: grid-template-rows var(--fc-dur-slow) var(--fc-ease-move), opacity var(--fc-dur-slow) var(--fc-ease-move); }
+@keyframes fc-row-out { from { opacity: 1; max-height: 200px; } to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; border-top-width: 0; } }
+.fc-row-out { overflow: hidden; pointer-events: none; animation: fc-row-out var(--fc-dur-base) var(--fc-ease-in) both; }
+@keyframes fc-pop-in { from { opacity: 0; transform: scale(.97); } }
+@keyframes fc-pop-out { to { opacity: 0; transform: scale(.97); } }
+.fc-pop-in { animation: fc-pop-in var(--fc-dur-fast) var(--fc-ease-out) both; }
+.fc-pop-out { pointer-events: none; animation: fc-pop-out var(--fc-dur-fast) var(--fc-ease-in) both; }
+@media (prefers-reduced-motion: reduce) {
+  .fc-up, .fc-rows-in > li, .fc-row-out, .fc-pop-in, .fc-pop-out { animation: none; }
+  .fc-reveal { opacity: 1; transform: none; transition: none; }
+  .fc-row, .fc-tile, .fc-box, .fc-btn, .fc-tl, .fc-tl svg, .fc-tab-bar, .fc-open { transition: none; }
+  .fc-row:hover .fc-tile, .fc-box:hover, .fc-btn:active, .fc-tl:hover svg, .fc-tl:focus-visible svg { transform: none; }
+}
+/* app (owner, 2026-11-12): the hero bar's fill layers: each segment's fill scales from its left edge (--fc-t: 0 empty,
+   1 full), with the owner's timings as page variables (fill 180ms per segment 50ms apart, drain 160ms, back 200ms);
+   pressed, the fill dips to 85%. Reduced motion: no scaling, a 100ms opacity fade. */
+:root { --fc-bar-fill: 180ms; --fc-bar-drain: 160ms; --fc-bar-back: 200ms; }
+.fc-fill { transform-origin: left center; transform: scaleX(var(--fc-t, 1)); transition-property: transform, opacity; }
+button:active > .fc-segs .fc-fill { opacity: .85; transition-duration: 80ms !important; transition-delay: 0ms !important; }
+@media (prefers-reduced-motion: reduce) { .fc-fill { transform: none; opacity: var(--fc-t, 1); transition: opacity 100ms ease-out !important; } }
 @media (prefers-reduced-motion: reduce) { .wf-anim { animation: none !important; transition: none !important; } }
 /* a confirmed value on its way into the fact sheet (drawn in <body>, see flyToSheet) */
 .wf-ghost { position: fixed; z-index: 80; pointer-events: none; margin: -5px -9px; padding: 4px 8px; border: 1px solid var(--color-line); border-radius: 8px;
   background: var(--color-raised); color: var(--ink); font: 500 14px/20px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .10); }
+
+/* Content, Upload proprietary data (owner, 2026-11-13): a file card fades and rises in, and fades and shrinks out (the
+   grid closes up after); its tick draws. None with reduced motion. */
+@keyframes zone-card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes zone-card-leave { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.96); } }
+@keyframes zone-tick { from { stroke-dashoffset: 16; } to { stroke-dashoffset: 0; } }
+.zone-card-in { animation: zone-card-in 240ms cubic-bezier(.2,.8,.2,1) both; }
+.zone-card-leave { animation: zone-card-leave 180ms ease-in forwards; pointer-events: none; }
+.zone-tick path { stroke-dasharray: 16; animation: zone-tick 320ms ease-out 60ms both; }
+@media (prefers-reduced-motion: reduce) { .zone-card-in, .zone-card-leave, .zone-tick path { animation: none; } }
 
 /* ==== Content, the prompt page's headline block: copied from the app's stylesheet (mock.src.css, the two blocks
    dated 2026-11-14 and 2026-11-15; synced 2026-11-15). ==== */
@@ -827,16 +922,6 @@ tr:has(.k-reach:hover) .k-tile, tr:has(.k-reach:focus-visible) .k-tile { transfo
 @media (prefers-reduced-motion: reduce) {
   .k-mo-glow { display: none; }
 }
-
-/* Content, Upload proprietary data (owner, 2026-11-13): a file card fades and rises in, and fades and shrinks out (the
-   grid closes up after); its tick draws. None with reduced motion. */
-@keyframes zone-card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes zone-card-leave { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.96); } }
-@keyframes zone-tick { from { stroke-dashoffset: 16; } to { stroke-dashoffset: 0; } }
-.zone-card-in { animation: zone-card-in 240ms cubic-bezier(.2,.8,.2,1) both; }
-.zone-card-leave { animation: zone-card-leave 180ms ease-in forwards; pointer-events: none; }
-.zone-tick path { stroke-dasharray: 16; animation: zone-tick 320ms ease-out 60ms both; }
-@media (prefers-reduced-motion: reduce) { .zone-card-in, .zone-card-leave, .zone-tick path { animation: none; } }
 
 /* The app's one UI scale (app owner, 2026-11-09; synced 2026-11-15). Laptop-sized windows (1024–1600px wide) draw
    everything at 0.8; wider windows at 1.0; below 1024px the mobile / tablet layout is unchanged. Every length in this
