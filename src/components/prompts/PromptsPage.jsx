@@ -630,15 +630,18 @@ function PromptHub() {
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Manage the prompts tracked for {brandName(account.domain)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2 lg:pt-1">
-          <span data-tour="prompts-find" className="hidden items-center gap-2 lg:flex">
+          <span className="hidden items-center gap-2 lg:flex">
             {/* as the app: Sync first (pending prompts: "Sync 3"; running: "Syncing… 40/152"). Mock: the sync is a
                 3-second stand-in that counts up and ends with a toast */}
             <SecondaryButton size="sm" icon={sync ? SyncSpinner : RefreshCw} disabled={Boolean(sync)} onClick={runSync}
               title={sync ? `Syncing… ${sync.done} of ${sync.total} done` : pendingCount > 0 ? `Sync ${pendingCount} pending prompt${pendingCount === 1 ? '' : 's'}` : 'Re-run sync for all prompts'}>
               {sync ? `Syncing… ${sync.done}/${sync.total}` : pendingCount > 0 ? `Sync ${pendingCount}` : 'Sync'}
             </SecondaryButton>
-            <SecondaryButton size="sm" icon={FlaskConical} onClick={() => setModal('research')}>Research</SecondaryButton>
-            <SecondaryButton size="sm" icon={Upload} onClick={() => setModal('import')}>Import</SecondaryButton>
+            {/* data-tour: the walkthrough pointer lights Research and Import (not Sync) */}
+            <span data-tour="prompts-find" className="flex items-center gap-2">
+              <SecondaryButton size="sm" icon={FlaskConical} onClick={() => setModal('research')}>Research</SecondaryButton>
+              <SecondaryButton size="sm" icon={Upload} onClick={() => setModal('import')}>Import</SecondaryButton>
+            </span>
           </span>
           {/* a second click closes the open row (span: the button doesn't forward refs) */}
           <span ref={addBtnRef} data-tour="prompts-add" className="inline-flex max-lg:flex-1 max-lg:[&>button]:h-10 max-lg:[&>button]:w-full max-lg:[&>button]:justify-center">

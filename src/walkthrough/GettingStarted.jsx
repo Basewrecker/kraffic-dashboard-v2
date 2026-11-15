@@ -29,7 +29,8 @@ import Switch from '../components/ui/Switch'
 import { useIsCompact } from '../hooks/useMedia'
 import { account, trackedPrompts } from '../data/mock'
 import { TRACKED_BRANDS, getBrandView } from '../data/brandViews'
-import { RUNS, scoreOf } from '../data/sentiment'
+import { RUNS } from '../data/sentiment'
+import { scoreOf } from '@/lib/sentiment-adapter' // the Sentiment page's own score rule, so the two numbers agree
 import { ALL_DONE, TASKS, TOURS, WAITING, allDone, demoTask, doneCount, fill, isDone, nextLine, taskStatus } from './tour.js'
 import { MOVE, ms, reduced } from './motion.js'
 import Swap from './Swap'
@@ -124,10 +125,11 @@ function Steps({ w, onNavigate }) {
               </span>
             )}
             <Disc n={i + 1} status={status} fresh={fresh} />
-            <p className={`flex items-baseline gap-3 text-[14px] leading-6 ${status === 'current' ? 'font-semibold text-stone-900' : status === 'done' ? 'font-normal text-stone-500' : 'font-normal text-stone-700'}`}>
-              <span className="min-w-0 flex-1"><span className="sr-only">{status === 'done' ? 'Done: ' : `Step ${i + 1}: `}</span>{t.title}</span>
-              {got && <span className={`shrink-0 text-[12px] leading-4 text-stone-600 tabular-nums ${fresh ? 'wt-got' : ''}`} data-achieved>{got}</span>}
+            <p className={`text-[14px] leading-6 ${status === 'current' ? 'font-semibold text-stone-900' : status === 'done' ? 'font-normal text-stone-500' : 'font-normal text-stone-700'}`}>
+              <span className="sr-only">{status === 'done' ? 'Done: ' : `Step ${i + 1}: `}</span>{t.title}
             </p>
+            {/* what was achieved, under the title (beside it, long titles broke onto three lines) */}
+            {got && <p className={`text-[12px] leading-4 text-stone-600 tabular-nums ${fresh ? 'wt-got' : ''}`} data-achieved>{got}</p>}
             {status === 'waiting' && <p className="text-[12px] leading-4 text-stone-500">{WAITING}</p>}
             {/* the step that has just ticked: its card folds up */}
             {fresh && <div className="wt-close grid" inert="" aria-hidden><div className="min-h-0 overflow-hidden"><StepCard t={t} still /></div></div>}
