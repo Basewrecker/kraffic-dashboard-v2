@@ -93,8 +93,8 @@ export const restart = () => { clearTimeout(doneTimer); pending = null; setLive(
 export const startFromMenu = () => { setSaved({ ...saved, welcome: false, show: true, closed: false }); startTour('orientation') }
 
 // ---------------------------------------------------------------- getting started
-// A step ticking: the list opens so it can be seen (the disc fills, the tick draws, the line and the bar move on, the
-// next step opens: GettingStarted.jsx, for as long as `ticked` names the step). While pointers are up the tick waits
+// A step ticking: the board opens so it can be seen (its trail tile fills with its result, the hero moves on to the
+// next step: Board.jsx, for as long as `ticked` names the step). While pointers are up the tick waits
 // for them to close (endTour).
 let tickTimer, doneTimer
 let pending = null
@@ -104,7 +104,6 @@ function apply(next) {
   clearTimeout(tickTimer)
   setLive({ ticked: next.done.at(-1), list: true })
   tickTimer = setTimeout(() => setLive({ ticked: null }), ms(1500) + 700) // as long as the tick's animations take (GettingStarted.jsx)
-  if (allDone(next)) lastMessage()
 }
 const tickWith = (fn) => { if (fn(saved) === saved) return; if (live.tour) pending = fn; else apply(fn(saved)) }
 export const tick = (id) => tickWith((s) => complete(s, id))
@@ -126,21 +125,18 @@ export function openTask(task) {
   if (task.tour) setLive({ wait: true })
   if (task.how === 'open') tick(task.id) // already on that page: there is no "opened" to wait for
 }
-export const toggleList = () => { if (live.list && allDone(saved)) finish(); else setLive({ list: !live.list }) }
-// collapsing the list after the last message is the same as that message running out
-export const closeList = () => { if (!live.list) return; if (allDone(saved)) finish(); else setLive({ list: false }) }
+export const toggleList = () => setLive({ list: !live.list })
+export const closeList = () => { if (live.list) setLive({ list: false }) }
 export const setShow = (on) => { clearTimeout(doneTimer); setLive({ list: false, leaving: false }); setSaved({ ...saved, show: on, closed: on ? false : saved.closed, done: on && saved.closed ? [] : saved.done }) }
 export const setHints = (on) => setSaved({ ...saved, hints: on })
-// all six: the last message stays up for a while, then the card fades out (200ms) and is gone
-const MESSAGE_MS = 7000 + ms(1600) // the read, after the segments, the band of light and the message have come in
-function lastMessage() { clearTimeout(doneTimer); doneTimer = setTimeout(finish, MESSAGE_MS) }
+// the board's last screen: Done. The board closes, the card fades out and the sidebar closes the gap, then it is gone
 export function finish() {
   clearTimeout(doneTimer)
   if (!saved.show || live.leaving) return
   setLive({ list: false, leaving: true })
   setTimeout(() => { setLive({ leaving: false }); setSaved({ ...saved, show: false, closed: true }) }, ms(MOVE) + 40)
 }
-if (saved.show && allDone(saved)) { live.list = true; snap = { ...saved, ...live }; lastMessage() }
+if (saved.show && allDone(saved)) { live.list = true; snap = { ...saved, ...live } }
 
 // for looking at states by hand (the console) and the screenshots: window.__walkthrough.tick('brand')
 if (import.meta.env?.DEV) window.__walkthrough = { tick, restart, startTour, toggleList, setShow, state: () => snap, tasks: TASKS }

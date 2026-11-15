@@ -79,21 +79,26 @@ export const TOURS = {
 // the pointers a page has (its "?" replays them)
 export const tourForPath = (path) => Object.keys(TOURS).find((k) => TOURS[k].href === path) ?? null
 
+// short: the step's short name (the board's trail, the card's "Next:" line) · opens: what Start opens, in words.
+// Each step has its own colour on the board, by its place: --wt-c1 … --wt-c6 (index.css).
 // Getting started: six steps, done in order (only the current step can be started or ticked). href: the page a step
 // opens; tour: that page's pointers; results: it needs the first scan's results. how a step ticks itself:
 //   save: Brand Setup's Save · tour: its page's pointers were finished · open: its page was opened ·
 //   demo: "Mark as done" on its page (mock only: the real triggers for these three aren't decided)
 // (There is no outreach page in the mock yet: step 6 opens Content.)
 export const TASKS = [
-  { id: 'brand', title: 'Confirm your brand and competitors', why: 'We track what you tell us here.', href: '/brands', tour: 'brand-setup', how: 'save', pages: ['Brand Setup'] },
-  { id: 'prompts', title: 'Review the prompts we track', why: 'These are the questions people ask AI.', href: '/tracker', tour: 'prompt-hub', how: 'tour', pages: ['Prompt Hub'] },
-  { id: 'results', title: 'See where you stand', why: 'Your first results are in.', href: '/overview', tour: 'overview', how: 'open', results: true, pages: ['Visibility Overview'] },
-  { id: 'tone', title: 'Check what AI says about you', why: 'See the tone, and fix wrong facts.', href: '/sentiment', tour: 'sentiment', how: 'demo', results: true, pages: ['Sentiment', 'Fact Check'] },
-  { id: 'content', title: 'Create your first content', why: 'Write a page for a prompt you’re missing.', href: '/opportunities/content', how: 'demo', results: true, pages: ['Content'] },
-  { id: 'outreach', title: 'Reach out on one opportunity', why: 'Ask a publication to mention you.', href: '/sentiment', how: 'demo', results: true, pages: ['Sentiment', 'Opportunities'] }, // the Opportunities view opens from Sentiment (synced from the app)
+  { id: 'brand', short: 'Your brand', opens: 'Brand Setup', title: 'Confirm your brand and competitors', why: 'We track what you tell us here.', href: '/brands', tour: 'brand-setup', how: 'save', pages: ['Brand Setup'] },
+  { id: 'prompts', short: 'Your prompts', opens: 'Prompt Hub', title: 'Review the prompts we track', why: 'These are the questions people ask AI.', href: '/tracker', tour: 'prompt-hub', how: 'tour', pages: ['Prompt Hub'] },
+  { id: 'results', short: 'Where you stand', opens: 'Visibility Overview', title: 'See where you stand', why: 'Your first results are in.', href: '/overview', tour: 'overview', how: 'open', results: true, pages: ['Visibility Overview'] },
+  { id: 'tone', short: 'What AI says', opens: 'Sentiment, then Fact Check', title: 'Check what AI says about you', why: 'See the tone, and fix wrong facts.', href: '/sentiment', tour: 'sentiment', how: 'demo', results: true, pages: ['Sentiment', 'Fact Check'] },
+  { id: 'content', short: 'First content', opens: 'Content', title: 'Create your first content', why: 'Write a page for a prompt you’re missing.', href: '/opportunities/content', how: 'demo', results: true, pages: ['Content'] },
+  { id: 'outreach', short: 'Reach out', opens: 'Sentiment, then Opportunities', title: 'Reach out on one opportunity', why: 'Ask a publication to mention you.', href: '/sentiment', how: 'demo', results: true, pages: ['Sentiment', 'Opportunities'] }, // the Opportunities view opens from Sentiment (synced from the app)
 ]
 export const WAITING = 'Waiting for your first results'
 export const ALL_DONE = 'You’re set up. {app} keeps checking AI for you. Come back each week to see what changed.'
+// the board's last screen: the same words, as a headline and a line
+export const DONE_TITLE = 'You’re set up'
+export const DONE_LINE = '{app} keeps checking AI for you. Come back each week to see what changed.'
 
 // ---------------------------------------------------------------- saved progress
 // show: the Getting started card is in the sidebar · welcome: the Welcome card is up · done: ticked task ids ·
@@ -103,12 +108,13 @@ export const OFF = { show: false, welcome: false, done: [], hints: true, scannin
 export const fresh = () => ({ ...OFF, show: true, welcome: true })
 
 // ?walkthrough=<value>: new (first time, from the start) · slow (the same, in slow motion) · reset (clears progress) ·
-// and three more for looking at
+// and four more for looking at
 // states: progress (2 of 6) · scanning (2 of 6, a first scan running) · done (6 of 6, the last message)
 export function fromParam(value) {
   if (value === 'new' || value === 'slow') return fresh() // slow: the same run with every animation at 4x (motion.js)
   if (value === 'reset') return { ...OFF }
   if (value === 'progress') return { ...OFF, show: true, done: ['brand', 'prompts'] }
+  if (value === 'midway') return { ...OFF, show: true, done: ['brand', 'prompts', 'results'] } // the board at 3 of 6
   if (value === 'scanning') return { ...OFF, show: true, done: ['brand', 'prompts'], scanning: true }
   if (value === 'done') return { ...OFF, show: true, done: TASKS.map((t) => t.id) }
   return null
@@ -146,7 +152,7 @@ export function taskStatus(state, task) {
 // the step that can be started now (null: all done, or the current one is waiting)
 export const nextTask = (state) => { const t = currentTask(state); return t && !isWaiting(state, t) ? t : null }
 // the collapsed card's line under its bar
-export const nextLine = (state) => (allDone(state) ? 'All six steps done' : nextTask(state) ? `Next: ${nextTask(state).title}` : WAITING)
+export const nextLine = (state) => (allDone(state) ? 'All six steps done' : nextTask(state) ? `Next: ${nextTask(state).short}` : WAITING)
 
 // tick a step: only the current one, and not while it waits (the same state back when there is nothing to tick)
 export function complete(state, id) {

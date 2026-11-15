@@ -77,7 +77,7 @@ function NavDrawer({ open, onClose, path, nav, plain = false }) {
         </div>
         <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
           {/* phones: Getting started lives here, in the menu (its list opens above it) */}
-          <GettingStarted inline onNavigate={() => { release(); onClose() }} />
+          <GettingStarted inline />
           <ThemeToggle />
           <WorkspaceSwitcher />
         </div>
@@ -103,6 +103,9 @@ export default function MobileNav({ path, nav }) {
   const pointing = compact && Boolean(w.tour && TOURS[w.tour].nav)
   // it stays open when they end: the Getting started list is in it
   useEffect(() => { if (pointing) setMenu(true) }, [pointing])
+  // a step started from the board (its page's pointers, or its page): the menu gets out of the way
+  useEffect(() => { if (w.tour && !TOURS[w.tour].nav) setMenu(false) }, [w.tour])
+  useEffect(() => { setMenu(false) }, [path])
   return (
     <>
       <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-[var(--div)] bg-[color-mix(in_srgb,var(--color-page)_90%,transparent)] px-4 pt-[env(safe-area-inset-top)] backdrop-blur lg:hidden">

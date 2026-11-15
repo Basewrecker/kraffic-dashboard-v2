@@ -29,6 +29,7 @@ import { uiScale } from '@/lib/ui-scale'
 import { TOURS, WELCOME, fill, fitHole, keyAction, placeCard, sheetSide, union } from './tour.js'
 import { FADE, LARGE, MOVE, ms, reduced, tween } from './motion.js'
 import Swap from './Swap'
+import Board from './Board'
 import { endTour, onPath, skipMissing, skipWelcome, startTour, startWalkthrough, stepTour, tourClosed, useWalkthrough } from './store.js'
 
 const names = () => ({ brand: account.name })
@@ -289,6 +290,7 @@ export default function Walkthrough() {
   return (
     <>
       {(w.welcome || w.welcomeOut) && <Welcome out={w.welcome ? null : w.welcomeOut} />}
+      <Board />
       {w.tour && <Pointers key={w.tour} name={w.tour} step={w.step} dimmed={w.dimmed} closing={w.closing} wait={w.wait} />}
     </>
   )

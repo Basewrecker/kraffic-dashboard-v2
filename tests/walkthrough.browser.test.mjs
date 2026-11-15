@@ -56,8 +56,8 @@ const pointer = async (page, at, target) => {
   await page.waitForTimeout(450) // the glide (260ms) and the card behind it
   return geom(page, target)
 }
-// the list's steps (the list is drawn a frame or two after it is asked for: it grows out of the card)
-const steps = async (page) => { await page.waitForSelector('[role=dialog][aria-label="Getting started"][data-shown] [data-task]'); return page.locator('[data-task]').evaluateAll((els) => els.map((el) => el.dataset.status)) }
+// the board's six frames (the sheet grows out of the card: it is read once it is open)
+const steps = async (page) => { await page.waitForSelector('[data-board=open] [data-frame]'); return page.locator('[data-board=open] [data-frame]').evaluateAll((els) => els.map((el) => el.dataset.status)) }
 const card = (page) => page.locator('[data-getting-started=sidebar] [data-tour="getting-started"]')
 const start = (page) => page.getByRole('button', { name: 'Start', exact: true })
 // the collapsed card: its count (the ring's number) and its "Next:" line
@@ -81,7 +81,7 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
 
     await page.goto(at('/overview?walkthrough=new'), { waitUntil: 'networkidle' })
     assert.equal(await page.getByRole('dialog').getByRole('heading').innerText(), 'Welcome to Kraffic')
-    assert.equal(await cardSays(page), '0 of 6 · Next: Confirm your brand and competitors')
+    assert.equal(await cardSays(page), '0 of 6 · Next: Your brand')
     await page.getByRole('button', { name: 'Start walkthrough' }).click()
 
     // ---- the five menu pointers
@@ -121,13 +121,15 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     assert.equal(texts[0], 'This is where you see how AI talks about Dermasuri.')
     assert.equal(texts[4], 'This is your plan. Six steps, in order. Start with the first one.')
 
-    // ---- the list: a route of six, only the first step open
-    await page.waitForSelector('[role=dialog][aria-label="Getting started"]')
+    // ---- the board: the first step in the hero, a trail of six
+    await page.waitForSelector('[data-board=open]')
     assert.equal(await page.locator('[data-walkthrough]').count(), 0)
     assert.deepEqual(await steps(page), ['current', 'later', 'later', 'later', 'later', 'later'])
     assert.equal(await start(page).count(), 1)
-    assert.equal(await page.locator('[data-task=prompts] button').count(), 0) // later steps can't be clicked
-    assert.equal(await page.getByRole('button', { name: 'Hide', exact: true }).count(), 0)
+    assert.equal(await page.locator('button[data-frame=prompts]').count(), 0) // later steps can't be clicked
+    assert.equal(await page.locator('[data-hero-title]').last().innerText(), 'Confirm your brand and competitors')
+    assert.equal(await page.locator('[data-opens]').innerText(), 'Brand Setup')
+    assert.equal(await page.locator('[data-preview=brand]').count(), 1)
 
     // step 1: Brand Setup's four pointers, then Save ticks it
     await start(page).click()
@@ -143,13 +145,19 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     await page.locator('[data-tour="setup-save"] button').click()
     // at the same moment: the card's count and its Next line, and the list opens on the tick
     assert.equal(await card(page).getAttribute('data-count'), '1 of 6')
-    await page.waitForFunction(() => [...document.querySelectorAll('[data-getting-started=sidebar] [data-next-line]')].at(-1)?.textContent === 'Next: Review the prompts we track')
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-getting-started=sidebar] [data-next-line]')].at(-1)?.textContent === 'Next: Your prompts')
     assert.deepEqual(await steps(page), ['done', 'current', 'later', 'later', 'later', 'later'])
     assert.equal(await page.locator('[data-tour="setup-save"]').count(), 0)
-    // the done step says what was achieved; the current one is a card with its page as a chip
-    assert.match(await page.locator('[data-task=brand] [data-achieved]').innerText(), /Dermasuri · \d+ competitors?/)
-    assert.deepEqual(await page.locator('[data-task=prompts] [data-page-chip]').allInnerTexts(), ['Prompt Hub'])
-    assert.equal(await page.locator('[role=dialog][aria-label="Getting started"] .wt-seg[data-state=done]').count(), 1)
+    // the finished step's frame says what it produced; the hero has moved on to the next step
+    assert.match(await page.locator('[data-frame=brand] [data-result]').innerText(), /^\d+ competitors?$/)
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-hero-title]')].at(-1)?.textContent === 'Review the prompts we track')
+    assert.equal(await page.locator('[data-opens]').innerText(), 'Prompt Hub')
+    assert.equal(await page.locator('[data-board=open] .wt-segs-top .wt-seg[data-state=done]').count(), 1)
+    // a done frame shows its step again, with Replay; the current frame brings the hero back
+    await page.locator('button[data-frame=brand]').click()
+    await page.getByRole('button', { name: 'Replay', exact: true }).waitFor()
+    await page.locator('button[data-frame=prompts]').click()
+    await start(page).waitFor()
 
     // step 2: Prompt Hub's pointers; skipping them doesn't tick it, finishing them does
     await start(page).click()
@@ -159,7 +167,6 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     assert.equal(await card(page).getAttribute('data-count'), '1 of 6')
     await page.getByRole('button', { name: 'Show me around Prompt Hub' }).click()
     for (let i = 1; i <= 3; i++) { assert.equal((await pointer(page, `${i} of 3`)).over, false); await page.locator('[data-next]').click() }
-    await page.waitForSelector('[role=dialog][aria-label="Getting started"]')
     assert.deepEqual(await steps(page), ['done', 'done', 'current', 'later', 'later', 'later'])
 
     // step 3: opening Visibility Overview ticks it (shown when its pointers close)
@@ -167,7 +174,6 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     await pointer(page, '1 of 4')
     assert.equal(new URL(page.url()).pathname, '/overview')
     await page.keyboard.press('Escape')
-    await page.waitForSelector('[role=dialog][aria-label="Getting started"]')
     assert.deepEqual(await steps(page), ['done', 'done', 'done', 'current', 'later', 'later'])
     assert.equal(await card(page).getAttribute('data-count'), '3 of 6')
 
@@ -189,10 +195,13 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
       await page.getByRole('button', { name: 'Mark as done' }).click()
       await page.waitForFunction((want) => document.querySelector('[data-getting-started=sidebar] [data-tour="getting-started"]')?.dataset.count === `${want} of 6`, n)
     }
-    // the last message, with all six ticked; then the card goes by itself
-    assert.match(await page.locator('[role=dialog][aria-label="Getting started"]').innerText(), /You’re set up\. Kraffic keeps checking AI for you\. Come back each week to see what changed\./)
+    // all done: the hero is the summary; Done sends the sidebar card away
     assert.deepEqual(await steps(page), Array(6).fill('done'))
-    await page.waitForFunction(() => !document.querySelector('[data-getting-started]'), null, { timeout: 12000 })
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-hero-title]')].at(-1)?.textContent === 'You’re set up')
+    assert.match(await page.locator('[data-board=open]').innerText(), /Kraffic keeps checking AI for you\. Come back each week to see what changed\./)
+    assert.equal(await page.locator('[data-summary] > div').count(), 6)
+    await page.getByRole('button', { name: 'Done', exact: true }).click()
+    await page.waitForFunction(() => !document.querySelector('[data-getting-started]') && !document.querySelector('[data-board]'), null, { timeout: 12000 })
 
     // a first scan running: the four steps that need results wait
     await page.goto(at('/tracking?walkthrough=scanning'), { waitUntil: 'networkidle' })
@@ -200,12 +209,11 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     await card(page).click()
     assert.deepEqual(await steps(page), ['done', 'done', 'waiting', 'waiting', 'waiting', 'waiting'])
     assert.equal(await start(page).count(), 0)
-    assert.match(await page.locator('[data-task=results]').innerText(), /Waiting for your first results/)
+    assert.equal(await page.locator('[data-waiting]').innerText(), 'Waiting for your first results')
 
-    // "⋯" → Hide for now; ?walkthrough=reset clears it all
-    await page.getByRole('button', { name: 'More' }).click()
-    await page.getByRole('menuitem', { name: 'Hide for now' }).click()
-    assert.equal(await page.locator('[data-getting-started]').count(), 0)
+    // Esc closes the board; ?walkthrough=reset clears it all
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => !document.querySelector('[data-board]'))
     await page.goto(at('/overview?walkthrough=reset'), { waitUntil: 'networkidle' })
     assert.equal(await page.locator('[data-getting-started], [data-walkthrough]').count(), 0)
     assert.deepEqual(errors, [])
@@ -236,8 +244,10 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
       assert.equal(g.over, false, `phone pointer ${i}: the sheet is not over the lit area`)
       await small.locator('[data-next]').click()
     }
-    await small.waitForSelector('[data-getting-started=drawer] [data-task=brand]')
-    await small.locator('[data-getting-started=drawer]').getByRole('button', { name: 'Start', exact: true }).click()
+    // the board opens full screen; Start closes the menu and starts the page's pointers
+    await small.waitForSelector('[data-board=open]')
+    assert.equal(await small.locator('[data-board=open] [role=dialog]').evaluate((el) => Math.round(el.getBoundingClientRect().width)), 390)
+    await start(small).click()
     assert.equal((await pointer(small, '1 of 4')).width, 390)
     assert.equal(new URL(small.url()).pathname, '/brands')
     await phone.close()

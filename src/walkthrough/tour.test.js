@@ -54,8 +54,8 @@ test('steps are done in order: only the current one ticks', () => {
   assert.deepEqual(TASKS.map((t) => taskStatus(one, t)), ['done', 'current', 'later', 'later', 'later', 'later'])
   assert.equal(complete(one, 'brand'), one) // already ticked
   assert.equal(complete(one, 'nope'), one)
-  assert.equal(nextLine(on), 'Next: Confirm your brand and competitors')
-  assert.equal(nextLine(one), 'Next: Review the prompts we track')
+  assert.equal(nextLine(on), 'Next: Your brand')
+  assert.equal(nextLine(one), 'Next: Your prompts')
   assert.equal(nextLine(fromParam('done')), 'All six steps done')
 })
 
