@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Download, FlaskConical, MessageSquarePlus, Pencil, Plus, Upload, X } from 'lucide-react'
+import { Download, FlaskConical, Loader2, MessageSquarePlus, Pencil, Plus, RefreshCw, Upload, X } from 'lucide-react'
 import PromptTable from '../dashboard/PromptTable'
 import { useIsMobile } from '../../hooks/useMedia'
 import MobileActions, { exportTable } from '../ui/MobileActions'
@@ -79,6 +79,9 @@ function initialFilters() {
 }
 
 // the engine filter is the dashboard's (?engine=), so Prompt mix below follows it too
+// as the app: the header's Sync button spins while a sync runs
+const SyncSpinner = (props) => <Loader2 {...props} className="animate-spin" />
+
 export default function PromptsPage() {
   return (
     <DashboardViewProvider>
@@ -526,7 +529,7 @@ function PromptHub() {
       // toolbar and bulk bar share one grid cell and crossfade, so the row height never changes
       // phones: search + Sort on row 1, the filters scroll sideways on row 2 (minmax(0,1fr): the scrolling row can't widen it)
       <div className="grid grid-cols-[minmax(0,1fr)]">
-        <div inert={hideTools ? '' : undefined} aria-hidden={hideTools} className={`[grid-area:1/1] flex items-center gap-2 transition-opacity duration-150 max-md:flex-wrap ${hideTools ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
+        <div inert={hideTools ? '' : undefined} aria-hidden={hideTools} className={`[grid-area:1/1] flex flex-wrap items-center gap-2 transition-opacity duration-150 md:gap-y-3 ${hideTools ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
           {search}
           {sortButton}
           <div className="no-scrollbar flex items-center gap-2 max-md:-mx-4 max-md:w-[calc(100%+32px)] max-md:overflow-x-auto max-md:px-4 md:contents">
@@ -597,6 +600,23 @@ function PromptHub() {
     )
   }
 
+  // the header's Sync (as the app's button; the sync itself is a mock stand-in)
+  const [sync, setSync] = useState(null) // { done, total } while it runs
+  const pendingCount = prompts.filter((r) => r.status === 'pending').length
+  const syncTimer = useRef(null)
+  useEffect(() => () => clearInterval(syncTimer.current), [])
+  const runSync = () => {
+    const total = pendingCount || prompts.length
+    if (!total) { toast('Nothing to sync'); return }
+    setSync({ done: 0, total })
+    toast(`Sync started for ${total} prompt${total === 1 ? '' : 's'}`)
+    let step = 0
+    syncTimer.current = setInterval(() => {
+      step += 1
+      if (step >= 6) { clearInterval(syncTimer.current); setSync(null); toast('Sync complete'); return }
+      setSync({ done: Math.round((total * step) / 6), total })
+    }, 500)
+  }
   const empty = prompts.length === 0 && !adding
   return (
     <>
@@ -611,6 +631,12 @@ function PromptHub() {
         </div>
         <div className="flex shrink-0 items-center gap-2 lg:pt-1">
           <span data-tour="prompts-find" className="hidden items-center gap-2 lg:flex">
+            {/* as the app: Sync first (pending prompts: "Sync 3"; running: "Syncing… 40/152"). Mock: the sync is a
+                3-second stand-in that counts up and ends with a toast */}
+            <SecondaryButton size="sm" icon={sync ? SyncSpinner : RefreshCw} disabled={Boolean(sync)} onClick={runSync}
+              title={sync ? `Syncing… ${sync.done} of ${sync.total} done` : pendingCount > 0 ? `Sync ${pendingCount} pending prompt${pendingCount === 1 ? '' : 's'}` : 'Re-run sync for all prompts'}>
+              {sync ? `Syncing… ${sync.done}/${sync.total}` : pendingCount > 0 ? `Sync ${pendingCount}` : 'Sync'}
+            </SecondaryButton>
             <SecondaryButton size="sm" icon={FlaskConical} onClick={() => setModal('research')}>Research</SecondaryButton>
             <SecondaryButton size="sm" icon={Upload} onClick={() => setModal('import')}>Import</SecondaryButton>
           </span>

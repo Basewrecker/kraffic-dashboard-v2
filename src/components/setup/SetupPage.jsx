@@ -675,7 +675,7 @@ function MarketplacesCard({ brand, update, toast }) {
   }
   const country = tracking.market.country
   const suggestions = (setupActions.marketplaceSuggestions?.(brand, country) ?? [])
-    .map((x) => ({ key: x.domain, label: x.name, value: x, reason: x.answers ? `Cited in ${x.answers} answers` : undefined }))
+    .map((x) => ({ key: x.domain, label: x.answers ? `${x.name} · ${x.answers} answer${x.answers === 1 ? '' : 's'}` : x.name, value: x, reason: x.answers ? `Cited in ${x.answers} answers` : undefined })) // as the app: the answers count on the chip
   const cited = (m) => (m.cited == null ? <span className="text-stone-500">—</span> : m.cited > 0 ? `${m.cited} listing${m.cited === 1 ? '' : 's'} cited` : 'No listings yet')
 
   return (
@@ -726,7 +726,7 @@ function GuidelinesCard({ brand, toast }) {
   const [g, setG] = useState(() => loadGuidelines(brand.domain))
   const [editing, setEditing] = useState(null) // the form's value while editing, else null
   const file = useRef(null)
-  const save = (value, msg = 'Brand guidelines saved') => { setG(saveGuidelines(brand.domain, value)); setEditing(null); toast(msg) }
+  const save = (value, msg = 'Brand Guidelines saved') => { setG(saveGuidelines(brand.domain, value)); setEditing(null); toast(msg) }
   const replace = (list) => {
     const f = list?.[0]
     if (!f) return
@@ -738,13 +738,13 @@ function GuidelinesCard({ brand, toast }) {
     const old = g
     removeGuidelines(brand.domain)
     setG(null)
-    toast('Brand guidelines removed', { duration: 5000, action: { label: 'Undo', onClick: () => setG(saveGuidelines(brand.domain, old)) } })
+    toast('Brand Guidelines removed', { duration: 5000, action: { label: 'Undo', onClick: () => setG(saveGuidelines(brand.domain, old)) } })
   }
   const name = g?.file?.name ?? (g?.text?.trim() ? 'Pasted text' : 'Quick rules')
   const rules = g ? [g.tone?.trim() && `Tone: ${g.tone.trim()}`, g.always?.trim() && `Always say: ${g.always.trim()}`, g.never?.trim() && `Never say: ${g.never.trim()}`].filter(Boolean) : []
   const preview = g ? (g.file || g.text?.trim() ? guidelinesPreview(g) : rules.join(' · ')) : ''
   return (
-    <SettingsCard id={`guidelines-${brand.id}`} title="Brand guidelines"
+    <SettingsCard id={`guidelines-${brand.id}`} title="Brand Guidelines"
       description={g ? `Every content draft for ${brand.name} follows them` : `None yet. Every content draft for ${brand.name} will follow them.`}
       action={!g && !editing ? <AddButton onClick={() => setEditing(EMPTY_GUIDELINES)} /> : null}
       body={editing ? (
