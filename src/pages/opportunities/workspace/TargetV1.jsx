@@ -2,7 +2,7 @@
 // R18–R20), 32px apart, each under the same section header (18/600 over a --line-strong rule, a muted meta right).
 //   1. "Google page 1 for this prompt": a rank ladder, 10 slots of 48px, 12px apart, centred (#1–#10). A page sits in
 //      its rank slot as its logo; the engines that cite it are a tiny stack of their icons (14px, full colour) on its
-//      corner; your page has an ink ring. If your page isn't on page 1: a dashed "You" circle after #10. AI-cited pages
+//      corner; your page has an ink ring. If your page isn't on page 1: a dashed circle after #10 with the brand's logo, its name and "Not on page 1" (app, owner 2026-11-12: was "You"). AI-cited pages
 //      not on page 1: an "AI only" group at the end. Empty slots: faint dashed rings. Hover / focus a logo: a card under
 //      the row (never over its neighbours) with the domain, the title, the formats and the engines by name.
 //   2. "What the winners have that you don't": a format matrix. Rows (52px): the route's winning pages
@@ -26,14 +26,18 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowRight, Check } from 'lucide-react'
 import { PlatformIcon } from '../../../components/dashboard/icons'
-import { ENGINE_NAME, engineIcon } from '../../../data/contentOpportunities'
-import { formatLabel } from '../../../data/contentRecommend'
+import { ENGINE_NAME, engineIcon } from '@/lib/mock-adapter-content'
+import { formatLabel } from '@/lib/mock-adapter-content'
 import { LogoPlate, MorePages, siteName, withResults } from '../parts'
+import { CO_BRAND, ownBrandShown } from '@/lib/mock-adapter-content' // app (owner, 2026-11-12): the brand in place of "You"
 import { afterRow, draftPlan, draftPreview, enginesOf, formatMatrix, pageOf, rankLadder } from '../draft/recommend'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { RingDraw, TickDraw } from './ui'
-import { CONTENT_HIDDEN } from '../../../data/contentApp' // as the app
-import SearchMatch, { ConnectSearchConsole, RoutePublishing } from './SearchMatch'
+import { CONTENT_HIDDEN } from '@/lib/mock-adapter-content' // app
+// app: SearchMatch through the app's wrapper (components/mock-overview/content-gsc.jsx: the route's data, its loading and
+// error lines, Connect; it renders the copied workspace/SearchMatch.jsx)
+import SearchMatch, { ConnectSearchConsole, RoutePublishing } from '@/components/mock-overview/content-gsc'
+import { scaled } from '@/lib/ui-scale' // app (owner, 2026-11-09): the UI scale
 
 // one type scale for the page (owner, 2026-11-05): titles 20/600, sublines 14/500 secondary, rows 16/600 + 14/500,
 // headers 14/600, numbers 600 tabular; nothing above 600
@@ -55,7 +59,31 @@ const anim = (name, delay, ms = 260, easing = 'cubic-bezier(.2,.8,.2,1)') => (re
 // Update column · sc: Search Console ({ gsc, state, domain, connecting, justConnected, onConnect, onSkip, onChange,
 // page, choice, onPick }), null to leave it out. Not connected and never asked: the Connect step comes FIRST, before
 // the ladder; skipped: a slim "Connect Search Console for a better match" row there instead.
-export default function TargetV1({ res, resolve, named = [], draft = null, write = null, sc = null, page: given = null }) {
+// app (owner, 2026-11-14): the "Publishing on <path> · <source> · Change page" line on its own, as TargetV1 shows it, for
+// the Workspace's headline block (right-aligned there); TargetV1 leaves it out with publishingAbove. Only while the
+// Google searches section is hidden (it's that section's last line otherwise)
+export function PublishingLine({ sc, page }) {
+  if (!sc || !page) return null
+  const asking = sc.state === 'new' || (sc.connecting && sc.state !== 'reconnect')
+  if (asking || sc.state === 'skipped') return sc.connecting ? null : <RoutePublishing page={page} />
+  return CONTENT_HIDDEN.googleSearches ? <SearchMatch {...sc} searches={false} /> : null
+}
+
+// app (owner, 2026-11-14): the formats the table marks "Draft adds", in its column order and with its labels, for the
+// Workspace's headline block (the same functions as Matrix, so the two can't disagree)
+export function draftAddsLabels(res) {
+  const m = formatMatrix(res)
+  const plan = draftPlan(res.recommendations).missing.map((x) => x.id)
+  const addIds = m.missing.filter((c) => plan.includes(c.id)).map((c) => c.id)
+  return m.columns.filter((c) => addIds.includes(c.id)).map((c) => SHORT[c.id] ?? c.label)
+}
+// app (owner, 2026-11-15): the sites of the winners table's rows, in its order (by rank, AI-only last), for the
+// headline block's "Cited instead" row (Matrix's own sort, so the two can't disagree)
+export function citedInsteadHosts(res) {
+  return [...formatMatrix(res).winners].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99)).map((w) => w.host)
+}
+
+export default function TargetV1({ res, resolve, named = [], draft = null, write = null, sc = null, page: given = null, publishingAbove = false }) {
   const page = given ?? { ...pageOf(res.pageRecommendation), source: 'route' }
   const asking = sc && (sc.state === 'new' || (sc.connecting && sc.state !== 'reconnect'))
   const ladder = rankLadder(res.citedPages)
@@ -77,8 +105,10 @@ export default function TargetV1({ res, resolve, named = [], draft = null, write
       {asking && <ConnectSearchConsole connecting={sc.connecting} onConnect={sc.onConnect} onSkip={sc.onSkip} />}
       {/* app (owner, 2026-11-05): not connected / skipped: the route's page, labelled as its suggestion, with the way to
           connect (it replaces the skipped row's own "Connect Search Console for a better match") */}
-      {sc && (asking || sc.state === 'skipped') && !sc.connecting && <RoutePublishing page={page} onAsk={sc.onAsk} />}
-      {sc && !asking && sc.state !== 'skipped' && <SearchMatch {...sc} enginesFor={(path) => {
+      {!publishingAbove && sc && (asking || sc.state === 'skipped') && !sc.connecting && <RoutePublishing page={page} />}
+      {/* app (owner, 2026-11-10): the Google searches section isn't rendered (CONTENT_HIDDEN.googleSearches); only its
+          "Publishing on <path> · <source> · Change page" line shows */}
+      {sc && !asking && sc.state !== 'skipped' && !(publishingAbove && CONTENT_HIDDEN.googleSearches) && <SearchMatch {...sc} searches={!CONTENT_HIDDEN.googleSearches} enginesFor={(path) => {
         const c = res.citedPages.find((x) => { try { return new URL(x.url).pathname.replace(/\/$/, '') === path } catch { return false } })
         return c ? eng(c) : { engines: [], unknown: false }
       }} titleFor={(path) => res.citedPages.find((x) => { try { return new URL(x.url).pathname.replace(/\/$/, '') === path } catch { return false } })?.title ?? null} />}
@@ -138,10 +168,19 @@ function Ladder({ ladder, eng, host, setHost }) {
             <span className={`text-[12px] leading-4 tabular-nums ${p ? 'font-semibold text-stone-700' : 'text-stone-400'}`}>#{i + 1}{!p && <span className="sr-only"> empty</span>}</span>
           </li>
         ))}
+        {/* app (owner, 2026-11-12): the brand in place of "You": its logo in the dashed circle (its initial only when
+            every logo source fails), its Brand Setup name in 600 on one line (truncated at the marker's width, the full
+            name on hover; never the domain), "Not on page 1" under it. The two lines sit in a 16px row like the slots'
+            "#n" (the second hangs below it), so the circle stays level with the slots and the marker keeps its width */}
         {!ours && (
-          <li className="ml-3 flex flex-col items-center gap-1.5 border-l border-line pl-6">
-            <span className="grid h-12 w-12 place-items-center rounded-full border-[1.5px] border-dashed border-stone-500 text-[12px] font-semibold text-stone-600">You</span>
-            <span className="whitespace-nowrap text-[12px] leading-4 text-stone-500">Not on page 1</span>
+          <li className="ml-3 flex flex-col items-center gap-1.5 border-l border-line pl-6" data-own-marker>
+            <span className="grid h-12 w-12 place-items-center rounded-full border-[1.5px] border-dashed border-stone-500">
+              <LogoPlate domain={CO_BRAND.domain || null} name={ownBrandShown()} size={40} logoClass="h-7 w-7" initialClass="text-[14px]" plate />
+            </span>
+            <span className="flex h-4 flex-col items-center">
+              <span className="block w-0 min-w-full truncate text-center text-[12px] leading-4 font-semibold text-stone-700" title={ownBrandShown()} data-own-name>{ownBrandShown()}</span>
+              <span className="whitespace-nowrap text-[12px] leading-4 text-stone-500">Not on page 1</span>
+            </span>
           </li>
         )}
         {aiOnly.length > 0 && (
@@ -191,10 +230,11 @@ function SlotCard({ anchor, page, e, ours }) {
   return createPortal(
     <span ref={ref} role="tooltip" className="pointer-events-none fixed z-[90] w-[260px] rounded-lg border border-line bg-raised px-3 py-2.5 text-left shadow-md"
       style={at ? { left: at.left, top: at.top, opacity: 1, animation: still ? undefined : `${at.below ? 'co-card-down' : 'co-card-up'} 150ms ease-out both` } : { left: -9999, top: 0, opacity: 0 }}>
-      <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{siteName(page.host)}{ours && <span className="font-normal text-stone-500"> · your page</span>}{page.rank && <span className="font-normal text-stone-500"> · #{page.rank}</span>}</span>
+      {/* app (owner, 2026-11-10): nothing in the card lighter than the secondary colour (was stone-500) */}
+      <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{siteName(page.host)}{ours && <span className="font-normal text-stone-600"> · your page</span>}{page.rank && <span className="font-normal text-stone-600"> · #{page.rank}</span>}</span>
       <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-700">{page.title}</span>
-      <span className="mt-1.5 block text-[12px] leading-4 text-stone-500">{page.formats.length ? page.formats.map(formatLabel).join(' · ') : 'No format detected'}</span>
-      <span className="mt-0.5 block text-[12px] leading-4 text-stone-500">{engineNames(e).length ? `Cited by ${engineNames(e).join(', ')}` : e.unknown ? 'Cited in an AI answer (engine not recorded)' : 'Not cited in AI answers'}</span>{/* app: the app's wording (49cf305) */}
+      <span className="mt-1.5 block text-[12px] leading-4 text-stone-600">{page.formats.length ? page.formats.map(formatLabel).join(' · ') : 'No format detected'}</span>
+      <span className="mt-0.5 block text-[12px] leading-4 text-stone-600">{engineNames(e).length ? `Cited by ${engineNames(e).join(', ')}` : e.unknown ? 'Cited in an AI answer (engine not recorded)' : 'Not cited in AI answers'}</span>{/* app: the app's wording (49cf305) */}
     </span>,
     document.body,
   )
@@ -298,7 +338,7 @@ function Sq({ kind, size = 12, style, green = false }) {
     : kind === 'adds' ? { backgroundImage: hatch(ink), boxShadow: `inset 0 0 0 1.5px ${ink}` }
       : kind === 'missing' ? { boxShadow: 'inset 0 0 0 1.5px var(--negative)', outline: '1px dashed transparent' }
         : { boxShadow: 'inset 0 0 0 1.5px var(--color-line-strong)' }
-  return <span role="img" aria-label={label} className="block shrink-0 rounded-[2px]" style={{ width: size, height: size, ...(kind === 'missing' ? { border: '1.5px dashed var(--negative)' } : look), ...style }} />
+  return <span role="img" aria-label={label} className="block shrink-0 rounded-[2px]" style={{ width: scaled(size), height: scaled(size), ...(kind === 'missing' ? { border: '1.5px dashed var(--negative)' } : look), ...style }} />
 }
 // coverage: one small square per format, ■ the ones the page has, ▨ the ones this draft adds, □ the rest
 function CoverageBar({ have, adds = 0, of, green = false }) {
@@ -314,10 +354,11 @@ function CoverageBar({ have, adds = 0, of, green = false }) {
 function SiteCard({ w, e }) {
   return (
     <span role="tooltip" className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden w-[280px] rounded-lg border border-line bg-raised px-3 py-2.5 text-left shadow-md group-hover/site:block group-focus-visible/site:block">
+      {/* app (owner, 2026-11-10): nothing in the card lighter than the secondary colour (was stone-500) */}
       {/* app (owner, 2026-11-05: "Show brand names, not truncated domains"): the site by its name (was w.host) */}
-      <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{siteName(w.host)}{w.rank ? <span className="font-normal text-stone-500"> · #{w.rank}</span> : <span className="font-normal text-stone-500"> · AI only</span>}</span>
+      <span className="block text-[13px] leading-[18px] font-semibold text-stone-900">{siteName(w.host)}{w.rank ? <span className="font-normal text-stone-600"> · #{w.rank}</span> : <span className="font-normal text-stone-600"> · AI only</span>}</span>
       {w.title && <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-700">{w.title}</span>}
-      <span className="mt-1.5 block text-[12px] leading-4 text-stone-500">{w.formats.length ? w.formats.map(formatLabel).join(' · ') : 'No format detected'}</span>
+      <span className="mt-1.5 block text-[12px] leading-4 text-stone-600">{w.formats.length ? w.formats.map(formatLabel).join(' · ') : 'No format detected'}</span>
       <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-4 text-stone-600">
         {e.engines.length
           ? <>Cited by {e.engines.map((id) => <span key={id} className="inline-flex items-center gap-1"><PlatformIcon id={engineIcon(id)} size={14} />{ENGINE_NAME[id]}</span>)}</>

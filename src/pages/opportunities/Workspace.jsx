@@ -26,7 +26,7 @@ import { LOADING_LINES, LOADING_SWITCH_MS, RESPONSE_MS, SAMPLE_ROWS, backendFull
 import { SAMPLE_DATA, buildUserFacts, dataKey, fromStored, questionsFor, toStored, userDataSummary } from './data/userFacts'
 import { copyPayloads, exportName, liveDataOf, pageOf, readinessOf, storageKey } from './draft/recommend'
 import { download, writeClipboard } from './draft/clipboard'
-import TargetV1 from './workspace/TargetV1'
+import TargetV1, { PublishingLine, citedInsteadHosts, draftAddsLabels } from './workspace/TargetV1'
 import { brandScState, gscMatchFor, setBrandScState } from '../../data/gscMatch'
 import { RM_BRAND } from '../../data/contentRecommendRm'
 import CopyPublish from './workspace/CopyPublish'
@@ -42,7 +42,7 @@ import GuidelinesForm from './workspace/Guidelines'
 import { EMPTY_GUIDELINES, guidelinesStamp, hasGuidelines, loadGuidelines, needsGuidelines, removeGuidelines, saveGuidelines, skipGuidelines } from '../../data/brandGuidelines'
 import SearchConsolePanel from './workspace/SearchConsolePanel'
 import ActionDock from './workspace/ActionDock'
-import PayoffBar from './workspace/PayoffBar'
+import PayoffBar, { HeadFacts } from './workspace/PayoffBar'
 import TargetStep from './workspace/TargetStep'
 import UpAgainst from './workspace/UpAgainst'
 import { PUBLISH, STEPS, VERIFY, dataSummary, FOCUS_FROM, exitAfter, inFocus, nextVisible, resumeState, startExited, startExitedV1, startOf, startOfV1, startTarget, stepValue, stepsFor } from './workspace/flow'
@@ -50,7 +50,7 @@ import { PUBLISH, STEPS, VERIFY, dataSummary, FOCUS_FROM, exitAfter, inFocus, ne
 // the draft's hand edits; the property picker and who connected Search Console (data/contentApp.js: sample data)
 import { CONTENT_HIDDEN, SAMPLE_CONNECTED_BY, cmsLinkOf, contentVersion, flashPrompt, pageSourceLabel, sampleProperties, subscribeContent, withEdit, yourDataOf } from '../../data/contentApp'
 import VerifyStep, { checkedLabel, useVerify } from './workspace/VerifyStep'
-import { usePropertyPicker } from './workspace/SearchMatch'
+import { usePropertyPicker } from '@/components/mock-overview/content-gsc' // as the app: the picker moved out of SearchMatch
 import FocusPanel from './workspace/FocusPanel'
 import PanelHeader from './workspace/PanelHeader'
 import { COL_HEAD, COL_TITLE } from './workspace/ui'
@@ -355,7 +355,7 @@ function Flow({ row }) {
       : <TargetV1 res={res} named={named} resolve={resolveAi}
         draft={ds.phase === 'draft' ? { open: review.open, onOpen: openDraft } : null}
         page={page}
-        sc={{ gsc: gscRes, state: scState, domain: scDomain, connecting: scConnecting, justConnected: scJustConnected, onConnect: connectSc, onSkip: () => setScState('skipped'), onChange: () => { setScJustConnected(false); setScState('new') }, onDisconnect: disconnectSc, onChooseProperty: picker.openPicker, picker, onAsk: () => setScState('new'), page, choice: scChoice, onPick: setScPick, newPath: suggested.slug, prompt: row.prompt }}
+        sc={scProps} publishingAbove
         write={current < DATA ? { label: 'Add your data', onClick: guideFirst('data', advance) } : current < DRAFT ? { label: 'Write the draft', onClick: advance } : writing ? { label: 'Resume', onClick: openDraft } : null} />,
     <div data-step="data"><DataStep data={data} update={updateData} v1={!full} cap={cap}
       guidelines={full ? null : guidelines ? { brand: CO_BRAND.name, updated: guidelines.savedAt ?? null, onEdit: () => openGuide(null) } : { none: true, onEdit: () => openGuide(null) }} /></div>,
@@ -453,10 +453,11 @@ function Flow({ row }) {
       // v1: the route's page choice (pageRecommendation)
       // owner, 2026-11-05: a 2–4 word title; the sub-line "Named on n of 5 [icons] · 5 pages win this prompt" (the path
       // is in "Publishing on …")
-      headline: page.action === 'update' ? 'Update this page' : 'Create a new page',
-      // as the app (owner, 2026-11-05): the page and where it came from first ("Suggested from your site", "From Search Console"…)
-      line: `${page.path} · ${pageSourceLabel(page)} · ${page.evidence.length} ${page.evidence.length === 1 ? 'page wins' : 'pages win'} this prompt${noGuidelines ? ' · No brand guidelines yet' : ''}`,
-      named: true,
+      // as the app (owner, 2026-11-09): the title is the target page's path itself (a new page's with "New page" after
+      // it); no sub-line (the engines, formats and cited sites are the headline block's rows)
+      headline: page.path,
+      headlinePath: { path: page.path, isNew: page.action !== 'update' },
+      line: null,
       choice: page.path,
       // next: Your data (optional), or straight to the draft; reopened later: Continue. As the app: while the brand has
       // no guidelines saved and hasn't skipped them, the primary opens them first (saving goes on to Your data)
@@ -545,6 +546,8 @@ function Flow({ row }) {
       : open === PUBLISH
         ? resumeState({ open: 4, stage: draft?.stage, week: draft?.week, path: page.path }) // as ?backend=full's step 5
         : { headline: ds.copiedAt ? 'Copied · ready to publish' : 'Ready to copy & publish', line: page.path, busy: false }
+  // as the app: Search Console's props, shared by the winners table and the headline block's "Publishing on" line
+  const scProps = { gsc: gscRes, state: scState, domain: scDomain, connecting: scConnecting, justConnected: scJustConnected, onConnect: connectSc, onSkip: () => setScState('skipped'), onChange: () => { setScJustConnected(false); setScState('new') }, onDisconnect: disconnectSc, onChooseProperty: picker.openPicker, picker, onAsk: () => setScState('new'), page, choice: scChoice, onPick: setScPick, newPath: suggested.slug, prompt: row.prompt }
   const bar = onPage ? BAR[open] : { ...live, choice: live.headline, action: { label: 'Resume', onClick: () => setExitedOn(null) }, secondary: null }
   const focusBar = BAR[open]
   // the dock: shown while the bar is out of view above (it scrolled past)
@@ -581,12 +584,15 @@ function Flow({ row }) {
         {/* the payoff bar: the step's reward, its progress and its one action; while steps 3–5 are under way (they live
             only in the focus panel), what they're doing, live, and Resume */}
         <PayoffBar barRef={barRef} current={current} open={open} values={values} onPick={pick} headingId="co-step-h"
-          headline={bar.headline} line={bar.line} showNamed={Boolean(bar.named)} busy={bar.busy} engines={answeredEngines()} named={named} engineName={(e) => ENGINE_NAME[e]}
-          action={bar.action} secondary={bar.secondary} extra={bar.extra} onClose={editing != null && onPage ? () => setEditing(null) : null} steps={steps} />
+          headline={bar.headline} headlinePath={bar.headlinePath ?? null} line={bar.line} showNamed={Boolean(bar.named)} busy={bar.busy} engines={answeredEngines()} named={named} brand={CO_BRAND.name} engineName={(e) => ENGINE_NAME[e]}
+          action={bar.action} secondary={bar.secondary} extra={bar.extra} onClose={editing != null && onPage ? () => setEditing(null) : null} steps={steps}
+          // as the app (2026-11-14/15): the headline block's rows: AI engines with their status, Draft adds, Cited instead
+          aside={full ? null : <HeadFacts engines={answeredEngines()} named={named} brand={CO_BRAND.name} engineName={(e) => ENGINE_NAME[e]}
+            adds={draftAddsLabels(res)} cited={citedInsteadHosts(res)} publishing={<PublishingLine sc={scProps} page={page} />} noResult={<NoResultSet />} />} />
         {/* the page's step: step 1 (Search Console), else always step 2's layout, whatever the flow's step: the step (7/12),
             Search Console (5/12), 32px apart with a 1px line between */}
         {full ? (
-          <div key={pageOpen} className="mt-6 grid grid-cols-1 gap-y-10 motion-safe:animate-[fade-in_200ms_ease-out] lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+          <div key={pageOpen} className="co-page-after mt-8 grid grid-cols-1 gap-y-10 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
             <div className="min-w-0 lg:pr-4">
               {STEP_HEAD[pageOpen] && (
                 <div className={COL_HEAD}>
@@ -597,7 +603,7 @@ function Flow({ row }) {
             </div>
             <div className="min-w-0 lg:border-l lg:border-line lg:pl-4">{sc}</div>
           </div>
-        ) : <div className="mt-6 motion-safe:animate-[fade-in_200ms_ease-out]">{body(1)}</div>}
+        ) : <div className="co-page-after mt-8">{body(1)}</div>}
       </section>
 
       {/* Who you're up against: only with ?backend=full (in v1 the Target step's ladder and matrix show the same pages) */}
@@ -638,28 +644,32 @@ function Flow({ row }) {
 // the no-result state: it counts as neither missed nor named, and the header says so with the ⓘ.
 const answeredEngines = () => ENGINES.filter((e) => hasResult(engineIcon(e)))
 
+// "No result from Gemini in the latest scan" / "No result from Google AI Mode or Claude in the latest scan"
+export const noResultAll = (ids) => {
+  const names = ids.map((e) => ENGINE_NAME[e] ?? e)
+  const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1)}` : names[0]
+  return `No result from ${list} in the latest scan`
+}
+
+// as the app (2026-11-14): Back, the prompt, nothing else. The engines and "missed on n of m" are the headline block's
+// AI engines row (HeadFacts); the brand guidelines link stays, as the mock has no other way to them on this page.
 function Header({ row, guideLink = null }) {
-  const engines = answeredEngines()
-  const noResult = ENGINES.filter((e) => !engines.includes(e))
-  const missedIds = engines.filter((e) => row.platforms.includes(e))
-  const missed = missedIds.length
   return (
     <header data-sticky-header className="sticky top-14 z-30 -mx-4 border-b border-[var(--div)] bg-page px-4 md:-mx-6 md:px-6 lg:top-0 lg:-mt-8">
       <div className="flex min-h-16 flex-wrap items-center gap-x-5 gap-y-2 py-2 lg:h-16 lg:flex-nowrap lg:py-0">
-        <button type="button" onClick={() => goTo(LIST_PATH)} className={`${textBtn} -ml-0.5`}><ArrowLeft size={14} aria-hidden />Back to list</button>
+        <button type="button" onClick={() => goTo(LIST_PATH)} aria-label="Back to list" className={`${textBtn} -ml-0.5`}><ArrowLeft size={14} aria-hidden />Back</button>
         <span className="h-5 w-px shrink-0 bg-line max-lg:hidden" aria-hidden />
         <h1 style={promptVT(row.id)} title={row.prompt} className="min-w-0 flex-1 truncate text-[18px] leading-6 font-semibold tracking-[-0.01em] text-stone-900 max-lg:order-last max-lg:basis-full">{row.prompt}</h1>
         {guideLink && <button type="button" onClick={guideLink.onClick} className={`${textBtn} shrink-0`} data-guidelines-link>{guideLink.label}</button>}
-        <div className="flex shrink-0 items-center gap-3">
-          <span className="text-[13px] leading-[18px] text-stone-600 tabular-nums">Missed on {missed} of {engines.length}</span>
-          {/* the missed engines themselves, in full colour (they're the point of the label) */}
-          <Engines ids={missedIds} engineName={(e) => ENGINE_NAME[e]} size={18} none="None" />
-          {noResult.map((e) => <NoResultHint key={e} engine={engineIcon(e)} align="right" />)}
-        </div>
-        {/* as the app (owner, 2026-11-05): no "Named instead" logos (and no divider before them) */}
       </div>
     </header>
   )
+}
+
+// the engines with no result in the latest scan: one ⓘ, after the AI engines row
+function NoResultSet() {
+  const noResult = ENGINES.filter((e) => !answeredEngines().includes(e))
+  return noResult.length > 0 ? <NoResultHint engine={engineIcon(noResult[0])} align="right" text={noResultAll(noResult)} /> : null
 }
 
 function NotFound() {

@@ -67,7 +67,7 @@ const csvColumns = [
 //   onRowHover(row | null, element) · promptStyle(row): a style for the prompt text (Content: its view-transition-name) ·
 //   bulkOnly: the bulk bar is just the count, bulkExtra and Clear, sliding up from the table's bottom ·
 //   extraColumns: columns placed before Status (Content: Best page) · omit: column keys to leave out (Content: missedBy)
-export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilter, onRowHover, promptStyle, bulkOnly = false, extraColumns = [], omit = [] } = {}) {
+export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilter, onRowHover, promptStyle, bulkOnly = false, extraColumns = [], omit = [], title = 'Missed prompts', subtitle = null, emptyText = null } = {}) { // as the app (2026-11-09): title / subtitle / emptyText, the Content list's own heading
   const [statuses, setStatuses] = useState(() => Object.fromEntries(missedPrompts.map((r) => [r.id, r.status])))
   const [topic, setTopic] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
@@ -213,8 +213,8 @@ export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilt
       <PromptTable
         id="missed-prompts"
         noResult={noResult}
-        title="Missed prompts"
-        subtitle={`Prompts where ${account.name} doesn't appear yet`}
+        title={title}
+        subtitle={subtitle ?? `Prompts where ${account.name} doesn't appear yet`}
         count={missedPrompts.length}
         rows={rows}
         columns={shownColumns}
@@ -229,7 +229,7 @@ export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilt
         rowHeight={showMeta ? 'h-[52px]' : 'h-11'}
         onRowClick={(r) => (onOpen ? onOpen(r) : setOpenId(r.id))}
         onRowHover={onRowHover}
-        emptyMessage={platform ? `No missed prompts on ${label}${topic ? ` in ${topic}` : ''}` : `No missed prompts in ${topic ?? 'this view'}`}
+        emptyMessage={emptyText ?? (platform ? `No missed prompts on ${label}${topic ? ` in ${topic}` : ''}` : `No missed prompts in ${topic ?? 'this view'}`)}
         onClearFilters={() => { setTopic(null); setPlatform(null); syncF.clear(); set.clear() }}
       />
       <MissedPromptSheet

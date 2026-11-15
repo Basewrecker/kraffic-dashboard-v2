@@ -717,6 +717,41 @@ html[data-theme="dark"] .co-logo-plate { background: rgb(244 244 245 / 0.9); }
 .wf-ghost { position: fixed; z-index: 80; pointer-events: none; margin: -5px -9px; padding: 4px 8px; border: 1px solid var(--color-line); border-radius: 8px;
   background: var(--color-raised); color: var(--ink); font: 500 14px/20px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .10); }
 
+/* ==== Content, the prompt page's headline block: copied from the app's stylesheet (mock.src.css, the two blocks
+   dated 2026-11-14 and 2026-11-15; synced 2026-11-15). ==== */
+@keyframes co-head-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* app (owner, 2026-11-14): the Content prompt page's step line and headline fade up first (180ms), the button 80ms
+   after, the page after that; hover nudges the Resume arrow 2px. Reduced motion: fades only, no nudge */
+.co-head-in { animation: co-head-up 180ms cubic-bezier(.2,.8,.2,1) both; }
+.co-head-btn { animation: co-head-up 180ms cubic-bezier(.2,.8,.2,1) 80ms both; }
+.co-page-after { animation: fade-in 200ms ease-out 260ms both; }
+.co-fact { animation: co-head-up 180ms cubic-bezier(.2,.8,.2,1) both; } /* each row's delay is inline (HeadFacts) */
+.co-head-btn .co-nudge { transition: transform 150ms ease-out; }
+.co-head-btn button:hover .co-nudge { transform: translateX(2px); }
+/* app (owner, 2026-11-15): the headline block's entry, once on load: the logo tile, the heading, then the rows on the
+   right, 60ms apart (delays inline, PayoffBar.jsx); none under reduced motion */
+.co-rise { animation: co-head-up 220ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .co-rise { animation: none; }
+  .co-head-in, .co-head-btn, .co-fact { animation: fade-in 180ms ease-out both; }
+  .co-head-btn .co-nudge, .co-head-btn button:hover .co-nudge { transform: none; transition: none; }
+}
+/* Draft (v1): "Show in draft" marks the first mention for 1.2s (static under reduced motion) */
+@keyframes co-flash-k { 0%, 60% { background: color-mix(in srgb, var(--caution) 28%, transparent); } 100% { background: transparent; } }
+.co-flash { animation: co-flash-k 1200ms ease-out both; }
+@media (prefers-reduced-motion: reduce) { .co-flash { animation: none; background: color-mix(in srgb, var(--caution) 28%, transparent); } }
+/* Draft (v1) rail: scrolls on its own (vertical only) with no visible track; a thin thumb on hover and while scrolling
+   (data-sb="on"), as .thread-scroll above */
+.co-rail { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; border-color: transparent; transition: border-color 300ms ease-out; }
+.co-rail:hover, .co-rail[data-sb='on'] { border-color: var(--color-line-strong); transition-duration: 120ms; }
+.co-rail::-webkit-scrollbar { width: 6px; height: 0; background: transparent; }
+.co-rail::-webkit-scrollbar-track, .co-rail::-webkit-scrollbar-corner { background: transparent; }
+.co-rail::-webkit-scrollbar-thumb { border-radius: 3px; border-style: solid; border-width: 0 6px 0 0; border-color: inherit; }
+@supports not selector(::-webkit-scrollbar) {
+  .co-rail { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  .co-rail:hover, .co-rail[data-sb='on'] { scrollbar-color: var(--color-line-strong) transparent; }
+}
+
 /* ==== Sentiment and its Opportunities view: copied from the app's stylesheet (app_kraffic.ai develop,
    components/mock-overview/mock.src.css from "Sentiment, Missed opportunities" to its end; synced 2026-11-15).
    Unchanged except html.k-dash -> html and .mock-scope -> main. ==== */

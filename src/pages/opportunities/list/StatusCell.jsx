@@ -28,6 +28,8 @@ export default function StatusCell({ row, onOpen }) {
   const d = row.draft
   switch (row.stage) {
     case 'draft':
+      // app (owner, 2026-11-12): a saved template (AI writing was unavailable) is not a draft: "Not written", secondary
+      if (d?.notWritten) return <Opens row={row} onOpen={onOpen}><Line icon={<FileText size={14} />} className="text-stone-500">Not written</Line></Opens>
       return <Opens row={row} onOpen={onOpen}><Line icon={<FileText size={14} />}>Draft ready</Line></Opens>
     case 'waiting':
       return <Opens row={row} onOpen={onOpen}><Line icon={<span className="status-pulse h-1.5 w-1.5 rounded-full bg-ink" />}>Waiting to publish</Line></Opens>

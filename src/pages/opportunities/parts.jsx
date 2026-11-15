@@ -6,17 +6,37 @@ import { Check, Minus, X } from 'lucide-react'
 import { PlatformIcon } from '../../components/dashboard/icons'
 import SiteLogo from '../../components/ui/SiteLogo'
 import { navigate } from '../../router'
-import { CO_BRAND, CO_BRANDS, ENGINES, ENGINE_NAME, coBrandName, engineIcon } from '../../data/contentOpportunities'
-import { hasResult } from '../../data/brandViews'
-import { competitorName, formatLabel } from '../../data/contentRecommend'
-import { brandName } from '../../utils/brand'
+import { CO_BRAND, CO_BRANDS, ENGINES, ENGINE_NAME, coBrandName, engineIcon } from '@/lib/mock-adapter-content'
+import { hasResult } from '@/lib/mock-adapter'
+import { formatLabel } from '@/lib/mock-adapter-content'
+// app: siteName is the adapter's (one rule for the whole Content page: a tracked brand by its display name, the brand on
+// screen by its name, any other site by its tidied domain); the mock builds the same rule from competitorName / brandName
+import { siteName as appSiteName } from '@/lib/mock-adapter-content'
+import { scaled } from '@/lib/ui-scale' // app (owner, 2026-11-09): the UI scale
 
 // a page's engines (recommend.js enginesOf) without any engine that has no result in the latest scan (the no-result
 // state: it isn't shown citing anything either)
 export const withResults = (e) => ({ ...e, engines: e.engines.filter((id) => hasResult(engineIcon(id))) })
 
 export const LIST_PATH = '/opportunities/content'
-export const workspacePath = (id) => `${LIST_PATH}/${id}`
+// app (owner, 2026-11-15): a row's address is its prompt's database id (promptId), which stays the same when the list is
+// rebuilt; a row without one (a sample) keeps its id. The id is written "p-<promptId>" (prompt ids are numbers, and a bare
+// number is an old address: a row's place in the list), read back by promptIdOfRoute
+export const PROMPT_PREFIX = 'p-'
+export const workspacePath = (r) => {
+  const pid = r && typeof r === 'object' ? r.promptId : null
+  return `${LIST_PATH}/${pid != null ? `${PROMPT_PREFIX}${encodeURIComponent(pid)}` : encodeURIComponent(r && typeof r === 'object' ? r.id : r)}`
+}
+// the address's last part → { promptId } ("p-<id>"), { legacy: true } (a bare number: an old row place), { raw } (a
+// sample's id), or null (the list)
+export const promptIdOfRoute = (raw) => {
+  if (raw == null || raw === '') return null
+  let s
+  try { s = decodeURIComponent(raw) } catch { return null }
+  if (s.startsWith(PROMPT_PREFIX) && s.length > PROMPT_PREFIX.length) return { promptId: s.slice(PROMPT_PREFIX.length) }
+  if (/^\d+$/.test(s)) return { legacy: true }
+  return { raw: s }
+}
 export const brandLabels = Object.fromEntries(Object.entries(CO_BRANDS).map(([d, b]) => [d, b.name]))
 export { coBrandName }
 
@@ -37,7 +57,7 @@ export function Ring({ value, total, size = 40, stroke = 4, children, tone = 'in
   const f = total ? Math.min(1, value / total) : 0
   const color = tone === 'positive' ? 'var(--rep-up-fg)' : 'var(--ink)'
   return (
-    <span className="relative inline-grid shrink-0 place-items-center" style={{ width: size, height: size }}>
+    <span className="relative inline-grid shrink-0 place-items-center" style={{ width: scaled(size), height: scaled(size) }}>
       <svg width={size} height={size} className="-rotate-90" aria-hidden>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--data-track)" strokeWidth={stroke} />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
@@ -74,6 +94,25 @@ export function EngineMark({ engine, state, size = 16 }) {
   )
 }
 
+// app (owner, 2026-11-12): the prompt header's label with the brand's display name first (Brand Setup's name, never
+// the domain): "<Brand> missed on 2 of 3"; every engine names the brand: "<Brand> named on 3 of 3". No answered engine
+// (no data) or no name: as before ("Missed on n of m"). The name may truncate; the rest never does.
+export function reachLabel(brand, missed, total) {
+  const name = String(brand ?? '').trim()
+  if (!total || !name) return { brand: null, rest: `Missed on ${missed} of ${total}` }
+  return { brand: name, rest: missed ? `missed on ${missed} of ${total}` : `named on ${total} of ${total}` }
+}
+// the label: the name 600, truncated with an ellipsis past 240px (the full name on hover); the rest whole
+export function ReachLabel({ brand, missed, total }) {
+  const l = reachLabel(brand, missed, total)
+  return (
+    <span className="flex min-w-0 items-baseline gap-1 text-[13px] leading-[18px] text-stone-600 tabular-nums" data-reach>
+      {l.brand && <span className="min-w-0 max-w-[240px] truncate font-semibold" title={l.brand} data-reach-brand>{l.brand}</span>}
+      <span className="shrink-0 whitespace-nowrap">{l.rest}</span>
+    </span>
+  )
+}
+
 // only the engines that apply, in full colour (the Missed prompts table's pattern); the tooltip names the others.
 // none → a muted "—"
 export function Engines({ ids, missed = [], engineName = (e) => e, size = 16, none = '—' }) {
@@ -88,11 +127,15 @@ export function Engines({ ids, missed = [], engineName = (e) => e, size = 16, no
 
 // a site's logo on a round plate, in tokens so it follows the theme (surface fill, a 1px --line ring): the Content
 // workspace's favicons ("Also cited", "Page winning it", the writing checklist). Sentiment keeps its own white plates.
+// app (owner, 2026-11-05): force-loaded (SiteLogo force: eager, the longer fallback chain, cached per domain); the letter
+// from the site's display name
 // plate: a light plate in dark mode (co-logo-plate, index.css), so dark logos read on a dark page
-export function LogoPlate({ domain, name, size = 20, logoClass = 'h-3.5 w-3.5', initialClass = 'text-[9px]', plate = false }) {
+// tileColor: app (owner, 2026-11-09): when every logo source fails, the letter tile in this colour (the brand's chart
+// colour) with a white letter, filling the plate
+export function LogoPlate({ domain, name, size = 20, logoClass = 'h-3.5 w-3.5', initialClass = 'text-[9px]', plate = false, tileColor = null }) {
   return (
-    <span className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-surface ring-1 ring-line ${plate ? 'co-logo-plate' : ''}`} style={{ width: size, height: size }}>
-      <SiteLogo domain={domain} name={name ?? domain} className={`${logoClass} rounded-full`} initialClass={initialClass} />
+    <span className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-surface ring-1 ring-line ${plate ? 'co-logo-plate' : ''}`} style={{ width: scaled(size), height: scaled(size) }}>
+      <SiteLogo domain={domain} name={name ?? siteName(domain)} className={`${logoClass} rounded-full`} initialClass={initialClass} tileColor={tileColor} tileClassName="h-full w-full rounded-full" force />
     </span>
   )
 }
@@ -105,7 +148,7 @@ export function MiniTimeline({ syncs, compact = false }) {
         <div key={s.date} className={`flex flex-col ${compact ? 'gap-1.5' : 'gap-2'} ${s.pending ? 'opacity-40' : ''}`}>
           <span className="text-[12px] leading-4 text-stone-500 tabular-nums">Week {i + 1}</span>
           <span className="flex flex-wrap gap-1.5">
-            {ENGINES.map((e) => <EngineMark key={e} engine={e} size={compact ? 12 : 16} state={s.pending ? 'gap' : s.engines == null ? 'gap' : s.engines[e] ? 'named' : 'missed'} />)}
+            {ENGINES.map((e) => <EngineMark key={e} engine={e} size={compact ? 12 : 16} state={s.pending ? 'gap' : s.engines == null || s.engines[e] == null ? 'gap' : s.engines[e] ? 'named' : 'missed'} />)}{/* app: an engine with no result that sync is a gap */}
           </span>
           <span className="text-[12px] leading-4 tabular-nums text-stone-700">
             {s.pending ? 'Next sync' : s.visibility == null ? '— sync failed' : <>{s.visibility.before}% → <b className="font-semibold text-stone-900">{s.visibility.after}%</b></>}
@@ -125,7 +168,8 @@ export function midTruncate(s, max = 34) {
 // a one-line text that truncates its MIDDLE to fit the width it's given (paths keep their start and their end);
 // the full text is the tooltip. Block-level: give it a width (flex-1 / min-w-0, or a column).
 let measureCtx
-export function MidText({ text, className = '', tip = true }) { // tip: false when the caller shows its own tooltip
+// app (owner, 2026-11-11): hideBelow: with room for fewer than this many characters, show nothing (never "/…s")
+export function MidText({ text, className = '', tip = true, hideBelow = 0 }) { // tip: false when the caller shows its own tooltip
   const ref = useRef(null)
   const [shown, setShown] = useState(text)
   useLayoutEffect(() => {
@@ -134,7 +178,7 @@ export function MidText({ text, className = '', tip = true }) { // tip: false wh
     const fit = () => {
       const pad = getComputedStyle(el)
       const w = el.clientWidth - parseFloat(pad.paddingLeft) - parseFloat(pad.paddingRight)
-      if (!w) return
+      if (!w) { if (hideBelow && text) setShown(''); return }
       const cs = getComputedStyle(el)
       measureCtx ??= document.createElement('canvas').getContext('2d')
       measureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
@@ -143,15 +187,15 @@ export function MidText({ text, className = '', tip = true }) { // tip: false wh
       let lo = 3
       let hi = text.length - 1
       while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (width(midTruncate(text, mid)) <= w) lo = mid; else hi = mid - 1 }
-      setShown(midTruncate(text, lo))
+      setShown(hideBelow && lo < hideBelow ? '' : midTruncate(text, lo))
     }
     fit()
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit)
     ro?.observe(el)
     document.fonts?.ready.then(fit)
     return () => ro?.disconnect()
-  }, [text])
-  return <span ref={ref} title={tip && shown !== text ? text : undefined} className={`block min-w-0 overflow-hidden whitespace-nowrap ${className}`}>{shown}</span>
+  }, [text, hideBelow])
+  return <span ref={ref} title={tip && shown && shown !== text ? text : undefined} data-mid-hidden={hideBelow && !shown && text ? '' : undefined} className={`block min-w-0 overflow-hidden whitespace-nowrap ${className}`}>{shown}</span>
 }
 export const pathOf = (url) => { try { return new URL(url).pathname } catch { return url } }
 
@@ -162,7 +206,7 @@ export const OWN_DOMAIN = CO_BRAND.domain
 
 // A site's display name (owner, 2026-11-05): a tracked brand's name ("The Ordinary"), else the tidied domain
 // ("healthline.com" → "Healthline"), never the raw domain
-export const siteName = (host) => CO_BRANDS[host]?.name ?? (competitorName(host) !== host ? competitorName(host) : brandName(host))
+export const siteName = appSiteName // app: was (host) => CO_BRANDS[host]?.name ?? (competitorName(host) !== host ? competitorName(host) : brandName(host))
 // the dotted underline that says "hover me" (the "Confirm with your team" style, in a neutral grey: amber is for
 // things to confirm)
 export const DOTTED = 'underline decoration-dotted decoration-[1.5px] decoration-[var(--color-stone-400)] underline-offset-[4px]'

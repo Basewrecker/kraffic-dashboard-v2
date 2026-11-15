@@ -8,12 +8,13 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowRight, ArrowUpRight, Check, Info, Loader2, Plus } from 'lucide-react'
 import { GoogleIcon, PlatformIcon } from '../../../components/dashboard/icons'
-import { engineIcon } from '../../../data/contentOpportunities'
-import { pageSourceLabel } from '../../../data/contentApp' // as the app: where the target page came from
+import { engineIcon } from '@/lib/mock-adapter-content'
+import { pageSourceLabel } from '@/lib/mock-adapter-content' // app: where the target page came from
 import { lineBtn } from '../../../components/tool/ToolPage'
 import { Seg } from '../../../components/ui/motion'
 import { LogoPlate, MidText, midTruncate } from '../parts'
-import EdgeTip from '../../../components/ui/EdgeTip' // as the app
+import { EdgeTip } from '@/components/mock-overview/content-tip' // app
+import { csvLine } from '@/lib/csv-cell.js' // app: formula-safe CSV cells (security review 2026-11-04), not hand-rolled quoting
 
 const nf = new Intl.NumberFormat('en-US')
 const num = (n) => nf.format(n)
@@ -74,32 +75,13 @@ export function SkippedRow({ onConnect }) {
 // would let the user pick another Search Console property) · enginesFor(path) → { engines, unknown } · page: THE target
 // page (source 'pick' | 'sc' | 'route') · choice: Search Console's own page ({ action, path, url }) or null ·
 // onPick(pick | null): null = back to Search Console's page
-// canConnect: false for an admin viewing a client's account (View as, ?co=view-as): the not-connected line says this view
-// can't start the connection (as the app). picker: the property picker's state (usePropertyPicker), for "Choose property"
-export default function SearchMatch({ gsc, domain, connecting = false, justConnected = false, onConnect, onChange = null, onChooseProperty = null, onDisconnect = null, disconnecting = false, page = null, onPick = () => {}, newPath = null, prompt = "", enginesFor = () => ({ engines: [], unknown: false }), titleFor = () => null, canConnect = true, picker = null }) {
+// app (owner, 2026-11-10): searches = false (TargetV1, CONTENT_HIDDEN.googleSearches) renders only the "Publishing on
+// <path> · <source> · Change page" line: no header, tabs, CSV, Change property, Connected · Change · Disconnect, table,
+// or not-connected / no-data rows. The code and the route's data stay.
+export default function SearchMatch({ gsc, domain, connecting = false, justConnected = false, onConnect, onChange = null, onChooseProperty = null, onDisconnect = null, disconnecting = false, page = null, onPick = () => {}, newPath = null, prompt = "", enginesFor = () => ({ engines: [], unknown: false }), titleFor = () => null, searches = true }) {
   const connected = gsc?.connected
-  if (!connected && !canConnect && gsc?.reason !== 'no-domain') {
-    return (
-      <section aria-labelledby="co-sc-h" data-search-match data-sc-state={gsc?.reason ?? 'not-connected'}>
-        <div className={HEAD}><h3 id="co-sc-h" className={H}>Search Console for this prompt</h3></div>
-        <div className="flex min-h-[64px] flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-[var(--div)] py-3">
-          <p className="text-[15px] leading-[22px] text-stone-700">
-            {gsc?.reason === 'reconnect' ? 'Search Console needs reconnecting.' : gsc?.reason === 'no-property' ? `This Google account has no Search Console property for ${domain || 'this brand'}.` : 'Search Console isn’t connected.'}{' '}
-            This view can’t start the connection.
-          </p>
-        </div>
-      </section>
-    )
-  }
-  if (picker) {
-    return (
-      <div>
-        <SearchMatch {...{ gsc, domain, connecting, justConnected, onConnect, onChange, onChooseProperty, onDisconnect, disconnecting, page, onPick, newPath, prompt, enginesFor, titleFor }} />
-        <PropertyPicker {...picker} domain={domain} onReconnect={() => { picker.onClose(); onConnect?.() }} onDisconnect={onDisconnect} disconnecting={disconnecting} />
-      </div>
-    )
-  }
   const hasData = connected && gsc.queries.length > 0
+  if (!searches) return <PublishingOnly gsc={gsc} page={page} onPick={onPick} newPath={newPath} />
   return (
     <section aria-labelledby="co-sc-h" data-search-match style={justConnected && !reducedMotion() ? { animation: 'card-in 360ms cubic-bezier(.2,.8,.2,1) both' } : undefined}>
       {hasData ? null : <div className={HEAD}>
@@ -189,6 +171,20 @@ function FlowSection({ gsc, page, onPick, newPath, prompt, enginesFor, titleFor,
   )
 }
 
+// app (owner, 2026-11-10): the Google searches section hidden: just the line, the page in use as FlowSection picks it
+// (the user's pick ?? Search Console's Publish on), no rule above it
+function PublishingOnly({ gsc, page, onPick, newPath }) {
+  const sc = gsc?.connected ? gsc.publishOn : null
+  const usingPath = page?.path ?? (sc ? (sc.action === 'create' ? sc.suggestedPath : sc.path) : null)
+  if (!usingPath) return null
+  const usingCreate = page ? page.action === 'create' : sc?.action === 'create'
+  return (
+    <section data-search-match data-sc-hidden>
+      <UsingLine bare sourceLabel={page ? pageSourceLabel(page) : null} gsc={gsc} usingPath={usingPath} usingCreate={usingCreate} onPick={onPick} newPath={sc?.action === 'create' ? sc.suggestedPath : newPath ?? sc?.suggestedPath ?? null} />
+    </section>
+  )
+}
+
 // ---- the queries list (owner, 2026-11-05), styled like Sentiment's "Pages on <date>" (its header, segmented tabs,
 // 52px rows, Download CSV, "Show all N →"). Tabs filter by landing page: All, then the page being published on (a small
 // accent dot), then the others by how many queries land there; low-volume / local / site rows count in their page's
@@ -216,9 +212,8 @@ function QueriesHeader({ count }) {
   )
 }
 function downloadQueries(list, prompt) {
-  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-  const lines = [['query', 'impressions', 'clicks', 'position', 'match', 'verdict', 'tag', 'lands on'].join(',')]
-  for (const q of list) lines.push([q.query, q.impressions, q.clicks, q.position, q.adjusted, verdict(q).text, [q.intent, q.lowVolume ? 'low volume' : ''].filter(Boolean).join(' '), q.topPage?.url].map(esc).join(','))
+  const lines = [csvLine(['query', 'impressions', 'clicks', 'position', 'match', 'verdict', 'tag', 'lands on'])] // app: csvLine
+  for (const q of list) lines.push(csvLine([q.query, q.impressions, q.clicks, q.position, q.adjusted, verdict(q).text, [q.intent, q.lowVolume ? 'low volume' : ''].filter(Boolean).join(' '), q.topPage?.url])) // app: csvLine
   const a = document.createElement('a')
   a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }))
   a.download = `search-queries-${(prompt || 'prompt').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 48)}.csv`
@@ -372,40 +367,45 @@ function FitMid({ text, className = '', inner = '' }) {
 let slugCtx = null
 // a page tab's card: drops 4px under the tab (fade + slide, 150ms ease-out; none with reduced motion): the full path,
 // the page's title, the site logo, the impressions from these queries, the engines that cite it, and Open ↗
+// app (owner, 2026-11-08): the card sits inside the tab button, whose no-wrap rule it inherited, so a long path ran past
+// its right edge. Now it wraps again (whitespace-normal), is at most 360px wide, and the path breaks after "/" and "-"
+// (and anywhere as a last resort), the full path as its tooltip; everything stays inside the padding.
+export const pathBreaks = (path) => String(path ?? '').split(/(?<=[/-])/)
 function TabCard({ show, path, url, title, domain, impressions, e }) {
   const still = reducedMotion()
   return (
-    <span role="tooltip" aria-hidden={!show} className="pointer-events-auto absolute left-0 top-full z-30 mt-2 w-[300px] rounded-lg border border-line bg-raised p-3 text-left shadow-lg"
+    <span role="tooltip" aria-hidden={!show} data-tab-card className="pointer-events-auto absolute left-0 top-full z-30 mt-2 w-max min-w-[240px] max-w-[min(360px,calc(100vw-32px))] whitespace-normal rounded-lg border border-line bg-raised p-3 text-left shadow-lg"
       style={{ opacity: show ? 1 : 0, transform: show || still ? 'none' : 'translateY(-4px)', visibility: show ? 'visible' : 'hidden', transition: still ? 'none' : 'opacity 150ms ease-out, transform 150ms ease-out, visibility 150ms' }}>
       <span className="flex items-start gap-2.5">
         <LogoPlate domain={domain} size={24} logoClass="h-4 w-4" />
         <span className="min-w-0 flex-1">
-          <span className="block break-all text-[13px] leading-[18px] font-semibold text-stone-900">{path}</span>
+          <span title={path} className="block min-w-0 text-[13px] leading-[18px] font-semibold text-stone-900 [overflow-wrap:anywhere]">{pathBreaks(path).map((part, i) => <span key={i}>{part}<wbr /></span>)}</span>
           {title && <span className="mt-0.5 block text-[13px] leading-[18px] text-stone-700">{title}</span>}
         </span>
       </span>
-      <span className="mt-2 flex items-center justify-between gap-3 text-[12px] leading-4 text-stone-500">
+      {/* app (owner, 2026-11-10): secondary, not muted, in hover cards */}
+      <span className="mt-2 flex min-w-0 items-center justify-between gap-3 text-[12px] leading-4 text-stone-600">
         <span className="flex items-center gap-2"><span className="tabular-nums">{num(impressions)} impressions</span>
           {e.engines.length > 0 && <span className="flex items-center gap-1">{e.engines.map((id) => <PlatformIcon key={id} id={engineIcon(id)} size={14} />)}</span>}
         </span>
-        {url && <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 rounded font-medium text-ink outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">Open<ArrowUpRight size={12} aria-hidden /></a>}
+        {url && <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center gap-0.5 rounded font-medium text-ink outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">Open<ArrowUpRight size={12} aria-hidden /></a>}
       </span>
     </span>
   )
 }
 // one line under the table: "Publishing on <path> · Change page" (a small menu: your pages, or a new page)
-function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath, sourceLabel = null }) {
+function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath, sourceLabel = null, bare = false }) {
   const [open, setOpen] = useState(false)
-  const pages = gsc.pages.slice(0, 5)
+  const pages = (gsc?.pages ?? []).slice(0, 5) // app: gsc may be absent while the section is hidden (owner, 2026-11-10)
   const options = [...pages.map((p) => ({ key: p.path, label: p.path, pick: { action: 'update', path: p.path, url: p.url } })), ...(newPath ? [{ key: 'create', label: `Create a new page · ${newPath}`, pick: { action: 'create', path: newPath } }] : [])]
   const choose = (o) => { onPick(o.pick); setOpen(false) }
   const rowRef = useRef(null)
   const labelRef = useRef(null)
   const changeRef = useRef(null)
   return (
-    <div ref={rowRef} className="relative mt-3 flex min-w-0 items-center gap-1.5 border-t border-line pt-3 text-[14px] leading-5" data-sc-using={usingCreate ? 'create' : usingPath}
+    <div ref={rowRef} className={`relative flex min-w-0 items-center gap-1.5 text-[14px] leading-5 ${bare ? '' : 'mt-3 border-t border-line pt-3'}`} data-sc-using={usingCreate ? 'create' : usingPath}
       onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}>
-      <span ref={labelRef} className="shrink-0 text-stone-500">Publishing on</span>
+      <span ref={labelRef} className="shrink-0 text-stone-500" data-pub-label>Publishing on</span>
       {/* its own rendered width (no measured box: that ran before the font loaded and left a gap before "·"); it
           truncates in the middle only when the line overflows */}
       <span title={usingPath} className="flex min-w-0"><FitMid text={usingPath} className="font-semibold text-stone-900" /></span>
@@ -433,91 +433,6 @@ function UsingLine({ gsc, usingPath, usingCreate, onPick, newPath, sourceLabel =
           </ul>
         </>
       )}
-    </div>
-  )
-}
-
-// ---- as the app (owner, 2026-11-05) -----------------------------------------------------------------------------
-// The target page when Search Console isn't connected (or was skipped): the page comes from content-recommend's own
-// suggestion, so it says so: "Publishing on <path> · Suggested from your site" (or "New page we suggest") · "Connect
-// Search Console for a better match" (onAsk: the Connect card again, scrolled into view)
-export function RoutePublishing({ page, onAsk = null }) {
-  if (!page?.path) return null
-  const openCard = () => {
-    onAsk?.()
-    requestAnimationFrame(() => document.querySelector('[data-sc-ask]')?.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }))
-  }
-  return (
-    <p data-route-publishing={page.source || 'route'} className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px] leading-5">
-      <span className="shrink-0 text-stone-500">Publishing on</span>
-      <span className="min-w-0 truncate font-semibold text-stone-900" title={page.path}>{page.path}</span>
-      <span aria-hidden className="text-stone-400">·</span>
-      <span className="shrink-0 text-stone-500" data-page-source>{pageSourceLabel(page)}</span>
-      <span aria-hidden className="text-stone-400">·</span>
-      <button type="button" onClick={openCard} className="shrink-0 rounded font-medium text-ink underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:decoration-ink focus-visible:ring-2 focus-visible:ring-focus">Connect Search Console for a better match</button>
-    </p>
-  )
-}
-
-// The property picker (Harsh's, app 65cff54): the Google account is connected but the brand's site isn't one of its
-// readable properties, or "Change property" on the list. Lists the account's properties (the brand's first), saves one,
-// or reconnects with another Google account. picker: { open, loading, saving, error, data, onClose, onSave }
-export function usePropertyPicker(load, save = () => {}) {
-  const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [data, setData] = useState(null)
-  const timer = useRef(null)
-  useLayoutEffect(() => () => clearTimeout(timer.current), [])
-  return {
-    open, loading, saving, error: null, data,
-    openPicker: () => { setOpen(true); setLoading(true); timer.current = setTimeout(() => { setData(load()); setLoading(false) }, 500) },
-    onClose: () => setOpen(false),
-    onSave: (siteUrl) => { setSaving(true); timer.current = setTimeout(() => { setSaving(false); setOpen(false); save(siteUrl) }, 500) },
-  }
-}
-const PROP_ROW = 'flex w-full items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5 text-left text-[14px] text-stone-800 outline-none hover:border-ink hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60'
-const SMALL_TEXT_BTN = 'rounded text-[14px] font-medium text-stone-600 underline decoration-[var(--color-line-strong)] underline-offset-2 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60'
-export function PropertyPicker({ open, loading, saving, error, data, onClose, onSave, onReconnect, onDisconnect = null, disconnecting = false, domain }) {
-  if (!open) return null
-  const matched = data?.matched || []
-  const other = data?.other || []
-  const host = String(domain || '').replace(/^www\./, '')
-  const list = (xs) => (
-    <ul className="space-y-1">{xs.map((p) => (
-      <li key={p.siteUrl}>
-        <button type="button" disabled={saving} onClick={() => onSave(p.siteUrl)} className={PROP_ROW}>
-          <span className="min-w-0 break-all">{p.siteUrl}</span>
-          <span className="shrink-0 text-[12px] text-stone-500">{p.permissionLevel?.replace(/^site/, '') || ''}</span>
-        </button>
-      </li>
-    ))}</ul>
-  )
-  return (
-    <div role="dialog" aria-modal="true" aria-labelledby="gsc-prop-h" data-gsc-property-picker
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[color-mix(in_srgb,var(--ink)_40%,transparent)] p-4 sm:items-center" onClick={onClose}>
-      <div className="max-h-[min(80vh,560px)] w-full max-w-lg overflow-auto rounded-xl border border-line bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 id="gsc-prop-h" className="text-[17px] leading-6 font-semibold text-stone-900">Choose a Search Console property</h2>
-        <p className="mt-1 text-[14px] leading-5 text-stone-600">
-          Pick the property to use for <span className="font-medium text-stone-900">{host}</span>. If this Google account doesn’t include that site, connect with another account.
-        </p>
-        {loading && <p className="mt-4 text-[14px] text-stone-500" aria-busy>Loading properties…</p>}
-        {error && <p role="alert" className="mt-3 text-[14px] text-stone-700"><span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-negative" aria-hidden />{error}</p>}
-        {!loading && data && (
-          <div className="mt-4 space-y-4">
-            {matched.length > 0 && <div><p className="mb-2 text-[12px] font-medium text-stone-500">Matches {host}</p>{list(matched)}</div>}
-            {other.length > 0 && <div><p className="mb-2 text-[12px] font-medium text-stone-500">{matched.length ? 'Other properties on this Google account' : `No property for ${host}: other sites on this account`}</p>{list(other)}</div>}
-            {!matched.length && !other.length && <p className="text-[14px] text-stone-700">This Google account has no Search Console properties. Add {host} in Search Console, or connect with another Google account.</p>}
-          </div>
-        )}
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          {onDisconnect ? <button type="button" onClick={onDisconnect} disabled={saving || disconnecting} className={SMALL_TEXT_BTN}>{disconnecting ? 'Disconnecting…' : 'Disconnect'}</button> : <span />}
-          <span className="flex flex-wrap items-center justify-end gap-3">
-            <button type="button" onClick={onClose} className={SMALL_TEXT_BTN}>Cancel</button>
-            {onReconnect && <button type="button" onClick={onReconnect} disabled={saving || disconnecting} className={ink}>Use another Google account</button>}
-          </span>
-        </div>
-      </div>
     </div>
   )
 }

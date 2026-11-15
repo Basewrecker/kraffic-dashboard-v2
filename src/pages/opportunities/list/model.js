@@ -1,6 +1,6 @@
 // Opportunities → Content list: pure helpers (no React, no window), so `npm test` can run them.
 // A row's state comes from its draft (contentOpportunities-proposed draftFor); no draft = nothing started yet.
-import { CO_BRAND, CO_BRANDS } from '../../../data/contentOpportunities.js'
+import { CO_BRAND, CO_BRANDS } from '@/lib/mock-adapter-content'
 
 // the list states, in the order the work moves
 export const STAGES = ['none', 'draft', 'waiting', 'monitoring', 'improved', 'nochange']
@@ -45,7 +45,7 @@ export const missedBy = (row) => [...new Set(Object.keys(CO_BRANDS).filter((d) =
 export function statusText(row) {
   const d = row.draft
   switch (row.stage) {
-    case 'draft': return 'Draft ready'
+    case 'draft': return d?.notWritten ? 'Not written' : 'Draft ready' // app (owner, 2026-11-12): a saved template
     case 'waiting': return 'Waiting for publish'
     case 'monitoring': return `Monitoring · week ${d.week}/4`
     case 'improved': return `Improved +${d.gained.length} ${d.gained.length === 1 ? 'engine' : 'engines'}`
