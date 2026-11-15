@@ -76,7 +76,7 @@ export function scoringPosition(dates, marker) {
   return i + marker.frac
 }
 
-// Brands with a single point in range → { [key]: { index, date, why } }. why: there's no earlier point because the
+// app: brands with a single point in range → { [key]: { index, date, why } }. why: there's no earlier point because the
 // old scoring miscounted the brand (an earlier period before the scoring change has other brands but not this one), or
 // because it has no earlier scan in range. points: the chart's points; series: [{ key, label }]; nameOf(series) → name.
 export function lonePoints(points, series, unit, nameOf) {
@@ -96,7 +96,7 @@ export function lonePoints(points, series, unit, nameOf) {
   return out
 }
 
-// The Visibility history insight, one plain line about the range's last point: who leads and the focal brand's
+// app: the Visibility history insight, one plain line about the range's last point: who leads and the focal brand's
 // share, with its move when the period before was counted the same way (end.deltas). No methodology.
 // "Finance of America leads at 60% this month, ahead of Reverse at 28%."
 export function historyInsight({ end, series, youKey, name, unit, nameOf }) {
@@ -131,4 +131,30 @@ export function historyInsight({ end, series, youKey, name, unit, nameOf }) {
         : `${nameOf(leader)} leads at ${end[leader.key]}% ${when}; ${name} is at ${you}%.`,
     other: leader,
   }
+}
+
+// app (owner, 2026-11-07): GA4-style focus on hover. Hovering a line, its legend chip or its tooltip row focuses that
+// brand: it keeps full colour and draws 1px wider; every other brand fades to 20%. No focus: everything as drawn.
+// key: a series key; focus: the focused key or null. → { opacity, widthDelta }
+export const FOCUS_DIM = 0.25 // owner, 2026-11-15: the others fade to 25% (was 20%)
+export function seriesStyle(key, focus) {
+  if (focus == null) return { opacity: 1, widthDelta: 0 }
+  return key === focus ? { opacity: 1, widthDelta: 1 } : { opacity: FOCUS_DIM, widthDelta: 0 }
+}
+// a tooltip row's tone while a brand is focused: 'focus' (bold, ink), 'muted' (greyed), or null (no focus: as before)
+export function tooltipTone(key, focus) {
+  if (focus == null) return null
+  return key === focus ? 'focus' : 'muted'
+}
+// app: the card's lightbulb line ({ text, evidence }), shared by the card and the Insights panel. source: the card's
+// "(Oct 5 update)" suffix. null when the focal brand has no value at the range's end.
+export function historyEvidence({ end, series, youKey, name, unit, nameOf, source }) {
+  const r = historyInsight({ end, series, youKey, name, unit, nameOf })
+  if (!r) return null
+  const d = end.deltas?.[youKey]
+  const calc = [
+    `${name}: ${d == null ? '' : `${end.prevs[youKey]}% → `}${end[youKey]}% (${end.date})`,
+    r.other ? `${nameOf(r.other)}: ${end[r.other.key]}%` : null,
+  ].filter(Boolean).join('. ')
+  return { text: r.text, evidence: { keys: [`series:${youKey}`, ...(r.other ? [`series:${r.other.key}`] : [])], calc: `${calc}.`, source } }
 }

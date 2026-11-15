@@ -7,7 +7,7 @@ import { chart } from '../../theme/chart'
 import { defaultRange, getHistory, historyManyPreview, historyRanges } from '../../data/mock'
 import { historyMany } from '../../data/historyMany'
 import { brandName } from '../../utils/brand'
-import { drawnRivals, groupedBarSize, historyInsight, lonePoints as lonePointsOf, MAX_RIVALS, pickRival, picksFrom } from '../../utils/historyChart'
+import { drawnRivals, groupedBarSize, historyInsight, lonePoints as lonePointsOf, MAX_RIVALS, pickRival, picksFrom, seriesStyle, tooltipTone } from '../../utils/historyChart' // as the app: seriesStyle, tooltipTone (hover focus)
 import Segmented from './Segmented'
 import Switch from '../ui/Switch'
 import SiteLogo from '../ui/SiteLogo'
@@ -30,7 +30,9 @@ const color = (s) => (s.key === FOCAL.key ? chart.you : chart[`c${slotOf(s) + 1}
 // (utils/brandColors.js rankColors, the map Share of voice uses, the account's brand included); Growth keeps the graphite steps, and
 // Reports (a dataset) the slot colours
 let BRANDC = {} // series key → CSS colour, set per render
-const lineColor = (s) => BRANDC[s.key] ?? (s.key === FOCAL.key ? chart.lineYou : chart[`line${slotOf(s) + 1}`])
+// app (owner, 2026-11-15): the brand viewed is ink; competitors indigo, red, green by share rank (line-1…3); a 4th and
+// later competitor the neutral greys (data-c1…c4)
+const lineColor = (s) => BRANDC[s.key] ?? (s.key === FOCAL.key ? chart.lineYou : slotOf(s) < 3 ? chart[`line${slotOf(s) + 1}`] : chart[`c${((slotOf(s) - 3) % 4) + 1}`])
 const barColor = (s) => ({ fill: lineColor(s), opacity: 1 })
 const ANIM = { animationDuration: 500, animationEasing: 'ease-out' }
 // the unit of the values: '%' (share, the Overview) or a count (Reports: prompts named, prompts they win), set per render
@@ -141,27 +143,35 @@ function LegendBox({ color: c, checked }) {
 }
 
 const fmtDelta = (d) => (d == null ? '—' : d > 0 ? `+${d}` : d < 0 ? `−${Math.abs(d)}` : '0') // a gap is "—", never 0
+// app (owner, 2026-11-07; 2026-11-15: 150ms ease-out): GA4-style focus on hover: the lines, dots and bars ease to their focus look;
+// with prefers-reduced-motion they switch at once
+const FOCUS_FX = 'motion-safe:[&_.recharts-line-curve]:transition-[stroke-opacity,stroke-width] motion-safe:[&_.recharts-line-curve]:duration-150 motion-safe:[&_.recharts-line-curve]:ease-out motion-safe:[&_.recharts-line-dots_g]:transition-opacity motion-safe:[&_.recharts-line-dots_g]:duration-150 motion-safe:[&_.recharts-line-dots_g]:ease-out motion-safe:[&_.recharts-bar-rectangle_path]:transition-[fill-opacity] motion-safe:[&_.recharts-bar-rectangle_path]:duration-150 motion-safe:[&_.recharts-bar-rectangle_path]:ease-out'
 const listNames = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
 
-function HistoryTooltip({ active, payload, label, series, compare, unit, line = false, lone = {} }) {
+// app (owner, 2026-11-07): GA4-style focus on hover: `focus` (a series key or null); the focused brand's row bold, the
+// others greyed; no focus: today's look
+const toneClass = (t, base) => (t === 'focus' ? 'font-semibold text-stone-900' : t === 'muted' ? 'text-stone-400' : base)
+function HistoryTooltip({ active, payload, label, series, compare, unit, line = false, lone = {}, focus = null, onFocusBrand }) {
   if (!active || !payload?.length) return null
   const delta = payload[0]?.payload?.delta
   // line mode: vibrant swatches, 8px rounded-[2px], your row first at 500
   const YOU = FOCAL.key
-  const rows = line ? [...series].sort((a, b) => (b.key === YOU) - (a.key === YOU)) : series
+  // app (owner, 2026-11-15): line view: every brand, highest value first (no value last)
+  const v = (s) => payload[0]?.payload?.[s.key]
+  const rows = line ? [...series].sort((a, b) => (v(b) ?? -Infinity) - (v(a) ?? -Infinity) || (b.key === YOU) - (a.key === YOU)) : series
   return (
     <div className="rounded-lg border border-stone-200 bg-raised px-3 py-2 text-small shadow-sm">
       <div className="mb-1 font-semibold text-stone-900">{label}{payload[0]?.payload?.current ? ' · so far' : ''}</div>
       {rows.map((s) => (
-        <div key={s.key} className="flex items-center justify-between gap-6">
-          <span className={`inline-flex items-center gap-1.5 ${line && s.key === YOU ? 'font-medium text-stone-900' : 'text-stone-600'}`}>
+        <div key={s.key} className="flex items-center justify-between gap-6" onMouseEnter={() => onFocusBrand?.(s.key)} onMouseLeave={() => onFocusBrand?.(null)}>
+          <span className={`inline-flex items-center gap-1.5 ${toneClass(tooltipTone(s.key, focus), line && s.key === YOU ? 'font-medium text-stone-900' : 'text-stone-600')}`}>
             {/* Trend and Share views share the colours */}
             {line
               ? <span className="h-2 w-2 rounded-[2px]" style={{ background: lineColor(s) }} />
               : <span className="h-2.5 w-2.5 rounded-sm" style={{ background: lineColor(s) }} />}
             {brandName(s.label)}
           </span>
-          <span className={`num text-stone-900 ${line && s.key !== YOU ? 'font-normal' : 'font-semibold'}`}>{(() => { const v = payload[0]?.payload?.[s.key]; return v == null ? '—' : val(v) })()}</span>
+          <span className={`num ${toneClass(tooltipTone(s.key, focus), `text-stone-900 ${line && s.key !== YOU ? 'font-normal' : 'font-semibold'}`)}`}>{(() => { const v = payload[0]?.payload?.[s.key]; return v == null ? '—' : val(v) })()}</span>
         </div>
       ))}
       {/* why a brand with a single point has no earlier ones */}
@@ -204,7 +214,7 @@ function GrowthLabel({ x, y, width = 0, value }) {
 const signClass = (d) => (d < 0 ? 'text-negative' : 'text-stone-900')
 
 // Growth tooltip: "Jul 2026 · +2 (64% → 66%)", one line per visible series
-function GrowthTooltip({ active, payload, label, series, compare }) {
+function GrowthTooltip({ active, payload, label, series, compare, focus = null, onFocusBrand }) {
   if (!active || !payload?.length) return null
   const p = payload[0].payload
   const YOU = FOCAL.key
@@ -220,8 +230,8 @@ function GrowthTooltip({ active, payload, label, series, compare }) {
     <div className="rounded-lg border border-stone-200 bg-raised px-3 py-2 text-small shadow-sm">
       <div className="mb-1 font-semibold text-stone-900">{label}</div>
       {series.map((s) => (
-        <div key={s.key} className="flex items-center justify-between gap-6">
-          <span className="inline-flex items-center gap-1.5 text-stone-600"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color(s) }} /> {brandName(s.label)}</span>
+        <div key={s.key} className="flex items-center justify-between gap-6" onMouseEnter={() => onFocusBrand?.(s.key)} onMouseLeave={() => onFocusBrand?.(null)}>
+          <span className={`inline-flex items-center gap-1.5 ${toneClass(tooltipTone(s.key, focus), 'text-stone-600')}`}><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color(s) }} /> {brandName(s.label)}</span>
           <span>{line(s)}</span>
         </div>
       ))}
@@ -476,6 +486,52 @@ function GutterLabels({ items }) {
   )
 }
 
+// app (owner, 2026-11-15): the Overview's Trend view: every line ends with a dot and its brand name and latest value
+// beside it ("EcoKind 29%") in the line's colour, at its last real point; labels ending at the same week that would
+// overlap are nudged apart vertically. Hovering a label focuses its brand.
+const endTextW = (text) => Math.ceil(text.length * 7.3) + 4 // a 13px label's width, close enough for the gutter
+function EndLabels({ items, dates }) {
+  const x = useXAxisScale()
+  const y = useYAxisScale()
+  const plot = usePlotArea()
+  if (!x || !y || !plot) return null
+  const LH = 16
+  const placed = items.map((i) => ({ ...i, x: x(dates[i.at], { position: 'middle' }), y: y(i.v) })).filter((i) => i.x != null && i.y != null)
+  const groups = new Map()
+  for (const p of placed) groups.set(p.at, [...(groups.get(p.at) ?? []), p])
+  for (const g of groups.values()) {
+    g.sort((a, b) => a.y - b.y)
+    const ys = g.map((p) => p.y)
+    g.forEach((p, k) => { p.ty = k === 0 ? ys[0] : Math.max(ys[k], g[k - 1].ty + LH) })
+    // pushed below the plot: the whole group moves up
+    const over = g.length ? g.at(-1).ty - (plot.y + plot.height) : 0
+    if (over > 0) g.forEach((p) => { p.ty -= over })
+  }
+  return (
+    <g>
+      {placed.map((p) => (
+        <g key={p.key} opacity={p.opacity} className="motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-out" onMouseEnter={p.onEnter} onMouseLeave={p.onLeave}>
+          <circle cx={p.x} cy={p.y} r={p.you ? 4 : 3.5} fill={p.color} stroke="var(--color-surface)" strokeWidth={2} />
+          <text x={Math.max(p.x + 9, plot.x + plot.width + 6)} y={p.ty + 4.5} fontSize={13} fontWeight={p.you ? 600 : 500} fill={p.color} className="num" style={{ cursor: 'default' }}>{p.text}</text>
+        </g>
+      ))}
+    </g>
+  )
+}
+// app (owner, 2026-11-15): one engine picked with no result since some week: the lines end at their last real point and
+// the empty stretch after it says so, quietly, inside the chart
+function GapNote({ from, dates, text }) {
+  const x = useXAxisScale()
+  const plot = usePlotArea()
+  if (!x || !plot || from == null) return null
+  const x0 = x(dates[from], { position: 'middle' })
+  if (x0 == null) return null
+  const right = plot.x + plot.width
+  const w = endTextW(text)
+  const cx = right - x0 > w + 24 ? (x0 + right) / 2 : right - w / 2
+  return <text className="pointer-events-none" x={cx} y={plot.y + plot.height - 12} textAnchor="middle" fontSize={13} fill="var(--color-stone-500)">{text}</text>
+}
+
 // the plot's width in px, for the bar sizes (groupedBarSize)
 function useWidth() {
   const ref = useRef(null)
@@ -524,10 +580,15 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   FOCAL = { key: focal.key }
   const brandColors = useBrandColors(engine)
   // every brand its palette colour by rank, the same map as Share of voice (owner, 2026-11-03)
-  BRANDC = dataset ? {} : Object.fromEntries(historySeries.map((x) => [x.key, brandColors[x.label]?.css]).filter(([, c]) => c))
+  // as the app (owner, 2026-11-15): the chart's own colours again, ink and the three chart colours by share rank
+  // (brandColors stays read so the hook order doesn't change)
+  BRANDC = {}
+  void brandColors
   const YOU = focal.key
   const [view, setView] = useState(() => (syncUrl ? readView(historySeries) : { ...DEFAULT_VIEW, ...initial }))
-  const [hovered, setHovered] = useState(null) // series key highlighted from the legend
+  // app (owner, 2026-11-07): GA4-style focus on hover: the brand hovered (its line, legend chip or tooltip row) or
+  // focused from the keyboard (its chip); null: none
+  const [focusBrand, setFocusBrand] = useState(null)
   const [markerTip, setMarkerTip] = useState(null) // the scoring marker's explanation, while hovered
   useEffect(() => { if (syncUrl) writeView(view) }, [view, syncUrl])
 
@@ -538,7 +599,8 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   const notDrawn = rankedKeys.filter((k) => !drawn.includes(k))
   const byKey = (k) => historySeries.find((s) => s.key === k)
   const COMPETITORS = drawn.map(byKey) // the competitors on the chart (and in the legend), in slot order
-  SLOT = Object.fromEntries(drawn.map((k, i) => [k, i]))
+  // colour slots by share rank among the brands drawn (picked ones included)
+  SLOT = Object.fromEntries([...drawn].sort((a, b) => rankedKeys.indexOf(a) - rankedKeys.indexOf(b)).map((k, i) => [k, i]))
 
   // the chart reads ONLY this. Brands not picked are left out like hidden ones.
   // engine filter: every series is that engine's share
@@ -557,7 +619,9 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   const { points, series, stats, youHidden, scoring, bridges = [] } = h // bridges over missing periods
   const vals = points.flatMap((p) => series.map((x) => p[x.key])).filter((v) => v != null)
   // compact (Reports): a share is always 0–100%; a count is fitted to its values, its top a round number just above the largest
-  const { domain, ticks } = compact && vals.length ? (UNIT.pct ? { domain: [0, 100], ticks: [0, 25, 50, 75, 100] } : fit4(vals)) : h
+  // app (owner, 2026-11-15): the Overview's Trend view fits its axis to the data (4 gridlines, the top one just above
+  // the highest value); bars keep the full scale
+  const { domain, ticks } = compact && vals.length ? (UNIT.pct ? { domain: [0, 100], ticks: [0, 25, 50, 75, 100] } : fit4(vals)) : !compact && view.chart === 'line' && points.length > 1 && vals.length && !(UNIT.pct && fit4(vals).domain[1] > 100) ? fit4(vals) : h // mock: not the app's fitted axis when it would pass 100% (the app draws a 0–150 percent axis there; listed as an app fault)
   // one sync date in range: nothing to draw a line between, so bars (one group, a value on every bar, the brands in
   // their line colours); Trend and Growth come back from the second date
   const single = points.length === 1
@@ -597,7 +661,11 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   // hovering a pill: line mode drops the others to 25%, bar/growth keep 30%
   // explain mode ("Why?"): the series the insight is about stay, the rest dim
   const explain = useExplain(`${chartType}|${view.granularity}|${view.range}|${view.compare}|${engine}|${YOU}|${drawn.join(',')}`)
-  const dim = (key) => (hovered && hovered !== key ? (isLine ? 0.25 : 0.3) : 1) * (hlOpacity(explain, `series:${key}`) ?? 1)
+  // app (owner, 2026-11-07): GA4-style focus on hover: the focused brand full colour and 1px wider, the others at 20%
+  // (a brand hidden while focused drops the focus)
+  const focus = focusBrand != null && series.some((s) => s.key === focusBrand) ? focusBrand : null
+  const dim = (key) => seriesStyle(key, focus).opacity * (hlOpacity(explain, `series:${key}`) ?? 1)
+  const widen = (key) => seriesStyle(key, focus).widthDelta
   // points scored before the scoring change are drawn like every other point (solid, full colour); the marker
   // alone shows where the scoring changed
   const g = h.growth
@@ -635,7 +703,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
     ...(!compare && bestText ? [{ key: 'best', v: stats.best, text: bestText }] : []),
   ]
   const AVG_GUTTER = compact ? 112 : 84
-  const shareTooltip = <HistoryTooltip series={series} compare={compare} unit={stats.unit} line={isLine} lone={lonePoints} />
+  const shareTooltip = <HistoryTooltip series={series} compare={compare} unit={stats.unit} line={isLine} lone={lonePoints} focus={focus} onFocusBrand={setFocusBrand} />
   // the same margins in every view, so Trend, Share and Growth draw the same plot height; the top margin holds the
   // value labels above a first sync's bars / growth bars and the scoring marker's label
   // room for two stacked marker labels when the scoring and setup changes sit close together
@@ -702,11 +770,23 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   const renderChart = () => {
     if (chartType === 'line') {
       // compact: weekly syncs are straight segments; monthly a monotone curve through every point
-      const curve = compact ? (view.granularity === 'monthly' ? 'monotoneX' : 'linear') : 'monotone'
+      // app (owner, 2026-11-15): the Overview a monotone curve that never rises above or dips below its own points
+      const curve = compact ? (view.granularity === 'monthly' ? 'monotoneX' : 'linear') : 'monotoneX'
+      // app (owner, 2026-11-15): each line's last real point (its end dot and label); the brand viewed 2.5px on top,
+      // competitors 1.5px; the right margin holds the end labels
+      const lastRealOf = (s) => { for (let i = points.length - 1; i >= 0; i--) if (points[i][s.key] != null) return i; return -1 }
+      const ends = compact ? [] : series.map((s) => ({ s, at: lastRealOf(s) })).filter((e) => e.at >= 0)
+      const endText = (s, at) => `${brandName(s.label)} ${val(points[at][s.key])}`
+      const lineMargin = compact ? margin : { ...margin, right: Math.min(240, Math.max(24, ...ends.map((e) => endTextW(endText(e.s, e.at)) + 16))) }
+      const widthOf = (s) => (compact || s.key === YOU ? 2.5 : 1.5) + widen(s.key)
+      // one engine picked with no result since some week: the empty stretch after the last real point says so
+      const lastAll = ends.length ? Math.max(...ends.map((e) => e.at)) : -1
+      const fmtDay = (iso) => new Date(`${String(iso).slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+      const gapNote = !compact && engine !== 'all' && lastAll >= 0 && lastAll < last ? `No ${engineName(engine)} scan since ${fmtDay(points[lastAll].iso ?? points[lastAll].date)}` : null
       // trend: lines only (no fills). All lines 2.5px, round caps, full opacity; a dot on the last point only (and on a
       // brand's only point). Solid on both sides of a scoring change
       return (
-        <RLineChart data={points} margin={margin}>
+        <RLineChart data={points} margin={lineMargin}>
           {furniture({ yDomain: domain, yTicks: ticks, tooltip: shareTooltip, cursor: { stroke: chart.c3, strokeWidth: 1 }, xPadding: { left: 16, right: 16 } })}
           {!compare && avgLine(stats.average, `Avg ${val(stats.average)}`)}
           {compact && !compare && bestLine(stats.best)}
@@ -722,8 +802,8 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
           {/* a missing period between two with values: a dashed segment across it, not a jump */}
           {bridges.filter((g) => series.some((s) => s.key === g.series)).map((g) => {
             const s = series.find((x) => x.key === g.series)
-            return <Line key={g.key} type="linear" dataKey={g.key} connectNulls stroke={lineColor(s)} strokeOpacity={dim(s.key)} strokeWidth={1.5} strokeDasharray="4 4"
-              dot={false} activeDot={false} legendType="none" isAnimationActive={false} />
+            return <Line key={g.key} type="linear" dataKey={g.key} connectNulls stroke={lineColor(s)} strokeOpacity={dim(s.key) * (compact ? 1 : 0.4)} strokeWidth={compact ? 1.5 : 1.25} strokeDasharray={compact ? '4 4' : '1 4'} strokeLinecap="round"
+              dot={false} activeDot={false} legendType="none" tooltipType="none" isAnimationActive={false} />
           })}
           {[...series].reverse().map((s) => {
             const you = s.key === YOU
@@ -733,13 +813,13 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
             // compact (Reports): a 3px dot on every sync; the Overview: the last point (and a lone point) only
             const dot = (p) => (compact
               ? (p.value != null ? <circle key={`d${p.index}`} cx={p.cx} cy={p.cy} r={3} fill={c} opacity={dim(s.key)} /> : <g key={`d${p.index}`} />)
-              : p.value != null && (p.index === last || p.index === lone?.index)
+              : p.value != null && p.index === lone?.index && lone.index !== lastRealOf(s) // as the app: a line's last point is its end dot (EndLabels)
                 ? <g key={`d${p.index}`} opacity={dim(s.key)}>
                     <circle cx={p.cx} cy={p.cy} r={4} fill={c} stroke="var(--color-surface)" strokeWidth={2} />
                   </g>
                 : <g key={`d${p.index}`} />)
             return (
-              <Line key={s.key} type={curve} dataKey={s.key} name={s.label} stroke={c} strokeOpacity={dim(s.key)} strokeWidth={2.5} strokeLinecap="round"
+              <Line key={s.key} type={curve} dataKey={s.key} name={s.label} stroke={c} strokeOpacity={dim(s.key)} strokeWidth={widthOf(s)} strokeLinecap="round"
                 dot={dot} activeDot={{ r: 5, fill: c, stroke: 'var(--color-surface)', strokeWidth: 2 }} {...ANIM}>
                 {you && showGrowthLabels && <LabelList dataKey="delta" content={GrowthLabel} />}
               </Line>
@@ -748,10 +828,24 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
           {/* lines on top of each other: each one drawn again on top in turn-taking dashes, so every colour shows */}
           {overlaps.map(({ s, k, n }) => (
             // keyed on the lines and the data, so it mounts again after them: the chart stacks lines in mount order
-            <Line key={`${s.key}~over~${series.map((x) => x.key).join(',')}`} type={curve} dataKey={s.key} stroke={lineColor(s)} strokeOpacity={dim(s.key)} strokeWidth={2.5}
+            <Line key={`${s.key}~over~${series.map((x) => x.key).join(',')}`} type={curve} dataKey={s.key} stroke={lineColor(s)} strokeOpacity={dim(s.key)} strokeWidth={widthOf(s)}
               strokeDasharray={`0 ${8 * k} 8 ${8 * (n - 1 - k)}`}
               dot={false} activeDot={false} legendType="none" tooltipType="none" isAnimationActive={false} />
           ))}
+          {/* app (owner, 2026-11-07): GA4-style focus on hover: a wider invisible stroke over each line, so pointing at a
+              line focuses its brand (keyed like the dashes above, so they mount after them and stay on top) */}
+          {series.map((s) => (
+            <Line key={`${s.key}~hit~${series.map((x) => x.key).join(',')}`} type={curve} dataKey={s.key} stroke="transparent" strokeWidth={12} style={{ pointerEvents: 'stroke' }}
+              onMouseEnter={() => setFocusBrand(s.key)} onMouseLeave={() => setFocusBrand(null)}
+              dot={false} activeDot={false} legendType="none" tooltipType="none" isAnimationActive={false} />
+          ))}
+          {gapNote && <GapNote from={lastAll} dates={dates} text={gapNote} />}
+          {!compact && (
+            <EndLabels dates={dates} items={[...ends].sort((a, b) => (a.s.key === YOU) - (b.s.key === YOU)).map(({ s, at }) => ({
+              key: s.key, at, v: points[at][s.key], text: endText(s, at), color: lineColor(s), you: s.key === YOU, opacity: dim(s.key),
+              onEnter: () => setFocusBrand(s.key), onLeave: () => setFocusBrand(null),
+            }))} />
+          )}
         </RLineChart>
       )
     }
@@ -770,7 +864,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
           {series.map((s) => {
             const c = barFill(s)
             return (
-              <Bar key={s.key} dataKey={s.key} name={s.label} fill={c.fill} fillOpacity={dim(s.key) * c.opacity} radius={[Math.min(4, barSize / 2), Math.min(4, barSize / 2), 0, 0]}
+              <Bar key={s.key} dataKey={s.key} name={s.label} fill={c.fill} fillOpacity={dim(s.key) * c.opacity} onMouseEnter={() => setFocusBrand(s.key)} onMouseLeave={() => setFocusBrand(null)} radius={[Math.min(4, barSize / 2), Math.min(4, barSize / 2), 0, 0]}
                 animationDuration={200} animationEasing="ease-out">
                 {single && <LabelList dataKey={s.key} content={TopValueLabel} />}
               </Bar>
@@ -785,14 +879,14 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
     const gBar = groupedBarSize({ width: gPlotW, groups: g.points.length, bars: series.length, cap: mobile ? 10 : 20, gap: 3 })
     return (
       <RBarChart data={g.points} barSize={gBar} barGap={3} margin={{ ...margin, right: AVG_GUTTER }}>
-        {furniture({ yDomain: g.domain, yTicks: g.ticks, yFormat: fmtDelta, tooltip: <GrowthTooltip series={series} compare={compare} />, cursor: { fill: chart.track, fillOpacity: 0.6, radius: 6 } })}
+        {furniture({ yDomain: g.domain, yTicks: g.ticks, yFormat: fmtDelta, tooltip: <GrowthTooltip series={series} compare={compare} focus={focus} onFocusBrand={setFocusBrand} />, cursor: { fill: chart.track, fillOpacity: 0.6, radius: 6 } })}
         <ReferenceLine key="zero" y={0} stroke="var(--color-stone-600)" strokeOpacity={0.4} strokeWidth={1} />
         {!youHidden && avgLine(g.average, avgText, true)}
         {compact && !youHidden && <GutterLabels items={[{ key: 'avg', v: g.average, text: avgText }]} />}
         {series.map((s) => {
           const you = s.key === YOU
           return (
-            <Bar key={s.key} dataKey={s.key} name={s.label} fill={color(s)} fillOpacity={dim(s.key)} {...ANIM}
+            <Bar key={s.key} dataKey={s.key} name={s.label} fill={color(s)} fillOpacity={dim(s.key)} onMouseEnter={() => setFocusBrand(s.key)} onMouseLeave={() => setFocusBrand(null)} {...ANIM}
               shape={(props) => <GrowthBar {...props} value={props.payload[s.key]} you={you} fill={color(s)} fillOpacity={dim(s.key)} />}>
               {you && <LabelList dataKey={s.key} content={GrowthValueLabel} />}
             </Bar>
@@ -827,10 +921,10 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
                 aria-pressed={shown}
                 tabIndex={compare ? 0 : -1}
                 onClick={() => toggleHidden(s.key)}
-                onMouseEnter={() => shown && setHovered(s.key)}
-                onMouseLeave={() => setHovered(null)}
-                onFocus={() => shown && setHovered(s.key)}
-                onBlur={() => setHovered(null)}
+                onMouseEnter={() => shown && setFocusBrand(s.key)}
+                onMouseLeave={() => setFocusBrand(null)}
+                onFocus={() => shown && setFocusBrand(s.key)}
+                onBlur={() => setFocusBrand(null)}
                 className={isLine
                   ? `inline-flex h-8 min-w-0 shrink-0 items-center whitespace-nowrap rounded-md ${small === 'xs' ? 'gap-1.5 px-1' : 'gap-2 px-2'} ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'font-medium text-stone-900' : 'font-normal text-stone-600'
@@ -838,7 +932,6 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
                   : `inline-flex h-8 min-w-0 shrink-0 items-center whitespace-nowrap rounded-full ${small === 'xs' ? 'gap-1.5 px-2' : 'gap-2 px-3'} ${small ? 'text-[13px] leading-[18px]' : 'text-[14px] leading-5'} outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
                     shown ? 'bg-tint font-medium text-stone-900' : 'bg-transparent font-medium text-stone-600/60 hover:text-stone-600'
                   }`}
-                aria-label={`${brandName(s.label)}: ${shown ? 'shown' : 'hidden'}`}
                 title={lastOne ? `${brandName(s.label)} · at least one brand stays on the chart` : shown ? `Hide ${brandName(s.label)}` : `Show ${brandName(s.label)}`}
               >
                 {marker(s, shown)}
@@ -931,7 +1024,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
       {/* phones 180px; desktop at least 240px (200px on screens 800px tall or less, owner 2026-11-03: the next
           row peeks above the fold), and the chart takes whatever height the row gives the card (the insight stays at
           the bottom), so the cards in a row end level with no gap under either */}
-      <div ref={plotRef} className={`relative mt-3 ${plotClass ?? 'h-[180px] min-h-0 lg:h-auto lg:min-h-[240px] lg:[@media(max-height:800px)]:min-h-[200px] lg:flex-1'}`}>
+      <div ref={plotRef} onMouseLeave={() => setFocusBrand(null)} className={`relative mt-3 ${FOCUS_FX} ${plotClass ?? 'h-[180px] min-h-0 lg:h-auto lg:min-h-[240px] lg:[@media(max-height:800px)]:min-h-[200px] lg:flex-1'}`}>
         {empty || noChange ? (
           <div className="grid h-full place-items-center rounded-lg bg-tint/50 px-4 text-center text-[13px] leading-[18px] text-stone-500">
             {empty ? 'No visibility on record for this range yet.' : 'Not enough history to show change yet'}

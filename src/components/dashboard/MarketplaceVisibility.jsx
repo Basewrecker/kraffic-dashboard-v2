@@ -15,7 +15,7 @@ import { ENGINE_ORDER } from '../../data/brandViews'
 import SiteLogo from '../ui/SiteLogo'
 import { brandName, isDomain } from '../../utils/brand'
 import { OWN } from '../../data/brandViews'
-import { useBrandView } from '../../hooks/useBrandView'
+import { useBrandView, useDashboardView } from '../../hooks/useBrandView'
 
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const pct = (n, d) => Math.round((n / d) * 100)
@@ -57,6 +57,8 @@ export default function MarketplaceVisibility() {
 
 function MarketplaceCard() {
   const tracking = useTracking()
+  // as the app: this card counts every engine; under the page's engine filter a chip beside its title says so
+  const filtered = useDashboardView().engine !== 'all'
   const m = marketplace
   const segs = m.segments
   const [selectedKey, setSelectedKey] = useState('yours')
@@ -115,7 +117,11 @@ function MarketplaceCard() {
       {/* header actions: icon buttons styled like the dropdowns (HeaderIconButton), centred on the 26px title line */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h2 className="text-title font-semibold text-stone-900">Marketplace visibility</h2>
+          {/* as the app (owner, 2026-11-15): this card ignores the engine filter; with an engine picked, an "All engines"
+              chip beside the title says so */}
+          <h2 className="flex flex-wrap items-center gap-x-2 text-title font-semibold text-stone-900">Marketplace visibility
+            {filtered && <span data-all-engines className="inline-flex h-5 items-center rounded-md border border-line px-1.5 text-[12px] leading-4 font-medium text-stone-600">All engines</span>}
+          </h2>
           <p className="mt-0.5 text-[13px] leading-[18px] font-normal text-stone-600 proportional-nums">How {m.total} tracked prompts link to {storeList(m.stores)}</p>
         </div>
         <div className="-mt-[3px] flex shrink-0 items-center gap-2">

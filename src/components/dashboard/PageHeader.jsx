@@ -100,6 +100,8 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
         >
           {groups.map((g, gi) => (
             <div key={g.label ?? gi} role="group" aria-label={g.label}>
+              {/* as the app (owner, 2026-11-14): an optional hairline above a group (Opportunities' "Custom range…") */}
+              {gi > 0 && g.divider && <div aria-hidden className="mx-1 my-1 h-px bg-line" />}
               {g.label && <div className="px-2 pb-1 pt-1.5 text-[11px] leading-4 font-medium text-stone-500">{g.label}</div>}
               {g.items.map((x) => {
                 const i = order.indexOf(x)
@@ -195,8 +197,6 @@ export default function PageHeader() {
           </p>
         </div>
         <div className="relative flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:gap-2.5 lg:pt-1">
-          {/* engine filter chip sits just above the KPI row's right edge; absolute, so nothing shifts */}
-          <PlatformFilterPill className="self-start lg:absolute lg:right-0 lg:top-full lg:mt-1.5" />
           <div data-tour="overview-engine" className="max-lg:w-full">
             <MenuSelect prefix="Engine" value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" footer="Filters every card to answers from this engine."
               className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER} />
@@ -216,6 +216,9 @@ export default function PageHeader() {
           </span>
         </div>
       </div>
+      {/* as the app (owner, 2026-11-12): the engine filter chip on its own right-aligned row under the filters, pushing the
+          cards down (it was absolute at lg+ and covered the KPI row's top-right card) */}
+      {engine !== 'all' && <div className="mt-2 flex justify-end"><PlatformFilterPill /></div>}
     </div>
   )
 }
