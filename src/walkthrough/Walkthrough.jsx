@@ -17,6 +17,10 @@
 //                      swaps (out and up 4px, in from 4px below) and "2 of 5" rolls; on arrival one soft ring pulses
 //                      once around the lit area
 //   closing            the hole grows until the dim is gone (300ms), the card fades
+// "Do this" pointers (tour.js `do`): the lit element is clickable (the rest of the page still isn't), the card says
+// "Click it to continue" where Next would be, and the click moves on. The next pointer starts from nothing once what
+// the click opened has settled; until then nothing is dimmed and the page is free. A flow's closing card sits in the
+// middle of the window with no lit element.
 // Keys: → ↓ Enter next · ← ↑ back · Esc closes. Tab stays inside the card. The buttons show a 2px focus ring only
 // while the keyboard is being used (.wt-keys in index.css).
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -26,11 +30,11 @@ import { account } from '../data/mock'
 import { usePath } from '../router'
 import { useIsCompact } from '../hooks/useMedia'
 import { uiScale } from '@/lib/ui-scale'
-import { TOURS, WELCOME, fill, fitHole, keyAction, placeCard, sheetSide, union } from './tour.js'
+import { TOURS, WELCOME, canGoBack, fill, fitHole, keyAction, placeCard, sheetSide, union } from './tour.js'
 import { FADE, LARGE, MOVE, ms, reduced, tween } from './motion.js'
 import Swap from './Swap'
 import Board from './Board'
-import { endTour, onPath, skipMissing, skipWelcome, startTour, startWalkthrough, stepTour, tourClosed, useWalkthrough } from './store.js'
+import { didStep, endTour, jumpTo, onPath, reached, skipMissing, skipWelcome, startTour, startWalkthrough, stepTour, tourClosed, useWalkthrough } from './store.js'
 
 const names = () => ({ brand: account.name })
 const ink = 'inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-ink font-medium text-on-ink outline-none transition-colors duration-150 hover:bg-ink-hover wt-btn'
@@ -59,16 +63,26 @@ const trapTab = (e, box) => {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
 }
 
-const visible = (el) => el.getClientRects().length > 0
+// drawn, and not faded out (a list that is folded away is still in the page at opacity 0)
+const visible = (el) => {
+  if (!el.getClientRects().length) return false
+  for (let n = el; n && n !== document.body; n = n.parentElement) if (Number(getComputedStyle(n).opacity) < 0.05) return false
+  return true
+}
 const box = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height } }
 // the pointer's element(s) and the hole around them, clear of whatever else is marked on the page
+const firstLine = (el) => (el.innerText ?? '').trim().split('\n')[0].trim()
 const holeOf = (step) => {
-  const els = [...document.querySelectorAll(step.target)].filter(visible)
+  if (!step.target) return null
+  const scope = step.within ? [...document.querySelectorAll(step.within)].find(visible) : document
+  if (!scope) return null
+  let els = [...scope.querySelectorAll(step.target)].filter(visible)
+  if (step.has) { const texts = [].concat(step.has); els = els.filter((el) => texts.some((t) => (step.exact ? firstLine(el) === t : (el.innerText ?? '').includes(t)))) }
   const lit = step.all ? els : els.slice(0, 1)
   if (!lit.length) return null
   const near = [...document.querySelectorAll('[data-tour], [data-tour-near]')].filter((el) => visible(el) && !lit.some((l) => l === el || l.contains(el) || el.contains(l)))
   // the page is drawn at the UI scale, so a tall element's cut-off follows it
-  return { el: lit[0], hole: fitHole(union(lit.map(box)), near.map(box), 4, step.maxHeight ? step.maxHeight * uiScale() : null) }
+  return { el: lit[0], els: lit, hole: fitHole(union(lit.map(box)), near.map(box), 4, step.maxHeight ? step.maxHeight * uiScale() : null) }
 }
 
 // 1. Welcome: centred, the page dim behind it. out: 'start' (it leaves toward the sidebar; the pointers' own dim layer
@@ -129,7 +143,7 @@ const CARET_SIDE = { right: 'border-b border-l', left: 'border-r border-t', bott
 const caretAt = (side, at) => (side === 'right' ? { left: -6, top: at - 6 } : side === 'left' ? { right: -6, top: at - 6 } : side === 'bottom' ? { top: -6, left: at - 6 } : { bottom: -6, left: at - 6 })
 
 // 2. Pointers
-function Pointers({ name, step, dimmed, closing, wait }) {
+function Pointers({ name, step, dimmed, closing, wait, gap, hold }) {
   const tour = TOURS[name]
   const compact = useIsCompact()
   const keys = useKeys()
@@ -146,16 +160,37 @@ function Pointers({ name, step, dimmed, closing, wait }) {
   const stopTween = useRef(() => {})
   const closingRef = useRef(false)
   closingRef.current = Boolean(closing)
+  const gapRef = useRef(gap)
+  const viewRef = useRef(null)
+  viewRef.current = view
 
   useEffect(() => {
     const s = tour.steps[step]
-    let raf, last = null, still = 0, scrolled = false, settledAt = null
-    const t0 = performance.now()
+    // this pointer starts from nothing (after a click, or on another page): what was up goes first
+    if (gapRef.current !== gap) {
+      gapRef.current = gap
+      stopTween.current(); shown.current = null; drawnNow.current = null
+      setDrawn(null); setView(null); setPos(null); setPulse(null)
+    }
+    // a closing card: the middle of the window, no lit element
+    if (s.centre) { shown.current = { step, hole: null }; setView({ step, hole: null, centre: true, first: false, glide: false }); return undefined }
+    let raf, last = null, still = 0, scrolled = false, settledAt = null, ahead = null, opened = false
+    let t0 = performance.now()
     const loop = () => {
       if (closingRef.current) return
       const found = holeOf(s)
       if (!found) {
-        if (performance.now() - t0 > 2500) { skipMissing(); return }
+        // its element is folded away: open what holds it (Fact Check's full list), once
+        const opener = !opened && s.open ? [...document.querySelectorAll(s.open)].find(visible) : null
+        if (opener) { opened = true; t0 = performance.now(); opener.click() }
+        else if (hold) {
+          // it waits for as long as what the click opened takes. A later pointer's element there instead (the draft
+          // was already written): on to that one
+          const k = tour.steps.findIndex((x, i) => i > step && holeOf(x))
+          if (k < 0) ahead = null
+          else if (ahead?.k !== k) ahead = { k, t: performance.now() }
+          else if (performance.now() - ahead.t > 700) { jumpTo(k); return }
+        } else if (performance.now() - t0 > 2500) { skipMissing(); return }
         raf = requestAnimationFrame(loop); return
       }
       if (!scrolled) {
@@ -183,12 +218,13 @@ function Pointers({ name, step, dimmed, closing, wait }) {
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [tour, step, wait])
+  }, [tour, step, wait, gap, hold])
 
   // the hole: it opens outward from the middle of the first element, then glides and resizes in one move from where it
   // is drawn now to each new place (a large move takes a little longer); a page that only shifted: at once
   useEffect(() => {
     if (!view || closingRef.current) return undefined
+    if (view.centre) { stopTween.current(); drawnNow.current = null; setDrawn(null); setPulse(null); return undefined }
     const to = view.hole
     const put = (h) => { drawnNow.current = h; setDrawn(h) }
     stopTween.current()
@@ -207,7 +243,7 @@ function Pointers({ name, step, dimmed, closing, wait }) {
     const from = drawnNow.current
     const pad = Math.max(win.w, win.h)
     const done = () => tourClosed()
-    if (!from || reduced()) { const t = setTimeout(done, from ? ms(FADE) : 0); return () => clearTimeout(t) }
+    if (!from || reduced()) { const t = setTimeout(done, ms(FADE)); return () => clearTimeout(t) }
     stopTween.current = tween(from, { left: -pad, top: -pad, width: win.w + pad * 2, height: win.h + pad * 2 }, ms(300), (h) => { drawnNow.current = h; setDrawn(h) }, done)
     return () => stopTween.current()
   }, [closing]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -216,6 +252,7 @@ function Pointers({ name, step, dimmed, closing, wait }) {
   useLayoutEffect(() => {
     if (!view || !card.current) return
     const size = { width: card.current.offsetWidth, height: card.current.offsetHeight }
+    if (view.centre) { setPos(compact ? { sheet: 'bottom' } : { side: 'centre', left: Math.round((window.innerWidth - size.width) / 2), top: Math.round((window.innerHeight - size.height) / 2) }); return }
     setPos(compact
       ? { sheet: sheetSide(view.hole, size.height, window.innerHeight) }
       : placeCard(view.hole, size, { width: window.innerWidth, height: window.innerHeight }, tour.steps[view.step].side))
@@ -223,9 +260,15 @@ function Pointers({ name, step, dimmed, closing, wait }) {
 
   useEffect(() => {
     const key = (e) => {
-      trapTab(e, card.current)
+      const up = viewRef.current
       const action = keyAction(e.key)
+      // while a pointer waits for its element the page is free: only Esc is ours
+      if (!up) { if (action === 'close') { e.preventDefault(); e.stopPropagation(); stepTour('close') } return }
+      trapTab(e, card.current)
       if (!action) return
+      // "do this": the click moves on, not a key. Back stops at a click
+      if (action === 'next' && tour.steps[up.step].do) return
+      if (action === 'back' && !canGoBack(tour, up.step)) return
       // Enter on one of the card's buttons presses that button
       if (e.key === 'Enter' && card.current?.contains(e.target)) return
       e.preventDefault()
@@ -238,6 +281,21 @@ function Pointers({ name, step, dimmed, closing, wait }) {
     return () => { document.removeEventListener('keydown', key, true); window.removeEventListener('resize', resize) }
   }, [])
   useEffect(() => { if (pos) card.current?.querySelector('[data-next]')?.focus({ preventScroll: true }) }, [pos != null, view?.step]) // eslint-disable-line react-hooks/exhaustive-deps
+  // a pointer that ticks its step by being reached (the draft appeared)
+  useEffect(() => { if (view && !tour.steps[view.step].do) reached(view.step) }, [view?.step]) // eslint-disable-line react-hooks/exhaustive-deps
+  // "do this": a click on the lit element moves on (a link that would leave the page stays, mock only)
+  const doing = Boolean(view && view.step === step && tour.steps[step].do && !closing)
+  useEffect(() => {
+    if (!doing) return undefined
+    const s = tour.steps[step]
+    const click = (e) => {
+      if (!holeOf(s)?.els.some((el) => el.contains(e.target))) return
+      if (s.stay) e.preventDefault()
+      didStep()
+    }
+    document.addEventListener('click', click, true)
+    return () => document.removeEventListener('click', click, true)
+  }, [doing, tour, step])
 
   const i = view?.step ?? step
   const n = tour.steps.length
@@ -246,14 +304,22 @@ function Pointers({ name, step, dimmed, closing, wait }) {
   // the page is already dim after Welcome; otherwise the dim comes in with the first pointer (not before it is found)
   const up = dimmed || view != null
   return createPortal(
-    <div className={`fixed inset-0 z-[90] ${keys ? 'wt-keys' : ''}`} data-walkthrough={name} data-closing={closing ? '' : undefined}
+    <div className={`fixed inset-0 z-[90] ${keys ? 'wt-keys' : ''} pointer-events-none`} data-walkthrough={name} data-closing={closing ? '' : undefined} data-waiting={up ? undefined : ''}
       style={{ opacity: up && !(closing && reduced()) ? 1 : 0, transition: dimmed && !closing ? 'none' : 'opacity var(--wt-fade) var(--wt-ease)' }}>
       {/* the one dim layer, with the lit area cut out of it (before the element is found: no hole yet) */}
-      <svg className="absolute inset-0 h-full w-full" width={win.w} height={win.h} aria-hidden>
+      <svg className="pointer-events-none absolute inset-0 h-full w-full" width={win.w} height={win.h} aria-hidden>
         <path data-dim fillRule="evenodd" fill="var(--color-scrim-modal)" d={`M0 0H${win.w}V${win.h}H0Z${drawn ? cut(drawn) : ''}`} />
       </svg>
       {/* nothing on the page can be clicked while a pointer is up, the lit element included */}
-      <div className="absolute inset-0" aria-hidden data-hole={drawn ? [drawn.left, drawn.top, drawn.width, drawn.height].map((v) => Math.round(v * 10) / 10).join(' ') : undefined} />
+      {doing && drawn ? (
+        // "do this": everything but the lit area is covered, so only the lit element takes the click
+        <div aria-hidden className="*:pointer-events-auto" data-hole={[drawn.left, drawn.top, drawn.width, drawn.height].map((v) => Math.round(v * 10) / 10).join(' ')} data-do>
+          <div className="absolute inset-x-0 top-0" style={{ height: Math.max(0, drawn.top) }} />
+          <div className="absolute inset-x-0 bottom-0" style={{ top: drawn.top + drawn.height }} />
+          <div className="absolute left-0" style={{ top: drawn.top, height: drawn.height, width: Math.max(0, drawn.left) }} />
+          <div className="absolute right-0" style={{ top: drawn.top, height: drawn.height, left: drawn.left + drawn.width }} />
+        </div>
+      ) : <div className={`absolute inset-0 ${up ? 'pointer-events-auto' : ''}`} aria-hidden data-hole={drawn ? [drawn.left, drawn.top, drawn.width, drawn.height].map((v) => Math.round(v * 10) / 10).join(' ') : undefined} />}
       {/* on arrival: one soft ring, once, around the lit area */}
       {pulse && !closing && <span key={pulse.step} aria-hidden className="wt-pulse pointer-events-none absolute rounded-[12px]" style={{ left: pulse.hole.left - 2, top: pulse.hole.top - 2, width: pulse.hole.width + 4, height: pulse.hole.height + 4 }} />}
       {view && (
@@ -261,17 +327,19 @@ function Pointers({ name, step, dimmed, closing, wait }) {
           style={sheet ? { opacity: closing ? 0 : 1, transition: travel }
             : { left: 0, top: 0, transform: `translate3d(${pos?.left ?? 0}px, ${pos?.top ?? 0}px, 0)`, opacity: pos && !closing ? 1 : 0, transition: pos && shown.current && view.glide ? travel : 'opacity var(--wt-fade) var(--wt-ease)' }}
           className={sheet
-            ? `fixed inset-x-0 border-line bg-overlay p-4 shadow-xl ${sheet === 'top' ? 'top-0 rounded-b-2xl border-b pt-[max(16px,env(safe-area-inset-top))]' : 'bottom-0 rounded-t-2xl border-t pb-[max(16px,env(safe-area-inset-bottom))]'}`
-            : 'fixed w-[300px] max-w-[calc(100vw-24px)] rounded-xl border border-line bg-overlay p-4 shadow-lg'}>
+            ? `pointer-events-auto fixed inset-x-0 border-line bg-overlay p-4 shadow-xl ${sheet === 'top' ? 'top-0 rounded-b-2xl border-b pt-[max(16px,env(safe-area-inset-top))]' : 'bottom-0 rounded-t-2xl border-t pb-[max(16px,env(safe-area-inset-bottom))]'}`
+            : 'pointer-events-auto fixed w-[300px] max-w-[calc(100vw-24px)] rounded-xl border border-line bg-overlay p-4 shadow-lg'}>
           {/* 10px whatever the UI scale: its place is worked out in px */}
-          {!sheet && pos && <span aria-hidden data-caret className={`absolute rotate-45 border-line bg-overlay ${CARET_SIDE[pos.side]}`} style={{ width: 10, height: 10, ...caretAt(pos.side, pos.caret) }} />}
+          {!sheet && pos && CARET_SIDE[pos.side] && <span aria-hidden data-caret className={`absolute rotate-45 border-line bg-overlay ${CARET_SIDE[pos.side]}`} style={{ width: 10, height: 10, ...caretAt(pos.side, pos.caret) }} />}
           <Swap k={i} block className="text-[14px] leading-5 text-stone-900"><p aria-live="polite" data-pointer-text>{fill(tour.steps[i].text, names())}</p></Swap>
           <div className={`flex items-center gap-2 ${sheet ? 'mt-4' : 'mt-3.5'}`}>
             <span className="text-[12px] leading-4 text-stone-500 tabular-nums" data-count={`${i + 1} of ${n}`}><Swap k={i} roll>{i + 1}</Swap> of {n}</span>
             <button type="button" onClick={() => endTour(false)} className={`${plain} ${sheet ? 'h-10' : 'h-8'} px-2 text-[13px]`}>Skip</button>
             <span className="ml-auto flex items-center gap-2">
-              <button type="button" disabled={i === 0} onClick={() => stepTour('back')} className={`${line} ${sheet ? 'h-10 px-4' : 'h-8 px-3'} text-[13px]`}>Back</button>
-              <button type="button" data-next onClick={() => stepTour('next')} className={`${ink} ${sheet ? 'h-10 px-5' : 'h-8 px-3.5'} text-[13px]`}>{i === n - 1 ? 'Done' : 'Next'}</button>
+              <button type="button" disabled={!canGoBack(tour, i)} onClick={() => stepTour('back')} className={`${line} ${sheet ? 'h-10 px-4' : 'h-8 px-3'} text-[13px]`}>Back</button>
+              {tour.steps[i].do
+                ? <span className="text-[13px] leading-4 text-stone-500" data-do-hint>Click it to continue</span>
+                : <button type="button" data-next onClick={() => stepTour('next')} className={`${ink} ${sheet ? 'h-10 px-5' : 'h-8 px-3.5'} text-[13px]`}>{i === n - 1 ? 'Done' : 'Next'}</button>}
             </span>
           </div>
         </div>
@@ -291,7 +359,9 @@ export default function Walkthrough() {
     <>
       {(w.welcome || w.welcomeOut) && <Welcome out={w.welcome ? null : w.welcomeOut} />}
       <Board />
-      {w.tour && <Pointers key={w.tour} name={w.tour} step={w.step} dimmed={w.dimmed} closing={w.closing} wait={w.wait} />}
+      {w.tour && <Pointers key={w.tour} name={w.tour} step={w.step} dimmed={w.dimmed} closing={w.closing} wait={w.wait} gap={w.gap} hold={w.hold} />}
+      {/* a small confirmation (Reach out, whose link stays on the page in the mock) */}
+      {w.note && createPortal(<div role="status" data-wt-note className="wt-fade fixed bottom-6 left-1/2 z-[97] -translate-x-1/2 rounded-lg bg-ink px-4 py-2.5 text-[13px] leading-[18px] font-medium text-on-ink shadow-lg">{w.note}</div>, document.body)}
     </>
   )
 }

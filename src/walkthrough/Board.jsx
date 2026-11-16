@@ -424,7 +424,7 @@ export default function Board() {
             <div className="grid grid-cols-6 gap-2.5 max-md:flex max-md:overflow-x-auto max-md:pb-1" data-trail>
               {TASKS.map((t) => <Frame key={t.id} t={t} w={w} shown={step.id === t.id} onPick={(x) => setPick(isDone(w, x.id) ? x : null)} />)}
             </div>
-          ) : <p className="wt-fade text-[13px] leading-[18px] text-stone-600" data-replay-note>You can replay any step from Settings.</p>}
+          ) : <p className="wt-fade text-[13px] leading-[18px] text-stone-600" data-replay-note>You can take the guided setup again from Settings.</p>}
         </div>
       </section>
     </div>,

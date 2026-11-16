@@ -1,5 +1,5 @@
-// Getting started (mock only): the small card above the brand switcher, Brand Setup's Save bar, the demo "Mark as done"
-// bar of steps 4 to 6, and the Walkthrough rows in Settings. The card opens the board (Board.jsx). Words and rules:
+// Getting started (mock only): the small card above the brand switcher, Brand Setup's Save bar, and the
+// Getting started card's Replay in Settings. The card opens the board (Board.jsx). Words and rules:
 // tour.js. Motion: motion.js.
 //
 // Card, the "stack" (owner, 2026-11-16): one row.
@@ -17,13 +17,13 @@
 //           dots. A few seconds after the board is closed the card fades and the sidebar closes the gap.
 // The board grows out of the stack's top card. Reduced motion: no fan or slide; the cards swap with a fade.
 import { useEffect, useRef, useState } from 'react'
-import Switch from '../components/ui/Switch'
+import { createPortal } from 'react-dom'
 import { useIsCompact } from '../hooks/useMedia'
-import { DONE_TITLE, TASKS, TOURS, allDone, currentTask, demoTask, doneCount, isDone, nextLine, nextTask, taskStatus } from './tour.js'
+import { DONE_TITLE, TASKS, allDone, currentTask, doneCount, isDone, nextLine, nextTask, taskStatus } from './tour.js'
 import { LARGE, ms } from './motion.js'
 import Swap from './Swap'
 import { Mini } from './Board'
-import { finish, restart, setHints, setShow, startTour, tick, toggleList, useWalkthrough } from './store.js'
+import { finish, restart, tick, toggleList, useWalkthrough } from './store.js'
 
 const inkBtn = 'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-ink font-medium text-on-ink outline-none transition-colors duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2'
 const colourOf = (t) => `var(--wt-c${TASKS.indexOf(t) + 1})`
@@ -137,55 +137,35 @@ export function ConfirmSetup() {
   )
 }
 
-// Steps 4 to 6 (mock only): what really finishes them isn't decided, so while one of them is the current step its page
-// shows this bar, and "Mark as done" ticks it. path: the page (the sidebar's path for it).
-export function TaskAction({ path }) {
-  const w = useWalkthrough()
-  const t = demoTask(w, path)
-  if (!t) return null
-  return (
-    <section data-task-action={t.id} aria-label="Getting started step" className={`${bar} rounded-2xl`}>
-      <div className="min-w-0">
-        <p className="text-[12px] leading-4 text-stone-500 tabular-nums">Getting started · step {TASKS.indexOf(t) + 1} of {TASKS.length}</p>
-        <h2 className="mt-0.5 text-[15px] leading-5 font-semibold text-stone-900">{t.title}</h2>
-        <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600">{t.why}</p>
-      </div>
-      <button type="button" onClick={() => tick(t.id)} className={`${inkBtn} h-9 px-4 text-small max-md:w-full`}>Mark as done</button>
-    </section>
-  )
-}
-
-// Settings → Walkthrough: the rows of that card (the card itself is Brand Setup's SettingsCard)
-export function WalkthroughRows() {
-  const w = useWalkthrough()
-  const row = 'flex min-h-[52px] items-center justify-between gap-4 px-5 py-2.5'
-  const btn = 'inline-flex h-8 shrink-0 items-center rounded-md border border-line bg-surface px-3 text-[13px] font-medium text-stone-700 outline-none transition-colors duration-150 ease-out hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus'
-  const Text = ({ title, sub }) => (
-    <span className="min-w-0">
-      <span className="block text-[14px] leading-5 font-medium text-stone-900">{title}</span>
-      {sub && <span className="block text-[13px] leading-[18px] text-stone-600">{sub}</span>}
-    </span>
-  )
+// Settings → Getting started (owner, 2026-11-16): the card's one action. "Replay" asks once, then clears progress and
+// runs it all again from the Welcome card. This is the only way to start it again.
+export function ReplayGuide() {
+  const [asking, setAsking] = useState(false)
+  const box = useRef(null)
+  useEffect(() => {
+    if (!asking) return undefined
+    box.current?.querySelector('[data-confirm]')?.focus()
+    const key = (e) => { if (e.key === 'Escape') { e.preventDefault(); setAsking(false) } }
+    document.addEventListener('keydown', key)
+    return () => document.removeEventListener('keydown', key)
+  }, [asking])
+  const line = 'inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-line bg-surface px-4 text-small font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2'
   return (
     <>
-      <li className={row}>
-        <Text title="Restart the walkthrough" sub="Welcome, the menu, then your six steps, from the start" />
-        <button type="button" onClick={restart} className={btn}>Restart</button>
-      </li>
-      {Object.entries(TOURS).map(([key, t]) => (
-        <li key={key} className={row}>
-          <Text title={t.label} sub={`${t.steps.length} pointers`} />
-          <button type="button" onClick={() => startTour(key)} aria-label={`Replay ${t.label}`} className={btn}>Replay</button>
-        </li>
-      ))}
-      <li className={row}>
-        <Text title="Show hints on pages" sub="A “?” beside the page title replays that page’s pointers" />
-        <Switch checked={w.hints} onChange={setHints} aria-label="Show hints on pages" />
-      </li>
-      <li className={row}>
-        <Text title="Show Getting started" sub="Your six steps, above the brand menu" />
-        <Switch checked={w.show} onChange={setShow} aria-label="Show Getting started" />
-      </li>
+      <button type="button" data-replay-guide onClick={() => setAsking(true)} className={line}>Replay</button>
+      {asking && createPortal(
+        <div className="fixed inset-0 z-[95] grid place-items-center p-4" data-replay-confirm>
+          <div aria-hidden className="wt-fade absolute inset-0 bg-scrim-modal" onClick={() => setAsking(false)} />
+          <div ref={box} role="alertdialog" aria-modal="true" aria-labelledby="wt-replay-title" className="wt-fade relative w-full max-w-[380px] rounded-2xl border border-line bg-overlay p-6 shadow-xl">
+            <h2 id="wt-replay-title" className="text-[17px] leading-6 font-semibold text-stone-900">Start the guide again from the beginning?</h2>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setAsking(false)} className={line}>Cancel</button>
+              <button type="button" data-confirm onClick={() => { setAsking(false); restart() }} className={`${inkBtn} h-9 px-4 text-small`}>Replay</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </>
   )
 }

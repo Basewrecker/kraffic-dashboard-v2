@@ -43,7 +43,6 @@ import { CardGate } from './components/ui/CardState'
 import CookieBanner from './components/ui/CookieBanner'
 import WebsiteFactsPage from './pages/facts/WebsiteFactsPage'
 import Walkthrough from './walkthrough/Walkthrough'
-import { TaskAction } from './walkthrough/GettingStarted'
 
 
 function DashboardPage() {
@@ -123,8 +122,6 @@ export default function App() {
           {/* same content container on every page (16px gutters on phones, 24px from md) */}
           {/* Site Audit ends 64px under its last card (pb-16 alone, no spacer) */}
           <main className={`mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 ${route === '/audit' ? 'pb-16' : 'pb-10'} pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8`}>
-            {/* Getting started, steps 4 to 6 (mock only): the page's "Mark as done" while it is the current step */}
-            <TaskAction path={navPath} />
             {body}
           </main>
         </div>

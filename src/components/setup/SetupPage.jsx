@@ -17,7 +17,7 @@ import { guessTopicType } from '../../data/topics'
 import { EMPTY_GUIDELINES, GUIDE_ACCEPT, guideReject, guidelinesPreview, hasGuidelines, loadGuidelines, removeGuidelines, saveGuidelines } from '../../data/brandGuidelines'
 import { readFile } from '../../pages/opportunities/data/extract'
 import GuidelinesForm from '../../pages/opportunities/workspace/Guidelines'
-import { ConfirmSetup, WalkthroughRows } from '../../walkthrough/GettingStarted'
+import { ConfirmSetup, ReplayGuide } from '../../walkthrough/GettingStarted'
 import { TourHelp } from '../../walkthrough/Walkthrough'
 
 // /setup: what Kraffic tracks for a brand, in the same settings layout as /llm-settings —
@@ -883,10 +883,8 @@ export default function SetupPage() {
         />
       )}
 
-      {/* the walkthrough's settings (mock only): restart, replay a page's pointers, hints, Getting started */}
-      <SettingsCard id="walkthrough" title="Walkthrough" description="The first-time tour and your Getting started steps">
-        <WalkthroughRows />
-      </SettingsCard>
+      {/* Getting started (mock only): one card, one action. The only way to start the guide again */}
+      <SettingsCard id="getting-started" title="Getting started" description="Take the guided setup again, from the start." action={<ReplayGuide />} />
 
       <BrandModal
         open={Boolean(modal)}

@@ -6,6 +6,17 @@
 // Overview.
 // Each pointer names the element it lights (a CSS selector; `all` lights every match as one box; `maxHeight` lights
 // only the top of a tall element) and the side its card prefers. Six Getting started steps (TASKS), done in order.
+//
+// More a pointer can say (the flows that cross pages: tone, content, outreach):
+//   at       the page it is on ('/sentiment', or '/opportunities/content/*' for any page under it); else its tour's href
+//   has      the element must hold this text (one of these texts); exact: its first line is exactly that
+//   within   look inside the first element that matches this
+//   do       "do this": the lit element is clickable, the card has no Next, and the click moves on. The next pointer
+//            starts once what the click opened has settled
+//   stay     that click doesn't follow its link (mock only); `confirm` is shown instead
+//   ticks    reaching it (a `do` pointer: clicking it) ticks the tour's step (`task`)
+//   open     its element is folded away until this is clicked: the pointer clicks it first (Fact Check's full list)
+//   centre   a closing card in the middle of the window, with no lit element
 
 export const APP = 'Kraffic'
 
@@ -15,9 +26,9 @@ export const fill = (text, { app = APP, brand = '' } = {}) => text.replaceAll('{
 export const WELCOME = {
   title: 'Welcome to {app}',
   text: 'Let’s get {brand} set up. It takes about five minutes. We’ll show you where things are and what to do first.',
-  start: 'Start walkthrough',
+  start: 'Start the guide',
   skip: 'Skip, I know my way around',
-  note: 'You can start it any time from the menu at the bottom left.',
+  note: 'You can take it again any time from Settings.',
 }
 
 export const TOURS = {
@@ -64,6 +75,16 @@ export const TOURS = {
       { target: '.k-mo-btn', side: 'bottom', text: 'Neutral and mixed pages are your chance to win a better mention. This opens the list.' },
     ],
   },
+  // Fact Check is the app's own page file too (the sidebar's Fact Check is /website-facts)
+  'fact-check': {
+    label: 'Fact Check',
+    href: '/website-facts',
+    steps: [
+      { target: '[data-fc-hero]', side: 'bottom', text: 'These are the facts we found on your site, and whether AI agrees with them.' },
+      { target: '[data-fc-box]', all: true, maxHeight: 300, side: 'top', text: 'Compare what you say with what others say.' },
+      { open: '[data-fc-box="site"] [data-fc-more][aria-expanded="false"]', within: 'li.fc-row:has([data-fc-fix])', target: '[data-fc-why-link], [data-fc-fix]', all: true, side: 'bottom', text: 'See why a fact doesn’t match, then fix it on your page.' },
+    ],
+  },
   overview: {
     label: 'Visibility Overview',
     href: '/overview',
@@ -74,25 +95,72 @@ export const TOURS = {
       { target: '#history', side: 'right', text: 'This shows how your visibility changes over time.' },
     ],
   },
+  // Step 5, from the Content list to a draft. The user does the clicks; the pointers explain each stop.
+  content: {
+    label: 'Create content',
+    task: 'content',
+    steps: [
+      { at: '/opportunities/content', target: '#missed-prompts', maxHeight: 340, side: 'bottom', text: 'These are prompts where AI doesn’t name you yet.' },
+      { at: '/opportunities/content', target: '#missed-prompts thead th:last-child, #missed-prompts tbody td:last-child', all: true, maxHeight: 340, side: 'left', text: 'This shows where each page is: to create, draft ready, waiting to publish, or being checked.' },
+      { at: '/opportunities/content', target: '#missed-prompts tbody tr', has: 'Create content', do: true, side: 'bottom', text: 'Open this prompt to start.' },
+      { at: '/opportunities/content/*', target: '[data-step-head]', side: 'bottom', text: 'This shows who AI names today and what your draft will add.' },
+      { at: '/opportunities/content/*', target: '.co-head-btn button', do: true, side: 'bottom', text: 'Start here. We write a draft for your page.' },
+      { at: '/opportunities/content/*', target: '.co-panel [data-step="data"] .border-dashed', side: 'top', text: 'Add your own numbers or documents. They make the page yours.' },
+      { at: '/opportunities/content/*', target: '.co-panel [data-guidelines-used]', side: 'bottom', text: 'We write in your brand’s voice. Check or change it here.' },
+      { at: '/opportunities/content/*', target: '.co-panel button', has: 'Write the draft', do: true, side: 'bottom', text: 'Create the draft.' },
+      { at: '/opportunities/content/*', target: '.co-panel article[aria-label="Draft"]', maxHeight: 420, ticks: true, side: 'right', text: 'Read it and change anything you like.' },
+      { at: '/opportunities/content/*', target: '.co-panel button', has: ['Copy content', 'More'], exact: true, all: true, side: 'top', text: 'Copy it or download it, then publish it on your site.' },
+      { at: '/opportunities/content/*', centre: true, text: 'After you publish, we check your page and watch the AI engines for four weeks.' },
+    ],
+  },
+  // Step 6, from Sentiment to the first Reach out
+  outreach: {
+    label: 'Reach out',
+    task: 'outreach',
+    steps: [
+      { at: '/sentiment', target: '.k-mo-btn', do: true, side: 'bottom', text: 'Neutral and mixed pages are your chance to win a better mention. Open the list.' },
+      { at: '/sentiment', target: '#missed-opportunities', maxHeight: 340, side: 'top', text: 'These publications mention you, but not clearly in your favour.' },
+      { at: '/sentiment', target: '#missed-opportunities thead tr:first-child th:nth-child(2), #missed-opportunities tbody td:nth-child(2)', all: true, maxHeight: 340, side: 'right', text: 'These AI engines use this page as a source.' },
+      { at: '/sentiment', target: '#missed-opportunities a.k-reach', do: true, stay: true, ticks: true, confirm: 'Reach out opened. In this mock the link stays on this page.', side: 'left', text: 'This opens the best way to contact the publication.' },
+    ],
+  },
 }
+// Step 4: Sentiment's pointers, then Fact Check's, as one run
+TOURS.tone = {
+  label: 'What AI says',
+  task: 'tone',
+  steps: [...TOURS.sentiment.steps.map((s) => ({ ...s, at: '/sentiment' })), ...TOURS['fact-check'].steps.map((s) => ({ ...s, at: '/website-facts' }))],
+}
+
+// the page a pointer is on, and whether a path is that page
+export const atOf = (tour, i) => tour?.steps[i]?.at ?? tour?.href ?? null
+export const onPage = (at, path) => !at || (at.endsWith('/*') ? path.startsWith(at.slice(0, -1)) && path.length > at.length - 1 : path === at)
+// where a tour starts: its href, or its first pointer's page
+export const startOf = (tour, i = 0) => { const at = atOf(tour, i); return at && !at.endsWith('/*') ? at : null }
+// Back isn't offered past a click (the pointer before was "do this"), nor on the first pointer
+export const canGoBack = (tour, i) => i > 0 && !tour.steps[i - 1].do
+// leaving a flow midway: Start resumes from the first pointer of the page it stopped on
+export const resumeStep = (tour, i) => { let k = Math.min(i, tour.steps.length - 1); while (k > 0 && atOf(tour, k - 1) === atOf(tour, k)) k--; return k }
+// the tour that is a Getting started step's own run (its end is the step's end)
+export const taskOfTour = (name) => TASKS.find((t) => t.tour === name && t.how !== 'save') ?? null
 
 // the pointers a page has (its "?" replays them)
 export const tourForPath = (path) => Object.keys(TOURS).find((k) => TOURS[k].href === path) ?? null
+
 
 // short: the step's short name (the board's trail, the card's "Next:" line) · opens: what Start opens, in words.
 // Each step has its own colour on the board, by its place: --wt-c1 … --wt-c6 (index.css).
 // Getting started: six steps, done in order (only the current step can be started or ticked). href: the page a step
 // opens; tour: that page's pointers; results: it needs the first scan's results. how a step ticks itself:
-//   save: Brand Setup's Save · tour: its page's pointers were finished · open: its page was opened ·
-//   demo: "Mark as done" on its page (mock only: the real triggers for these three aren't decided)
-// (There is no outreach page in the mock yet: step 6 opens Content.)
+//   save: Brand Setup's Save · tour: its pointers were finished · open: its page was opened ·
+//   flow: a pointer of its tour says so (`ticks`): step 5 when the draft appears, step 6 when Reach out is clicked
 export const TASKS = [
   { id: 'brand', short: 'Your brand', opens: 'Brand Setup', title: 'Confirm your brand and competitors', why: 'We track what you tell us here.', href: '/brands', tour: 'brand-setup', how: 'save', pages: ['Brand Setup'] },
   { id: 'prompts', short: 'Your prompts', opens: 'Prompt Hub', title: 'Review the prompts we track', why: 'These are the questions people ask AI.', href: '/tracker', tour: 'prompt-hub', how: 'tour', pages: ['Prompt Hub'] },
   { id: 'results', short: 'Where you stand', opens: 'Visibility Overview', title: 'See where you stand', why: 'Your first results are in.', href: '/overview', tour: 'overview', how: 'open', results: true, pages: ['Visibility Overview'] },
-  { id: 'tone', short: 'What AI says', opens: 'Sentiment, then Fact Check', title: 'Check what AI says about you', why: 'See the tone, and fix wrong facts.', href: '/sentiment', tour: 'sentiment', how: 'demo', results: true, pages: ['Sentiment', 'Fact Check'] },
-  { id: 'content', short: 'First content', opens: 'Content', title: 'Create your first content', why: 'Write a page for a prompt you’re missing.', href: '/opportunities/content', how: 'demo', results: true, pages: ['Content'] },
-  { id: 'outreach', short: 'Reach out', opens: 'Sentiment, then Opportunities', title: 'Reach out on one opportunity', why: 'Ask a publication to mention you.', href: '/sentiment', how: 'demo', results: true, pages: ['Sentiment', 'Opportunities'] }, // the Opportunities view opens from Sentiment (synced from the app)
+  { id: 'tone', short: 'What AI says', opens: 'Sentiment, then Fact Check', title: 'Check what AI says about you', why: 'See the tone, and fix wrong facts.', href: '/sentiment', tour: 'tone', how: 'tour', results: true, pages: ['Sentiment', 'Fact Check'] },
+  { id: 'content', short: 'First content', opens: 'Content', title: 'Create your first content', why: 'Write a page for a prompt you’re missing.', href: '/opportunities/content', tour: 'content', how: 'flow', results: true, pages: ['Content'] },
+  { id: 'outreach', short: 'Reach out', opens: 'Sentiment, then Opportunities', title: 'Reach out on one opportunity', why: 'Ask a publication to mention you.', href: '/sentiment', tour: 'outreach', how: 'flow', results: true, pages: ['Sentiment', 'Opportunities'] }, // the Opportunities view opens from Sentiment (synced from the app)
 ]
 export const WAITING = 'Waiting for your first results'
 export const ALL_DONE = 'You’re set up. {app} keeps checking AI for you. Come back each week to see what changed.'
@@ -164,8 +232,8 @@ const tickIf = (state, test) => { const t = state.show && !state.closed ? nextTa
 export const visit = (state, path) => tickIf(state, (t) => t.how === 'open' && t.href === path)
 // a page's pointers were finished (the last Next, not Skip): the current step ticks if that is what it asks
 export const tourDone = (state, tour) => tickIf(state, (t) => t.how === 'tour' && t.tour === tour)
-// the step a page shows its demo "Mark as done" for
-export const demoTask = (state, path) => { const t = state.show && !state.closed ? nextTask(state) : null; return t && t.how === 'demo' && t.href === path ? t : null }
+// a pointer that ticks its tour's step was reached (the draft appeared, Reach out was clicked)
+export const flowDone = (state, tour) => tickIf(state, (t) => t.how === 'flow' && t.tour === tour)
 
 // ---------------------------------------------------------------- pointers
 // keys while a pointer is up: → ↓ Enter = next · ← ↑ = back · Esc = close

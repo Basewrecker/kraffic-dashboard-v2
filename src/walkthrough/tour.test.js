@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ALL_DONE, CARET, OFF, TASKS, TOURS, WELCOME, allDone, complete, currentTask, demoTask, doneCount, fill, fitHole, fresh, fromParam, keyAction, move, nextLine, nextTask, overlaps, placeCard, restore, sheetSide, taskStatus, tourDone, tourForPath, union, visit } from './tour.js'
+import { ALL_DONE, CARET, OFF, TASKS, TOURS, WELCOME, allDone, atOf, canGoBack, complete, currentTask, doneCount, flowDone, onPage, resumeStep, startOf, taskOfTour, fill, fitHole, fresh, fromParam, keyAction, move, nextLine, nextTask, overlaps, placeCard, restore, sheetSide, taskStatus, tourDone, tourForPath, union, visit } from './tour.js'
 import { bezier, ease } from './motion.js'
 
 const on = { ...fresh(), welcome: false }
@@ -59,7 +59,7 @@ test('steps are done in order: only the current one ticks', () => {
   assert.equal(nextLine(fromParam('done')), 'All six steps done')
 })
 
-test('how each step ticks: Save, the pointers finished, the page opened, the demo action', () => {
+test('how each step ticks: Save, the pointers finished, the page opened, a flow\'s own pointer', () => {
   // 1: Save only (opening Brand Setup or finishing its pointers doesn't tick it)
   assert.equal(visit(on, '/brands'), on)
   assert.equal(tourDone(on, 'brand-setup'), on)
@@ -72,13 +72,15 @@ test('how each step ticks: Save, the pointers finished, the page opened, the dem
   assert.equal(visit(one, '/overview'), one)
   const two = after('brand', 'prompts')
   assert.deepEqual(visit(two, '/overview').done, ['brand', 'prompts', 'results'])
-  // 4 to 6: a demo action on their page, one step at a time (4 and 6 are both on Sentiment)
+  // 4: its pointers finished (Sentiment, then Fact Check) · 5 and 6: a pointer of their flow says so
   const three = after('brand', 'prompts', 'results')
-  assert.equal(demoTask(three, '/sentiment').id, 'tone')
-  assert.equal(demoTask(three, '/opportunities/content'), null)
-  assert.equal(demoTask(after('brand', 'prompts', 'results', 'tone'), '/opportunities/content').id, 'content')
-  assert.equal(demoTask(after('brand', 'prompts', 'results', 'tone', 'content'), '/sentiment').id, 'outreach')
-  assert.equal(demoTask(after('brand', 'prompts', 'results', 'tone', 'content'), '/opportunities/content'), null)
+  assert.equal(tourDone(three, 'sentiment'), three)
+  assert.deepEqual(tourDone(three, 'tone').done.at(-1), 'tone')
+  const four = after('brand', 'prompts', 'results', 'tone')
+  assert.equal(tourDone(four, 'content'), four) // finishing the pointers isn't what ticks it
+  assert.equal(flowDone(four, 'outreach'), four) // one step at a time
+  assert.equal(flowDone(four, 'content').done.at(-1), 'content')
+  assert.equal(flowDone(after('brand', 'prompts', 'results', 'tone', 'content'), 'outreach').done.at(-1), 'outreach')
   assert.ok(allDone(after('brand', 'prompts', 'results', 'tone', 'content', 'outreach')))
   // hidden: nothing ticks
   assert.equal(visit({ ...two, show: false }, '/overview').done.length, 2)
@@ -173,4 +175,38 @@ test('the one easing: cubic-bezier(0.22, 1, 0.36, 1), fast out and settling with
   for (let i = 1; i <= 20; i++) { const v = ease(i / 20); assert.ok(v >= last && v <= 1, `rises without passing 1 (${v})`); last = v }
   assert.ok(ease(0.25) > 0.6, 'most of the way a quarter of the time in')
   assert.ok(Math.abs(bezier(0, 0, 1, 1)(0.3) - 0.3) < 0.001) // a straight line stays one
+})
+
+test('the flows: pages, "do this" pointers, and where a flow left midway resumes', () => {
+  const c = TOURS.content, o = TOURS.outreach, t = TOURS.tone
+  assert.deepEqual([t.steps.length, c.steps.length, o.steps.length], [7, 11, 4])
+  assert.deepEqual(c.steps.flatMap((s, i) => (s.do ? [i + 1] : [])), [3, 5, 8])
+  assert.deepEqual(o.steps.flatMap((s, i) => (s.do ? [i + 1] : [])), [1, 4])
+  assert.equal(c.steps.findIndex((s) => s.ticks), 8) // the draft
+  assert.ok(o.steps[3].ticks && o.steps[3].stay && o.steps[3].confirm)
+  assert.ok(c.steps.at(-1).centre && !c.steps.at(-1).target)
+  // step 4 runs Sentiment's four, then Fact Check's three, each on its page
+  assert.deepEqual(t.steps.map((s) => s.at), ['/sentiment', '/sentiment', '/sentiment', '/sentiment', '/website-facts', '/website-facts', '/website-facts'])
+  assert.equal(tourForPath('/website-facts'), 'fact-check')
+  // pages
+  assert.ok(onPage('/opportunities/content', '/opportunities/content'))
+  assert.ok(!onPage('/opportunities/content', '/opportunities/content/13'))
+  assert.ok(onPage('/opportunities/content/*', '/opportunities/content/13'))
+  assert.ok(!onPage('/opportunities/content/*', '/opportunities/content'))
+  assert.ok(onPage(null, '/anything'))
+  assert.equal(atOf(TOURS.overview, 0), '/overview')
+  assert.equal(startOf(c), '/opportunities/content')
+  assert.equal(startOf(c, 4), null) // a prompt's own page: wherever the flow was
+  assert.equal(startOf(t, 4), '/website-facts')
+  // Back: not on the first pointer, not past a click
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map((i) => canGoBack(c, i)), [false, true, true, false, true, false])
+  assert.equal(canGoBack(t, 4), true) // from Fact Check back to Sentiment
+  // left midway: the first pointer of the page it stopped on
+  assert.deepEqual([0, 2, 3, 4, 7, 10].map((i) => resumeStep(c, i)), [0, 0, 3, 3, 3, 3])
+  assert.deepEqual([3, 5].map((i) => resumeStep(t, i)), [0, 4])
+  // a step's own run (its end opens the board again): not Brand Setup's, which ends with Save
+  assert.deepEqual(['brand-setup', 'prompt-hub', 'overview', 'tone', 'content', 'outreach', 'sentiment'].map((n) => taskOfTour(n)?.id ?? null), [null, 'prompts', 'results', 'tone', 'content', 'outreach', null])
+  // nothing the user reads says "walkthrough", "tour" or "pointers"
+  const words = [WELCOME.title, WELCOME.text, WELCOME.start, WELCOME.skip, WELCOME.note, ...Object.values(TOURS).flatMap((x) => [x.label, ...x.steps.flatMap((s) => [s.text, s.confirm ?? ''])]), ...TASKS.flatMap((x) => [x.short, x.opens, x.title, x.why])]
+  assert.ok(words.every((w) => !/walkthrough|\btour|pointer/i.test(w)))
 })

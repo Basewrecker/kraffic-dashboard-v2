@@ -1,10 +1,11 @@
 // Browser test: the first-time walkthrough (src/walkthrough, mock only).
-// ?walkthrough=new shows Welcome; Start walkthrough lights the sidebar's groups one at a time. The lit area is a hole
+// ?walkthrough=new shows Welcome; Start the guide lights the sidebar's groups one at a time. The lit area is a hole
 // in the one dim layer: the group from its heading to its last item plus 4px (less where a neighbour is closer), never
 // touching another group, with the card beside it and the card's caret on the area's middle, 12px away. The arrow
 // keys and Enter move, Esc closes; the focus ring shows only while the keyboard is used.
 // Getting started: six steps in order. Step 1 ticks on Brand Setup's Save, step 2 when Prompt Hub's pointers are
-// finished, step 3 when Visibility Overview is opened, steps 4 to 6 from "Mark as done" on their pages; then the
+// finished, step 3 when Visibility Overview is opened, steps 4 to 6 from their flows (4: Sentiment then Fact Check; 5:
+// Content to a draft; 6: Opportunities' Reach out; "do this" pointers are clicked, not Next); then the
 // last message, and the card goes. Reduced motion: no glide. Phone width: the card is a full-width sheet and the
 // list is in the menu drawer.
 // Runs a real browser (playwright-core + the Chromium in ~/Library/Caches/ms-playwright) against Vite's dev server.
@@ -82,7 +83,7 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     await page.goto(at('/overview?walkthrough=new'), { waitUntil: 'networkidle' })
     assert.equal(await page.getByRole('dialog').getByRole('heading').innerText(), 'Welcome to Kraffic')
     assert.equal(await cardSays(page), '0 of 6 · Next: Your brand')
-    await page.getByRole('button', { name: 'Start walkthrough' }).click()
+    await page.getByRole('button', { name: 'Start the guide' }).click()
 
     // ---- the five menu pointers
     const targets = ['nav-insights', 'nav-opportunities', 'nav-optimize', 'nav-settings', 'getting-started'].map((k) => `[data-tour="${k}"]`)
@@ -155,7 +156,7 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     assert.equal(await page.locator('[data-board=open] .wt-segs-top .wt-seg[data-state=done]').count(), 1)
     // a done frame shows its step again, with Replay; the current frame brings the hero back
     await page.locator('button[data-frame=brand]').click()
-    await page.getByRole('button', { name: 'Replay', exact: true }).waitFor()
+    await page.locator('[data-board=open]').getByRole('button', { name: 'Replay', exact: true }).waitFor()
     await page.locator('button[data-frame=prompts]').click()
     await start(page).waitFor()
 
@@ -177,24 +178,62 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     assert.deepEqual(await steps(page), ['done', 'done', 'done', 'current', 'later', 'later'])
     assert.equal(await card(page).getAttribute('data-count'), '3 of 6')
 
-    // steps 4 to 6: "Mark as done" on their pages
-    for (const [n, path] of [[4, '/sentiment'], [5, '/opportunities/content'], [6, '/sentiment']]) {
-      await start(page).click()
-      if (n === 4) {
-        // Sentiment has pointers of its own; the fourth lights the Opportunities button
-        for (let i = 1; i <= 4; i++) {
-          const g = await pointer(page, `${i} of 4`, i === 4 ? '.k-mo-btn' : null)
-          assert.equal(g.over, false, `Sentiment pointer ${i}: the card is not over the lit area`)
-          if (i === 4) assert.ok(g.pad.every((v) => Math.abs(v - 4) < 0.2), `the Opportunities button is lit with 4px around it (${g.pad})`)
-          await page.locator('[data-next]').click()
-        }
-        await page.waitForFunction(() => !document.querySelector('[data-walkthrough]'))
+    // steps 4 to 6: their flows. n pointers; `dos` are "do this" (the lit element is clicked, there is no Next)
+    const litClick = async () => { const h = (await page.evaluate(() => document.querySelector('[data-walkthrough] [data-hole]').dataset.hole)).split(' ').map(Number); await page.mouse.click(h[0] + h[2] / 2, h[1] + h[3] / 2) }
+    const flow = async (name, n, dos, after = {}, from = 1, to = n) => {
+      for (let i = from; i <= to; i++) {
+        await page.waitForFunction((want) => { const d = document.querySelector('[data-walkthrough] [role=dialog]'); return d?.querySelector('[data-count]')?.dataset.count === want && getComputedStyle(d).opacity === '1' && !document.querySelector('[data-walkthrough][data-waiting]') }, `${i} of ${n}`, { timeout: 30000 })
+        await page.waitForTimeout(500)
+        const g = await page.evaluate(() => {
+          const c = document.querySelector('[data-walkthrough] [role=dialog]').getBoundingClientRect()
+          const h = document.querySelector('[data-walkthrough] [data-hole]')?.dataset.hole?.split(' ').map(Number)
+          return { dialogs: document.querySelectorAll('[data-walkthrough] [role=dialog]').length, hole: Boolean(h), over: Boolean(h) && h[0] < c.right && c.left < h[0] + h[2] && h[1] < c.bottom && c.top < h[1] + h[3], onScreen: !h || (h[1] >= 0 && h[1] < innerHeight - 20), next: Boolean(document.querySelector('[data-next]')), hint: document.querySelector('[data-do-hint]')?.textContent ?? null }
+        })
+        assert.equal(g.dialogs, 1, `${name} ${i}: one pointer on screen`)
+        assert.equal(g.over, false, `${name} ${i}: the card is not over the lit element`)
+        assert.ok(g.onScreen, `${name} ${i}: the lit element is on screen`)
+        assert.equal(g.hole, !(name === 'content' && i === n), `${name} ${i}: ${name === 'content' && i === n ? 'the closing card has no lit element' : 'an element is lit'}`)
+        if (dos.includes(i)) { assert.deepEqual([g.next, g.hint], [false, 'Click it to continue'], `${name} ${i} is a "do this" pointer`); await litClick() } else await page.locator('[data-next]').click()
+        if (after[i]) await after[i]()
       }
-      await page.waitForSelector('[data-task-action]')
-      assert.equal(new URL(page.url()).pathname, path)
-      await page.getByRole('button', { name: 'Mark as done' }).click()
-      await page.waitForFunction((want) => document.querySelector('[data-getting-started=sidebar] [data-tour="getting-started"]')?.dataset.count === `${want} of 6`, n)
+      if (to === n) await page.waitForFunction(() => !document.querySelector('[data-walkthrough]'))
     }
+    const count = (want) => page.waitForFunction((w) => document.querySelector('[data-getting-started=sidebar] [data-tour="getting-started"]')?.dataset.count === `${w} of 6`, want)
+    // 4: Sentiment's four, then Fact Check's three; it ticks at the end and the board opens again
+    await start(page).click()
+    await flow('tone', 7, [])
+    assert.equal(new URL(page.url()).pathname, '/website-facts')
+    await count(4); await page.waitForSelector('[data-board=open]')
+    // 5, left midway (Esc on the prompt's page): not done, and Start resumes on that page
+    await start(page).click()
+    await flow('content', 11, [3, 5, 8], {}, 1, 3)
+    await page.waitForFunction(() => document.querySelector('[data-walkthrough] [data-count]')?.dataset.count === '4 of 11' && !document.querySelector('[data-walkthrough][data-waiting]'))
+    assert.match(new URL(page.url()).pathname, /^\/opportunities\/content\/\d+$/)
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => !document.querySelector('[data-walkthrough]'))
+    assert.equal(await card(page).getAttribute('data-count'), '4 of 6')
+    await page.locator('a[href="/overview"]').first().click()
+    await card(page).click()
+    await start(page).click()
+    // 4 to 11: the click on the first button opens the one-time Brand Guidelines screen, where the pointers wait
+    await flow('content', 11, [3, 5, 8], {
+      5: async () => { await page.getByRole('button', { name: 'Skip for now' }).click() },
+      9: async () => assert.equal(await card(page).getAttribute('data-count'), '4 of 6', 'the tick waits for the pointers to close'),
+    }, 4)
+    await count(5); await page.waitForSelector('[data-board=open]')
+    // Replay on a done step: the same flow from its first pointer; going to another page ends it, and nothing ticks
+    await page.locator('[data-board=open] button[data-frame=content]').click()
+    await page.locator('[data-board=open]').getByRole('button', { name: 'Replay', exact: true }).click()
+    await flow('content', 11, [3, 5, 8], {}, 1, 1)
+    await page.evaluate(() => { history.pushState(null, '', '/tracker'); window.dispatchEvent(new PopStateEvent('popstate')) })
+    await page.waitForFunction(() => !document.querySelector('[data-walkthrough]'))
+    assert.equal(await card(page).getAttribute('data-count'), '5 of 6')
+    // 6: Sentiment's Opportunities button, the list, and Reach out, whose link stays on the page
+    await card(page).click()
+    await start(page).click()
+    await flow('outreach', 4, [1, 4], { 4: async () => assert.match(await page.locator('[data-wt-note]').innerText(), /^Reach out opened/) })
+    assert.equal(page.context().pages().length, 1)
+    await count(6)
     // all done: the hero is the summary; Done sends the sidebar card away
     assert.deepEqual(await steps(page), Array(6).fill('done'))
     await page.waitForFunction(() => [...document.querySelectorAll('[data-hero-title]')].at(-1)?.textContent === 'You’re set up')
@@ -223,7 +262,7 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     const still = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
     const quiet = await still.newPage()
     await quiet.goto(at('/overview?walkthrough=new'), { waitUntil: 'networkidle' })
-    await quiet.getByRole('button', { name: 'Start walkthrough' }).click()
+    await quiet.getByRole('button', { name: 'Start the guide' }).click()
     await pointer(quiet, '1 of 5')
     await quiet.locator('[data-next]').click()
     await quiet.waitForFunction(() => document.querySelector('[data-walkthrough] [role=dialog] span.tabular-nums')?.textContent === '2 of 5')
@@ -236,7 +275,7 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
     const small = await phone.newPage()
     await small.goto(at('/overview?walkthrough=new'), { waitUntil: 'networkidle' })
-    await small.getByRole('button', { name: 'Start walkthrough' }).click()
+    await small.getByRole('button', { name: 'Start the guide' }).click()
     for (let i = 1; i <= 5; i++) {
       const g = await pointer(small, `${i} of 5`)
       assert.equal(g.width, 390, `phone pointer ${i}: a full-width sheet`)

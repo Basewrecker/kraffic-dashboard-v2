@@ -9,7 +9,6 @@ import SiteLogo from '../ui/SiteLogo'
 import BetaTag from '../ui/BetaTag'
 import { agency, brand, recentBrands, role, switchBrand, visibleDirectory } from '../../store/workspace'
 import GettingStarted from '../../walkthrough/GettingStarted'
-import { startFromMenu } from '../../walkthrough/store'
 
 // grouped nav (same items and order as production); items without an href have no page yet.
 // Old routes redirect (see router.js REDIRECTS).
@@ -81,7 +80,6 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
     ['Team', Users, '/team'],
     ['Billing', CreditCard, '/billing'],
     ['Settings', Settings2, '/brands'],
-    ['Walkthrough', Compass, null, startFromMenu], // the menu's pointers again (mock only)
     ['Profile', UserRound, null],
   ]
   return (
