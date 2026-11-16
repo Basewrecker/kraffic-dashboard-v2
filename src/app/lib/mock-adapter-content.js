@@ -14,8 +14,9 @@ export { bestPageFor, brandScState, setBrandScState } from '../../data/gscMatch.
 export { competitorName, formatLabel } from '../../data/contentRecommend.js'
 import { CONTENT_HIDDEN as MOCK_HIDDEN } from '../../data/contentApp.js'
 // what the app hides for now (its values on 2026-11-15: the status hover card is back on published rows, and the
-// Google searches section is hidden)
-export const CONTENT_HIDDEN = { ...MOCK_HIDDEN, statusCard: false, googleSearches: true }
+// Google searches section is hidden). ?co=searches (mock only) shows that section, so its browser tests still run on it.
+const showSearches = typeof window !== 'undefined' && new Set((new URLSearchParams(window.location.search).get('co') ?? '').split(',')).has('searches')
+export const CONTENT_HIDDEN = { ...MOCK_HIDDEN, statusCard: false, googleSearches: !showSearches }
 
 // A site's display name (the app's one rule for the Content pages): a tracked brand's name, the brand on screen by its
 // name, any other site by its tidied domain; never the raw domain

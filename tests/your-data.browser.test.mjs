@@ -29,12 +29,20 @@ test('Your data (v1): files read in the browser, a fact, the 20k cap, kept per p
     page.on('pageerror', (e) => errors.push(String(e)))
     await page.goto(base, { waitUntil: 'networkidle' })
 
-    // 4 steps: Target page → Your data → Draft → Copy & publish; the Target bar's button opens Your data in focus
-    assert.equal(await page.locator('ol[aria-label^="Step"]').first().getAttribute('aria-label'), 'Step 1 of 4')
-    await page.getByRole('button', { name: 'Add your data' }).first().click()
+    // current layout: 6 steps (Target page → Your data → Draft → Copy & publish → Verify → Publish & track). The page
+    // says its step in its headline; the step bar itself is in the focus panel. A brand with no guidelines sees the
+    // one-time Brand Guidelines screen first (the button says so); skipped, the panel is on Your data.
+    assert.match(await page.locator('#co-step-h').innerText(), /^Step 1 of 6:/)
+    assert.equal(await page.locator('ol[aria-label^="Step"]').count(), 0, 'no step bar on the page itself')
+    await page.locator('.co-head-btn').getByRole('button', { name: 'Add brand guidelines' }).click()
     const dlg = page.getByRole('dialog')
+    await dlg.getByText('Your brand guidelines').waitFor()
+    assert.equal(await dlg.locator('ol[aria-label^="Step"]').getAttribute('aria-label'), 'Step 1 of 6', 'the guidelines screen is not a numbered step')
+    await dlg.getByRole('button', { name: 'Skip for now' }).click()
     await dlg.getByText('Upload documents').waitFor()
-    assert.match(await dlg.locator('h3').first().textContent(), /^Step 2 of 4: Add your data/)
+    assert.equal(await dlg.locator('ol[aria-label^="Step"]').getAttribute('aria-label'), 'Step 2 of 6')
+    await dlg.getByText('Your brand guidelines').waitFor({ state: 'detached' })
+    assert.match((await dlg.locator('h3').first().innerText()).replace(/\s+/g, ' '), /^Step 2 of 6: Add your data/)
     assert.equal(await dlg.getByText('Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team.').count(), 1)
 
     const input = dlg.locator('input[type=file]')
@@ -54,11 +62,10 @@ test('Your data (v1): files read in the browser, a fact, the 20k cap, kept per p
     assert.match(await row('photo.png').innerText(), /Not a PDF, DOCX, CSV or TXT/)
     assert.equal(await dlg.locator('[data-over-cap]').count(), 0)
 
-    // a fact, typed
-    await dlg.getByRole('button', { name: 'Add a fact' }).click()
-    await dlg.getByLabel('Fact 1 label').fill('Clinic location')
-    await dlg.getByLabel('Fact 1 value').fill('14 King Street, Manchester')
-    assert.match(await dlg.locator('h3', { hasText: 'Add key facts' }).locator('xpath=..').innerText(), /1 added/)
+    // current layout: only Upload documents shows. "Add key facts" and "Answer what you can" are hidden (as the app)
+    assert.equal(await dlg.getByRole('button', { name: 'Add a fact' }).count(), 0)
+    assert.equal(await dlg.locator('h3', { hasText: 'Add key facts' }).count(), 0)
+    assert.deepEqual(await dlg.locator('h3').allInnerTexts().then((xs) => xs.slice(1)), ['Upload documents'])
 
     // a big TXT: over 20k characters, the message names the file that's cut
     await input.setInputFiles([{ name: 'handbook.txt', mimeType: 'text/plain', buffer: makeTxt(words(6000, 'handbook')) }])
@@ -69,24 +76,28 @@ test('Your data (v1): files read in the browser, a fact, the 20k cap, kept per p
     // kept in this browser per brand + prompt: text and file metadata, never the files; the failed and rejected rows aren't
     await page.waitForTimeout(300)
     const kept = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)), KEY)
-    assert.deepEqual(kept.facts, [{ label: 'Clinic location', value: '14 King Street, Manchester' }])
+    assert.deepEqual(kept.facts ?? [], [], 'no typed facts: that task is hidden')
     assert.deepEqual(kept.documents.map((d) => d.name), ['clinic-notes.txt', 'services.docx', 'study.pdf', 'handbook.txt'])
     assert.deepEqual(Object.keys(kept.documents[0]), ['name', 'kind', 'bytes', 'words', 'text'])
     await page.reload({ waitUntil: 'networkidle' })
     await page.getByRole('button', { name: 'Add your data' }).first().click()
     await page.getByRole('dialog').locator('[data-over-cap]').waitFor()
     assert.match(await page.getByRole('dialog').locator('[data-file-row]', { hasText: 'services.docx' }).innerText(), /Read · ~310 words/)
-    assert.equal(await page.getByRole('dialog').getByLabel('Fact 1 value').inputValue(), '14 King Street, Manchester')
+    assert.match(await page.getByRole('dialog').locator('[data-file-row]', { hasText: 'clinic-notes.txt' }).innerText(), /Read · ~1,200 words/)
+    assert.equal(await page.getByRole('dialog').locator('[data-file-row]', { hasText: 'scanned.pdf' }).count(), 0, 'the failed row is not kept')
     await page.evaluate((k) => localStorage.removeItem(k), KEY)
 
-    // the fixture: ?co=data-sample preloads userFacts; the draft names the clinic location and the locations flag is gone
+    // the fixture: ?co=data-sample preloads userFacts; the draft uses the document and the locations flag is gone
     await page.goto(`${base}?co=data-sample`, { waitUntil: 'networkidle' })
     await page.getByRole('button', { name: 'Add your data' }).first().click()
     await page.getByRole('dialog').getByText('clinic-services.txt').waitFor()
     await page.getByRole('dialog').getByRole('button', { name: 'Write the draft' }).click()
     await page.locator('[data-draft-footer]').waitFor({ timeout: 15000 })
     const draft = await page.getByRole('dialog').innerText()
-    assert.match(draft, /book a skin check at our clinic at 14 King Street, Manchester/)
+    // current layout: the uploaded document reaches the draft (it knows there is a clinic), but the fixture's typed
+    // fact (the clinic's address) doesn't, because "Add key facts" is hidden and its facts are left out of the request
+    assert.match(draft.replace(/\s+/g, ' '), /Confirm with your team: .*Which clinic location offers in-person skin checks\./)
+    assert.doesNotMatch(draft, /14 King Street, Manchester/)
     assert.doesNotMatch(draft, /Confirm office locations/)
     assert.deepEqual(errors, [])
   } finally {
@@ -104,11 +115,17 @@ test('?backend=full keeps its five steps (Search Console first, Publish & track 
     browser = await chromium.launch({ executablePath: chromePath() })
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
     await page.goto(`http://localhost:${port}/opportunities/content/0?backend=full`, { waitUntil: 'networkidle' })
-    assert.equal(await page.locator('ol[aria-label^="Step"]').first().getAttribute('aria-label'), 'Step 2 of 5')
+    // current layout: the page says its step in its headline; the step bar is in the focus panel
+    assert.match(await page.locator('#co-step-h').innerText(), /^Step 2 of 5:/)
     await page.getByRole('button', { name: 'Use this page' }).first().click()
     const dlg = page.getByRole('dialog')
     await dlg.getByText('Suggested from your files').waitFor() // the proposal's sample data, unchanged
-    assert.match(await dlg.locator('h3').first().textContent(), /^Step 3 of 5:/)
+    assert.equal(await dlg.locator('ol[aria-label^="Step"]').getAttribute('aria-label'), 'Step 3 of 5')
+    assert.match((await dlg.locator('h3').first().innerText()).replace(/\s+/g, ' '), /^Step 3 of 5:/)
+    // Search Console first, Publish & track last
+    const names = await dlg.locator('ol[aria-label^="Step"] button').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))
+    assert.match(names[0], /^Step 1, .*Search Console/)
+    assert.match(names.at(-1), /^Step 5, Publish (&|and) track/)
   } finally {
     await browser?.close()
     await server.close()

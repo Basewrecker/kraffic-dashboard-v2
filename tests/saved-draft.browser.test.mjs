@@ -25,8 +25,11 @@ test('a written draft reopens after a reload, and the list shows it as Draft rea
     const title = await page.locator('header h1, h1').first().innerText()
 
     // write the draft: Target page → Your data (skip) → Draft, then wait for the (mock) response
+    // (current layout: a brand with no guidelines sees the one-time Brand Guidelines screen first; skip it)
     await page.getByRole('button', { name: 'Skip to draft' }).first().click()
     const dlg = page.getByRole('dialog')
+    await dlg.getByText('Your brand guidelines').waitFor()
+    await dlg.getByRole('button', { name: 'Skip for now' }).click()
     await dlg.getByText('Copy content', { exact: true }).waitFor({ timeout: 20000 })
 
     // reload: the draft is back, no writing state

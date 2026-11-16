@@ -47,7 +47,11 @@ test('two page-1 spots: display names, the two-line hover (table and rail), the 
     await slots.first().hover()
     assert.equal(await page.locator('[data-slot-host="theordinary.com"][data-dim]').count(), 0, 'both of its circles stay bright')
     assert.ok(await page.locator('[data-slot-host][data-dim]').count() >= 5, 'the other sites dim')
-    assert.equal(await page.locator('[data-slot-host] [role="tooltip"]').count(), 1, 'one card (the circle under the pointer)')
+    // (current layout: the card is drawn on the page's top layer, not inside the circle)
+    const cards = page.locator('[role="tooltip"]:visible')
+    await cards.first().waitFor()
+    assert.equal(await cards.count(), 1, 'one card (the circle under the pointer)')
+    assert.match(await cards.first().innerText(), /^The Ordinary · #\d+/, 'the card is that site\'s')
 
     // the Draft rail (prompt 2 opens on its draft): the display name, the dotted note, the same two lines
     await page.goto(`${base}/opportunities/content/2`, { waitUntil: 'networkidle' })

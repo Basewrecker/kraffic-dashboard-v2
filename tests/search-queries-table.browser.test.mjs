@@ -20,7 +20,8 @@ test('Search queries table: no gap before "· Change page", aligned arrows, red 
   try {
     browser = await chromium.launch({ executablePath: chromePath() })
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
-    await page.goto(`${base}/opportunities/content/13`, { waitUntil: 'networkidle' })
+    // current layout: the Google searches table is hidden by default (as the app); ?co=searches shows it
+    await page.goto(`${base}/opportunities/content/13?co=searches`, { waitUntil: 'networkidle' })
     await page.locator('[data-sc-using]').waitFor()
     await page.evaluate(() => document.fonts.ready)
 
@@ -28,8 +29,13 @@ test('Search queries table: no gap before "· Change page", aligned arrows, red 
       const u = document.querySelector('[data-sc-using]')
       const [label, path, dot] = [...u.children].map((c) => c.getBoundingClientRect())
       const arrows = [...document.querySelectorAll('[data-sc-queries] li a svg')].map((s) => Math.round(s.getBoundingClientRect().left))
-      return { before: Math.round(path.left - label.right), after: Math.round(dot.left - path.right), arrows }
+      // the row now ends: path · source · Change page. Every gap around a "·" is the same
+      const all = [...u.children].map((c) => c.getBoundingClientRect())
+      const gaps = all.slice(1).map((r, i) => Math.round(r.left - all[i].right))
+      return { before: Math.round(path.left - label.right), after: Math.round(dot.left - path.right), arrows, gaps, last: u.lastElementChild.textContent.trim() }
     })
+    assert.equal(m.last, 'Change page')
+    assert.equal(new Set(m.gaps).size, 1, `every gap in the row is the same (${m.gaps.join(', ')})`)
     assert.ok(Math.abs(m.after - m.before) <= 1, `gap before "·" (${m.after}px) matches the gap after the label (${m.before}px)`)
     assert.ok(m.arrows.length > 1, 'rows have landing-page links')
     assert.equal(new Set(m.arrows).size, 1, `arrows line up: ${m.arrows.join(', ')}`)

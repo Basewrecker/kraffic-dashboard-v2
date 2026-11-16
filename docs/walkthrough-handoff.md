@@ -303,5 +303,7 @@ dev-only flag.
 - Step 5's brief said "Create content" for the prompt page's button; the real label is "Add brand guidelines" (no
   guidelines yet) or "Add your data". The draft button is "Write the draft". "Download" is inside "More", so pointer 10
   lights "Copy content" and "More".
-- The five failing Content browser tests (`saved-draft`, `search-match`, `two-spots`, `your-data`,
-  `search-queries-table`) were left as they were on the owner's instruction and are not part of the walkthrough.
+- The five Content browser tests that were failing (`saved-draft`, `search-match`, `two-spots`, `your-data`,
+  `search-queries-table`) were updated to the current layout on 2026-11-16. Not part of the walkthrough, but one
+  mock-only switch came with it: `?co=searches` shows the Google searches section the app hides, so its tests still run.
+  Don't port that switch.
