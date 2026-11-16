@@ -91,7 +91,7 @@ export default function LlmSettingsPage({
   regions, countries, languages, currencies, frequencies,
   onSetEngine, onSaveMarket, onSetFrequency, onSetDaily, onSyncNow,
 }) {
-  useEffect(() => { document.title = 'Tracking · Kraffic' }, [])
+  useEffect(() => { document.title = 'Tracking · Auden AI' }, [])
   const t = useTracking()
   const [savedKey, flash] = useSaved()
   const [toastNode, toast] = useToast({ position: 'center' })
@@ -121,7 +121,7 @@ export default function LlmSettingsPage({
     t.syncNow(onSyncNow, { mode, onAccepted: () => toast('Sync started'), onDone: () => toast('Sync finished') })
       .then((res) => res?.status === 'complete' && toast('Sync finished'), () => setFailed({ key: 'sync', retry: () => syncNow(mode) }))
   }
-  // client users don't start syncs (their agency or Kraffic runs them): no button, a line saying so
+  // client users don't start syncs (their agency or Auden AI runs them): no button, a line saying so
   const canSync = Boolean(onSyncNow) && role() !== 'client'
 
   // which rows this backend can save
@@ -165,7 +165,7 @@ export default function LlmSettingsPage({
       <div className="mb-2 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-4">
         <div>
           <h1 className="text-[22px] leading-7 font-semibold text-stone-900 lg:text-[28px] lg:leading-9">Tracking</h1>
-          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">How Kraffic checks AI answers for {account.domain}</p>
+          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">How Auden AI checks AI answers for {account.domain}</p>
           <p className="mt-1 text-[13px] leading-[18px] text-stone-500 tabular-nums md:hidden">{updated}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 md:pt-1">
@@ -205,8 +205,8 @@ export default function LlmSettingsPage({
       <SettingsCard
         title="AI platforms"
         description={toggles
-          ? `Choose which AI engines Kraffic runs your prompts on. Each one runs all ${prompts} prompts every sync.`
-          : `The AI engines Kraffic runs your prompts on. Each one that's ready runs all ${prompts} prompts every sync.`}
+          ? `Choose which AI engines Auden AI runs your prompts on. Each one runs all ${prompts} prompts every sync.`
+          : `The AI engines Auden AI runs your prompts on. Each one that's ready runs all ${prompts} prompts every sync.`}
         footer={(
           <>
             <span>{engines} of {t.platforms.length} engines {toggles ? 'on' : 'ready'} · {engines * prompts} prompt runs per sync</span>

@@ -46,7 +46,7 @@ import Walkthrough from './walkthrough/Walkthrough'
 
 
 function DashboardPage() {
-  useEffect(() => { document.title = 'Visibility Overview · Kraffic' }, [])
+  useEffect(() => { document.title = 'Visibility Overview · Auden AI' }, [])
   return (
     <>
           <DashboardViewProvider>

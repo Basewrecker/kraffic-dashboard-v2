@@ -21,8 +21,8 @@ export default function ReportsRouter() {
   const path = usePath()
   const rest = path.replace(/^\/reports\/?/, '')
   useEffect(() => {
-    if (rest === 'all') document.title = 'Reports · Kraffic'
-    else if (rest === 'scheduled') document.title = 'Scheduled reports · Kraffic'
+    if (rest === 'all') document.title = 'Reports · Auden AI'
+    else if (rest === 'scheduled') document.title = 'Scheduled reports · Auden AI'
   }, [rest])
   if (rest === 'all') return <AllReports />
   if (rest === 'scheduled') return <ScheduledPage />
@@ -143,7 +143,7 @@ function AllReports() {
         <div className="flex flex-col items-center px-4 pb-16 pt-14 text-center">
           <DotIllustration className="h-[120px] w-[220px]" />
           <p className="mt-6 text-[17px] leading-6 font-semibold text-stone-900">{all ? 'No reports yet' : `No reports for ${homeName} yet`}</p>
-          <p className={`mt-1.5 max-w-[46ch] text-[14px] leading-5 ${t2}`}>Ask a question and Kraffic writes the report from your tracked prompts and keeps it here. Scheduled reports show up as a series.</p>
+          <p className={`mt-1.5 max-w-[46ch] text-[14px] leading-5 ${t2}`}>Ask a question and Auden AI writes the report from your tracked prompts and keeps it here. Scheduled reports show up as a series.</p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">{newBtn}{!all && !mockEmpty() && <button type="button" onClick={() => setScope('all')} className={lineBtn}>See all brands</button>}</div>
         </div>
       ) : series.length + oneOffs.length === 0 ? (

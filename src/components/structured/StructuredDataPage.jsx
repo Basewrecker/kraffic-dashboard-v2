@@ -43,7 +43,7 @@ const Bar = ({ value, className = 'h-1.5 w-full' }) => (
 )
 
 export default function StructuredDataPage() {
-  useEffect(() => { document.title = 'Structured Data · Kraffic' }, [])
+  useEffect(() => { document.title = 'Structured Data · Auden AI' }, [])
   // Settings: only when the backend saves 2 or more crawl settings besides Pages to crawl
   const hasSettings = crawlSettings().length >= 2
   const tabIds = hasSettings ? TAB_IDS : TAB_IDS.filter((id) => id !== 'settings')

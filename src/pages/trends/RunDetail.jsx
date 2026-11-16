@@ -14,7 +14,7 @@ export default function RunDetail({ runId }) {
   const { runById, runs, rerun, remove } = useTrends()
   const run = runById(runId)
   const [ask, setAsk] = useState(null)
-  useEffect(() => { document.title = `${run ? run.prompt : 'Run'} · Trends · Kraffic` }, [run])
+  useEffect(() => { document.title = `${run ? run.prompt : 'Run'} · Trends · Auden AI` }, [run])
 
   if (!run) {
     return (

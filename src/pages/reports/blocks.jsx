@@ -1256,7 +1256,7 @@ function Sources({ data: d }) {
           className="rounded text-stone-600 underline decoration-dotted underline-offset-[3px] outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Methodology</button>
         {tip && (
           <span id={id} role="tooltip" className="absolute bottom-full left-0 z-20 mb-2 block w-[min(360px,80vw)] rounded-lg border border-line bg-raised p-3 text-[12px] leading-[18px] text-stone-700 shadow-md">
-            Kraffic AI visibility data: the tracked prompts, the AI answers to them and the pages they cite, from {d.syncs} weekly syncs, {d.from} – {d.to}, 2026. Engines counted: {d.engines.join(', ') || 'none'}.
+            Auden AI AI visibility data: the tracked prompts, the AI answers to them and the pages they cite, from {d.syncs} weekly syncs, {d.from} – {d.to}, 2026. Engines counted: {d.engines.join(', ') || 'none'}.
             {d.left.length > 0 && <> Not in this report: {d.left.join(' ')}</>} Nothing missing is estimated.
           </span>
         )}

@@ -22,7 +22,7 @@ const readCat = () => { try { return localStorage.getItem(CAT_KEY) ?? 'all' } ca
 const Tile = ({ icon }) => { const Icon = ICONS[icon]; return <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-tint text-ink" aria-hidden><Icon size={16} /></span> }
 
 export default function ToolkitPage() {
-  useEffect(() => { document.title = 'Toolkit · Kraffic' }, [])
+  useEffect(() => { document.title = 'Toolkit · Auden AI' }, [])
   const q = useParams()
   const view = toolkitView(q.get('mock') ?? 'full')
   const [toastNode, toast] = useToast({ position: 'center' })

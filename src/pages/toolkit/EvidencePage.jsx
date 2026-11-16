@@ -22,7 +22,7 @@ const head = `hidden h-9 items-center gap-3 border-y border-[var(--div)] bg-tint
 const COLS = 'md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_96px_72px_16px]'
 
 export default function EvidencePage() {
-  useEffect(() => { document.title = 'Evidence Vault · Toolkit · Kraffic' }, [])
+  useEffect(() => { document.title = 'Evidence Vault · Toolkit · Auden AI' }, [])
   const q = useParams()
   const key = evidenceStates[q.get('mock')] ? q.get('mock') : 'full'
   const st = evidenceStates[key]

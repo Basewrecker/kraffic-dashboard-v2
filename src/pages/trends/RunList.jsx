@@ -9,7 +9,7 @@ import { Confirm, Progress, RowMenu, Spinner, StackBar, ago, cardTitle, fmtDay, 
 
 // /trends — ask a question, see past runs. A row opens /trends/:runId.
 export default function RunList() {
-  useEffect(() => { document.title = 'Trends · Kraffic' }, [])
+  useEffect(() => { document.title = 'Trends · Auden AI' }, [])
   return (
     <>
       <div>

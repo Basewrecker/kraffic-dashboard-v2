@@ -81,7 +81,7 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     assert.equal(await page.locator('[data-getting-started], [data-walkthrough]').count(), 0)
 
     await page.goto(at('/overview?walkthrough=new'), { waitUntil: 'networkidle' })
-    assert.equal(await page.getByRole('dialog').getByRole('heading').innerText(), 'Welcome to Kraffic')
+    assert.equal(await page.getByRole('dialog').getByRole('heading').innerText(), 'Welcome to Auden AI')
     assert.equal(await cardSays(page), '0 of 6 · Next: Your brand')
     await page.getByRole('button', { name: 'Start the guide' }).click()
 
@@ -239,7 +239,7 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     // all done: the hero is the summary; Done sends the sidebar card away
     assert.deepEqual(await steps(page), Array(6).fill('done'))
     await page.waitForFunction(() => [...document.querySelectorAll('[data-hero-title]')].at(-1)?.textContent === 'You’re set up')
-    assert.match(await page.locator('[data-board=open]').innerText(), /Kraffic keeps checking AI for you\. Come back each week to see what changed\./)
+    assert.match(await page.locator('[data-board=open]').innerText(), /Auden AI keeps checking AI for you\. Come back each week to see what changed\./)
     assert.equal(await page.locator('[data-summary] > div').count(), 6)
     await page.getByRole('button', { name: 'Done', exact: true }).click()
     await page.waitForFunction(() => !document.querySelector('[data-getting-started]') && !document.querySelector('[data-board]'), null, { timeout: 12000 })

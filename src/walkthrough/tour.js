@@ -18,7 +18,7 @@
 //   open     its element is folded away until this is clicked: the pointer clicks it first (Fact Check's full list)
 //   centre   a closing card in the middle of the window, with no lit element
 
-export const APP = 'Kraffic'
+export const APP = 'Auden AI'
 
 // {app} and {brand} in a text → the real names
 export const fill = (text, { app = APP, brand = '' } = {}) => text.replaceAll('{app}', app).replaceAll('{brand}', brand)

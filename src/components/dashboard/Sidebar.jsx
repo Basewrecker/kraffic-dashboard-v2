@@ -287,7 +287,7 @@ export default function Sidebar({ path = '/overview', nav }) {
     <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col border-r border-sidebar-line bg-sidebar lg:flex">
       {/* top: the logo (a link home). px-3 everywhere: logo, nav icons and the footer blocks share one x */}
       <div className="shrink-0 px-3 pt-4">
-        <a href={HOME} title="Home" aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
+        <a href={HOME} title="Home" aria-label="Auden AI — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
       </div>
       <div className="nav-scroll mt-6 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 pb-2"><NavLinks path={path} nav={nav} /></div>
       {/* footer: Getting started (while it is on), theme, then the workspace (its menu holds Home) */}

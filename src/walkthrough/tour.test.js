@@ -7,9 +7,9 @@ const on = { ...fresh(), welcome: false }
 const after = (...ids) => ids.reduce((s, id) => complete(s, id), on)
 
 test('the words are the ones asked for, with the names filled in', () => {
-  assert.equal(fill(WELCOME.title, { brand: 'Dermasuri' }), 'Welcome to Kraffic')
+  assert.equal(fill(WELCOME.title, { brand: 'Dermasuri' }), 'Welcome to Auden AI')
   assert.equal(fill(WELCOME.text, { brand: 'Dermasuri' }), 'Let’s get Dermasuri set up. It takes about five minutes. We’ll show you where things are and what to do first.')
-  assert.equal(fill(ALL_DONE), 'You’re set up. Kraffic keeps checking AI for you. Come back each week to see what changed.')
+  assert.equal(fill(ALL_DONE), 'You’re set up. Auden AI keeps checking AI for you. Come back each week to see what changed.')
   assert.deepEqual([TOURS.orientation.steps.length, TOURS['brand-setup'].steps.length, TOURS.overview.steps.length], [5, 4, 4])
   assert.equal(TASKS.length, 6)
   // no text is left with a blank to fill

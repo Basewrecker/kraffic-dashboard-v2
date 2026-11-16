@@ -38,7 +38,7 @@ export function switchBrand(id) {
 // The host brand the mock runs under (the app reads it from the request's host). ?label=<Name> previews a white label.
 export const host = () => {
   const label = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('label')
-  return label ? { slug: slugOf(label), brandName: label } : { slug: 'kraffic', brandName: 'Kraffic' }
+  return label ? { slug: slugOf(label), brandName: label } : { slug: 'kraffic', brandName: 'Auden AI' }
 }
 const slugOf = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 // the name to show for the product on this host

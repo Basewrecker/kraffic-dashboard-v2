@@ -40,7 +40,7 @@ export default function BrandStep({ brand, editing, onSave, onCancel }) {
     <form noValidate onSubmit={submit} className={stepCard}>
       <div className="flex flex-col gap-4 px-5 py-4 max-md:px-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className={`text-[13px] leading-[18px] ${t2}`}>{kind === 'website' ? 'Kraffic tracks the brand by its website.' : 'Kraffic looks for the brand’s name in AI answers.'}</p>
+          <p className={`text-[13px] leading-[18px] ${t2}`}>{kind === 'website' ? 'Auden AI tracks the brand by its website.' : 'Auden AI looks for the brand’s name in AI answers.'}</p>
           <Segmented label="Track by" size="sm" value={kind} onChange={setKind} options={[{ value: 'website', label: 'Website' }, { value: 'name', label: 'Name only' }]} />
         </div>
         {kind === 'website' && (

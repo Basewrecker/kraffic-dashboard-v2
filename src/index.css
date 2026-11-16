@@ -112,7 +112,7 @@ body {
   --donut-yours: #171412;
   --donut-others: #78716C;
   --donut-none: #A8A29E;
-  /* Kraffic mark (components/ui/Logo.jsx): the accent blue is for the logo dot only, never UI */
+  /* Auden AI mark (components/ui/Logo.jsx): the accent blue is for the logo dot only, never UI */
   /* pie slice labels: readable on each fill (ink / c1 / c2 / c3 / track) */
   --pie-on-c1: #FFFFFF;
   --pie-on-c2: #171412;
@@ -159,7 +159,7 @@ html[data-theme="dark"] {
   --pie-on-c3: #FFFFFF;
   --brand-tile: #FFFFFF;
   --brand-k: #000000;
-  --brand-accent: #4AA8F5;
+  --brand-accent: #4AA8F5; --brand-edge: rgb(255 255 255 / .14);
   --data-track: #1A1A1A;
   --tint: #1A1A1A;
   --negative: #F87171;
@@ -226,7 +226,7 @@ html[data-theme="dark"] {
     --pie-on-c3: #FFFFFF;
     --brand-tile: #FFFFFF;
     --brand-k: #000000;
-    --brand-accent: #4AA8F5;
+    --brand-accent: #4AA8F5; --brand-edge: rgb(255 255 255 / .14);
     --data-track: #1A1A1A;
     --tint: #1A1A1A;
     --negative: #F87171;

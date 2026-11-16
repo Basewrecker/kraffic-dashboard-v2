@@ -19,7 +19,7 @@ import { readFile } from '../../pages/opportunities/data/extract'
 import GuidelinesForm from '../../pages/opportunities/workspace/Guidelines'
 import { ConfirmSetup, ReplayGuide } from '../../walkthrough/GettingStarted'
 
-// /setup: what Kraffic tracks for a brand, in the same settings layout as /llm-settings —
+// /setup: what Auden AI tracks for a brand, in the same settings layout as /llm-settings —
 // cards of 60px rows (name + meta left, one quiet value + hover-only Edit / Remove right),
 // a "+ Add" that opens an input row at the top, and a "Suggested" strip at the foot of a card.
 // Every add / edit / remove gives an Undo toast. Saves go through setupActions (data/mock.js): the page changes first;
@@ -776,7 +776,7 @@ function GuidelinesCard({ brand, toast }) {
 }
 
 export default function SetupPage() {
-  useEffect(() => { document.title = 'Brand Setup · Kraffic' }, [])
+  useEffect(() => { document.title = 'Brand Setup · Auden AI' }, [])
   const [brands, setBrands] = useState(() => savedBrands)
   useEffect(() => { savedBrands = brands }, [brands])
   const [modal, setModal] = useState(null) // { brand: null | brand }
@@ -837,7 +837,7 @@ export default function SetupPage() {
           <div className="flex items-center gap-1.5">
             <h1 className="text-[22px] leading-7 font-semibold text-stone-900 lg:text-[28px] lg:leading-9">Brand Setup</h1>
           </div>
-          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">What Kraffic tracks for your brand</p>
+          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">What Auden AI tracks for your brand</p>
         </div>
         <div className="md:pt-1 max-md:[&>button]:h-10 max-md:[&>button]:w-full max-md:[&>button]:justify-center">
           <PrimaryButton size="sm" icon={Plus} onClick={() => setModal({ brand: null })}>Add brand</PrimaryButton>

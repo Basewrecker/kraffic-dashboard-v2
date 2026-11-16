@@ -13,7 +13,7 @@ import GettingStarted from '../../walkthrough/GettingStarted'
 import { TOURS } from '../../walkthrough/tour'
 import { endTour, useWalkthrough } from '../../walkthrough/store'
 
-// Below lg: a sticky top bar (menu · Kraffic mark ······ workspace logo) instead of the sidebar.
+// Below lg: a sticky top bar (menu · Auden AI mark ······ workspace logo) instead of the sidebar.
 // The menu opens the nav as a left drawer (288px): same groups and items, theme + workspace at the bottom.
 // Closes on a link tap, the scrim, Esc, a swipe left, or Back.
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -68,7 +68,7 @@ function NavDrawer({ open, onClose, path, nav, plain = false }) {
       <div ref={panel} role="dialog" aria-modal="true" aria-label="Menu" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
         className={`absolute inset-y-0 left-0 flex w-[288px] max-w-[85vw] flex-col border-r border-sidebar-line bg-sidebar pt-[env(safe-area-inset-top)] shadow-xl outline-none transition-transform duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-14 shrink-0 items-center justify-between px-3">
-          <a href={HOME} aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /><span className="ml-2 text-[16px] font-bold text-stone-900">Kraffic</span></a>
+          <a href={HOME} aria-label="Auden AI — Home" className="flex h-10 items-center rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /><span className="ml-2 text-[16px] font-bold text-stone-900">Auden AI</span></a>
           <button type="button" onClick={close} aria-label="Close menu" className="grid h-10 w-10 place-items-center rounded-md text-stone-600 outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus"><X size={20} aria-hidden /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2">
@@ -111,7 +111,7 @@ export default function MobileNav({ path, nav }) {
       <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-[var(--div)] bg-[color-mix(in_srgb,var(--color-page)_90%,transparent)] px-4 pt-[env(safe-area-inset-top)] backdrop-blur lg:hidden">
         <button type="button" onClick={() => setMenu(true)} aria-label="Open menu" aria-expanded={menu}
           className="-ml-2 grid h-10 w-10 place-items-center rounded-md text-stone-700 outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus"><Menu size={20} aria-hidden /></button>
-        <a href={HOME} aria-label="Kraffic — Home" className="grid h-10 w-10 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /></a>
+        <a href={HOME} aria-label="Auden AI — Home" className="grid h-10 w-10 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /></a>
         <button type="button" onClick={() => setWorkspace(true)} aria-label={`Workspace: ${account.name}`}
           className="ml-auto grid h-10 w-10 place-items-center rounded-md outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
           <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />

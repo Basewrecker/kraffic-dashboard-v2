@@ -43,7 +43,7 @@ const source = {
   off: () => !account.features.ecommerce,
   offText: {
     title: 'Marketplace visibility isn’t switched on for this account',
-    text: 'It shows which AI answers link to your listings on Amazon, Target and other stores. Contact the Kraffic Support team to switch it on.',
+    text: 'It shows which AI answers link to your listings on Amazon, Target and other stores. Contact the Auden AI Support team to switch it on.',
     foot: 'Marketplace visibility · not switched on',
   },
 }

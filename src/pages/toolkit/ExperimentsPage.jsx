@@ -45,7 +45,7 @@ export default function ExperimentsPage({ id }) {
 
 // ---- list
 function List({ st, mockKey }) {
-  useEffect(() => { document.title = 'GEO Experiment Lab · Toolkit · Kraffic' }, [])
+  useEffect(() => { document.title = 'GEO Experiment Lab · Toolkit · Auden AI' }, [])
   const [toastNode, toast] = useToast({ position: 'center' })
   const rows = st.experiments.map((e) => ({ ...e, result: e.status === 'CONCLUDED' ? resultOf(e) : null }))
   const state = mockKey === 'error' ? 'error' : mockKey === 'running' ? 'running' : !rows.length ? 'not-run' : 'ready'
@@ -147,7 +147,7 @@ function NewExperiment({ onSave }) {
 
 // ---- one experiment
 function Detail({ e }) {
-  useEffect(() => { document.title = `${e?.name ?? 'Experiment'} · Experiment Lab · Kraffic` }, [e])
+  useEffect(() => { document.title = `${e?.name ?? 'Experiment'} · Experiment Lab · Auden AI` }, [e])
   const back = { to: '/more-tools/experiments', label: 'Experiment Lab' }
   if (!e) return <ToolPage back={back} title="Experiment not found" state="not-run" empty={{ title: 'This experiment doesn’t exist any more', body: 'It may have been deleted.' }} />
   const r = resultOf(e)

@@ -13,7 +13,7 @@ const button = 'mt-5 inline-flex h-9 items-center rounded-lg bg-ink px-3.5 text-
 
 export default function EmptyBrand({ route, onSetup, setUp = false, onPrompts }) {
   const title = TITLES[route] ?? 'Overview'
-  useEffect(() => { document.title = `${title} · ${account.name} · Kraffic` }, [title])
+  useEffect(() => { document.title = `${title} · ${account.name} · Auden AI` }, [title])
   return (
     <>
       <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">{title}</h1>

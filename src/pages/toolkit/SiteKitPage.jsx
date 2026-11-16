@@ -30,7 +30,7 @@ const SOURCES = {
 const NEXT = { none: { GOOGLE_SEARCH_CONSOLE: 'gsc' }, expired: { GOOGLE_SEARCH_CONSOLE: 'gsc' }, gsc: { GOOGLE_ANALYTICS_4: 'connected' } }
 
 export default function SiteKitPage() {
-  useEffect(() => { document.title = 'Site Kit · Toolkit · Kraffic' }, [])
+  useEffect(() => { document.title = 'Site Kit · Toolkit · Auden AI' }, [])
   const q = useParams()
   const state = q.get('mock') ?? 'none'
   const conns = integrationsFor(state)

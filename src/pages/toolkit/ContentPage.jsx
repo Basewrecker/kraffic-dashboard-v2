@@ -24,7 +24,7 @@ const head = `hidden h-9 items-center gap-3 border-y border-[var(--div)] bg-tint
 const row = 'group grid min-h-14 w-full cursor-pointer items-center gap-x-3 px-5 py-2 text-left outline-none transition-colors duration-150 hover:bg-tint focus-visible:bg-tint focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus max-md:px-4'
 
 export default function ContentPage() {
-  useEffect(() => { document.title = 'Content Intelligence · Toolkit · Kraffic' }, [])
+  useEffect(() => { document.title = 'Content Intelligence · Toolkit · Auden AI' }, [])
   const q = useParams()
   const key = contentStates[q.get('mock')] ? q.get('mock') : 'full'
   const st = contentStates[key]

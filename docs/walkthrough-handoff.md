@@ -40,7 +40,7 @@ instead of relying on these selectors; the selectors in section 3 say which elem
 
 **Welcome card** (centred, page dimmed):
 
-- Title: "Welcome to Kraffic"
+- Title: "Welcome to Auden AI"
 - Text: "Let’s get {brand} set up. It takes about five minutes. We’ll show you where things are and what to do first." (`{brand}` is the brand's name)
 - Primary button: "Start the guide"
 - Second button: "Skip, I know my way around"
@@ -211,7 +211,7 @@ an outline (1.5px, its step's colour). Upcoming frames can't be clicked.
 | First scan running: “Waiting for your first results”, no Start | ![First scan running: “Waiting for your first results”, no Start, light](walkthrough-handoff/board-waiting-for-results-light.png) | ![First scan running: “Waiting for your first results”, no Start, dark](walkthrough-handoff/board-waiting-for-results-dark.png) |
 | All done: “You’re set up”, the six frames as a 3 by 2 grid, Done | ![All done: “You’re set up”, the six frames as a 3 by 2 grid, Done, light](walkthrough-handoff/board-all-done-light.png) | ![All done: “You’re set up”, the six frames as a 3 by 2 grid, Done, dark](walkthrough-handoff/board-all-done-dark.png) |
 
-All done: headline "You’re set up", line "Kraffic keeps checking AI for you. Come back each week to see what changed.", button **Done**, and in the
+All done: headline "You’re set up", line "Auden AI keeps checking AI for you. Come back each week to see what changed.", button **Done**, and in the
 trail's place "You can take the guided setup again from Settings." Done closes the board and sends the sidebar card away.
 
 A step ticking (not a still): the frame's tile fills with its result, the tick pops in, numbers count up, the hero

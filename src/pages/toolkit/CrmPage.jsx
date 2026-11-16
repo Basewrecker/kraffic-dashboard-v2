@@ -53,7 +53,7 @@ function crmView(st) {
 }
 
 export default function CrmPage() {
-  useEffect(() => { document.title = 'CRM & Revenue Attribution · Toolkit · Kraffic' }, [])
+  useEffect(() => { document.title = 'CRM & Revenue Attribution · Toolkit · Auden AI' }, [])
   const q = useParams()
   const key = crmStates[q.get('mock')] ? q.get('mock') : 'full'
   const st = crmStates[key]

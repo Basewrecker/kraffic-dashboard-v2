@@ -79,13 +79,13 @@ export function brandListName(stored, domain) {
 export const displayName = (brand) => (brand ? brandListName([brand.name], brand.domain) : '')
 
 // ---- the product's own name (ported from the app's lib/brand-icon.js, 2026-11-04)---------------------------------
-// A white-label workspace (a host brand whose slug isn't "kraffic") is sold under its own name; Kraffic stays Kraffic.
-// UI copy that needs the product's name reads it from here, never a hard-coded "Kraffic".
+// A white-label workspace (a host brand whose slug isn't "kraffic") is sold under its own name; Auden AI stays Auden AI.
+// UI copy that needs the product's name reads it from here, never a hard-coded "Auden AI".
 export const isWhiteLabel = (host) => Boolean(host?.slug && host.slug !== 'kraffic')
 export function productNameOf(host) {
   const name = String(host?.brandName || '').trim()
   if (isWhiteLabel(host) && name) return name
-  return 'Kraffic'
+  return 'Auden AI'
 }
 
 // the domain of a brand known by name (the reverse of KNOWN: "La Roche-Posay" → "laroche-posay.us"); null when the

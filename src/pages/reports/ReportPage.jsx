@@ -297,7 +297,7 @@ function Thread({ rest, mock, greeting, inter }) {
   const jumpDown = () => { follow.current = true; setShowDown(false); toEnd(true) }
 
   const latest = [...turns].reverse().find((t) => t.built?.ok)
-  useEffect(() => { document.title = `${mode === 'empty' ? 'New report' : latest?.built.title ?? 'Report'} · Kraffic` }, [mode, latest?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { document.title = `${mode === 'empty' ? 'New report' : latest?.built.title ?? 'Report'} · Auden AI` }, [mode, latest?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = (final) => {
     const text = prompt.trim()
@@ -592,7 +592,7 @@ function NotEnough({ r }) {
   return (
     <StateCard title="Not enough data for a report yet"
       actions={<><a href="/tracking" onClick={linkClick('/tracking')} className={inkBtn}>Open Tracking</a><a href="/reports" onClick={linkClick('/reports')} className={lineBtn}>New report</a></>}>
-      {r.brand} {had}. A report compares at least two syncs, so nothing in it could be measured yet, and Kraffic doesn’t estimate.
+      {r.brand} {had}. A report compares at least two syncs, so nothing in it could be measured yet, and Auden AI doesn’t estimate.
       {r.nextSync ? ` The next sync is ${r.nextSync}; you can write a report after it.` : ' Run the first sync from Tracking.'}
     </StateCard>
   )
@@ -700,7 +700,7 @@ function ScheduleModal({ open, onClose, onSave, title, brand }) {
         </div>
         <label className="text-[13px] font-medium text-stone-900">Send to
           <textarea value={to} onChange={(e) => setTo(e.target.value)} rows={2} className={`${field} h-auto py-2 leading-5`} />
-          <span className={`mt-1 block text-[12px] font-normal ${t3}`}>Emails, separated by commas. They don’t need a Kraffic account.</span>
+          <span className={`mt-1 block text-[12px] font-normal ${t3}`}>Emails, separated by commas. They don’t need a Auden AI account.</span>
         </label>
         <Switch checked={pdf} onChange={setPdf}>Attach the PDF</Switch>
       </div>
@@ -720,7 +720,7 @@ function PrintView({ prompt, opts, title }) {
     check()
     document.fonts?.ready.then(check)
   }, [])
-  useEffect(() => { document.title = `${title ?? r.title} · PDF · Kraffic` }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { document.title = `${title ?? r.title} · PDF · Auden AI` }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // printing: always on light paper, whatever the app's theme
   const print = () => {
     const html = document.documentElement
@@ -746,7 +746,7 @@ function PrintView({ prompt, opts, title }) {
           <div className="flex flex-col divide-y divide-[var(--div)]" style={{ zoom: r.v3 ? 0.56 : 0.62, width: r.v3 ? 1100 : 960 }}>
             {r.v3 ? <ReportFrame built={r} print /> : r.blocks.map((b, i) => <div key={b.id} className="py-8 [break-inside:avoid]"><Block block={b} title={title ?? r.title} n={numbers(r.blocks)[i]} /></div>)}
           </div>
-          <p className={`mt-auto text-[9px] ${t3}`}>Kraffic · {brandOf(r.opts.brand)?.name} · page 1 of 1</p>
+          <p className={`mt-auto text-[9px] ${t3}`}>Auden AI · {brandOf(r.opts.brand)?.name} · page 1 of 1</p>
         </div>
       </div>
     </div>

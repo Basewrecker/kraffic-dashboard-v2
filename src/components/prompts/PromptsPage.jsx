@@ -91,7 +91,7 @@ export default function PromptsPage() {
 
 function PromptHub() {
   const mobile = useIsMobile()
-  useEffect(() => { document.title = 'Prompt Hub · Kraffic' }, [])
+  useEffect(() => { document.title = 'Prompt Hub · Auden AI' }, [])
   const [prompts, setPrompts] = useState(() => [...trackedPrompts])
   const [initial] = useState(initialFilters)
   const [status, setStatus] = useState(initial.status)

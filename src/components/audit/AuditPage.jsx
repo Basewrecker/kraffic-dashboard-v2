@@ -28,7 +28,7 @@ const TAB_IDS = ['overview', 'checks', 'pages', 'crawl']
 const inkBtn = 'inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-ink px-3.5 text-small font-medium text-on-ink outline-none transition-colors duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-60 lg:h-9'
 
 export default function AuditPage() {
-  useEffect(() => { document.title = 'Site Audit · Kraffic' }, [])
+  useEffect(() => { document.title = 'Site Audit · Auden AI' }, [])
   const [tab, setTab, q] = useTab(TAB_IDS)
   const a = useMemo(() => getAudit(q.get('mock') ?? 'full'), [q])
   const tabsRef = useRef(null)

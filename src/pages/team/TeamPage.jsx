@@ -28,7 +28,7 @@ const statusFor = (mode) => (mode === 'loading' ? 'loading' : mode === 'error' ?
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export default function TeamPage() {
-  useEffect(() => { document.title = 'Team · Kraffic' }, [])
+  useEffect(() => { document.title = 'Team · Auden AI' }, [])
   const [mode, setMode] = useState(initialState) // ?mock= / the dev switcher
   const [status, setStatus] = useState(() => statusFor(mode))
   // the mock's data is instant (like every page); the delays are in teamApi, for actions and Retry
