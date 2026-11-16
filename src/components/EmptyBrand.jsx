@@ -5,7 +5,7 @@ import { linkClick } from '../router'
 import { account } from '../data/mock'
 
 // A brand with no data yet (switched to from the workspace menu): every data page shows this instead of its content.
-const TITLES = { '/overview': 'Visibility Overview', '/tracker': 'Prompt Hub', '/trends': 'Trends', '/audit': 'Site Audit', '/structured-data': 'Structured Data', '/more-tools': 'Toolkit', '/more-tools/tool': 'Toolkit', '/citations': 'Citations', '/sentiment': 'Sentiment', '/fact-check': 'Fact Check' }
+const TITLES = { '/overview': 'Visibility Overview', '/tracker': 'Prompt Hub', '/trends': 'Trends', '/audit': 'Site Audit', '/structured-data': 'Structured Data', '/more-tools': 'Toolkit', '/more-tools/tool': 'Toolkit', '/citations': 'Citations', '/sentiment': 'Sentiment', '/fact-check': 'Fact Check', '/website-facts': 'Fact Check' }
 // onSetup (optional): what "Set up {brand}" does instead of linking to /brands (e.g. the app's own Brand Setup route)
 // setUp: the brand has its prompts and competitors, only the first sync is missing → "View prompts" (Prompt Hub);
 // onPrompts (optional): what "View prompts" does instead of linking to /tracker
@@ -13,7 +13,7 @@ const button = 'mt-5 inline-flex h-9 items-center rounded-lg bg-ink px-3.5 text-
 
 export default function EmptyBrand({ route, onSetup, setUp = false, onPrompts }) {
   const title = TITLES[route] ?? 'Overview'
-  useEffect(() => { document.title = `${title} · ${account.name} · Kraffic` }, [title])
+  useEffect(() => { document.title = `${title} · ${account.name} · Auden AI` }, [title])
   return (
     <>
       <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">{title}</h1>

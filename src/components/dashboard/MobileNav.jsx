@@ -8,13 +8,18 @@ import ThemeToggle from './ThemeToggle'
 import { HOME, NavLinks, WorkspaceList, WorkspaceSwitcher } from './Sidebar'
 import { account, agencyClients } from '../../data/mock'
 import { useBackClose } from '../../hooks/useOverlay'
+import { useIsCompact } from '../../hooks/useMedia'
+import GettingStarted from '../../walkthrough/GettingStarted'
+import { TOURS } from '../../walkthrough/tour'
+import { endTour, useWalkthrough } from '../../walkthrough/store'
 
-// Below lg: a sticky top bar (menu · Kraffic mark ······ workspace logo) instead of the sidebar.
+// Below lg: a sticky top bar (menu · Auden AI mark ······ workspace logo) instead of the sidebar.
 // The menu opens the nav as a left drawer (288px): same groups and items, theme + workspace at the bottom.
 // Closes on a link tap, the scrim, Esc, a swipe left, or Back.
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-function NavDrawer({ open, onClose, path, nav }) {
+// plain: no scrim of its own (the walkthrough's dim layer is over everything while its pointers are on the menu)
+function NavDrawer({ open, onClose, path, nav, plain = false }) {
   const [mounted, setMounted] = useState(open)
   const [shown, setShown] = useState(false)
   const panel = useRef(null)
@@ -59,11 +64,11 @@ function NavDrawer({ open, onClose, path, nav }) {
   if (!mounted) return null
   return (
     <div className="fixed inset-0 z-[70] lg:hidden">
-      <div className={`absolute inset-0 bg-black/40 transition-opacity duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'opacity-100' : 'opacity-0'}`} onClick={close} aria-hidden />
+      <div className={`absolute inset-0 ${plain ? '' : 'bg-black/40'} transition-opacity duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'opacity-100' : 'opacity-0'}`} onClick={close} aria-hidden />
       <div ref={panel} role="dialog" aria-modal="true" aria-label="Menu" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-        className={`absolute inset-y-0 left-0 flex w-[288px] max-w-[85vw] flex-col border-r border-line bg-stone-50 pt-[env(safe-area-inset-top)] shadow-xl outline-none transition-transform duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'translate-x-0' : '-translate-x-full'}`}>
+        className={`absolute inset-y-0 left-0 flex w-[288px] max-w-[85vw] flex-col border-r border-sidebar-line bg-sidebar pt-[env(safe-area-inset-top)] shadow-xl outline-none transition-transform duration-[240ms] ease-out motion-reduce:transition-none ${shown ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-14 shrink-0 items-center justify-between px-3">
-          <a href={HOME} aria-label="Kraffic — Home" className="flex h-10 items-center rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /><span className="ml-2 text-[16px] font-bold text-stone-900">Kraffic</span></a>
+          <a href={HOME} aria-label="Auden AI — Home" className="flex h-10 items-center rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /><span className="ml-2 text-[16px] font-bold text-stone-900">Auden AI</span></a>
           <button type="button" onClick={close} aria-label="Close menu" className="grid h-10 w-10 place-items-center rounded-md text-stone-600 outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus"><X size={20} aria-hidden /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2">
@@ -71,6 +76,8 @@ function NavDrawer({ open, onClose, path, nav }) {
           <NavLinks path={path} nav={nav} onNavigate={() => { release(); onClose() }} />
         </div>
         <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+          {/* phones: Getting started lives here, in the menu (its list opens above it) */}
+          <GettingStarted inline />
           <ThemeToggle />
           <WorkspaceSwitcher />
         </div>
@@ -90,18 +97,27 @@ function WorkspaceSheet({ open, onClose }) {
 export default function MobileNav({ path, nav }) {
   const [menu, setMenu] = useState(false)
   const [workspace, setWorkspace] = useState(false)
+  // the walkthrough's pointers on the menu need the menu open (below lg the menu is this drawer)
+  const w = useWalkthrough()
+  const compact = useIsCompact()
+  const pointing = compact && Boolean(w.tour && TOURS[w.tour].nav)
+  // it stays open when they end: the Getting started list is in it
+  useEffect(() => { if (pointing) setMenu(true) }, [pointing])
+  // a step started from the board (its page's pointers, or its page): the menu gets out of the way
+  useEffect(() => { if (w.tour && !TOURS[w.tour].nav) setMenu(false) }, [w.tour])
+  useEffect(() => { setMenu(false) }, [path])
   return (
     <>
       <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-[var(--div)] bg-[color-mix(in_srgb,var(--color-page)_90%,transparent)] px-4 pt-[env(safe-area-inset-top)] backdrop-blur lg:hidden">
         <button type="button" onClick={() => setMenu(true)} aria-label="Open menu" aria-expanded={menu}
           className="-ml-2 grid h-10 w-10 place-items-center rounded-md text-stone-700 outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus"><Menu size={20} aria-hidden /></button>
-        <a href={HOME} aria-label="Kraffic — Home" className="grid h-10 w-10 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /></a>
+        <a href={HOME} aria-label="Auden AI — Home" className="grid h-10 w-10 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /></a>
         <button type="button" onClick={() => setWorkspace(true)} aria-label={`Workspace: ${account.name}`}
           className="ml-auto grid h-10 w-10 place-items-center rounded-md outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
-          <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" imgPad="p-0.5" initialClass="text-[12px]" plate />
+          <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
         </button>
       </header>
-      <NavDrawer open={menu} onClose={() => setMenu(false)} path={path} nav={nav} />
+      <NavDrawer open={menu || pointing} onClose={() => { setMenu(false); if (pointing) endTour(false) }} path={path} nav={nav} plain={pointing} />
       <WorkspaceSheet open={workspace} onClose={() => setWorkspace(false)} />
     </>
   )

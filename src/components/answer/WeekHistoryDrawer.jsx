@@ -13,6 +13,7 @@ import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
 import { useIsMobile } from '../../hooks/useMedia'
 import { chart } from '../../theme/chart'
+import { displayName } from '../../utils/brand'
 
 // The week-by-week drawer, shared by Mentions and citations (CitationsDrawer) and Marketplace visibility
 // (MarketplaceDrawer): the drawer family's shell (Sync drawer width, header, footer), text tabs for the metric, a
@@ -134,7 +135,7 @@ function WeekTip({ active, payload, rows, metric, metrics, rival, changes }) {
           </div>
           {rival && (
             <div className="flex items-center justify-between gap-6">
-              <span className="inline-flex items-center gap-1.5 text-stone-600"><span className="h-2 w-2 rounded-[2px] bg-stone-500" />{rival.name}</span>
+              <span className="inline-flex items-center gap-1.5 text-stone-600"><span className="h-2 w-2 rounded-[2px] bg-stone-500" />{displayName(rival)}</span>
               <span className="num text-stone-900">{fmtVal(p.vs, m)}</span>
             </div>
           )}
@@ -441,7 +442,7 @@ export default function WeekHistoryDrawer({ source }) {
     if (drilled) {
       download(`${brand.key}-${metric}-${dRow.week.label.replace(/\W+/g, '-').toLowerCase()}-${tab}.csv`, [[metric === 'pages' ? 'Page' : 'Prompt', 'What happened'], ...dChanges[tab].map((x) => [x.prompt, x.meta])])
     } else {
-      download(`${brand.key}-${source.csvName}.csv`, [['Week', ...METRICS.map((m) => m.label), ...(rival ? [`${rival.name} ${sel.label.toLowerCase()}`] : [])],
+      download(`${brand.key}-${source.csvName}.csv`, [['Week', ...METRICS.map((m) => m.label), ...(rival ? [`${displayName(rival)} ${sel.label.toLowerCase()}`] : [])],
         ...rows.map((r, i) => [r.week.label, ...METRICS.map((m) => r.totals[m.id] ?? ''), ...(rival ? [vsRows?.[i]?.totals[metric] ?? ''] : [])])])
     }
   }
@@ -567,7 +568,7 @@ export default function WeekHistoryDrawer({ source }) {
                           return (
                             <button key={b.key} type="button" aria-pressed={on} onClick={() => set({ vs: on ? null : b.key })}
                               className={`inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full pl-1.5 pr-3 text-[13px] leading-[18px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'bg-tint font-medium text-stone-900' : 'text-stone-600 hover:bg-tint hover:text-stone-900'}`}>
-                              <Favicon domain={b.domain} size={20} />{b.name}
+                              <Favicon domain={b.domain} size={20} />{displayName(b)}
                             </button>
                           )
                         })}

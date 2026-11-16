@@ -8,7 +8,7 @@ export default function FeatureOff({ name, what }) {
     <Card className="mt-4 flex flex-col items-center px-5 py-14 text-center">
       <span className="grid h-10 w-10 place-items-center rounded-lg bg-tint text-stone-700" aria-hidden><Lock size={18} /></span>
       <h2 className="mt-4 text-[15px] leading-5 font-semibold text-stone-900">{name} isn’t switched on for this account</h2>
-      <p className="mt-1 max-w-[420px] text-[14px] leading-5 text-stone-600">{what} Contact the Kraffic Support team to switch it on.</p>
+      <p className="mt-1 max-w-[420px] text-[14px] leading-5 text-stone-600">{what} Contact the Auden AI Support team to switch it on.</p>
     </Card>
   )
 }

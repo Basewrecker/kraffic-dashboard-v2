@@ -8,6 +8,8 @@ import SectionHeader from './SectionHeader'
 import { openSyncDrawer } from '../answer/SyncDrawer'
 import { useBrandView } from '../../hooks/useBrandView'
 import { changeParts } from '../../utils/syncChange'
+import { NO_SCORE, isScore, noResultText } from '../../utils/score'
+import NoResult from '../ui/NoResult'
 
 const PREVIEW = 5
 const short = (d) => d.replace(/, \d{4}$/, '') // "Oct 5, 2026" → "Oct 5"
@@ -65,8 +67,11 @@ function ChangeList({ kind, items, syncId }) {
 }
 
 // no box: indented to the date column, lists first, one quiet comparison line underneath
-function Changes({ row }) {
+// before: the row below (the sync it's compared with). No result on either side: one line saying so, no lists
+function Changes({ row, before, engine, latest = false }) {
   const c = row.changes
+  const missing = row.visibility == null ? row : before && before.visibility == null ? before : null
+  if (missing) return <div className="pb-4 pl-8 pr-2 pt-1 text-[12px] leading-4 text-stone-500">{noResultText(engine, missing === row && latest ? null : missing.date)}{missing === before ? ': nothing to compare against.' : '.'}</div>
   if (!c) return <div className="pb-4 pl-8 pr-2 pt-1 text-[12px] leading-4 text-stone-500">First sync in this history: nothing to compare against.</div>
   const val = (n) => <span className="font-medium text-stone-600 tabular-nums">{fmtSigned(n)}</span>
   return (
@@ -132,14 +137,20 @@ export default function SyncHistory() {
                   {i === 0 && <span className={`inline-flex h-5 items-center rounded px-1.5 text-[11px] leading-none font-medium text-stone-700 transition-colors duration-150 ${explain.on && explain.keys.includes(`sync:${r.id}`) ? 'bg-surface' : 'bg-tint group-hover:bg-surface'}`}>Latest</span>}
                 </span>
                 <span className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                  <span className="text-[14px] leading-5 font-semibold text-ink tabular-nums">{r.visibility}%</span>
-                  <Delta d={r.delta} prompts={r.netPrompts ?? null} />
+                  {/* no result from this engine in that scan: "—" and the ⓘ, never 0% (no change line either) */}
+                  {isScore(r.visibility)
+                    ? <span className="text-[14px] leading-5 font-semibold text-ink tabular-nums">{r.visibility}%</span>
+                    : <NoResult engine={engine} date={i === 0 ? null : r.date} inButton className="text-[14px] leading-5 font-semibold" />}
+                  {/* no change line when either side has no result (the delta is null) */}
+                  {isScore(r.visibility) && r.delta != null && <Delta d={r.delta} prompts={r.netPrompts ?? null} />}
                 </span>
                 <span className="flex min-w-0 items-center justify-end gap-3 sm:justify-start">
                   <span className="hidden h-1.5 w-full max-w-[160px] min-w-[48px] overflow-hidden rounded-full sm:flex" style={{ background: 'var(--data-track)' }} aria-hidden>
-                    <span className="h-full rounded-full bg-ink" style={{ width: `${(r.visible / r.total) * 100}%` }} />
+                    {isScore(r.visible) && <span className="h-full rounded-full bg-ink" style={{ width: `${(r.visible / r.total) * 100}%` }} />}
                   </span>
-                  <span className="shrink-0 text-[13px] leading-[18px] text-stone-600 tabular-nums" title={`${r.visible} visible · ${r.missed} missed`}>{r.visible} / {r.total}</span>
+                  {isScore(r.visible)
+                    ? <span className="shrink-0 text-[13px] leading-[18px] text-stone-600 tabular-nums" title={`${r.visible} visible · ${r.missed} missed`}>{r.visible} / {r.total}</span>
+                    : <span className="shrink-0 text-[13px] leading-[18px] text-stone-500 tabular-nums">{NO_SCORE} / {r.total}</span>}
                 </span>
               </button>
               {/* always rendered so it can animate closed: grid rows 0fr → 1fr + opacity, 200ms */}
@@ -150,7 +161,7 @@ export default function SyncHistory() {
                 className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
               >
                 <div className="overflow-hidden">
-                  <Changes row={r} />
+                  <Changes row={r} before={syncHistory[syncHistory.indexOf(r) + 1]} engine={engine} latest={i === 0} />
                 </div>
               </div>
             </li>

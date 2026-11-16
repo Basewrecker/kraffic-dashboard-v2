@@ -40,7 +40,7 @@ export default function BrandStep({ brand, editing, onSave, onCancel }) {
     <form noValidate onSubmit={submit} className={stepCard}>
       <div className="flex flex-col gap-4 px-5 py-4 max-md:px-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className={`text-[13px] leading-[18px] ${t2}`}>{kind === 'website' ? 'Kraffic tracks the brand by its website.' : 'Kraffic looks for the brand’s name in AI answers.'}</p>
+          <p className={`text-[13px] leading-[18px] ${t2}`}>{kind === 'website' ? 'Auden AI tracks the brand by its website.' : 'Auden AI looks for the brand’s name in AI answers.'}</p>
           <Segmented label="Track by" size="sm" value={kind} onChange={setKind} options={[{ value: 'website', label: 'Website' }, { value: 'name', label: 'Name only' }]} />
         </div>
         {kind === 'website' && (
@@ -51,7 +51,7 @@ export default function BrandStep({ brand, editing, onSave, onCancel }) {
               <input autoFocus inputMode="url" autoComplete="off" spellCheck={false} placeholder="yourbrand.com" value={site} aria-invalid={Boolean(siteError)}
                 onChange={(e) => setSite(e.target.value)} onBlur={() => { setTouched(true); if (siteOk) setSite(domain) }}
                 className="h-full min-w-0 flex-1 bg-transparent px-2.5 text-[14px] text-stone-900 outline-none placeholder:text-stone-500" />
-              {siteOk && <span className="pr-2.5"><SiteLogo domain={domain} name={brandName(domain)} className="h-4 w-4 rounded-sm" imgPad="p-0" initialClass="text-[9px]" bordered={false} /></span>}
+              {siteOk && <span className="pr-2.5"><SiteLogo domain={domain} name={brandName(domain)} className="h-4 w-4 rounded-sm" initialClass="text-[9px]" /></span>}
             </span>
             {siteError && <span role="alert" className="mt-1.5 block text-[12px] leading-4 text-negative">{siteError}</span>}
           </label>

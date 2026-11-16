@@ -12,6 +12,7 @@ import { ENGINES, OWN, brandByDomain, getBrandView } from '../../data/brandViews
 import { enginesNotRun, weekRows } from '../../data/citationHistory'
 import { citationsMentions, trackedPrompts } from '../../data/mock'
 import { useBrandView, useCountUp } from '../../hooks/useBrandView'
+import { fmtScore, isScore } from '../../utils/score'
 import { platformRates } from '../../utils/platformInsight'
 import { useTracking } from '../../store/trackingSettings'
 
@@ -131,7 +132,7 @@ export default function CitationsMentions() {
         {/* 8px clear above the arc; the number sits level with the arc's bottom */}
         <Stat label="AI Visibility" gap="mt-2">
           <Gauge value={shownScore} />
-          <span className="text-[24px] leading-none font-semibold text-stone-900 tabular-nums md:text-[32px]">{Math.round(shownScore)}</span>
+          <span className={`text-[24px] leading-none font-semibold tabular-nums md:text-[32px] ${isScore(shownScore) ? 'text-stone-900' : 'text-stone-500'}`}>{fmtScore(shownScore)}</span>
         </Stat>
         <Stat label="Mentions" foot={mentions != null && <VsLastWeek d={thisWeek?.delta.mentions} label="Mentions" onOpen={(e) => week('mentions', e)} />}>
           {mentions == null ? <span className="text-[24px] leading-none font-semibold md:text-[32px]">{dash}</span> : (

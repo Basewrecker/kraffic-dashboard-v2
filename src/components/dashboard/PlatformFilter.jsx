@@ -4,7 +4,7 @@ import { engineName, enginePid } from '../../data/brandViews'
 import { useDashboardView } from '../../hooks/useBrandView'
 
 // The prompt tables' view of the dashboard's one engine filter (useBrandView → ?engine=).
-// platform = [prompt-data id] ('google' = AI Overview) or null when "All engines".
+// platform = [prompt-data id] ('google' = AI Overview, 'aimode' = AI Mode) or null when "All engines".
 export const joinNames = (names) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`)
 
 // kept for App's tree; the state lives in DashboardViewProvider
@@ -12,7 +12,7 @@ export function PlatformFilterProvider({ children }) {
   return children
 }
 
-const ENGINE_OF = { google: 'aio', gemini: 'gemini', chatgpt: 'chatgpt', claude: 'claude', grok: 'grok' }
+const ENGINE_OF = { google: 'aio', aimode: 'aimode', gemini: 'gemini', chatgpt: 'chatgpt', claude: 'claude', grok: 'grok' }
 
 export function usePlatformFilter() {
   const { engine, setEngine } = useDashboardView()

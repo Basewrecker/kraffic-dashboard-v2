@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, ArrowUpRight, Droplet, Eye, Globe, Hand, MoreHorizontal, Pencil, Plus, ShieldCheck, Sparkles, Sun, Tag, Trash2, Type, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Droplet, Eye, FileText, Globe, Hand, MoreHorizontal, Pencil, Plus, ShieldCheck, Sparkles, Sun, Tag, Trash2, Type, X } from 'lucide-react'
 import PromptTable from '../dashboard/PromptTable'
 import { PrimaryButton, useToast } from '../dashboard/overlays'
 import ConfirmPopover from '../prompts/ConfirmPopover'
@@ -14,8 +14,12 @@ import { isValidDomain, normalizeDomain } from '../../utils/domain'
 import { MAX_COMPETITORS, account, setupActions, setupBrands } from '../../data/mock'
 import { sharedAnswers } from '../../data/brandViews'
 import { guessTopicType } from '../../data/topics'
+import { EMPTY_GUIDELINES, GUIDE_ACCEPT, guideReject, guidelinesPreview, hasGuidelines, loadGuidelines, removeGuidelines, saveGuidelines } from '../../data/brandGuidelines'
+import { readFile } from '../../pages/opportunities/data/extract'
+import GuidelinesForm from '../../pages/opportunities/workspace/Guidelines'
+import { ConfirmSetup, ReplayGuide } from '../../walkthrough/GettingStarted'
 
-// /setup: what Kraffic tracks for a brand, in the same settings layout as /llm-settings —
+// /setup: what Auden AI tracks for a brand, in the same settings layout as /llm-settings —
 // cards of 60px rows (name + meta left, one quiet value + hover-only Edit / Remove right),
 // a "+ Add" that opens an input row at the top, and a "Suggested" strip at the foot of a card.
 // Every add / edit / remove gives an Undo toast. Saves go through setupActions (data/mock.js): the page changes first;
@@ -27,8 +31,8 @@ const iconBtn = 'grid h-7 w-7 place-items-center rounded-md text-stone-600 outli
 const textBtn = 'inline-flex items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 ease-out hover:text-ink focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40'
 const smallBtn = 'inline-flex h-8 shrink-0 items-center rounded-md px-3 text-[13px] font-medium outline-none transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40'
 const rowAnim = (state) => (state === 'enter' ? 'srow-in' : state === 'leaving' ? 'srow-out' : '')
-// favicons sit on a white plate in both themes so white / light logos stay visible
-export const Logo = ({ domain, name }) => <SiteLogo domain={domain} name={name} className="h-7 w-7 rounded-md" imgPad="p-1" initialClass="text-[12px]" plate bordered={false} />
+// favicons fill their rounded square, no white plate (SiteLogo)
+export const Logo = ({ domain, name }) => <SiteLogo domain={domain} name={name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
 
 // ---------------------------------------------------------------- frame
 
@@ -77,9 +81,10 @@ function Menu({ items, label: aria }) {
 }
 
 // compact: header pt-4 pb-3 with no rule under it, and `body` (a chip line) instead of a list of rows
-export function SettingsCard({ title, count, description, action, footer, children, body, id, label: aria, compact }) {
+export function SettingsCard({ title, count, description, action, footer, children, body, id, label: aria, compact, tour }) {
   return (
-    <section id={id} aria-label={aria ?? title} className="scroll-mt-6 overflow-hidden rounded-[14px] border border-line bg-surface">
+    // tour: the walkthrough pointer that lights this card (walkthrough/tour.js)
+    <section id={id} data-tour={tour} aria-label={aria ?? title} className="scroll-mt-6 overflow-hidden rounded-[14px] border border-line bg-surface">
       {title && (
         <header className={`flex items-start justify-between gap-4 px-5 ${compact ? 'pb-3 pt-4' : `pb-3.5 pt-[18px] ${children ? 'border-b border-[var(--div)]' : ''}`}`}>
           <div className="min-w-0">
@@ -106,8 +111,9 @@ const AddButton = ({ onClick, disabled, disabledTitle }) => (
   </span>
 )
 
-// one read-only row: [logo] name / meta … quiet value + hover-only Edit / Remove
-export function Row({ logo, name, meta, value, valueTitle, muted, onEdit, onRemove, state }) {
+// one read-only row: [logo] name / meta … quiet value + hover-only Edit / Remove. alwaysActions: a text "Edit" and the
+// remove × always shown (First-time setup's competitors, matching the "Edit" links on its done steps), not only on hover
+export function Row({ logo, name, meta, value, valueTitle, muted, onEdit, onRemove, state, alwaysActions = false }) {
   return (
     <li className={rowAnim(state)}>
       <div className="group flex h-[60px] items-center justify-between gap-4 px-5">
@@ -120,7 +126,13 @@ export function Row({ logo, name, meta, value, valueTitle, muted, onEdit, onRemo
         </span>
         <span className="flex shrink-0 items-center gap-3">
           {value && <span title={valueTitle} className="whitespace-nowrap text-[13px] leading-[18px] text-stone-600 tabular-nums">{value}</span>}
-          {(onEdit || onRemove) && (
+          {(onEdit || onRemove) && alwaysActions && (
+            <span className="flex items-center gap-3" data-row-actions="always">
+              {onEdit && <button type="button" aria-label={`Edit ${name}`} onClick={onEdit} className={`${textBtn} h-7`}>Edit</button>}
+              {onRemove && <button type="button" aria-label={`Remove ${name}`} onClick={onRemove} className={`${iconBtn} -mr-1.5`}><X size={14} aria-hidden /></button>}
+            </span>
+          )}
+          {(onEdit || onRemove) && !alwaysActions && (
             <span className="flex gap-0.5 opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 touch:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
               {onEdit && <button type="button" aria-label={`Edit ${name}`} onClick={onEdit} className={iconBtn}><Pencil size={14} aria-hidden /></button>}
               {onRemove && <button type="button" aria-label={`Remove ${name}`} onClick={onRemove} className={iconBtn}><X size={14} aria-hidden /></button>}
@@ -235,7 +247,7 @@ function useCardSave() {
   }
   return [failed, run]
 }
-const SaveFailed = ({ failed }) => (failed ? (
+export const SaveFailed = ({ failed }) => (failed ? ( // also First-time setup's competitors
   <p role="alert" className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--div)] px-5 py-2.5 text-[12.5px] leading-[18px]">
     <span className="text-negative">Couldn’t save · {failed.what}{failed.reason ? ` · ${failed.reason}` : ''}</span>
     <button type="button" onClick={failed.retry} className="rounded font-medium text-stone-900 underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Retry</button>
@@ -247,10 +259,10 @@ const SaveFailed = ({ failed }) => (failed ? (
 function BrandIdentity({ brand, syncing, onEdit, onDelete }) {
   const status = syncing ? 'Syncing…' : brand.lastSync ? `Tracking · updated ${brand.lastSync}` : 'Not synced yet'
   return (
-    <SettingsCard label={`${brand.name} brand`}>
+    <SettingsCard label={`${brand.name} brand`} tour="setup-brand">
       <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3">
         <span className="flex min-w-0 items-center gap-3">
-          <SiteLogo domain={brand.domain} name={brand.name} className="h-10 w-10 rounded-lg" imgPad="p-1.5" initialClass="text-[16px]" bordered={false} />
+          <SiteLogo domain={brand.domain} name={brand.name} className="h-10 w-10 rounded-lg" initialClass="text-[16px]" />
           <span className="min-w-0">
             <h2 className="truncate text-[16px] leading-6 font-semibold text-stone-900">{brand.name}</h2>
             <span className="flex items-center gap-1 text-[13px] leading-[18px] text-stone-600">
@@ -364,7 +376,7 @@ function NamesCard({ brand, update, toast }) {
   }
 
   return (
-    <SettingsCard id={`aliases-${brand.id}`} title="Also counts as" count={aliases.length} description={`Name variants that count as a ${brand.name} mention`} compact
+    <SettingsCard id={`aliases-${brand.id}`} tour="setup-names" title="Also counts as" count={aliases.length} description={`Name variants that count as a ${brand.name} mention`} compact
       body={(
         <>
           <div className="flex flex-wrap items-center gap-2.5 px-5 pb-4">
@@ -582,6 +594,7 @@ function CompetitorsCard({ brand, update, toast }) {
   return (
     <SettingsCard
       id={`competitors-${brand.id}`}
+      tour="setup-competitors"
       title="Competitors"
       count={MAX_COMPETITORS != null ? `${list.length} of ${MAX_COMPETITORS}` : list.length}
       description="Brands AI answers compare you with"
@@ -661,7 +674,7 @@ function MarketplacesCard({ brand, update, toast }) {
   }
   const country = tracking.market.country
   const suggestions = (setupActions.marketplaceSuggestions?.(brand, country) ?? [])
-    .map((x) => ({ key: x.domain, label: x.name, value: x, reason: x.answers ? `Cited in ${x.answers} answers` : undefined }))
+    .map((x) => ({ key: x.domain, label: x.answers ? `${x.name} · ${x.answers} answer${x.answers === 1 ? '' : 's'}` : x.name, value: x, reason: x.answers ? `Cited in ${x.answers} answers` : undefined })) // as the app: the answers count on the chip
   const cited = (m) => (m.cited == null ? <span className="text-stone-500">—</span> : m.cited > 0 ? `${m.cited} listing${m.cited === 1 ? '' : 's'} cited` : 'No listings yet')
 
   return (
@@ -704,8 +717,66 @@ function MarketplacesCard({ brand, update, toast }) {
 // kept outside the component so edits survive leaving /setup (e.g. to change the market on /llm-settings)
 let savedBrands = setupBrands
 
+// "Brand guidelines" (owner, 2026-11-05): what the Content page asks for once (data/brandGuidelines.js, per brand).
+// Saved: one row, the file's name (or "Pasted text" / "Quick rules") over a short preview, with Edit / Replace /
+// Remove. Edit opens the Content page's form in the card (Save / Cancel); Replace picks a new file (PDF, DOCX, TXT or
+// MD, read in the browser) and keeps the text and rules; Remove has Undo. None: "+ Add".
+function GuidelinesCard({ brand, toast }) {
+  const [g, setG] = useState(() => loadGuidelines(brand.domain))
+  const [editing, setEditing] = useState(null) // the form's value while editing, else null
+  const file = useRef(null)
+  const save = (value, msg = 'Brand Guidelines saved') => { setG(saveGuidelines(brand.domain, value)); setEditing(null); toast(msg) }
+  const replace = (list) => {
+    const f = list?.[0]
+    if (!f) return
+    const why = guideReject(f)
+    if (why) { toast(why); return }
+    readFile(f).then(({ text, words }) => save({ ...g, file: { name: f.name, words, text } }, `${f.name} saved`), () => toast(`Couldn’t read ${f.name}`))
+  }
+  const remove = () => {
+    const old = g
+    removeGuidelines(brand.domain)
+    setG(null)
+    toast('Brand Guidelines removed', { duration: 5000, action: { label: 'Undo', onClick: () => setG(saveGuidelines(brand.domain, old)) } })
+  }
+  const name = g?.file?.name ?? (g?.text?.trim() ? 'Pasted text' : 'Quick rules')
+  const rules = g ? [g.tone?.trim() && `Tone: ${g.tone.trim()}`, g.always?.trim() && `Always say: ${g.always.trim()}`, g.never?.trim() && `Never say: ${g.never.trim()}`].filter(Boolean) : []
+  const preview = g ? (g.file || g.text?.trim() ? guidelinesPreview(g) : rules.join(' · ')) : ''
+  return (
+    <SettingsCard id={`guidelines-${brand.id}`} title="Brand Guidelines"
+      description={g ? `Every content draft for ${brand.name} follows them` : `None yet. Every content draft for ${brand.name} will follow them.`}
+      action={!g && !editing ? <AddButton onClick={() => setEditing(EMPTY_GUIDELINES)} /> : null}
+      body={editing ? (
+        <div className="border-t border-[var(--div)] px-5 pb-5 pt-5" data-guidelines-editing>
+          <GuidelinesForm value={editing} onChange={(p) => setEditing((e) => ({ ...e, ...p }))} />
+          <div className="mt-5 flex items-center justify-end gap-4">
+            <button type="button" onClick={() => setEditing(null)} className={textBtn}>Cancel</button>
+            <button type="button" disabled={!hasGuidelines(editing)} onClick={() => save(editing)} className={`${smallBtn} bg-ink text-on-ink hover:bg-ink-hover`}>Save</button>
+          </div>
+        </div>
+      ) : g ? (
+        <div className="group flex min-h-[60px] items-center justify-between gap-4 border-t border-[var(--div)] px-5 py-3" data-guidelines-saved>
+          <span className="flex min-w-0 items-center gap-3">
+            <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-line text-stone-600">{g.file ? <FileText size={14} /> : <Type size={14} />}</span>
+            <span className="min-w-0">
+              <span className="block truncate text-[14px] leading-5 font-medium text-stone-900" title={name}>{name}</span>
+              {preview && <span className="block truncate text-[12.5px] leading-[18px] text-stone-600" title={preview}>{preview}</span>}
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-3">
+            <button type="button" onClick={() => setEditing({ ...EMPTY_GUIDELINES, ...g })} className={`${textBtn} h-7`}>Edit</button>
+            <button type="button" onClick={() => file.current?.click()} className={`${textBtn} h-7`}>Replace</button>
+            <button type="button" onClick={remove} className={`${textBtn} h-7`}>Remove</button>
+            <input ref={file} type="file" accept={GUIDE_ACCEPT} className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { replace(e.target.files); e.target.value = '' }} />
+          </span>
+        </div>
+      ) : null}
+    />
+  )
+}
+
 export default function SetupPage() {
-  useEffect(() => { document.title = 'Brand Setup · Kraffic' }, [])
+  useEffect(() => { document.title = 'Brand Setup · Auden AI' }, [])
   const [brands, setBrands] = useState(() => savedBrands)
   useEffect(() => { savedBrands = brands }, [brands])
   const [modal, setModal] = useState(null) // { brand: null | brand }
@@ -763,8 +834,10 @@ export default function SetupPage() {
     <div className="mx-auto flex w-full max-w-[880px] flex-col gap-4 pt-2">
       <div className="mb-2 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-4">
         <div>
-          <h1 className="text-[22px] leading-7 font-semibold text-stone-900 lg:text-[28px] lg:leading-9">Brand Setup</h1>
-          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">What Kraffic tracks for your brand</p>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-[22px] leading-7 font-semibold text-stone-900 lg:text-[28px] lg:leading-9">Brand Setup</h1>
+          </div>
+          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">What Auden AI tracks for your brand</p>
         </div>
         <div className="md:pt-1 max-md:[&>button]:h-10 max-md:[&>button]:w-full max-md:[&>button]:justify-center">
           <PrimaryButton size="sm" icon={Plus} onClick={() => setModal({ brand: null })}>Add brand</PrimaryButton>
@@ -784,12 +857,16 @@ export default function SetupPage() {
               <NamesCard brand={brand} update={update} toast={toast} />
               <TopicsCard brand={brand} update={update} toast={toast} />
               <CompetitorsCard brand={brand} update={update} toast={toast} />
+              {brand.domain && <GuidelinesCard brand={brand} toast={toast} />}
               {/* marketplaces: the data layer gives a brand its stores when the account has ecommerce (null otherwise) */}
               {Array.isArray(brand.marketplaces) && <MarketplacesCard brand={brand} update={update} toast={toast} />}
             </div>
           )
         })
       )}
+
+      {/* Getting started, task 1: where the brand and competitors are confirmed (only while that task is open) */}
+      <ConfirmSetup />
 
       {/* tracking config lives on /llm-settings; this is a read-only summary from the shared store */}
       {primary && (
@@ -803,6 +880,9 @@ export default function SetupPage() {
           )}
         />
       )}
+
+      {/* Getting started (mock only): one card, one action. The only way to start the guide again */}
+      <SettingsCard id="getting-started" title="Getting started" description="Take the guided setup again, from the start." action={<ReplayGuide />} />
 
       <BrandModal
         open={Boolean(modal)}

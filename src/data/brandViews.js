@@ -5,15 +5,20 @@
 // Gemini 90 / ChatGPT 54). Competitors are generated to their tracked share (CeraVe ≈18%, The Ordinary ≈4%,
 // Paula’s Choice ≈3%), preferring prompts the mock already says they win.
 import {
-  account, citedPages, citedPagesOther, history, historyEarlier, historySeries, kpis, missedPrompts, platforms as platformList,
-  platformStats, syncHistory, syncTotal, trackedPrompts, visiblePrompts,
+  account, citedPages, citedPagesOther, extraCompetitors, history, historyEarlier, historySeries, kpis, missedPrompts, platforms as platformList,
+  platformStats, syncHistory, syncTotal, trackedPrompts, visiblePrompts, withAiMode, aiModePreview, historyMonthly,
 } from './mock.js'
+import { brandListName } from '../utils/brand.js'
+import { pointsBetween } from '../utils/syncChange.js'
 
 export const TRACKED_BRANDS = [
   { domain: account.domain, key: 'dermasuri', name: account.name, you: true },
   { domain: 'cerave.com', key: 'cerave', name: 'CeraVe' },
   { domain: 'theordinary.com', key: 'ordinary', name: 'The Ordinary' },
   { domain: 'paulaschoice.com', key: 'paulas', name: 'Paula’s Choice' },
+  // ?competitors=many (data/mock.js extraCompetitors): the name Brand Setup holds, or with none set the domain tidied
+  // (utils/brand.js brandListName, the app's rule: "byoma.com" → "Byoma")
+  ...extraCompetitors.map((c) => ({ domain: c.domain, key: c.key, name: brandListName([c.name], c.domain) })),
 ]
 export const brandByDomain = (d) => TRACKED_BRANDS.find((b) => b.domain === d)
 export const OWN = TRACKED_BRANDS[0]
@@ -52,7 +57,7 @@ export const appearances = (() => {
       visible,
       platforms: visible ? visibleById[p.id].platforms : [],
       cited: ci !== -1,
-      citedPlatforms: ci === -1 ? [] : ['google', ...(withChat.slice(0, 4).includes(p.id) ? ['chatgpt'] : []), ...(withGem.slice(0, 2).includes(p.id) ? ['gemini'] : [])],
+      citedPlatforms: ci === -1 ? [] : [...withAiMode(['google'], `cite${p.id}`, 0.4), ...(withChat.slice(0, 4).includes(p.id) ? ['chatgpt'] : []), ...(withGem.slice(0, 2).includes(p.id) ? ['gemini'] : [])],
       citedPage: ci === -1 ? null : pageSlots[ci] ?? '/',
     }
   })
@@ -65,14 +70,31 @@ export const appearances = (() => {
     const on = new Set([...fromMissed, ...fromVisible])
     trackedPrompts.forEach((p) => {
       const visible = on.has(p.id)
-      const plats = visible ? ['google', ...['gemini', 'chatgpt'].filter(() => r() < 0.45)] : []
+      const plats = visible ? withAiMode(['google', ...['gemini', 'chatgpt'].filter(() => r() < 0.45)], `${domain}|${p.id}`) : []
       const cited = visible && r() < 0.45
       table[p.id][domain] = {
         visible,
         platforms: plats,
         cited,
-        citedPlatforms: cited ? ['google'] : [],
+        citedPlatforms: cited ? withAiMode(['google'], `cite|${domain}|${p.id}`, 0.4) : [],
         citedPage: cited ? PAGES[domain][Math.floor(r() * PAGES[domain].length)] : null,
+      }
+    })
+  }
+  // ?competitors=many: each extra competitor named in exactly `target` answers, drawn from every tracked prompt (so one
+  // can appear in more answers than you); its own random stream, so the brands above keep their rows
+  const rx = rng(4242)
+  for (const c of extraCompetitors) {
+    const on = new Set(shuffle(trackedPrompts.map((p) => p.id), rx).slice(0, c.target))
+    trackedPrompts.forEach((p) => {
+      const visible = on.has(p.id)
+      const cited = visible && rx() < 0.3
+      table[p.id][c.domain] = {
+        visible,
+        platforms: visible ? withAiMode(['google', ...['gemini', 'chatgpt'].filter(() => rx() < 0.45)], `${c.domain}|${p.id}`) : [],
+        cited,
+        citedPlatforms: cited ? ['google'] : [],
+        citedPage: cited ? ['/', '/products', '/blog'][Math.floor(rx() * 3)] : null,
       }
     })
   }
@@ -82,7 +104,7 @@ export const appearances = (() => {
 // ------------------------------------------------------------------ helpers
 const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0)
 const weekly = [...historyEarlier, ...history]
-const PLATFORM_ID = { aio: 'google', gemini: 'gemini', chatgpt: 'chatgpt', claude: 'claude', grok: 'grok' }
+const PLATFORM_ID = { aio: 'google', aimode: 'aimode', gemini: 'gemini', chatgpt: 'chatgpt', claude: 'claude', grok: 'grok' }
 
 // all pages a brand is cited on (optionally on one engine), most cited first; deltas carried over from `prev`
 function citedAllOf(domain, pid, prev = []) {
@@ -137,7 +159,7 @@ function buildBrandView(domain) {
   const visibleList = own ? visiblePrompts : visibleRows.map((p, i) => ({
     id: p.id, prompt: p.prompt, discovery: 'google', platforms: appearances[p.id][focal.domain].platforms, firstVisible: SYNC_DATES[Math.floor(r() * SYNC_DATES.length)] ?? SYNC_DATES[i % 5],
   }))
-  const missedList = missedRows.map((p) => ({ id: p.id, prompt: p.prompt, topic: p.category, platforms: ['google', 'gemini', 'chatgpt'], winners: winnersOf(p) }))
+  const missedList = missedRows.map((p) => ({ id: p.id, prompt: p.prompt, topic: p.category, platforms: ['google', 'aimode', 'gemini', 'chatgpt'], winners: winnersOf(p) }))
   const rivalList = trackedPrompts
     .map((p) => ({ id: p.id, prompt: p.prompt, topic: p.category, winners: winnersOf(p), focalVisible: appearances[p.id][focal.domain].visible }))
     .filter((x) => x.winners.length)
@@ -211,12 +233,66 @@ function buildBrandView(domain) {
 }
 
 // ------------------------------------------------------------------ engine filter
-// One engine at a time ('all' | 'aio' | 'gemini' | 'chatgpt' | 'claude' | 'grok'). Card ids → prompt-data ids.
+// One engine at a time ('all' | 'aio' | 'aimode' | 'gemini' | 'chatgpt' | 'claude' | 'grok'). Card ids → prompt-data ids.
+// Google is two engines: 'aio' = Google AI Overview, 'aimode' = Google AI Mode (prompt data: 'google', 'aimode').
 // display order everywhere (header menu, Platform visibility columns): most-used engines first
-export const ENGINE_ORDER = ['aio', 'gemini', 'chatgpt', 'claude', 'grok']
-export const ENGINES = ENGINE_ORDER.map((id) => platformList.find((p) => p.id === id)).filter(Boolean).map((p) => ({ id: p.id, name: p.name }))
+export const ENGINE_ORDER = ['aio', 'aimode', 'gemini', 'chatgpt', 'claude', 'grok'].filter((id) => id !== 'aimode' || platformList.some((p) => p.id === 'aimode'))
+// The AI Mode split: from the first sync with an AI Mode score, AI Overview stops including AI Mode results. On AI
+// Overview and All engines only (never AI Mode itself or the other engines): the score card says "Scoring updated
+// <day>" with this ⓘ in place of its change line while the latest sync is that first one, and Visibility history
+// marks the day (the same dashed marker as a scoring change). The split day comes from the data (the earliest AI
+// Mode day); the mock's sample has AI Mode from the start, so only ?aimode=new shows it (the latest sync).
+// ?setup=1: a Brand Setup change 3 days before the latest sync (Visibility history's "Setup changed <day>" marker;
+// next to the AI Mode split or a scoring change the two labels stack). weekly / monthly: the chart's points.
+export function setupPreview(weeklyPts = weekly, monthlyPts = historyMonthly) {
+  try { if (new URLSearchParams(window.location.search).get('setup') !== '1') return null } catch { return null }
+  const prev = weeklyPts.at(-2), mb = monthlyPts.at(-2)
+  if (!prev) return null
+  return { label: `Setup changed ${addDays(prev.date, 4)}`, weekly: { after: prev.date, frac: 4 / 7 }, monthly: mb ? { after: mb.date, frac: 0.9 } : null }
+}
+// "Sep 28" + 4 → "Oct 2" (the mock's short dates, 2026)
+const addDays = (d, n) => { const t = new Date(`${d}, 2026 12:00`); t.setDate(t.getDate() + n); return t.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
+export const AIMODE_SPLIT_TIP = 'Google AI Mode is now counted separately, so Google AI Overview no longer includes AI Mode results.'
+export function aiModeSplit(engine) {
+  if (aiModePreview() !== 'new' || !(engine === 'all' || engine === 'aio')) return null
+  const day = weekly.at(-1), prev = weekly.at(-2)
+  const label = `Scoring updated ${day.date}`
+  const month = historyMonthly.at(-1), monthBefore = historyMonthly.at(-2)
+  const dom = Number(day.iso.slice(8, 10))
+  return {
+    day: day.date, latest: true, label, tip: AIMODE_SPLIT_TIP,
+    // getHistory's scoring shape: the marker sits on the split sync's day
+    scoring: { label, tip: AIMODE_SPLIT_TIP, weekly: { after: prev.date, frac: 1 }, monthly: month && monthBefore && month.iso.slice(0, 7) === day.iso.slice(0, 7) ? { after: monthBefore.date, frac: dom / 31 } : null },
+  }
+}
+// name: the short label (chips, rows, columns); full: menus and drawer titles ("Google AI Overview", "Google AI Mode")
+const FULL_NAME = { aio: 'Google AI Overview', aimode: 'Google AI Mode' }
+export const ENGINES = ENGINE_ORDER.map((id) => platformList.find((p) => p.id === id)).filter(Boolean).map((p) => ({ id: p.id, name: p.name, full: FULL_NAME[p.id] ?? p.name }))
 export const engineName = (id) => ENGINES.find((e) => e.id === id)?.name ?? 'All engines'
+export const engineFullName = (id) => ENGINES.find((e) => e.id === id)?.full ?? 'All engines'
 export const enginePid = (id) => PLATFORM_ID[id]
+
+// ?noresult=gemini (or a comma list): that engine's latest scan returned no result (it failed or didn't answer). Its
+// score in that scan is unknown: null, shown as "—", never 0 (CLAUDE.md §3). The All-engines score is unchanged (it
+// averages the engines that answered). Tests set it with setNoResult.
+let noResultOverride
+export const noResultEngines = () => {
+  if (noResultOverride !== undefined) return noResultOverride
+  try { return (new URLSearchParams(window.location.search).get('noresult') || '').split(',').filter((id) => ENGINE_ORDER.includes(id)) } catch { return [] }
+}
+export const setNoResult = (list) => { noResultOverride = list; cache.clear() }
+// did this engine's latest scan answer? ('all' always has a score: it averages the engines that did)
+export const hasResult = (engine) => !engine || engine === 'all' || !noResultEngines().includes(engine)
+// Older scans that failed on one engine (sample data): engine → the sync days (iso) with no result from it. Gemini's
+// Sep 7 scan didn't complete (citationHistory's FAILED reads this): its Sync history row, history point and that week's
+// mentions are null on Gemini, never estimated. The All-engines score that day averages the engines that answered.
+export const FAILED_SCANS = { gemini: ['2026-09-07'] }
+const syncDateOf = (iso) => { const w = weekly.find((x) => x.iso === iso); return w ? `${w.date}, ${iso.slice(0, 4)}` : null }
+// the sync rows' dates ("Sep 7, 2026") with no result from this engine (the latest included, under ?noresult=)
+export const failedSyncDates = (engine) => (FAILED_SCANS[engine] ?? []).map(syncDateOf).filter(Boolean)
+// the days the history chart leaves a gap on this engine (null, never a drop to 0): its failed scans, and the latest
+// sync when it had no result
+export const engineGaps = (engine) => (!engine || engine === 'all' ? [] : [...(FAILED_SCANS[engine] ?? []), ...(hasResult(engine) ? [] : [weekly.at(-1).iso])])
 
 const mentions = (domain, pid) => trackedPrompts.filter((p) => appearances[p.id][domain].platforms.includes(pid))
 // a brand's share on one engine relative to its share on any engine: scales its weekly history
@@ -257,9 +333,16 @@ function applyEngine(base, engine) {
     changes: r.changes && { ...r.changes, gained: r.changes.gained.filter((g) => visIds.has(g.id)) },
   }))
   // the latest row is the score the card shows on this engine; an engine that never shows the brand loses nothing
-  if (syncRows[0]) syncRows[0].visibility = pct(onEngine.size, TOTAL)
+  // the latest scan on this engine with no result, or an older one that failed (FAILED_SCANS): that row's numbers are
+  // unknown (null), never 0 of 152 and never estimated
+  const answered = hasResult(engine)
+  if (syncRows[0]) syncRows[0].visibility = answered ? pct(onEngine.size, TOTAL) : null
+  const failed = failedSyncDates(engine)
+  syncRows.forEach((r, i) => {
+    if ((i === 0 && !answered) || failed.includes(r.date)) Object.assign(r, { visibility: null, visible: null, missed: null, cited: null })
+  })
   if (!ratio) syncRows.forEach((r) => { if (r.changes) r.changes = { ...r.changes, lost: [] } })
-  syncRows.forEach((r, i) => { r.delta = i < syncRows.length - 1 ? r.visibility - syncRows[i + 1].visibility : Math.round(r.delta * ratio) })
+  syncRows.forEach((r, i) => { r.delta = i < syncRows.length - 1 ? pointsBetween(r.visibility, syncRows[i + 1].visibility) : Math.round(r.delta * ratio) })
 
   // top cited pages on this engine
   const counts = {}
@@ -273,14 +356,15 @@ function applyEngine(base, engine) {
   return {
     ...base,
     engine,
-    kpis: {
+    // no result from this engine's latest scan: its score and counts are unknown (null, "—"), never 0
+    kpis: answered ? {
       score: pct(onEngine.size, TOTAL),
       scoreDelta: scaled.at(-1) - scaled.at(-2),
       visible: onEngine.size,
       missed: TOTAL - onEngine.size, // not picked up by this engine
       total: TOTAL,
       citedSources: citedOn.length,
-    },
+    } : { score: null, scoreDelta: null, visible: null, missed: null, total: TOTAL, citedSources: null },
     visiblePrompts: visibleList,
     missedPrompts: missedList,
     syncHistory: syncRows,

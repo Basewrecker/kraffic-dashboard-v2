@@ -42,9 +42,9 @@
   /* surfaces */
   --color-page: #fafaf9;        /* stone-50 */
   --color-surface: #ffffff;
-  --color-line: #e7e5e4;        /* stone-200: card borders, dividers */
+  --color-line: #DEDCDA;        /* card borders, dividers (round 4, 2026-11-04: was stone-200 #e7e5e4, too faint) */
   --color-line-soft: #f5f5f4;   /* stone-100 */
-  --color-line-strong: #d6d3d1; /* stone-300: hovered card borders */
+  --color-line-strong: #CFCCC9; /* section rules, hovered card borders (was stone-300 #d6d3d1) */
   /* barely-there boxes inside a card (Sync history gained / lost) */
   --subtle-border: #E2DFDC;
   --subtle-bg: color-mix(in srgb, var(--tint) 45%, transparent);
@@ -55,6 +55,8 @@
   --color-ink: var(--ink);      /* graphite system: see :root below */
   --color-ink-hover: var(--ink-hover);
   --color-on-ink: var(--on-ink);
+  --color-beta: var(--beta);      /* violet: ONLY the Beta tag (see CLAUDE.md) */
+  --color-on-beta: var(--on-beta);
   --color-tint: var(--tint);
   --color-negative: var(--negative);
   --color-ink-2: #57534e;       /* stone-600 */
@@ -64,6 +66,11 @@
   --color-raised: #ffffff;            /* selects, popovers, tooltips */
   --color-overlay: #ffffff;           /* detail sheet, modals */
   --color-sidebar: var(--color-stone-50);
+  /* sidebar chrome: its right-edge hairline, a nav row's hover, the theme switcher's track + outline */
+  --color-sidebar-line: var(--color-stone-200);
+  --color-nav-hover: var(--color-stone-100);
+  --color-switch: var(--tint);
+  --color-switch-line: transparent;
   --color-selected: var(--tint);   /* active sidebar item */
   --color-focus: color-mix(in oklab, var(--ink) 35%, transparent);
   --color-scrim-sheet: color-mix(in oklab, var(--color-stone-900) 20%, transparent);
@@ -94,6 +101,8 @@ body {
   --ink: #171412;          /* primary data, primary buttons, active states */
   --ink-hover: #0C0A09;
   --on-ink: #FFFFFF;       /* text on ink buttons */
+  --beta: #6E56CF;
+  --on-beta: #FFFFFF;
   --data-you: var(--ink);
   --data-c1: #78716C;      /* largest competitor */
   --data-c2: #A8A29E;
@@ -103,7 +112,7 @@ body {
   --donut-yours: #171412;
   --donut-others: #78716C;
   --donut-none: #A8A29E;
-  /* Kraffic mark (components/ui/Logo.jsx): the accent blue is for the logo dot only, never UI */
+  /* Auden AI mark (components/ui/Logo.jsx): the accent blue is for the logo dot only, never UI */
   /* pie slice labels: readable on each fill (ink / c1 / c2 / c3 / track) */
   --pie-on-c1: #FFFFFF;
   --pie-on-c2: #171412;
@@ -114,6 +123,9 @@ body {
   --data-track: #F1F0EE;
   --tint: #F5F5F4;         /* soft backgrounds: chips, active nav, pills */
   --negative: #DC2626;     /* ONLY drops / failures */
+  --caution: #B8893E;      /* muted amber: ONLY the dot of a softer report verdict (Slower week, Room to grow); never text */
+    --co-improved: #16A34A; /* Content: the Improved status and ▲ improvement deltas only (owner, 2026-11-04) */
+  --sent-mixed: #57534E;   /* Sentiment: a Mixed page (stone-600), between Neutral's light grey and Positive's ink; not red */
   /* Visibility history, LINE chart only: you = ink, competitors by share rank. Bar/Growth keep --data-c1..c3. */
   --line-you: var(--ink);
   --line-1: #6366DB;       /* indigo → cerave.com */
@@ -124,122 +136,142 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
-   Dark theme (Material 2 dark principles). Light theme values live in @theme above.
+   Dark theme: neutral black (ChatGPT's values): page and sidebar #000, cards #111111, menus / drawers #1B1B1B, tint #1A1A1A, row hover #161616, borders #222222. Light theme values live in @theme above.
    html[data-theme="dark"] = explicit choice; the media query covers "System" / no JS.
    Generated from one table, so both copies stay identical.
    --------------------------------------------------------------------------- */
 html[data-theme="dark"] {
   color-scheme: dark;
-  --ink: #F5F5F4;
+  --ink: #ECECEC;
   --ink-hover: #FFFFFF;
-  --on-ink: #141312;
-  --data-c1: #A8A29E;
-  --data-c2: #78716C;
-  --data-c3: #57534E;
-  --data-c4: #3F3C39;
-  --donut-yours: #F5F5F4;
-  --donut-others: #A8A29E;
-  --donut-none: #78716C;
-  --pie-on-c1: #141312;
+  --on-ink: #000000;
+  --beta: #7C66DC;
+  --on-beta: #FFFFFF;
+  --data-c1: #A3A3A3;
+  --data-c2: #737373;
+  --data-c3: #525252;
+  --data-c4: #3A3A3A;
+  --donut-yours: #ECECEC;
+  --donut-others: #A3A3A3;
+  --donut-none: #737373;
+  --pie-on-c1: #000000;
   --pie-on-c2: #FFFFFF;
   --pie-on-c3: #FFFFFF;
   --brand-tile: #FFFFFF;
-  --brand-k: #171412;
-  --brand-accent: #4AA8F5;
-  --data-track: rgba(255,255,255,0.06);
-  --tint: rgba(255,255,255,0.06);
+  --brand-k: #000000;
+  --brand-accent: #4AA8F5; --brand-edge: rgb(255 255 255 / .14);
+  --data-track: #1A1A1A;
+  --tint: #1A1A1A;
   --negative: #F87171;
+  --caution: #C9A160;
+  --co-improved: #22C55E;
+  --sent-mixed: #808080;
   --line-1: #8B8DF5;
   --line-2: #F27370;
   --line-3: #6EE7B7;
   --line-4: #E879F9;
-  --line-check: #141312;
-  --color-page: #141312;
-  --color-surface: #1C1B1A;
-  --color-sidebar: #1C1B1A;
-  --color-raised: #232120;
-  --color-overlay: #2A2826;
-  --color-white: #1C1B1A;
-  --color-line: rgba(255,255,255,0.08);
-  --color-line-soft: rgba(255,255,255,0.06);
-  --color-line-strong: rgba(255,255,255,0.16);
-  --subtle-border: rgba(255,255,255,0.06);
+  --line-check: #000000;
+  --color-page: #000000;
+  --color-surface: #111111;
+  --color-sidebar: #000000;
+  --color-sidebar-line: #1F1F1F;
+  --color-nav-hover: #141414;
+  --color-selected: #1A1A1A;
+  --color-switch: #1B1B1B;
+  --color-switch-line: #222222;
+  --color-raised: #1B1B1B;
+  --color-overlay: #1B1B1B;
+  --color-white: #111111;
+  --color-line: #2A2A2A;
+  --color-line-soft: #1A1A1A;
+  --color-line-strong: #3D3D3D;
+  --subtle-border: #1C1C1C;
   --subtle-bg: rgba(255,255,255,0.02);
   --dashed-border: var(--color-line);
-  --div: rgba(255,255,255,0.06);
-  --color-stone-50: #232120;
-  --color-stone-100: rgba(255,255,255,0.06);
-  --color-stone-200: rgba(255,255,255,0.08);
-  --color-stone-300: rgba(255,255,255,0.16);
-  --color-stone-400: rgba(250,250,249,0.38);
-  --color-stone-500: rgba(250,250,249,0.6);
-  --color-stone-600: rgba(250,250,249,0.6);
-  --color-stone-700: rgba(250,250,249,0.87);
-  --color-stone-800: rgba(250,250,249,0.87);
-  --color-stone-900: rgba(250,250,249,0.87);
-  --color-ink-2: rgba(250,250,249,0.6);
-  --color-ink-3: rgba(250,250,249,0.6);
+  --div: #1C1C1C;
+  --color-stone-50: #161616;
+  --color-stone-100: #1A1A1A;
+  --color-stone-200: #222222;
+  --color-stone-300: #333333;
+  --color-stone-400: #5E5E5E;
+  --color-stone-500: #8E8E8E;
+  --color-stone-600: #B4B4B4;
+  --color-stone-700: #D4D4D4;
+  --color-stone-800: #E0E0E0;
+  --color-stone-900: #ECECEC;
+  --color-ink-2: #B4B4B4;
+  --color-ink-3: #8E8E8E;
   --color-scrim-sheet: rgba(0,0,0,0.5);
   --color-scrim-modal: rgba(0,0,0,0.6);
   --modal-scrim: rgba(0,0,0,0.6);
-  --color-icon-mono: rgba(250,250,249,0.87);
+  --color-icon-mono: #ECECEC;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --ink: #F5F5F4;
+    --ink: #ECECEC;
     --ink-hover: #FFFFFF;
-    --on-ink: #141312;
-    --data-c1: #A8A29E;
-    --data-c2: #78716C;
-    --data-c3: #57534E;
-    --data-c4: #3F3C39;
-    --donut-yours: #F5F5F4;
-    --donut-others: #A8A29E;
-    --donut-none: #78716C;
-    --pie-on-c1: #141312;
+    --on-ink: #000000;
+  --beta: #7C66DC;
+  --on-beta: #FFFFFF;
+    --data-c1: #A3A3A3;
+    --data-c2: #737373;
+    --data-c3: #525252;
+    --data-c4: #3A3A3A;
+    --donut-yours: #ECECEC;
+    --donut-others: #A3A3A3;
+    --donut-none: #737373;
+    --pie-on-c1: #000000;
     --pie-on-c2: #FFFFFF;
     --pie-on-c3: #FFFFFF;
     --brand-tile: #FFFFFF;
-    --brand-k: #171412;
-    --brand-accent: #4AA8F5;
-    --data-track: rgba(255,255,255,0.06);
-    --tint: rgba(255,255,255,0.06);
+    --brand-k: #000000;
+    --brand-accent: #4AA8F5; --brand-edge: rgb(255 255 255 / .14);
+    --data-track: #1A1A1A;
+    --tint: #1A1A1A;
     --negative: #F87171;
+    --caution: #C9A160;
+    --co-improved: #22C55E;
+    --sent-mixed: #808080;
     --line-1: #8B8DF5;
     --line-2: #F27370;
     --line-3: #6EE7B7;
     --line-4: #E879F9;
-    --line-check: #141312;
-    --color-page: #141312;
-    --color-surface: #1C1B1A;
-    --color-sidebar: #1C1B1A;
-    --color-raised: #232120;
-    --color-overlay: #2A2826;
-    --color-white: #1C1B1A;
-    --color-line: rgba(255,255,255,0.08);
-    --color-line-soft: rgba(255,255,255,0.06);
-    --color-line-strong: rgba(255,255,255,0.16);
-    --subtle-border: rgba(255,255,255,0.06);
+    --line-check: #000000;
+    --color-page: #000000;
+    --color-surface: #111111;
+    --color-sidebar: #000000;
+    --color-sidebar-line: #1F1F1F;
+    --color-nav-hover: #141414;
+  --color-selected: #1A1A1A;
+    --color-switch: #1B1B1B;
+    --color-switch-line: #222222;
+    --color-raised: #1B1B1B;
+    --color-overlay: #1B1B1B;
+    --color-white: #111111;
+    --color-line: #2A2A2A;
+    --color-line-soft: #1A1A1A;
+    --color-line-strong: #3D3D3D;
+    --subtle-border: #1C1C1C;
     --subtle-bg: rgba(255,255,255,0.02);
     --dashed-border: var(--color-line);
-    --div: rgba(255,255,255,0.06);
-    --color-stone-50: #232120;
-    --color-stone-100: rgba(255,255,255,0.06);
-    --color-stone-200: rgba(255,255,255,0.08);
-    --color-stone-300: rgba(255,255,255,0.16);
-    --color-stone-400: rgba(250,250,249,0.38);
-    --color-stone-500: rgba(250,250,249,0.6);
-    --color-stone-600: rgba(250,250,249,0.6);
-    --color-stone-700: rgba(250,250,249,0.87);
-    --color-stone-800: rgba(250,250,249,0.87);
-    --color-stone-900: rgba(250,250,249,0.87);
-    --color-ink-2: rgba(250,250,249,0.6);
-    --color-ink-3: rgba(250,250,249,0.6);
+    --div: #1C1C1C;
+    --color-stone-50: #161616;
+    --color-stone-100: #1A1A1A;
+    --color-stone-200: #222222;
+    --color-stone-300: #333333;
+    --color-stone-400: #5E5E5E;
+    --color-stone-500: #8E8E8E;
+    --color-stone-600: #B4B4B4;
+    --color-stone-700: #D4D4D4;
+    --color-stone-800: #E0E0E0;
+    --color-stone-900: #ECECEC;
+    --color-ink-2: #B4B4B4;
+    --color-ink-3: #8E8E8E;
     --color-scrim-sheet: rgba(0,0,0,0.5);
     --color-scrim-modal: rgba(0,0,0,0.6);
     --modal-scrim: rgba(0,0,0,0.6);
-    --color-icon-mono: rgba(250,250,249,0.87);
+    --color-icon-mono: #ECECEC;
   }
 }
 
@@ -298,6 +330,24 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
 /* modal step crossfade (import: upload → preview → done) */
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .fade-in { animation: fade-in 150ms ease-out; }
+/* Sentiment Over time: the Score line draws in (pathLength=1) */
+@keyframes sent-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+/* Sentiment lists: a fade each time the engine changes (two names, so the animation restarts without a re-mount) */
+@keyframes sent-fade-a { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sent-fade-b { from { opacity: 0; } to { opacity: 1; } }
+/* Sentiment: the hover card fades in and rises 4px; a crossfading text's old value fades out */
+@keyframes sent-peek-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes sent-fade-out { from { opacity: 1; } to { opacity: 0; } }
+/* Sentiment Over time: Score's latest-sync card under the chart (narrow screens) fades in from 8px right */
+@keyframes sent-dock-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+/* Sentiment (.k-sent, the page's root) and the Content workspace (.co-ws, its Mix chart uses the same tokens): --tabs for the
+   chart's hover band (the dashboard's --tint); the Over time
+   neutral, darker than --data-c3 */
+.k-sent, .co-ws { --tabs: var(--tint); --sent-neutral: #CFCFCF; --sent-track: #CECECE; --row-hover: var(--tint); }
+html[data-theme="dark"] .k-sent, html[data-theme="dark"] .co-ws { --sent-neutral: #3A3A3A; --sent-track: #3A3A3A; --row-hover: var(--tint); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .k-sent, :root:not([data-theme="light"]) .co-ws { --sent-neutral: #3A3A3A; --sent-track: #3A3A3A; --row-hover: var(--tint); }
+}
 /* add-prompt row leaving */
 @keyframes row-out { from { height: 43px; opacity: 1; } to { height: 0; opacity: 0; } }
 .row-out { animation: row-out 150ms ease-out forwards; overflow: hidden; }
@@ -421,3 +471,587 @@ html[data-theme="dark"] * { --tw-shadow-color: transparent; }
 
 /* Sentiment Over time: a ribbon draws in (stroke-dashoffset on a pathLength=1 path) */
 @keyframes ribbon-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+/* Reports: Print or save as PDF prints only the A4 sheet (no sidebar, top bar or page chrome) */
+@media print {
+  @page { size: A4; margin: 0; }
+  body * { visibility: hidden; }
+  .print-sheet, .print-sheet * { visibility: visible; }
+  .print-sheet { position: absolute; left: 0; top: 0; box-shadow: none !important; }
+}
+
+/* Reports: a template or report thumbnail replays its mini visual while its tile is hovered or focused */
+@keyframes thumb-sweep { from { transform: scaleX(0); opacity: 0.2; } to { transform: none; opacity: 1; } }
+@keyframes thumb-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes thumb-settle { from { transform: translateY(-5px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes thumb-pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+  .thumb-live [data-a] { transform-box: fill-box; }
+  .thumb-live [data-a="sweep"] { transform-origin: left center; }
+  .thumb-live [data-a="pop"] { transform-origin: center; }
+  .thumb-live [data-a="draw"] { stroke-dasharray: 1; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="sweep"] { animation: thumb-sweep 620ms cubic-bezier(.2,.8,.2,1) calc(var(--i) * 70ms) both; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="draw"] { animation: thumb-draw 700ms cubic-bezier(.3,.7,.2,1) calc(var(--i) * 90ms) both; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="settle"] { animation: thumb-settle 420ms cubic-bezier(.34,1.56,.64,1) calc(var(--i) * 28ms) both; }
+  .thumb-live:is(:hover, :focus-visible) [data-a="pop"] { animation: thumb-pop 520ms cubic-bezier(.34,1.56,.64,1) calc(var(--i) * 80ms + 120ms) both; }
+}
+
+/* Reports (the frame): the dashboard's own chart colours, nothing invented. Us = the brand's chart colour (--line-you,
+   ink); the competitor = the dashboard's first competitor line (--line-1); the tint and the neutral = the graphite data
+   steps (--data-c2, --data-c4). They flip with the theme where they're defined. The card hairline, the table header
+   fill, the dark tooltip and the green / red change chips are the frame's own (light here, dark below). */
+:root {
+  --rep-primary: var(--line-you); --rep-primary-tint: var(--data-c2); --rep-rival: var(--line-1); --rep-neutral: var(--data-c4);
+  --rep-shadow: 0 1px 2px rgba(16,24,40,.05); --rep-line: #EAECF0; --rep-head: #F9FAFB; --rep-tip: #101828; --rep-tip-line: #101828; --rep-tip-fg: #FFFFFF; --rep-tip-meta: #98A2B3;
+  --rep-up-fg: #12A150; --rep-up-bg: #E6F6EC; --rep-down-fg: var(--negative); --rep-down-bg: #FDECEC;
+}
+html[data-theme="dark"] {
+  --rep-shadow: none; --rep-line: #232323; --rep-head: #161616; --rep-tip: #1B1B1B; --rep-tip-line: #333333; --rep-tip-fg: #ECECEC; --rep-tip-meta: #8E8E8E;
+  --rep-up-fg: #34D27B; --rep-up-bg: rgba(52,210,123,.14); --rep-down-bg: rgba(255,90,95,.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --rep-shadow: none; --rep-line: #232323; --rep-head: #161616; --rep-tip: #1B1B1B; --rep-tip-line: #333333; --rep-tip-fg: #ECECEC; --rep-tip-meta: #8E8E8E;
+    --rep-up-fg: #34D27B; --rep-up-bg: rgba(52,210,123,.14); --rep-down-bg: rgba(255,90,95,.14);
+  }
+}
+@keyframes rep-tip { from { opacity: 0; } to { opacity: 1; } }
+/* Reports motion (≤500ms, ease-out, once on first view): bars grow from the baseline, lines draw left to right, squares
+   and tiles fill in, bands fade up 8px when a report is ready. All off under prefers-reduced-motion. */
+@keyframes rep-grow { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes rep-grow-x { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes rep-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+@keyframes rep-fill { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rep-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { [class*="rep-"], .shimmer { animation: none !important; } }
+
+/* Reports thread: the question bubble (tint in light, the raised layer in dark) and the send / back motion */
+:root { --bubble: var(--tint); }
+html[data-theme="dark"] { --bubble: var(--color-raised); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bubble: var(--color-raised); } }
+@keyframes greet-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes greet-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes step-in { from { opacity: 0; transform: translateY(4px); } }
+/* reduced motion: the thread's entrances are instant (no rise, no stagger) */
+@media (prefers-reduced-motion: reduce) { .thread-motion, .thread-motion * { animation-duration: 1ms !important; animation-delay: 0ms !important; } }
+/* The Reports composer's send button: ChatGPT's blue, the same in light and dark. The app's one accent colour, a
+   deliberate exception to the no-accent rule, used for this button only. */
+:root { --send: #3C65C0; --send-hover: #3558AA; --send-active: #2F4E97; --send-fg: #FFFFFF; } /* --send-fg: the icon (not text-white, which dark mode remaps) */
+
+/* Reports thread: a thin overlay-style scrollbar, hidden at rest. It shows while scrolling or hovering the scroll area
+   (data-sb="on", set by the page) and fades out ~800ms after. Chrome / Safari: the thumb takes the element's border
+   colour (the element has no border), which is what fades; Firefox: scrollbar-color. Always 6px wide, so nothing shifts. */
+.thread-scroll { border-color: transparent; transition: border-color 300ms ease-out; }
+.thread-scroll[data-sb='on'] { border-color: var(--color-line-strong); transition-duration: 120ms; }
+.thread-scroll::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
+.thread-scroll::-webkit-scrollbar-track, .thread-scroll::-webkit-scrollbar-corner { background: transparent; }
+.thread-scroll::-webkit-scrollbar-thumb { border-radius: 3px; border-style: solid; border-width: 0 6px 0 0; border-color: inherit; }
+@supports not selector(::-webkit-scrollbar) {
+  .thread-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color 300ms ease-out; }
+  .thread-scroll[data-sb='on'] { scrollbar-color: var(--color-line-strong) transparent; transition-duration: 120ms; }
+}
+
+/* Sidebar nav list: scrolls only when it doesn't fit (1366×768 with every section open). The same thin 6px scrollbar,
+   hidden at rest, shown while the pointer is over the list or focus is inside it; never a horizontal one. */
+.nav-scroll { border-color: transparent; transition: border-color 300ms ease-out; }
+.nav-scroll:hover, .nav-scroll:focus-within { border-color: var(--color-line-strong); transition-duration: 120ms; }
+.nav-scroll::-webkit-scrollbar { width: 6px; height: 0; background: transparent; }
+.nav-scroll::-webkit-scrollbar-track { background: transparent; }
+.nav-scroll::-webkit-scrollbar-thumb { border-radius: 3px; border-style: solid; border-width: 0 6px 0 0; border-color: inherit; }
+@supports not selector(::-webkit-scrollbar) {
+  .nav-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  .nav-scroll:hover, .nav-scroll:focus-within { scrollbar-color: var(--color-line-strong) transparent; }
+}
+
+/* Opportunities → Content: the row's prompt morphs into the workspace title (parts.jsx goTo); quick and ease-out */
+::view-transition-group(*) { animation-duration: 250ms; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 150ms; }
+
+
+/* Table checkboxes (ui/Checkbox): the box fills with a 120ms scale, the tick / dash draws in over 150ms */
+@keyframes cb-pop { from { transform: scale(.8); } to { transform: none; } }
+.cb-pop { animation: cb-pop 120ms ease-out; }
+@keyframes cb-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.cb-draw { stroke-dasharray: 1; animation: cb-draw 150ms ease-out both; }
+/* PromptTable's bottom bulk bar: slides up 8px and fades in (200ms); out the same way */
+@keyframes bulk-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes bulk-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px); } }
+.bulk-in { animation: bulk-in 200ms ease-out both; }
+.bulk-out { animation: bulk-out 200ms ease-out both; }
+@media (prefers-reduced-motion: reduce) { .cb-pop, .cb-draw, .bulk-in, .bulk-out { animation: none; } }
+
+
+/* Opportunities → Content, focus mode (pages/opportunities/workspace/FocusPanel.jsx): the page behind blurs (8px) and
+   dims under --page (55% light, 65% dark). Blur is forbidden elsewhere (DESIGN.md §4): the owner's exception. */
+.co-veil { background: color-mix(in srgb, var(--color-page) 55%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+html[data-theme="dark"] .co-veil { background: color-mix(in srgb, var(--color-page) 65%, transparent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .co-veil { background: color-mix(in srgb, var(--color-page) 65%, transparent); } }
+/* the focus panel: a soft 2-layer shadow (contact + diffuse); dark mode keeps its 1px line only */
+.co-panel { box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent), 0 24px 48px -16px color-mix(in srgb, var(--ink) 28%, transparent); }
+html[data-theme="dark"] .co-panel { box-shadow: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .co-panel { box-shadow: none; } }
+/* a step's content arriving inside the panel: in from the right */
+@keyframes co-slide-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+.co-slide-in { animation: co-slide-in 260ms cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .co-slide-in { animation: fade-in 150ms ease-out both; } }
+/* Your data: an upload's thin bar while it's read (scaleX, so it can resume mid-way with a negative delay) */
+@keyframes co-read { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.co-read { transform-origin: left; animation-name: co-read; animation-timing-function: linear; animation-fill-mode: both; }
+/* Your data v1: a file being read in the browser (no real progress to show): the bar eases to 90% once and waits there
+   until the text is read; the row then says "Read · ~n words". Not a loop. Reduced motion: a static full bar. */
+@keyframes co-read-wait { from { transform: scaleX(0); } to { transform: scaleX(.9); } }
+.co-read-wait { transform-origin: left; animation: co-read-wait 1200ms cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .co-read-wait { animation: none; } }
+/* Writing the draft (draft/Generating.jsx): rows arriving in the live view, a tick popping in, the current step's soft
+   pulse and the outline's caret (the pulse and the caret loop: the owner's exception, DESIGN.md; off under reduced motion) */
+@keyframes co-row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes co-pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes co-pulse-k { 0% { opacity: .35; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.9); } }
+.co-pulse { animation: co-pulse-k 1.4s ease-out infinite; }
+@keyframes co-caret-k { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.co-caret { animation: co-caret-k 1s step-end infinite; }
+@media (prefers-reduced-motion: reduce) { .co-pulse { animation: none; opacity: 0; } .co-caret { animation: none; } }
+/* Draft step v1, writing (draft/Writing.jsx): the outline's skeleton lines brighten one after another, calmly
+   (opacity only; a loop: the owner's exception, DESIGN.md; static under reduced motion) */
+@keyframes co-skel-k { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.co-skel { animation: co-skel-k 1.6s ease-in-out infinite; }
+html[data-theme="dark"] .co-skel { background: var(--color-line-strong); }
+@media (prefers-reduced-motion: reduce) { .co-skel { animation: none; } }
+/* Target page (v1): a logo dropping into its rank slot (transform + opacity, once) */
+/* Target page (v1) load sequence and linked hover: logos drop in (8px), engine icons pop, a soft highlight sweeps the
+   format columns, cells scale in, "the draft adds" rows slide in; a missing cell pulses once on hover */
+@keyframes co-slot-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes co-pop-in { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes co-sweep { 0% { opacity: 0; } 35% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes co-cell-in { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+@keyframes co-slide-row { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@keyframes co-pulse-once { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+
+/* Opportunities → Content, LIGHT ONLY (owner, 2026-11-04: light read washed out; dark stays as it is). Scoped to the
+   workspace's root and its focus-panel portal (.co-ws), not global tokens. html:not([data-theme="dark"]) = light, and
+   System with a light OS (the app sets data-theme="dark" for System + a dark OS). */
+.co-ws { --co-empty: var(--color-line-strong); --co-slot: var(--color-line-strong); }
+html:not([data-theme="dark"]) .co-ws {
+  --div: #E3E3E3;                /* row dividers */
+  --color-line-strong: #CFCFCF;  /* section rules under headers */
+  --color-line: #DDDDDD;         /* card borders (the payoff bar) */
+  --color-stone-500: #6B6B6B;    /* muted text: column labels, "3 of 5", "#2", meta (5.1:1 on the page) */
+  --color-stone-400: #6B6B6B;    /* never lighter for anything you need to read */
+  --tint: #F0F0F0; --color-tint: #F0F0F0; /* selected / hover row tint */
+  --co-empty: #B8B8B8;           /* the matrix's empty cell ring */
+  --co-slot: #C4C4C4;            /* the ladder's empty slot ring */
+}
+/* Draft step v1, writing: the shimmer moves through the skeleton top to bottom (each line brightens in turn, then the
+   wave restarts); a loop: the owner's exception; static under reduced motion */
+@keyframes co-skel-wave-k { 0% { opacity: .5; } 8% { opacity: 1; } 18%, 100% { opacity: .5; } }
+.co-skel-wave { animation-name: co-skel-wave-k; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+@media (prefers-reduced-motion: reduce) { .co-skel-wave { animation: none; opacity: .7; } }
+@keyframes co-arrive-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* Draft (v1): "Show in draft" marks the first mention for 1.2s (static under reduced motion) */
+@keyframes co-flash-k { 0%, 60% { background: color-mix(in srgb, var(--caution) 28%, transparent); } 100% { background: transparent; } }
+.co-flash { animation: co-flash-k 1200ms ease-out both; }
+@media (prefers-reduced-motion: reduce) { .co-flash { animation: none; background: color-mix(in srgb, var(--caution) 28%, transparent); } }
+/* Draft (v1) rail: scrolls on its own (vertical only) with no visible track. overflow-y auto: no scrollbar at all when it
+   fits. A thin thumb shows on hover and while scrolling (data-sb="on", ~800ms), muted (--color-line-strong); the track
+   stays transparent. Chrome / Safari: a 6px ::-webkit-scrollbar whose thumb takes the element's border colour (as
+   .thread-scroll: a pseudo-element's own :hover background doesn't repaint reliably); Firefox: scrollbar-width thin +
+   scrollbar-color. The rail has no border, so the colour shows only on the thumb. */
+.co-rail { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; border-color: transparent; transition: border-color 300ms ease-out; }
+.co-rail:hover, .co-rail[data-sb='on'] { border-color: var(--color-line-strong); transition-duration: 120ms; }
+.co-rail::-webkit-scrollbar { width: 6px; height: 0; background: transparent; }
+.co-rail::-webkit-scrollbar-track, .co-rail::-webkit-scrollbar-corner { background: transparent; }
+.co-rail::-webkit-scrollbar-thumb { border-radius: 3px; border-style: solid; border-width: 0 6px 0 0; border-color: inherit; }
+@supports not selector(::-webkit-scrollbar) {
+  .co-rail { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  .co-rail:hover, .co-rail[data-sb='on'] { scrollbar-color: var(--color-line-strong) transparent; }
+}
+
+/* ---------------------------------------------------------------------------
+   Beta pill (sidebar density, owner, 2026-11-04): violet text on violet at 15%, from the --beta token. Dark lifts the
+   text toward white so it stays readable on the dark tint. Used only by components/ui/BetaTag.jsx.
+   --------------------------------------------------------------------------- */
+:root { --beta-bg: color-mix(in srgb, var(--beta) 15%, transparent); --beta-fg: var(--beta); }
+/* Soon pill (as the app, owner 2026-11-05): the Beta tag's 'soon' variant, sky text on sky, for a page that isn't ready
+   yet (Trends). Sky is used for nothing else. */
+:root { --soon-bg: #E0F2FE; --soon-fg: #0369A1; }
+html[data-theme="dark"] { --soon-bg: rgba(56,189,248,0.14); --soon-fg: #7DD3FC; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --soon-bg: rgba(56,189,248,0.14); --soon-fg: #7DD3FC; } }
+html[data-theme="dark"] { --beta-fg: color-mix(in srgb, var(--beta) 65%, #FFFFFF); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --beta-fg: color-mix(in srgb, var(--beta) 65%, #FFFFFF); } }
+
+/* Content Target page, Search Console flow: the ribbons draw left to right once (clip reveal) */
+
+/* Content: the Search Console queries list (rows fade up once) */
+@keyframes co-row-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes co-ring-fill { from { stroke-dasharray: 0 999; } }
+
+/* Content: logo circles on a light plate in dark mode, so dark logos read; the strip's hover card opening down / up */
+html[data-theme="dark"] .co-logo-plate { background: rgb(244 244 245 / 0.9); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .co-logo-plate { background: rgb(244 244 245 / 0.9); } }
+@keyframes co-card-down { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes co-card-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes co-line-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes co-dot-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
+
+/* ==== Fact Check: copied from the app's stylesheet (mock.src.css, its Fact Check blocks; synced 2026-11-15). The mock's
+   own "Website facts" block was the start of this one. Unchanged except html.k-dash -> html and .mock-scope -> main. ==== */
+/* ---- Fact Check (components/mock/pages/facts/WebsiteFactsPage.jsx): the mock's "---- Website facts" block of src/index.css
+   (design/website-facts a3b66c8), copied unchanged. --logo-plate is the design's new token: a white plate behind a
+   source's logo in both themes. --negative is the token the Sentiment page uses for negative (mock-tokens.css). */
+/* ---- Website facts (pages/facts/WebsiteFactsPage.jsx) ----------------------------------------------------------------
+   Colour: graphite, plus --negative (the red Sentiment uses) where the site and an outside source disagree, where a
+   decision is the user's ("Your call"), and for pages that couldn't be read. No colour of its own. */
+:root { --logo-plate: #FFFFFF; } /* white in both themes, behind a source's logo */
+@keyframes wf-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes wf-pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+@keyframes wf-diff { 0%, 100% { background-color: transparent; } 40% { background-color: color-mix(in srgb, var(--negative) 20%, transparent); } }
+@keyframes wf-spin { to { transform: rotate(360deg); } }
+.wf-draw { stroke-dasharray: 1; animation: wf-draw 320ms ease-out both; }
+.wf-pop { animation: wf-pop 240ms cubic-bezier(.2,.8,.2,1) both; }
+.wf-diff { color: var(--negative); border-radius: 3px; animation: wf-diff 800ms ease-out 1000ms 1 both; } /* the part that differs: red, one pulse */
+.wf-spin { transform-box: fill-box; transform-origin: center; animation: wf-spin 900ms linear infinite; }
+@keyframes wf-ring { from { stroke-dasharray: 0 var(--wf-c); } }
+.wf-ring { animation: wf-ring 900ms cubic-bezier(.22, 1, .36, 1) 150ms both; } /* the site ring's arc, once, from 12 o'clock (--wf-c: its circumference) */
+@keyframes wf-panel { from { opacity: 0; transform: scale(.96); } }
+.wf-panel { animation: wf-panel 160ms ease-out both; } /* a floating panel growing from the control that opened it */
+@keyframes wf-seg { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.wf-seg { transform-origin: left; animation: wf-seg 260ms cubic-bezier(.2,.8,.2,1) both; } /* a page segment filling, left to right */
+/* app (owner, 2026-11-11): Read, but not facts' rows slide up and fade in on opening; a row that leaves fades and
+   collapses (its 38px row, its hairline). Both carry .wf-anim (none under reduced motion). */
+@keyframes wf-row-in { from { opacity: 0; transform: translateY(6px); } }
+.wf-row-in { animation: wf-row-in 240ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes wf-row-out { from { opacity: 1; max-height: 38px; } to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; border-top-width: 0; } }
+.wf-row-out { overflow: hidden; animation: wf-row-out 200ms ease-out both; }
+/* app (owner, 2026-11-12): while a status link is hovered or focused, its card (on screen) shows a 1px ring in the
+   status colour (--fc-ring: --negative for Your call, else stone-600): 150ms in, 200ms out. A click puts the card in
+   the spotlight instead (no ring): every other card at 35% (250ms in, 200ms back), the target's items rise in (6px +
+   fade, staggered from the page). Reduced motion: the dim is instant, nothing rises. */
+.fc-ring { transition: box-shadow 200ms ease-out; }
+.fc-ring.fc-preview { box-shadow: 0 0 0 1px var(--fc-ring, var(--color-stone-600)); transition-duration: 150ms; }
+.fc-dimmable { transition: opacity 200ms ease-out; }
+.fc-dimmable.fc-dim { opacity: 0.35; transition-duration: 250ms; }
+@keyframes fc-rise { from { opacity: 0; transform: translateY(6px); } }
+.fc-rise { animation: fc-rise 240ms ease-out both; }
+/* app (owner, 2026-11-12): Fact Check's motion values (the page uses only these; the rest of the site can adopt them):
+   fast 120ms, base 180ms, slow 260ms; ease-out entering, ease-in-out moving, ease-in leaving. No bounce or overshoot. */
+:root { --fc-dur-fast: 120ms; --fc-dur-base: 180ms; --fc-dur-slow: 260ms; --fc-ease-out: cubic-bezier(.2,.8,.2,1); --fc-ease-move: cubic-bezier(.4,0,.2,1); --fc-ease-in: cubic-bezier(.4,0,1,1); }
+/* the hero's result groups (owner, 2026-11-12): a hovered group's segments grow to 1.4x from the centre and go to full
+   strength (160ms ease-out in, 200ms ease-in-out out), all together; pressed, they dip to 1.25x; the other groups ease
+   to 45%; its label's "↓" fades and slides in 4px, in space that's always kept. Reduced motion: no size change or
+   slide, colour and opacity at once. */
+.fc-seg { transform-origin: center; transition: transform 200ms ease-in-out, background-color 200ms ease-in-out, border-color 200ms ease-in-out; }
+.fc-seg-fill { transition: background-color 200ms ease-in-out; }
+.fc-seg-on { transform: scaleY(1.4); transition-duration: 160ms; transition-timing-function: ease-out; }
+.fc-segs:active .fc-seg-on, button:active > .fc-segs .fc-seg-on { transform: scaleY(1.25); transition-duration: 80ms; }
+.fc-group { transition: opacity 220ms ease-in-out; }
+.fc-group-dim { opacity: 0.45; transition-duration: 180ms; transition-timing-function: ease-out; }
+/* app (owner, 2026-11-12): the hero segments' hover, smooth: colour and a slight growth from the centre (180ms ease-out in,
+   220ms ease-in-out out); reduced motion: colour at once, no growth */
+.fc-seg2 { transform-origin: center; transition: transform 220ms ease-in-out, background-color 220ms ease-in-out, border-color 220ms ease-in-out; }
+.fc-seg2-on { transform: scaleY(1.2); transition-duration: 180ms; transition-timing-function: ease-out; }
+@media (prefers-reduced-motion: reduce) { .fc-seg2 { transition: none; } .fc-seg2-on { transform: none; } }
+.fc-arrow::after { content: "↓"; display: inline-block; width: 0.8em; margin-left: 2px; opacity: 0; transform: translateX(-4px); transition: opacity 200ms ease-in-out, transform 200ms ease-in-out; }
+.fc-arrow-on::after { opacity: 1; transform: none; transition-duration: 160ms; transition-timing-function: ease-out; }
+@media (prefers-reduced-motion: reduce) { .fc-seg-on, .fc-segs:active .fc-seg-on, button:active > .fc-segs .fc-seg-on { transform: none; } .fc-seg, .fc-seg-fill, .fc-group, .fc-ring, .fc-arrow::after, .fc-dimmable { transition: none; } .fc-arrow::after { transform: none; } }
+/* app (owner, 2026-11-12): Fact Check's motion pass, on its own fc- classes (shared utilities untouched), with the page's
+   motion values: enter fade-up 8px, row hover and tile lift, box lift, filled-button press, text links' underline drawn
+   in from the left with the ↗ nudging up-right, scroll reveal. Only opacity and transform move. Reduced motion: none. */
+@keyframes fc-up { from { opacity: 0; transform: translateY(8px); } }
+.fc-up { animation: fc-up var(--fc-dur-base) var(--fc-ease-out) both; }
+.fc-rows-in > li { animation: fc-up var(--fc-dur-base) var(--fc-ease-out) both; }
+.fc-rows-in > li:nth-child(2) { animation-delay: 30ms; } .fc-rows-in > li:nth-child(3) { animation-delay: 60ms; }
+.fc-rows-in > li:nth-child(4) { animation-delay: 90ms; } .fc-rows-in > li:nth-child(5) { animation-delay: 120ms; }
+.fc-rows-in > li:nth-child(6) { animation-delay: 150ms; } .fc-rows-in > li:nth-child(n+7) { animation-delay: 180ms; }
+.fc-reveal { opacity: 0; transform: translateY(8px); transition: opacity var(--fc-dur-base) var(--fc-ease-out), transform var(--fc-dur-base) var(--fc-ease-out); }
+.fc-reveal.fc-in { opacity: 1; transform: none; }
+.fc-row { transition: background-color var(--fc-dur-fast) var(--fc-ease-out); }
+.fc-tile { transition: transform var(--fc-dur-fast) var(--fc-ease-out); }
+.fc-row:hover .fc-tile { transform: translateY(-1px); }
+.fc-box { transition: border-color var(--fc-dur-base) var(--fc-ease-out), transform var(--fc-dur-base) var(--fc-ease-out); }
+.fc-box:hover { transform: translateY(-2px); border-color: var(--color-line-strong); }
+.fc-btn { transition: background-color var(--fc-dur-fast) var(--fc-ease-out), transform var(--fc-dur-fast) var(--fc-ease-out); }
+.fc-btn:active { transform: scale(.98); }
+.fc-tl { text-decoration: none !important; background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat; background-position: 0 100%; background-size: 0 1px; transition: background-size var(--fc-dur-base) var(--fc-ease-out), color var(--fc-dur-fast) var(--fc-ease-out); }
+.fc-tl:hover, .fc-tl:focus-visible { background-size: 100% 1px; }
+.fc-tl svg { transition: transform var(--fc-dur-fast) var(--fc-ease-out); }
+.fc-tl:hover svg, .fc-tl:focus-visible svg { transform: translate(1px, -1px); }
+.fc-tab-bar { transition: transform var(--fc-dur-base) var(--fc-ease-move), width var(--fc-dur-base) var(--fc-ease-move); }
+.fc-open { transition: grid-template-rows var(--fc-dur-slow) var(--fc-ease-move), opacity var(--fc-dur-slow) var(--fc-ease-move); }
+@keyframes fc-row-out { from { opacity: 1; max-height: 200px; } to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; border-top-width: 0; } }
+.fc-row-out { overflow: hidden; pointer-events: none; animation: fc-row-out var(--fc-dur-base) var(--fc-ease-in) both; }
+@keyframes fc-pop-in { from { opacity: 0; transform: scale(.97); } }
+@keyframes fc-pop-out { to { opacity: 0; transform: scale(.97); } }
+.fc-pop-in { animation: fc-pop-in var(--fc-dur-fast) var(--fc-ease-out) both; }
+.fc-pop-out { pointer-events: none; animation: fc-pop-out var(--fc-dur-fast) var(--fc-ease-in) both; }
+@media (prefers-reduced-motion: reduce) {
+  .fc-up, .fc-rows-in > li, .fc-row-out, .fc-pop-in, .fc-pop-out { animation: none; }
+  .fc-reveal { opacity: 1; transform: none; transition: none; }
+  .fc-row, .fc-tile, .fc-box, .fc-btn, .fc-tl, .fc-tl svg, .fc-tab-bar, .fc-open { transition: none; }
+  .fc-row:hover .fc-tile, .fc-box:hover, .fc-btn:active, .fc-tl:hover svg, .fc-tl:focus-visible svg { transform: none; }
+}
+/* app (owner, 2026-11-12): the hero bar's fill layers: each segment's fill scales from its left edge (--fc-t: 0 empty,
+   1 full), with the owner's timings as page variables (fill 180ms per segment 50ms apart, drain 160ms, back 200ms);
+   pressed, the fill dips to 85%. Reduced motion: no scaling, a 100ms opacity fade. */
+:root { --fc-bar-fill: 180ms; --fc-bar-drain: 160ms; --fc-bar-back: 200ms; }
+.fc-fill { transform-origin: left center; transform: scaleX(var(--fc-t, 1)); transition-property: transform, opacity; }
+button:active > .fc-segs .fc-fill { opacity: .85; transition-duration: 80ms !important; transition-delay: 0ms !important; }
+@media (prefers-reduced-motion: reduce) { .fc-fill { transform: none; opacity: var(--fc-t, 1); transition: opacity 100ms ease-out !important; } }
+@media (prefers-reduced-motion: reduce) { .wf-anim { animation: none !important; transition: none !important; } }
+/* a confirmed value on its way into the fact sheet (drawn in <body>, see flyToSheet) */
+.wf-ghost { position: fixed; z-index: 80; pointer-events: none; margin: -5px -9px; padding: 4px 8px; border: 1px solid var(--color-line); border-radius: 8px;
+  background: var(--color-raised); color: var(--ink); font: 500 14px/20px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .10); }
+
+/* Content, Upload proprietary data (owner, 2026-11-13): a file card fades and rises in, and fades and shrinks out (the
+   grid closes up after); its tick draws. None with reduced motion. */
+@keyframes zone-card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes zone-card-leave { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.96); } }
+@keyframes zone-tick { from { stroke-dashoffset: 16; } to { stroke-dashoffset: 0; } }
+.zone-card-in { animation: zone-card-in 240ms cubic-bezier(.2,.8,.2,1) both; }
+.zone-card-leave { animation: zone-card-leave 180ms ease-in forwards; pointer-events: none; }
+.zone-tick path { stroke-dasharray: 16; animation: zone-tick 320ms ease-out 60ms both; }
+@media (prefers-reduced-motion: reduce) { .zone-card-in, .zone-card-leave, .zone-tick path { animation: none; } }
+
+/* ==== Content, the prompt page's headline block: copied from the app's stylesheet (mock.src.css, the two blocks
+   dated 2026-11-14 and 2026-11-15; synced 2026-11-15). ==== */
+@keyframes co-head-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* app (owner, 2026-11-14): the Content prompt page's step line and headline fade up first (180ms), the button 80ms
+   after, the page after that; hover nudges the Resume arrow 2px. Reduced motion: fades only, no nudge */
+.co-head-in { animation: co-head-up 180ms cubic-bezier(.2,.8,.2,1) both; }
+.co-head-btn { animation: co-head-up 180ms cubic-bezier(.2,.8,.2,1) 80ms both; }
+.co-page-after { animation: fade-in 200ms ease-out 260ms both; }
+.co-fact { animation: co-head-up 180ms cubic-bezier(.2,.8,.2,1) both; } /* each row's delay is inline (HeadFacts) */
+.co-head-btn .co-nudge { transition: transform 150ms ease-out; }
+.co-head-btn button:hover .co-nudge { transform: translateX(2px); }
+/* app (owner, 2026-11-15): the headline block's entry, once on load: the logo tile, the heading, then the rows on the
+   right, 60ms apart (delays inline, PayoffBar.jsx); none under reduced motion */
+.co-rise { animation: co-head-up 220ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .co-rise { animation: none; }
+  .co-head-in, .co-head-btn, .co-fact { animation: fade-in 180ms ease-out both; }
+  .co-head-btn .co-nudge, .co-head-btn button:hover .co-nudge { transform: none; transition: none; }
+}
+/* Draft (v1): "Show in draft" marks the first mention for 1.2s (static under reduced motion) */
+@keyframes co-flash-k { 0%, 60% { background: color-mix(in srgb, var(--caution) 28%, transparent); } 100% { background: transparent; } }
+.co-flash { animation: co-flash-k 1200ms ease-out both; }
+@media (prefers-reduced-motion: reduce) { .co-flash { animation: none; background: color-mix(in srgb, var(--caution) 28%, transparent); } }
+/* Draft (v1) rail: scrolls on its own (vertical only) with no visible track; a thin thumb on hover and while scrolling
+   (data-sb="on"), as .thread-scroll above */
+.co-rail { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; border-color: transparent; transition: border-color 300ms ease-out; }
+.co-rail:hover, .co-rail[data-sb='on'] { border-color: var(--color-line-strong); transition-duration: 120ms; }
+.co-rail::-webkit-scrollbar { width: 6px; height: 0; background: transparent; }
+.co-rail::-webkit-scrollbar-track, .co-rail::-webkit-scrollbar-corner { background: transparent; }
+.co-rail::-webkit-scrollbar-thumb { border-radius: 3px; border-style: solid; border-width: 0 6px 0 0; border-color: inherit; }
+@supports not selector(::-webkit-scrollbar) {
+  .co-rail { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  .co-rail:hover, .co-rail[data-sb='on'] { scrollbar-color: var(--color-line-strong) transparent; }
+}
+
+/* ==== Sentiment and its Opportunities view: copied from the app's stylesheet (app_kraffic.ai develop,
+   components/mock-overview/mock.src.css from "Sentiment, Missed opportunities" to its end; synced 2026-11-15).
+   Unchanged except html.k-dash -> html and .mock-scope -> main. ==== */
+/* app (owner, 2026-11-14): Sentiment, Missed opportunities: the view fades up, its rows stagger in, the header button's
+   count ticks in when it changes (the engine filter). Reduced motion: fades only, no stagger, nothing moves */
+@keyframes k-tick-in { from { opacity: 0; transform: translateY(45%); } to { opacity: 1; transform: none; } }
+.k-tick { display: inline-block; animation: k-tick-in 200ms cubic-bezier(.2,.8,.2,1) both; }
+.k-missed-in { animation: co-head-up 220ms cubic-bezier(.2,.8,.2,1) both; }
+.k-missed-rows tbody tr { animation: co-head-up 200ms cubic-bezier(.2,.8,.2,1) both; animation-delay: 420ms; }
+.k-missed-rows tbody tr:nth-child(1) { animation-delay: 120ms; }
+.k-missed-rows tbody tr:nth-child(2) { animation-delay: 150ms; }
+.k-missed-rows tbody tr:nth-child(3) { animation-delay: 180ms; }
+.k-missed-rows tbody tr:nth-child(4) { animation-delay: 210ms; }
+.k-missed-rows tbody tr:nth-child(5) { animation-delay: 240ms; }
+.k-missed-rows tbody tr:nth-child(6) { animation-delay: 270ms; }
+.k-missed-rows tbody tr:nth-child(7) { animation-delay: 300ms; }
+.k-missed-rows tbody tr:nth-child(8) { animation-delay: 330ms; }
+.k-missed-rows tbody tr:nth-child(9) { animation-delay: 360ms; }
+.k-missed-rows tbody tr:nth-child(10) { animation-delay: 390ms; }
+@media (prefers-reduced-motion: reduce) {
+  .k-tick, .k-missed-in, .k-missed-rows tbody tr { animation: fade-in 160ms ease-out both; animation-delay: 0ms; }
+}
+
+/* app (owner, 2026-11-14): Missed opportunities' Reach out button. Hover or keyboard focus: an ink fill wipes in from the
+   left (220ms ease-out; back out 180ms), the label and arrow turn light as it passes; the arrow takes off to the top
+   right while a fresh one comes in from the bottom left (once per hover: it resets without motion on leave); the row's
+   logo tile lifts 2px; press dips to 0.97 (80ms). Transform, opacity and colour only: nothing moves the layout.
+   Dark mode: the tokens invert (a light fill, dark text). Reduced motion: no sweep, no arrow motion, a 100ms fade */
+.k-reach { position: relative; isolation: isolate; overflow: hidden; transition: transform 80ms ease-out, border-color 180ms ease-out; }
+.k-reach-fill { position: absolute; inset: -1px; z-index: -1; background: var(--ink); transform: scaleX(0); transform-origin: left center; transition: transform 180ms ease-out; }
+.k-reach-label, .k-reach-arrows { transition: color 120ms ease-out; }
+.k-reach:hover, .k-reach:focus-visible { border-color: var(--ink); }
+.k-reach:hover .k-reach-fill, .k-reach:focus-visible .k-reach-fill { transform: scaleX(1); transition-duration: 220ms; }
+.k-reach:hover .k-reach-label, .k-reach:focus-visible .k-reach-label { color: var(--on-ink); transition: color 120ms ease-out 70ms; }
+.k-reach:hover .k-reach-arrows, .k-reach:focus-visible .k-reach-arrows { color: var(--on-ink); transition: color 120ms ease-out 140ms; }
+.k-reach:active { transform: scale(.97); }
+.k-reach-arrows { display: inline-grid; width: 13px; height: 13px; overflow: hidden; }
+.k-reach-arrows > * { grid-area: 1 / 1; }
+.k-arrow-b { transform: translate(-110%, 110%); opacity: 0; }
+.k-reach:hover .k-arrow-a, .k-reach:focus-visible .k-arrow-a { transform: translate(110%, -110%); opacity: 0; transition: transform 220ms ease-out 60ms, opacity 160ms ease-out 60ms; }
+.k-reach:hover .k-arrow-b, .k-reach:focus-visible .k-arrow-b { transform: none; opacity: 1; transition: transform 220ms ease-out 120ms, opacity 160ms ease-out 120ms; }
+.k-tile { transition: transform 180ms ease-out; }
+tr:has(.k-reach:hover) .k-tile, tr:has(.k-reach:focus-visible) .k-tile { transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) {
+  .k-reach-fill { transform: none; opacity: 0; transition: opacity 100ms ease-out; }
+  .k-reach:hover .k-reach-fill, .k-reach:focus-visible .k-reach-fill { transform: none; opacity: 1; transition: opacity 100ms ease-out; }
+  .k-reach:hover .k-reach-label, .k-reach:focus-visible .k-reach-label, .k-reach:hover .k-reach-arrows, .k-reach:focus-visible .k-reach-arrows { transition: color 100ms ease-out; }
+  .k-arrow-b { display: none; }
+  .k-reach:hover .k-arrow-a, .k-reach:focus-visible .k-arrow-a { transform: none; opacity: 1; transition: none; }
+  .k-reach:active { transform: none; }
+  tr:has(.k-reach:hover) .k-tile, tr:has(.k-reach:focus-visible) .k-tile { transform: none; }
+}
+
+/* app (owner, 2026-11-14): Missed opportunities' date range picker opens with a short fade and scale (reduced: a fade) */
+@keyframes k-pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+.k-pop-in { transform-origin: top left; animation: k-pop 160ms cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .k-pop-in { animation: fade-in 120ms ease-out both; } }
+
+/* app (owner, 2026-11-14): Missed opportunities: the row opened from the Sentiment list, tinted, then fading out (about
+   1.5s); reduced motion: the tint holds, then goes, no fade */
+@keyframes k-flash-k { 0%, 35% { background-color: color-mix(in srgb, var(--ink) 9%, transparent); } 100% { background-color: transparent; } }
+.k-missed-rows tbody tr.k-flash { animation: k-flash-k 1.6s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .k-missed-rows tbody tr.k-flash { animation: none; background-color: color-mix(in srgb, var(--ink) 9%, transparent); }
+}
+
+/* app (owner, 2026-11-14): Sentiment header, "Missed opportunities n" (MissedHeaderButton): a soft glow under the
+   cursor, clipped to the button, fading in over 200ms and out over 300ms; its position, the button's magnetic drift and
+   the press are set by script (transform only). Reduced motion: no glow, no motion; a background colour change only
+   (the button's motion-reduce:hover class) */
+.k-mo-glow { opacity: 0; transition: opacity 300ms ease-out; will-change: transform, opacity; }
+.k-mo-btn[data-lit] .k-mo-glow { opacity: 1; transition-duration: 200ms; }
+@media (prefers-reduced-motion: reduce) {
+  .k-mo-glow { display: none; }
+}
+
+/* The app's one UI scale (app owner, 2026-11-09; synced 2026-11-15). Laptop-sized windows (1024–1600px wide) draw
+   everything at 0.8; wider windows at 1.0; below 1024px the mobile / tablet layout is unchanged. Every length in this
+   stylesheet follows it (scripts/ui-scale-css.mjs, run by vite.config.js); sizes set in JavaScript read it through
+   src/app/lib/ui-scale.js. Breakpoints stay in real pixels. */
+:root { --ui-scale: 1; }
+@media (min-width: 1024px) and (max-width: 1600px) { :root { --ui-scale: 0.8; } }
+
+/* ---- Walkthrough (src/walkthrough) ---------------------------------------------------------------------------------
+   The board's six step colours (owner, 2026-11-15; used only as named in Board.jsx): --wt-c1 Your brand (indigo),
+   c2 Your prompts (sky), c3 Where you stand (green), c4 What AI says (violet), c5 First content (amber), c6 Reach out
+   (teal). --wt-tile-mix: how much of it a trail tile's background takes (14%, 20% in dark).
+   One motion system (src/walkthrough/motion.js sets --wt-k: 1, or 4 with ?walkthrough=slow):
+   one easing; fades 200ms, moves 320ms, large moves 450ms; transform and opacity (the exceptions are named in
+   motion.js). Reduced motion, at the end of this block: fades only, no movement. */
+:root { --wt-c1: #6366DB; --wt-c2: #4AA8E8; --wt-c3: #2FB98A; --wt-c4: #8B6FE8; --wt-c5: #E0A23B; --wt-c6: #2AA7A1; --wt-tile-mix: 14%; }
+html[data-theme="dark"] { --wt-tile-mix: 20%; }
+@media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { --wt-tile-mix: 20%; } }
+:root { --wt-k: 1; --wt-ease: cubic-bezier(0.22, 1, 0.36, 1); --wt-fade: calc(200ms * var(--wt-k)); --wt-move: calc(320ms * var(--wt-k)); --wt-large: calc(450ms * var(--wt-k)); }
+@keyframes wt-fade-in { from { opacity: 0; } }
+@keyframes wt-fade-out { to { opacity: 0; } }
+@keyframes wt-rise { from { opacity: 0; transform: translateY(6px); } }
+.wt-fade { animation: wt-fade-in var(--wt-fade) var(--wt-ease) both; }
+/* the walkthrough's buttons show a 2px focus ring only while the keyboard is being used */
+.wt-btn:focus-visible { outline: none; }
+.wt-keys .wt-btn:focus { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+/* Welcome: the page dims over 300ms; the card fades in, rises 12px and scales from 0.96; its parts follow 50ms apart */
+@keyframes wt-welcome { from { opacity: 0; transform: translateY(12px) scale(.96); } }
+.wt-scrim { animation: wt-fade-in calc(300ms * var(--wt-k)) var(--wt-ease) both; }
+.wt-welcome { animation: wt-welcome var(--wt-move) var(--wt-ease) both; }
+.wt-stagger > * { animation: wt-rise var(--wt-move) var(--wt-ease) both; animation-delay: calc((120ms + var(--i) * 50ms) * var(--wt-k)); }
+
+/* a text giving way to another (Swap.jsx): out and up, in from below; .wt-roll: a counter, a whole line each way */
+@keyframes wt-swap-in { from { opacity: 0; transform: translateY(var(--wt-shift, 4px)); } }
+@keyframes wt-swap-out { to { opacity: 0; transform: translateY(calc(var(--wt-shift, 4px) * -1)); } }
+.wt-swap-in { animation: wt-swap-in var(--wt-fade) var(--wt-ease) both; }
+.wt-swap-out { animation: wt-swap-out var(--wt-fade) var(--wt-ease) both; }
+.wt-roll { --wt-shift: 100%; }
+
+/* a pointer arriving: one soft ring, once, around the lit area */
+@keyframes wt-pulse { 0% { opacity: 0; transform: scale(1); } 35% { opacity: .55; } 100% { opacity: 0; transform: scale(1.035); } }
+.wt-pulse { box-shadow: 0 0 0 2px var(--color-focus); opacity: 0; animation: wt-pulse var(--wt-large) var(--wt-ease) both; }
+
+/* the sidebar card, the "stack" (GettingStarted.jsx): on hover the card gains a soft shadow and the stack fans out;
+   pressed: 0.98, and back */
+.wt-card { transition: transform var(--wt-fade) var(--wt-ease); }
+.wt-card:active { transform: scale(.98); }
+.wt-card-shadow { position: absolute; inset: 0; border-radius: 8px; box-shadow: 0 4px 12px rgb(0 0 0 / .08); opacity: 0; transition: opacity var(--wt-move) var(--wt-ease); pointer-events: none; }
+.wt-card:hover .wt-card-shadow { opacity: 1; }
+.wt-stack { position: relative; flex: none; width: 64px; height: 44px; }
+.wt-scard { position: absolute; left: 0; top: 2px; width: 48px; height: 40px; border-radius: 9px; border: 1.5px solid var(--color-surface);
+  background: color-mix(in srgb, var(--c, var(--color-line)) var(--wt-tile-mix), var(--color-surface)); box-shadow: 0 1px 2px rgb(0 0 0 / .10);
+  display: grid; place-items: center; transform-origin: 50% 100%;
+  transition: transform var(--wt-move) var(--wt-ease), box-shadow var(--wt-move) var(--wt-ease); }
+.wt-scard[data-pos="0"] { z-index: 3; }
+.wt-scard[data-pos="1"] { z-index: 2; transform: translateX(7px) rotate(5deg); background: color-mix(in srgb, var(--c) 34%, var(--color-surface)); }
+.wt-scard[data-pos="2"] { z-index: 1; transform: translateX(13px) rotate(11deg); background: color-mix(in srgb, var(--c) 34%, var(--color-surface)); }
+.wt-card:hover .wt-scard[data-pos="0"] { transform: translateY(-2px) rotate(-4deg); box-shadow: 0 6px 14px rgb(0 0 0 / .16); }
+.wt-card:hover .wt-scard[data-pos="1"] { transform: translateX(9px) rotate(9deg); }
+.wt-card:hover .wt-scard[data-pos="2"] { transform: translateX(15px) rotate(20deg); }
+/* a step finishing: its card slides up and fades; the new card at the back fades in (the others turn by their transition) */
+@keyframes wt-scard-out { to { opacity: 0; transform: translateY(-22px); } }
+.wt-scard-out { z-index: 4; animation: wt-scard-out var(--wt-large) var(--wt-ease) both; }
+.wt-scard-new { animation: wt-fade-in var(--wt-large) var(--wt-ease) both; }
+/* the six dots */
+.wt-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--data-track); box-shadow: inset 0 0 0 0 var(--c); transition: background-color var(--wt-large) var(--wt-ease), box-shadow var(--wt-fade) var(--wt-ease); }
+.wt-dot[data-state="current"] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c); }
+.wt-dot[data-state="done"] { background: var(--c); }
+/* the six segments: done in ink (it fills from the left), the current one ink at half strength, the rest the track */
+.wt-seg { position: relative; flex: 1 1 0; height: 4px; border-radius: 999px; overflow: hidden; background: var(--data-track); }
+.wt-seg-half, .wt-seg-full { position: absolute; inset: 0; background: var(--ink); }
+.wt-seg-half { opacity: 0; transition: opacity var(--wt-fade) var(--wt-ease); }
+.wt-seg[data-state="current"] .wt-seg-half { opacity: 1; background: var(--c, var(--ink)); }
+.wt-seg[data-state="done"] .wt-seg-half { opacity: .5; }
+.wt-segs-top .wt-seg { height: 3px; }
+.wt-seg-full { transform: scaleX(0); transform-origin: left; transition: transform var(--wt-move) var(--wt-ease); }
+.wt-seg[data-state="done"] .wt-seg-full { transform: none; }
+/* the card going away after the last message: it fades and the sidebar closes the gap */
+.wt-leave { transition: grid-template-rows var(--wt-move) var(--wt-ease), opacity var(--wt-fade) var(--wt-ease), margin var(--wt-move) var(--wt-ease); }
+
+/* the board (Board.jsx): the sheet grows out of the sidebar card (its transform-origin is the card's middle) as the page
+   dims; closing reverses it */
+.wt-board-scrim { opacity: 0; transition: opacity var(--wt-fade) var(--wt-ease); }
+[data-board="open"] .wt-board-scrim { opacity: 1; }
+.wt-sheet { opacity: 0; transform: scale(.35); transition: transform var(--wt-large) var(--wt-ease), opacity var(--wt-fade) var(--wt-ease); }
+[data-board="open"] .wt-sheet { opacity: 1; transform: none; }
+[data-board="closed"] { pointer-events: none; }
+/* the hero's headline and preview: out and up, in from below, one move */
+.wt-swap-move { --wt-shift: 16px; }
+.wt-swap-move > .wt-swap-in { animation-duration: var(--wt-move); }
+.wt-swap-move > .wt-swap-out { animation-duration: var(--wt-move); }
+/* the preview's wash: the step's colour over the top right half, 16% fading to nothing; one layer per step, cross-fading */
+.wt-wash { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity var(--wt-large) var(--wt-ease);
+  background: radial-gradient(130% 150% at 100% 0%, color-mix(in srgb, var(--c) 16%, transparent) 0%, transparent 55%); }
+.wt-wash[data-on] { opacity: 1; }
+.wt-preview > .wt-swap-move { position: relative; }
+/* the trail: a frame lifts 2px on hover */
+.wt-frame { transition: transform var(--wt-fade) var(--wt-ease); }
+button.wt-frame:hover { transform: translateY(-2px); }
+.wt-tile { --tile: color-mix(in srgb, var(--c) var(--wt-tile-mix), var(--color-surface)); }
+.wt-tile-done { background: color-mix(in srgb, var(--c) var(--wt-tile-mix), transparent); }
+/* a step not done yet: a faint outline around its grey miniature. Only the frame shown in the hero has the 1.5px outline,
+   in its step's colour */
+.wt-tile-open { box-shadow: inset 0 0 0 1px var(--color-line); }
+.wt-tile-shown { box-shadow: inset 0 0 0 1.5px var(--c); }
+/* all done: the six frames rise from the trail into the preview area and settle, one after another */
+@keyframes wt-settle { from { opacity: 0; transform: translateY(150px) scale(.82); } }
+.wt-settle { animation: wt-settle var(--wt-large) var(--wt-ease) both; animation-delay: calc((120ms + var(--i) * 50ms) * var(--wt-k)); }
+.wt-dash { background: var(--c); }
+/* a step finishing: its tile fills with its result, the tick appears, the result line comes in */
+@keyframes wt-pop { from { opacity: 0; transform: scale(.6); } }
+.wt-tile-in { display: block; animation: wt-rise var(--wt-move) var(--wt-ease) calc(250ms * var(--wt-k)) both; }
+.wt-tick-in { animation: wt-pop var(--wt-move) var(--wt-ease) calc(450ms * var(--wt-k)) both; }
+.wt-got { animation: wt-fade-in var(--wt-fade) var(--wt-ease) calc(450ms * var(--wt-k)) both; }
+.wt-tile-done:has(.wt-tile-in) { animation: wt-fade-in var(--wt-move) var(--wt-ease) calc(150ms * var(--wt-k)) both; }
+
+/* reduced motion: fades only, no movement */
+@media (prefers-reduced-motion: reduce) {
+  .wt-welcome, .wt-stagger > *, .wt-swap-in, .wt-tile-in, .wt-tick-in, .wt-settle { animation-name: wt-fade-in; }
+  .wt-swap-out { animation-name: wt-fade-out; }
+  .wt-pulse { display: none; }
+  .wt-card, .wt-card:active, button.wt-frame:hover { transform: none; }
+  /* no fan and no slide: the stack keeps its resting shape on hover, and cards swap with a fade */
+  .wt-card:hover .wt-scard[data-pos="0"] { transform: none; }
+  .wt-card:hover .wt-scard[data-pos="1"] { transform: translateX(7px) rotate(5deg); }
+  .wt-card:hover .wt-scard[data-pos="2"] { transform: translateX(13px) rotate(11deg); }
+  .wt-scard { transition: none; }
+  .wt-scard-out { animation-name: wt-fade-out; }
+  .wt-sheet { transform: none; }
+  .wt-seg-full { transition: none; }
+  .wt-leave { transition: opacity var(--wt-fade) var(--wt-ease); }
+}

@@ -7,6 +7,7 @@ import { SyncFilterPill, useSyncFilter } from './syncFilter'
 import { PromptSetPill, usePromptSet } from './promptSet'
 import { account, publishedContent, platformNames } from '../../data/mock'
 import { useBrandView } from '../../hooks/useBrandView'
+import { hasResult } from '../../data/brandViews'
 import { openAnswer } from '../answer/AnswerDrawer'
 
 import MissedPrompts from './MissedPrompts'
@@ -96,7 +97,7 @@ export function VisiblePromptsTable() {
   const { platform, setPlatform, matches, label } = usePlatformFilter()
   const syncF = useSyncFilter('gained')
   const set = usePromptSet('visible-prompts')
-  const { visiblePrompts, focal, isOwnBrand } = useBrandView()
+  const { visiblePrompts, focal, isOwnBrand, engine } = useBrandView()
   const rows = useMemo(
     () => visiblePrompts.filter((r) => matches(r.platforms) && (!syncF.ids || syncF.ids.has(r.id)) && (!set.ids || set.ids.has(r.id))),
     [visiblePrompts, platform, syncF.sync, set.ids],
@@ -104,6 +105,7 @@ export function VisiblePromptsTable() {
   return (
     <PromptTable
       id="visible-prompts"
+      noResult={hasResult(engine) ? null : engine}
       title={isOwnBrand ? 'Visible prompts' : `Where ${focal.name} appears`}
       subtitle={`Prompts where ${focal.name} appears in AI answers`}
       rows={rows}

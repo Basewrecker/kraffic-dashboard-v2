@@ -50,8 +50,11 @@ test('growth: change vs previous period, symmetric axis, average', () => {
   assert.deepEqual(g.domain, [-4, 4])
   assert.deepEqual(g.ticks, [-4, -2, 0, 2, 4])
   assert.equal(g.average, 1.7)
-  // the first month of the 12-month window has no previous month → omitted
-  assert.equal(getHistory({ compare: false, granularity: 'monthly', range: 'last-12m' }).growth.points.length, 11)
+  // the first month on record (All time starts there) has no previous month → omitted; inside the history, the month
+  // before the window counts
+  const all = getHistory({ compare: false, granularity: 'monthly', range: 'all' })
+  assert.equal(all.growth.points.length, all.points.length - 1)
+  assert.equal(getHistory({ compare: false, granularity: 'monthly', range: 'last-12m' }).growth.points.length, 12)
 })
 
 test('dermasuri can be hidden while comparing: competitors only, axis fits them', () => {
@@ -73,4 +76,21 @@ test('a competitor can be the focal brand', () => {
   assert.equal(h.stats.current, h.points.at(-1).cerave)
   const solo = getHistory({ focal: 'cerave', compare: false })
   assert.deepEqual(solo.series.map((s) => s.key), ['cerave'])
+})
+
+test('ranges: Last 30 / 90 / 180 days, Last year and All time by days back from the latest sync; monthly 3 / 6 / 12 and All time', () => {
+  const weekly = (range) => getHistory({ granularity: 'weekly', range })
+  assert.equal(weekly('last-30d').points.length, 5)
+  assert.equal(weekly('last-90d').points[0].date, 'Jul 13')
+  assert.ok(weekly('last-180d').points.length > weekly('last-90d').points.length)
+  assert.ok(weekly('last-1y').points.length > weekly('last-180d').points.length)
+  assert.ok(weekly('all').points.length > weekly('last-1y').points.length)
+  assert.equal(getHistory({ granularity: 'monthly', range: 'all' }).points[0].date, 'Jun 2025')
+})
+
+test('"Since <first sync>": only All time, while the history covers every shorter range', () => {
+  for (const range of ['last-30d', 'last-90d', 'last-180d', 'last-1y']) assert.equal(getHistory({ range }).since, null, range)
+  assert.equal(getHistory({ range: 'all' }).since, 'Since Jun 2, 2025')
+  assert.equal(getHistory({ granularity: 'monthly', range: 'last-12m' }).since, null)
+  assert.equal(getHistory({ granularity: 'monthly', range: 'all' }).since, 'Since Jun 2, 2025')
 })

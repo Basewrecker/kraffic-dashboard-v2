@@ -37,7 +37,7 @@ const COMPARE = [
 ]
 
 export default function PlansPage() {
-  useEffect(() => { document.title = 'Choose a plan · Billing · Kraffic' }, [])
+  useEffect(() => { document.title = 'Choose a plan · Billing · Auden AI' }, [])
   const b = useBilling()
   const [toastNode, toast] = useToast({ position: 'center' })
   const [interval, setInterval] = useState(b.interval)

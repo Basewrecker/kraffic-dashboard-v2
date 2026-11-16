@@ -4,7 +4,7 @@ import { PrimaryButton } from '../dashboard/overlays'
 import { estimateSync } from '../../data/mock'
 
 // the engines' names in the sync sheet and in a sync's progress
-export const SYNC_ENGINE = { aio: 'Google', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
+export const SYNC_ENGINE = { aio: 'Google AI Overview', aimode: 'Google AI Mode', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' }
 const fmt = (n) => n.toLocaleString('en-US')
 
 // "152 prompts · estimated 625–2,821 paid calls": what the picked mode will run, before anything starts

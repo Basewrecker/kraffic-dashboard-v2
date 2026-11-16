@@ -56,7 +56,8 @@ test('every brand and engine in the mock: the card and Sync history agree and ad
       const at = `${b.key} / ${e}`
       assert.equal(rows[0].visibility, v.kpis.score, `${at}: latest row = the card's score`)
       assert.equal(v.kpis.scoreDelta, v.kpis.score - rows[1].visibility, `${at}: card delta = shown now − shown before`)
-      rows.slice(0, -1).forEach((r, i) => assert.equal(r.delta, r.visibility - rows[i + 1].visibility, `${at}: row ${i} delta`))
+      // a row with no result (Gemini's failed Sep 7 scan), or below one: no delta (null), never a change against a gap
+      rows.slice(0, -1).forEach((r, i) => assert.equal(r.delta, r.visibility == null || rows[i + 1].visibility == null ? null : r.visibility - rows[i + 1].visibility, `${at}: row ${i} delta`))
       rows.forEach((r, i) => assert.equal(r.netPrompts, r.changes ? r.changes.gained.length - r.changes.lost.length : null, `${at}: row ${i} net`))
       assert.equal(v.kpis.netPrompts, rows[0].netPrompts, `${at}: card net = the latest row's`)
     }

@@ -3,7 +3,8 @@ import { PlatformIcon } from '../../components/dashboard/icons'
 import { EmptyState, t2, t3 } from '../../components/tool/ToolPage'
 import { useParams } from '../../components/audit/parts'
 import { navigate } from '../../router'
-import { ENGINES, insightsLastSync } from '../../data/insights'
+import { ENGINES, insightsLastSync } from '@/lib/insights-adapter'
+import { useProductName } from '@/components/brand/BrandContext'
 
 // Shared by /citations, /sentiment and /fact-check (hidden from the sidebar; reachable by URL).
 export { cardTitle, subtitleCls, t2, t3, inkBtn, lineBtn } from '../../components/tool/ToolPage'
@@ -15,7 +16,8 @@ export const scrollTo = (id) => () => document.getElementById(id)?.scrollIntoVie
 
 // ?mock=full|small|empty|none (default full)
 export function useInsightState(states, title) {
-  useEffect(() => { document.title = `${title} · Kraffic` }, [title])
+  const product = useProductName()
+  useEffect(() => { document.title = `${title} · ${product}` }, [title, product])
   const k = useParams().get('mock')
   const key = ['full', 'small', 'empty', 'none'].includes(k) ? k : 'full'
   return { key, st: states[key] ?? null }

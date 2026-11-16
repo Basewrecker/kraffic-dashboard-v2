@@ -66,3 +66,42 @@ export function useSheetDrag(panelRef, onClose) {
   }
   return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp, style: { touchAction: 'none' } }
 }
+
+// A dialog's focus handling, shared by ui/Modal and the Content workspace's focus panel: while `active`, focus moves in
+// (to [data-autofocus] or the panel) and is trapped (Tab / Shift+Tab wrap), Esc calls onCloseRef.current(), the page
+// behind stops scrolling (keeping its width), and focus returns to where it was when it ends.
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+export function useDialogFocus(panelRef, active, onCloseRef, { returnTo = null } = {}) {
+  useEffect(() => {
+    if (!active) return undefined
+    const before = document.activeElement
+    const el = panelRef.current
+    if (!el) return undefined
+    const items = () => [...el.querySelectorAll(FOCUSABLE)].filter((n) => n.offsetParent !== null)
+    ;(el.querySelector('[data-autofocus]') ?? el).focus()
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') { onCloseRef.current(); return }
+      if (e.key !== 'Tab') return
+      const f = items()
+      if (!f.length) { e.preventDefault(); return }
+      const inside = el.contains(document.activeElement)
+      if (e.shiftKey && (!inside || document.activeElement === f[0] || document.activeElement === el)) { e.preventDefault(); f[f.length - 1].focus() }
+      else if (!e.shiftKey && (!inside || document.activeElement === f[f.length - 1])) { e.preventDefault(); f[0].focus() }
+    }
+    document.addEventListener('keydown', onKey) // bubble phase: popovers inside handle their own Esc first (capture + stopPropagation)
+
+    // lock the page behind, keeping its width (no jump when the scrollbar disappears)
+    const { overflow, paddingRight } = document.body.style
+    const gap = window.innerWidth - document.documentElement.clientWidth
+    document.body.style.overflow = 'hidden'
+    if (gap) document.body.style.paddingRight = `${gap}px`
+
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = overflow
+      document.body.style.paddingRight = paddingRight
+      ;(returnTo?.current ?? before)?.focus?.()
+    }
+  }, [active]) // eslint-disable-line react-hooks/exhaustive-deps
+}

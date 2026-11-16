@@ -13,7 +13,9 @@ const LABEL_ON = {
 const reduced = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const SWEEP_MS = 600
 
-export default function Pie({ slices, radius = 96, hover = null, onHover, onSelect, dim, label, labels = true, separator = 2 }) {
+// pulled (key | null): that slice sits 4px out along its mid-angle all the time (Share of voice: your own brand's, owner
+// 2026-11-03); the others stay flat. Hovered, it goes to 6px like any other.
+export default function Pie({ slices, radius = 96, hover = null, onHover, onSelect, dim, label, labels = true, separator = 2, pulled = null }) {
   const pad = 8 // room for the 6px push-out
   const size = (radius + pad) * 2
   const c = radius + pad
@@ -45,7 +47,7 @@ export default function Pie({ slices, radius = 96, hover = null, onHover, onSele
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={label} className="shrink-0 overflow-visible" onMouseLeave={() => onHover?.(null)}>
       {arcs.map((s) => {
         const mid = (s.a0 + s.a1) / 2
-        const out = hover === s.key ? 6 : 0
+        const out = hover === s.key ? 6 : pulled === s.key ? 4 : 0
         const full = s.a1 - s.a0 >= 2 * Math.PI - 1e-6
         const [x0, y0] = pt(s.a0), [x1, y1] = pt(s.a1)
         const d = full

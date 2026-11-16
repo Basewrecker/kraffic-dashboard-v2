@@ -19,7 +19,7 @@ const BRANDS = { visa: ['Visa', 'visa.com'], mastercard: ['Mastercard', 'masterc
 
 export default function BillingPage() {
   const b = useBilling()
-  useEffect(() => { document.title = 'Billing · Kraffic' }, [])
+  useEffect(() => { document.title = 'Billing · Auden AI' }, [])
   const [toastNode, toast] = useToast({ position: 'center' })
   const failed = b.status === 'PAST_DUE'
   // billing not live (production today): the plan, and usage as plain counts. No prices, limits, cards or invoices.

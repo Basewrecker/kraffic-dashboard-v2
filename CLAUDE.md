@@ -37,6 +37,8 @@ repo.
 - Nothing unpushed at session end; `git status` clean.
 
 ## 2. Design: this mock is the source of truth
+- **`DESIGN.md` is the design system** (tokens, type, colour rules, the Reports frame, the words and missing-data rules,
+  the design guides' order of authority). Read it before any UI change; when code and DESIGN.md disagree, fix one in the same change.
 - Every UI change is designed here first, with screenshots for the owner's review. Only after the owner approves is
   it ported to the app (by a session in the app repo, not from here).
 - **Port = copy this mock 1:1** into the app. The app may change only import paths, routing, the data source (through
@@ -45,8 +47,12 @@ repo.
   and wrappers, never in files here. Mock data stays in this repo's data files, in the shape the app's adapter returns.
 - Production must look exactly like this mock, with no remnants of the old UI.
 - **Locked design system.** Manrope; the existing type scale; graphite tokens only (no hex, no `gray-*`, no
-  `bg-white`); light and dark; no uppercase labels; no coloured pills or links; no yellow; red only for drops and
-  errors; brand colours only in the line chart, with the user's brand always ink; `tabular-nums` on numbers; never
+  `bg-white`); light and dark; no uppercase labels; no coloured pills or links (two exceptions: the blue Reports send
+  button, and the Beta pill: 18px, 11px text, soft violet tint (`--beta`), no sparkle, only on pages still in
+  preview; the only use of violet); no yellow, except the Share of
+  voice medals and Top share gold and the muted amber `--caution` dot on softer report verdicts; red only for drops
+  and errors; brand colours only in Share of voice and the Visibility history chart (the fixed palette by rank, the
+  user's brand included, DESIGN.md §3) and Reports' competitor series, ink everywhere else; `tabular-nums` on numbers; never
   repeat the same number on a page; insights in plain English with a "Why?"; reuse existing components (drawers,
   segmented controls, chips, tabs) before inventing new ones.
 - Every card handles full, small and empty brands, plus loading and error states. Screenshots at 1440 and 390 wide,

@@ -12,11 +12,12 @@ const options = [
 export default function ThemeToggle() {
   const theme = useTheme()
   return (
-    <div className="@container w-full" role="group" aria-label="Theme">
-    <div className="grid h-10 w-full grid-cols-3 gap-1 rounded-lg bg-[var(--tint)] p-1">
+    <div className="@container w-full" role="group" aria-label="Theme" data-tour-near>{/* data-tour-near: the walkthrough keeps its lit area clear of this */}
+    <div className="grid h-10 w-full grid-cols-3 gap-1 rounded-lg bg-switch p-1 ring-1 ring-inset ring-switch-line">
       {options.map(([id, label, Icon]) => (
         <button
           key={id}
+          type="button"
           onClick={(e) => {
             // the reveal grows from the centre of the clicked button
             const r = e.currentTarget.getBoundingClientRect()
@@ -24,6 +25,7 @@ export default function ThemeToggle() {
           }}
           aria-pressed={theme === id}
           aria-label={label}
+          title={label}
           className={`flex min-w-0 items-center justify-center gap-1.5 rounded-md text-[13px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
             theme === id ? 'bg-[var(--ink)] text-[var(--color-surface)]' : 'text-stone-600 hover:text-stone-900'
           }`}

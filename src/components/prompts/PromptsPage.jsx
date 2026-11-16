@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Download, FlaskConical, MessageSquarePlus, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Download, FlaskConical, Loader2, MessageSquarePlus, Pencil, Plus, RefreshCw, Upload, X } from 'lucide-react'
 import PromptTable from '../dashboard/PromptTable'
 import { useIsMobile } from '../../hooks/useMedia'
 import MobileActions, { exportTable } from '../ui/MobileActions'
@@ -15,6 +15,7 @@ import { useInlineEdit } from '../../hooks/useInlineEdit'
 import ResearchModal from './ResearchModal'
 import ImportModal from './ImportModal'
 import CategorySelect from './CategorySelect'
+import { editProblem, editWarning } from '../firstSetup/promptEdits'
 import { UNCATEGORIZED, allCategories, createCategory, deleteCategory, renameCategory } from '../../store/categories'
 import { DashboardViewProvider, useDashboardView } from '../../hooks/useBrandView'
 import { ENGINES, OWN, TRACKED_BRANDS, appearances, engineName, enginePid, getBrandView } from '../../data/brandViews'
@@ -77,6 +78,9 @@ function initialFilters() {
 }
 
 // the engine filter is the dashboard's (?engine=), so Prompt mix below follows it too
+// as the app: the header's Sync button spins while a sync runs
+const SyncSpinner = (props) => <Loader2 {...props} className="animate-spin" />
+
 export default function PromptsPage() {
   return (
     <DashboardViewProvider>
@@ -87,7 +91,7 @@ export default function PromptsPage() {
 
 function PromptHub() {
   const mobile = useIsMobile()
-  useEffect(() => { document.title = 'Prompt Hub · Kraffic' }, [])
+  useEffect(() => { document.title = 'Prompt Hub · Auden AI' }, [])
   const [prompts, setPrompts] = useState(() => [...trackedPrompts])
   const [initial] = useState(initialFilters)
   const [status, setStatus] = useState(initial.status)
@@ -287,11 +291,13 @@ function PromptHub() {
     setEditing(null)
   }
   const editText = editing?.draft.trim() ?? ''
+  // another prompt already has this wording: refused with "Already added" (as in First-time setup)
+  const editDupe = Boolean(editing) && editProblem(prompts.map((r) => ({ id: r.id, text: r.prompt })), editing.id, editText) === 'dupe'
   const editKeys = useInlineEdit({
     ref: editRef,
     active: Boolean(editing),
     isDirty: Boolean(editing) && (editText !== editing.original || editing.category !== editing.originalCategory),
-    isValid: Boolean(editText),
+    isValid: Boolean(editText) && !editDupe,
     onSave: saveEdit,
     onCancel: () => setEditing(null),
     // emptied the prompt, then clicked away: drop it, but let Undo bring the edit back
@@ -386,8 +392,11 @@ function PromptHub() {
           value={editing.draft}
           onFocus={(e) => e.target.select()} // typing replaces the prompt; arrow keys still edit it
           onChange={(e) => setEditing({ ...editing, draft: e.target.value })}
+          aria-invalid={editDupe}
           className={`${fieldCls} -ml-[13px] w-[calc(100%+13px)]`}
         />
+        {editDupe && <span role="alert" className="mt-1 block text-[12px] leading-4 text-stone-500">Already added</span>}
+        {!editDupe && editWarning(r) && <span className="mt-1 block text-[12px] leading-4 text-stone-500">{editWarning(r)}</span>}
         </div>
       ) : (
         <span title={r.prompt} className="block truncate text-[14px] leading-5 text-stone-900">{r.prompt}</span>
@@ -453,11 +462,11 @@ function PromptHub() {
           </button>
           <button
             type="button"
-            aria-label={`Delete “${r.prompt}”`}
+            aria-label={`Remove “${r.prompt}”`}
             onClick={(e) => setConfirm({ anchor: e.currentTarget, ids: [r.id] })}
             className="grid h-7 w-7 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-stone-100 hover:text-negative focus-visible:ring-2 focus-visible:ring-focus"
           >
-            <Trash2 size={14} aria-hidden />
+            <X size={14} aria-hidden />
           </button>
         </span>
       ),
@@ -507,7 +516,7 @@ function PromptHub() {
   const engineGroups = [{
     items: [
       { id: 'all', label: 'All engines' },
-      ...ENGINES.map((e) => ({ id: e.id, label: e.name, icon: <PlatformIcon id={e.id} size={16} /> })),
+      ...ENGINES.map((e) => ({ id: e.id, label: e.full, short: e.name, icon: <PlatformIcon id={e.id} size={16} /> })),
     ],
   }]
 
@@ -519,7 +528,7 @@ function PromptHub() {
       // toolbar and bulk bar share one grid cell and crossfade, so the row height never changes
       // phones: search + Sort on row 1, the filters scroll sideways on row 2 (minmax(0,1fr): the scrolling row can't widen it)
       <div className="grid grid-cols-[minmax(0,1fr)]">
-        <div inert={hideTools ? '' : undefined} aria-hidden={hideTools} className={`[grid-area:1/1] flex items-center gap-2 transition-opacity duration-150 max-md:flex-wrap ${hideTools ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
+        <div inert={hideTools ? '' : undefined} aria-hidden={hideTools} className={`[grid-area:1/1] flex flex-wrap items-center gap-2 transition-opacity duration-150 md:gap-y-3 ${hideTools ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
           {search}
           {sortButton}
           <div className="no-scrollbar flex items-center gap-2 max-md:-mx-4 max-md:w-[calc(100%+32px)] max-md:overflow-x-auto max-md:px-4 md:contents">
@@ -536,7 +545,7 @@ function PromptHub() {
           )}
           {brandFilter && (
             <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-line bg-tint pl-2.5 pr-1 text-[13px] font-medium text-stone-900">
-              <span className="font-normal text-stone-500">Mentions</span> {brandFilter.name}{brandFilter.engine && <span className="font-normal text-stone-500">· {engineName(brandFilter.engine)}</span>}
+              <span className="font-normal text-stone-500">Appears for</span> {brandFilter.name}{brandFilter.engine && <span className="font-normal text-stone-500">· {engineName(brandFilter.engine)}</span>}
               <button type="button" aria-label={`Clear brand ${brandFilter.name}`} onClick={() => setBrandFilter(null)} className="grid h-6 w-6 place-items-center rounded text-stone-500 outline-none hover:bg-surface hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><X size={12} aria-hidden /></button>
             </span>
           )}
@@ -580,7 +589,7 @@ function PromptHub() {
             onClick={(e) => setConfirm({ anchor: e.currentTarget, ids })}
             className={`${ghostCls} text-negative hover:bg-stone-100`}
           >
-            Delete
+            Remove selected
           </button>
           <button type="button" onClick={() => setSelected(new Set())} className={`${ghostCls} ml-auto text-stone-600 hover:bg-stone-100 hover:text-stone-900`}>
             Clear
@@ -590,22 +599,50 @@ function PromptHub() {
     )
   }
 
+  // the header's Sync (as the app's button; the sync itself is a mock stand-in)
+  const [sync, setSync] = useState(null) // { done, total } while it runs
+  const pendingCount = prompts.filter((r) => r.status === 'pending').length
+  const syncTimer = useRef(null)
+  useEffect(() => () => clearInterval(syncTimer.current), [])
+  const runSync = () => {
+    const total = pendingCount || prompts.length
+    if (!total) { toast('Nothing to sync'); return }
+    setSync({ done: 0, total })
+    toast(`Sync started for ${total} prompt${total === 1 ? '' : 's'}`)
+    let step = 0
+    syncTimer.current = setInterval(() => {
+      step += 1
+      if (step >= 6) { clearInterval(syncTimer.current); setSync(null); toast('Sync complete'); return }
+      setSync({ done: Math.round((total * step) / 6), total })
+    }, 500)
+  }
   const empty = prompts.length === 0 && !adding
   return (
     <>
       {/* header: title + domain on the left, actions on the right (one row, like the dashboard) */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div>
-          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Prompt Hub</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Prompt Hub</h1>
+          </div>
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Manage the prompts tracked for {brandName(account.domain)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2 lg:pt-1">
           <span className="hidden items-center gap-2 lg:flex">
-            <SecondaryButton size="sm" icon={FlaskConical} onClick={() => setModal('research')}>Research</SecondaryButton>
-            <SecondaryButton size="sm" icon={Upload} onClick={() => setModal('import')}>Import</SecondaryButton>
+            {/* as the app: Sync first (pending prompts: "Sync 3"; running: "Syncing… 40/152"). Mock: the sync is a
+                3-second stand-in that counts up and ends with a toast */}
+            <SecondaryButton size="sm" icon={sync ? SyncSpinner : RefreshCw} disabled={Boolean(sync)} onClick={runSync}
+              title={sync ? `Syncing… ${sync.done} of ${sync.total} done` : pendingCount > 0 ? `Sync ${pendingCount} pending prompt${pendingCount === 1 ? '' : 's'}` : 'Re-run sync for all prompts'}>
+              {sync ? `Syncing… ${sync.done}/${sync.total}` : pendingCount > 0 ? `Sync ${pendingCount}` : 'Sync'}
+            </SecondaryButton>
+            {/* data-tour: the walkthrough pointer lights Research and Import (not Sync) */}
+            <span data-tour="prompts-find" className="flex items-center gap-2">
+              <SecondaryButton size="sm" icon={FlaskConical} onClick={() => setModal('research')}>Research</SecondaryButton>
+              <SecondaryButton size="sm" icon={Upload} onClick={() => setModal('import')}>Import</SecondaryButton>
+            </span>
           </span>
           {/* a second click closes the open row (span: the button doesn't forward refs) */}
-          <span ref={addBtnRef} className="inline-flex max-lg:flex-1 max-lg:[&>button]:h-10 max-lg:[&>button]:w-full max-lg:[&>button]:justify-center">
+          <span ref={addBtnRef} data-tour="prompts-add" className="inline-flex max-lg:flex-1 max-lg:[&>button]:h-10 max-lg:[&>button]:w-full max-lg:[&>button]:justify-center">
             <PrimaryButton size="sm" icon={Plus} aria-expanded={isAdding} onClick={() => (isAdding ? closeAdd() : startAdd())}>Add prompt</PrimaryButton>
           </span>
           <MobileActions items={[
@@ -654,12 +691,13 @@ function PromptHub() {
       {confirm && (
         <ConfirmPopover
           anchor={confirm.anchor}
-          title={confirm.ids.length === 1 ? 'Delete prompt?' : `Delete ${confirm.ids.length} prompts?`}
-          body={confirm.ids.length === 1 ? 'This removes its history.' : 'This removes their history.'}
+          title={confirm.ids.length === 1 ? 'Remove prompt?' : `Remove ${confirm.ids.length} prompts?`}
+          body={confirm.ids.length === 1 ? 'It has scan history. Removing it deletes that history.' : 'They have scan history. Removing them deletes that history.'}
+          confirmLabel="Remove"
           onCancel={() => setConfirm(null)}
           onConfirm={() => {
             remove(confirm.ids)
-            toast(confirm.ids.length === 1 ? 'Prompt deleted' : `${confirm.ids.length} prompts deleted`)
+            toast(confirm.ids.length === 1 ? 'Prompt removed' : `${confirm.ids.length} prompts removed`)
             setConfirm(null)
           }}
         />

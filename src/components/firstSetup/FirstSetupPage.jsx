@@ -35,7 +35,7 @@ export default function FirstSetupPage() {
   const [editing, setEditing] = useState(null) // a done step reopened with Edit
   const [toastNode, toast] = useToast({ position: 'center' })
   const name = s.brand?.name
-  useEffect(() => { document.title = `Set up ${name ?? 'your brand'} · Kraffic` }, [name])
+  useEffect(() => { document.title = `Set up ${name ?? 'your brand'} · Auden AI` }, [name])
 
   const open = editing ?? current
   const update = (patch) => setS((x) => ({ ...x, ...(typeof patch === 'function' ? patch(x) : patch) }))
@@ -45,7 +45,7 @@ export default function FirstSetupPage() {
   const summary = {
     brand: s.brand && (
       <span className="flex min-w-0 items-center gap-2">
-        <SiteLogo domain={s.brand.domain} name={s.brand.name} className="h-5 w-5 shrink-0 rounded" imgPad="p-0" initialClass="text-[10px]" bordered={false} />
+        <SiteLogo domain={s.brand.domain} name={s.brand.name} className="h-5 w-5 shrink-0 rounded" initialClass="text-[10px]" />
         <span className="truncate"><span className="text-stone-900">{s.brand.name}</span> · {s.brand.domain ?? 'Name-only brand'}</span>
       </span>
     ),
@@ -56,7 +56,7 @@ export default function FirstSetupPage() {
   const upcoming = {
     competitors: 'Brands AI answers compare you with',
     prompts: 'The questions people ask AI',
-    scan: 'Kraffic checks your prompts across AI engines',
+    scan: 'Auden AI checks your prompts across AI engines',
   }
 
   const body = (id) => ({
@@ -72,7 +72,7 @@ export default function FirstSetupPage() {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Set up {name ?? 'your brand'}</h1>
-          <p className={`mt-1 text-[13px] leading-[18px] ${t2} lg:text-[14px] lg:leading-5`}>A few steps before Kraffic can start tracking AI answers.</p>
+          <p className={`mt-1 text-[13px] leading-[18px] ${t2} lg:text-[14px] lg:leading-5`}>A few steps before Auden AI can start tracking AI answers.</p>
         </div>
         <span className={`shrink-0 pt-1.5 text-[13px] leading-[18px] ${t3} tabular-nums lg:pt-2.5`}>Step {current + 1} of {STEPS.length}</span>
       </div>

@@ -3,6 +3,7 @@
 import { brandName } from '../utils/brand.js' // .js: the unit tests load this file in plain Node
 import { GLOBAL, MARKET_SUGGESTIONS } from './marketSuggestions.js'
 import { scoringPosition, shareAxis, symmetricTicks } from '../utils/historyChart.js'
+import { MONTHLY_RANGES, WEEKLY_RANGES, longDay, sinceNote } from '../utils/historyRanges.js'
 
 // ---- Workspace: the agency, its clients and their brands. Two brands have demo data (Dermasuri; Lumen Skin reuses the
 // same dataset under its own name); the rest have none yet and show empty states. The current brand is kept in this
@@ -11,18 +12,18 @@ export const workspaceAgency = { name: 'PTA Agency', domain: 'pta.agency' }
 export const workspaceUser = { name: 'Alex Morgan', email: 'alex@pta.agency' } // the signed-in user (mock)
 export const workspaceDirectory = [
   { id: 'dermasuri-co', client: 'Dermasuri Skincare', brands: [
-    { id: 'dermasuri', name: 'Dermasuri', domain: 'dermasuri.com', data: 'full' },
-    { id: 'dermasuri-men', name: 'Dermasuri Men', domain: 'dermasurimen.com', data: 'empty' },
+    { id: 'dermasuri', name: 'Dermasuri', shortName: 'Dermasuri', domain: 'dermasuri.com', data: 'full' },
+    { id: 'dermasuri-men', name: 'Dermasuri Men', shortName: 'Dermasuri Men', domain: 'dermasurimen.com', data: 'empty' },
   ] },
   { id: 'lumen-co', client: 'Lumen Beauty Group', brands: [
-    { id: 'lumen', name: 'Lumen Skin', domain: 'lumenskin.com', data: 'full' },
+    { id: 'lumen', name: 'Lumen Skin', shortName: 'Lumen', domain: 'lumenskin.com', data: 'full' },
   ] },
   { id: 'brightside-co', client: 'Brightside', brands: [
-    { id: 'brightside', name: 'Brightside Botanics', domain: 'brightsidebotanics.com', data: 'empty', setUp: true }, // prompts and competitors in, first sync pending
+    { id: 'brightside', name: 'Brightside Botanics', shortName: 'Brightside', domain: 'brightsidebotanics.com', data: 'empty', setUp: true }, // prompts and competitors in, first sync pending
   ] },
   { id: 'northwind-co', client: 'Northwind Pharmacy', brands: [
-    { id: 'northwind-derm', name: 'Northwind Derm', domain: 'northwindderm.com', data: 'empty' },
-    { id: 'northwind-sun', name: 'Northwind Sun', domain: 'northwindsun.com', data: 'empty' },
+    { id: 'northwind-derm', name: 'Northwind Derm', shortName: 'NW Derm', domain: 'northwindderm.com', data: 'empty' },
+    { id: 'northwind-sun', name: 'Northwind Sun', shortName: 'NW Sun', domain: 'northwindsun.com', data: 'empty' },
   ] },
 ]
 const storedBrandId = (() => { try { return typeof localStorage !== 'undefined' ? localStorage.getItem('kraffic:brand') : null } catch { return null } })()
@@ -34,6 +35,8 @@ export const currentBrand = workspaceDirectory.flatMap((c) => c.brands.map((b) =
 const featuresOff = (() => { try { return (new URLSearchParams(window.location.search).get('off') || '').split(',') } catch { return [] } })()
 export const account = {
   name: currentBrand.name,
+  // the brand card's second line, under the domain (live: "FoA" for Finance of America); falls back to the name
+  shortName: currentBrand.shortName ?? currentBrand.name,
   plan: 'PTA · Agency',
   domain: currentBrand.domain,
   llm: 'Google AI Overview',
@@ -62,54 +65,102 @@ export const competitors = [
   { domain: 'theordinary.com', share: 4 },
 ]
 
+// ?competitors=many: six more competitors (ten brands in all), for Share of voice's states: a competitor ahead of you
+// (you're not #1), an exact tie (a shared bronze medal), two counts that show the same whole % (one decimal: 3.9% vs
+// 3.7%), brands past the 7th in one "Other brands" slice, and brands with no name of their own (the list tidies their
+// domain: "byoma.com" → "Byoma", the slug "Good-molecules" → "Good Molecules"). name: the name Brand Setup holds ('' =
+// none set); target: the tracked prompts whose answers name it (data/brandViews.js); share: its share of the latest
+// sync (the history chart's lines and which rivals it draws first).
+const competitorPreview = (() => { try { return new URLSearchParams(window.location.search).get('competitors') === 'many' } catch { return false } })()
+export const extraCompetitors = competitorPreview ? [
+  { domain: 'glowrecipe.com', key: 'glow', name: 'Glow Recipe', target: 120, share: 79 },
+  { domain: 'byoma.com', key: 'byoma', name: '', target: 40, share: 26 },
+  { domain: 'naturium.com', key: 'naturium', name: 'Naturium', target: 40, share: 26 },
+  { domain: 'good-molecules.com', key: 'goodmol', name: 'Good-molecules', target: 15, share: 10 },
+  { domain: 'versedskin.com', key: 'versed', name: '', target: 14, share: 9 },
+  { domain: 'inkeylist.com', key: 'inkey', name: 'The INKEY List', target: 3, share: 2 },
+] : []
+competitors.push(...extraCompetitors.map((c) => ({ domain: c.domain, share: c.share })))
+
 export const history = [
-  { date: 'Sep 7', dermasuri: 71, paulas: 2, cerave: 20, ordinary: 12 },
-  { date: 'Sep 16', dermasuri: 74, paulas: 2, cerave: 21, ordinary: 9 },
-  { date: 'Sep 21', dermasuri: 71, paulas: 3, cerave: 19, ordinary: 6 },
-  { date: 'Sep 28', dermasuri: 66, paulas: 3, cerave: 17, ordinary: 9 },
-  { date: 'Oct 5', dermasuri: 73, paulas: 3, cerave: 18, ordinary: 4 },
+  { date: 'Sep 7', iso: '2026-09-07', dermasuri: 71, paulas: 2, cerave: 20, ordinary: 12 },
+  { date: 'Sep 16', iso: '2026-09-16', dermasuri: 74, paulas: 2, cerave: 21, ordinary: 9 },
+  { date: 'Sep 21', iso: '2026-09-21', dermasuri: 71, paulas: 3, cerave: 19, ordinary: 6 },
+  { date: 'Sep 28', iso: '2026-09-28', dermasuri: 66, paulas: 3, cerave: 17, ordinary: 9 },
+  { date: 'Oct 5', iso: '2026-10-05', dermasuri: 73, paulas: 3, cerave: 18, ordinary: 4 },
 ]
 
 // legend + bar order is fixed: you, then competitors ranked by share
 // Earlier weekly syncs (Aug: dermasuri = the sync-history visibility for those dates; Jul averages to the Jul month); feeds "Last 90 days".
 export const historyEarlier = [
-  { date: 'Jul 13', dermasuri: 65, paulas: 2, cerave: 21, ordinary: 10 },
-  { date: 'Jul 20', dermasuri: 66, paulas: 3, cerave: 20, ordinary: 11 },
-  { date: 'Jul 27', dermasuri: 67, paulas: 2, cerave: 21, ordinary: 9 },
-  { date: 'Aug 3', dermasuri: 66, paulas: 2, cerave: 19, ordinary: 11 },
-  { date: 'Aug 10', dermasuri: 66, paulas: 3, cerave: 20, ordinary: 10 },
-  { date: 'Aug 17', dermasuri: 70, paulas: 2, cerave: 19, ordinary: 12 },
-  { date: 'Aug 24', dermasuri: 68, paulas: 3, cerave: 21, ordinary: 11 },
-  { date: 'Aug 31', dermasuri: 69, paulas: 2, cerave: 20, ordinary: 10 },
+  { date: 'Jul 13', iso: '2026-07-13', dermasuri: 65, paulas: 2, cerave: 21, ordinary: 10 },
+  { date: 'Jul 20', iso: '2026-07-20', dermasuri: 66, paulas: 3, cerave: 20, ordinary: 11 },
+  { date: 'Jul 27', iso: '2026-07-27', dermasuri: 67, paulas: 2, cerave: 21, ordinary: 9 },
+  { date: 'Aug 3', iso: '2026-08-03', dermasuri: 66, paulas: 2, cerave: 19, ordinary: 11 },
+  { date: 'Aug 10', iso: '2026-08-10', dermasuri: 66, paulas: 3, cerave: 20, ordinary: 10 },
+  { date: 'Aug 17', iso: '2026-08-17', dermasuri: 70, paulas: 2, cerave: 19, ordinary: 12 },
+  { date: 'Aug 24', iso: '2026-08-24', dermasuri: 68, paulas: 3, cerave: 21, ordinary: 11 },
+  { date: 'Aug 31', iso: '2026-08-31', dermasuri: 69, paulas: 2, cerave: 20, ordinary: 10 },
 ]
 
-// Monthly average share, last 12 months. Aug–Oct 2026 are the averages of the weekly syncs above
-// (Aug 67.8 → 68, Sep 70.75 → 71, Oct 73); earlier months trend gently up from 58. Competitors roughly flat.
+// Monthly average share since the first sync (Jun 2025). Aug–Oct 2026 are the averages of the weekly syncs above
+// (Aug 67.8 → 68, Sep 70.75 → 71, Oct 73); earlier months trend gently up from 52. Competitors roughly flat.
 export const historyMonthly = [
-  { date: 'Nov 2025', dermasuri: 58, cerave: 20, ordinary: 9, paulas: 3 },
-  { date: 'Dec 2025', dermasuri: 59, cerave: 21, ordinary: 10, paulas: 2 },
-  { date: 'Jan 2026', dermasuri: 61, cerave: 19, ordinary: 11, paulas: 3 },
-  { date: 'Feb 2026', dermasuri: 60, cerave: 20, ordinary: 10, paulas: 3 },
-  { date: 'Mar 2026', dermasuri: 62, cerave: 21, ordinary: 9, paulas: 2 },
-  { date: 'Apr 2026', dermasuri: 63, cerave: 20, ordinary: 11, paulas: 3 },
-  { date: 'May 2026', dermasuri: 65, cerave: 19, ordinary: 10, paulas: 2 },
-  { date: 'Jun 2026', dermasuri: 64, cerave: 20, ordinary: 11, paulas: 3 },
-  { date: 'Jul 2026', dermasuri: 66, cerave: 21, ordinary: 10, paulas: 2 },
-  { date: 'Aug 2026', dermasuri: 68, cerave: 20, ordinary: 11, paulas: 2 },
-  { date: 'Sep 2026', dermasuri: 71, cerave: 19, ordinary: 9, paulas: 3 },
-  { date: 'Oct 2026', dermasuri: 73, cerave: 18, ordinary: 4, paulas: 3 },
+  { date: 'Jun 2025', iso: '2025-06-01', dermasuri: 52, cerave: 21, ordinary: 10, paulas: 2 },
+  { date: 'Jul 2025', iso: '2025-07-01', dermasuri: 53, cerave: 20, ordinary: 9, paulas: 3 },
+  { date: 'Aug 2025', iso: '2025-08-01', dermasuri: 55, cerave: 21, ordinary: 10, paulas: 2 },
+  { date: 'Sep 2025', iso: '2025-09-01', dermasuri: 56, cerave: 20, ordinary: 11, paulas: 3 },
+  { date: 'Oct 2025', iso: '2025-10-01', dermasuri: 57, cerave: 21, ordinary: 10, paulas: 2 },
+  { date: 'Nov 2025', iso: '2025-11-01', dermasuri: 58, cerave: 20, ordinary: 9, paulas: 3 },
+  { date: 'Dec 2025', iso: '2025-12-01', dermasuri: 59, cerave: 21, ordinary: 10, paulas: 2 },
+  { date: 'Jan 2026', iso: '2026-01-01', dermasuri: 61, cerave: 19, ordinary: 11, paulas: 3 },
+  { date: 'Feb 2026', iso: '2026-02-01', dermasuri: 60, cerave: 20, ordinary: 10, paulas: 3 },
+  { date: 'Mar 2026', iso: '2026-03-01', dermasuri: 62, cerave: 21, ordinary: 9, paulas: 2 },
+  { date: 'Apr 2026', iso: '2026-04-01', dermasuri: 63, cerave: 20, ordinary: 11, paulas: 3 },
+  { date: 'May 2026', iso: '2026-05-01', dermasuri: 65, cerave: 19, ordinary: 10, paulas: 2 },
+  { date: 'Jun 2026', iso: '2026-06-01', dermasuri: 64, cerave: 20, ordinary: 11, paulas: 3 },
+  { date: 'Jul 2026', iso: '2026-07-01', dermasuri: 66, cerave: 21, ordinary: 10, paulas: 2 },
+  { date: 'Aug 2026', iso: '2026-08-01', dermasuri: 68, cerave: 20, ordinary: 11, paulas: 2 },
+  { date: 'Sep 2026', iso: '2026-09-01', dermasuri: 71, cerave: 19, ordinary: 9, paulas: 3 },
+  { date: 'Oct 2026', iso: '2026-10-01', dermasuri: 73, cerave: 18, ordinary: 4, paulas: 3 },
 ]
 
+// Older weekly syncs, from the first one (Jun 2, 2025) to Jul 6, 2026: the long history behind Last year and All time.
+// Each week sits within a point of its month's average (historyMonthly), competitors too. iso: the sync's day.
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const historyOlder = (() => {
+  const DAY = 86400000
+  const wobble = [0, 1, -1, 1, 0, -1]
+  const out = []
+  for (let t = Date.UTC(2026, 6, 6), i = 0; t >= Date.UTC(2025, 5, 1); t -= 7 * DAY, i++) {
+    const d = new Date(t)
+    const iso = d.toISOString().slice(0, 10)
+    const month = historyMonthly.find((m) => m.iso.slice(0, 7) === iso.slice(0, 7))
+    const w = (k) => Math.max(1, month[k] + wobble[(i + k.length) % wobble.length])
+    out.unshift({ date: `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCDate()}`, iso, dermasuri: w('dermasuri'), paulas: w('paulas'), cerave: w('cerave'), ordinary: w('ordinary') })
+  }
+  return out
+})()
+// ?competitors=many: the extra competitors' lines, each within 2 points of its share
+if (extraCompetitors.length) {
+  ;[...historyOlder, ...historyEarlier, ...history, ...historyMonthly].forEach((p, i) => extraCompetitors.forEach((c, j) => {
+    p[c.key] = Math.max(0, c.share + [0, 1, -1, 2, -2, 1][(i + j) % 6])
+  }))
+}
+
+// Visibility history's range menu (utils/historyRanges.js, the app's lib/history-ranges.js): Last 30 / 90 / 180 days,
+// Last year and All time (weekly: by days back from the latest sync); Last 3 / 6 / 12 months and All time (monthly).
+// count: the points a range takes when the data has no dates (Reports' datasets, ?history=many): a sync a week.
 export const historyRanges = {
-  weekly: [{ id: 'last-30d', label: 'Last 30 days', count: 5 }, { id: 'last-90d', label: 'Last 90 days', count: 13 }],
-  monthly: [{ id: 'last-3m', label: 'Last 3 months', count: 3 }, { id: 'last-6m', label: 'Last 6 months', count: 6 }, { id: 'last-12m', label: 'Last 12 months', count: 12 }],
+  weekly: WEEKLY_RANGES.map((r) => ({ ...r, count: r.days == null ? Infinity : Math.floor(r.days / 7) + 1 })),
+  monthly: MONTHLY_RANGES.map((r) => ({ ...r, count: r.count ?? Infinity })),
 }
 export const defaultRange = { weekly: 'last-30d', monthly: 'last-6m' }
 
 // Nice auto-fit domain for "your share only": [floor(min − 5) to 5, ceil(max + 5) to 5], 4 evenly spaced ticks.
-function fitDomain(values) {
+function fitDomain(values, cap = 100) {
   const lo = Math.max(0, Math.floor((Math.min(...values) - 5) / 5) * 5)
-  let hi = Math.min(100, Math.ceil((Math.max(...values) + 5) / 5) * 5)
+  let hi = Math.min(cap, Math.ceil((Math.max(...values) + 5) / 5) * 5)
   const step = Math.max(5, Math.ceil((hi - lo) / 3 / 5) * 5)
   hi = lo + step * 3
   return { domain: [lo, hi], ticks: [0, 1, 2, 3].map((i) => lo + step * i) }
@@ -124,33 +175,55 @@ function fitDomain(values) {
 // scale: { seriesKey: factor } — an engine filter's share relative to all engines (see brandViews.engineScale)
 const historyPreview = (() => { try { return new URLSearchParams(window.location.search).get('history') } catch { return null } })()
 const singleSync = historyPreview === 'single'
+// ?history=short: a brand with three weekly syncs so far (Sep 21 – Oct 5): every range shows what there is, with
+// "Since Sep 21, 2026" under the chart
+const shortHistory = historyPreview === 'short'
 // ?history=many: a brand with 6 competitors with long names (data/historyMany.js), for the many-competitor chart
 export const historyManyPreview = historyPreview === 'many'
 const dermasuriHistory = () => ({
-  weekly: [...historyEarlier, ...history],
+  weekly: [...historyOlder, ...historyEarlier, ...history],
   monthly: historyMonthly,
   series: historySeries.map((s) => ({ ...s, share: competitors.find((c) => c.domain === s.label)?.share ?? 0 })),
   scoring: null,
 })
 // dataset: { weekly, monthly, series: [{ key, label, share }], scoring: { label, weekly: {after, frac}, monthly } | null }
-export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null, dataset = null } = {}) {
-  const ds = dataset ?? dermasuriHistory()
+// gaps: the weekly syncs' days (iso) whose scan had no result on the engine shown (brandViews.engineGaps): every
+// series is null there (a gap in the line, "—" in the tooltip), and so is a month whose every sync had no result
+// scoring: a scoring change to mark on the dashboard's own history (the AI Mode split, brandViews aiModeSplit)
+// setup: a Brand Setup change ({ label, weekly: { after, frac }, monthly }), marked the same way (?setup=1 previews one)
+export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null, dataset = null, gaps = [], scoring = null, setup = null } = {}) {
+  const ds = dataset ?? (scoring ? { ...dermasuriHistory(), scoring } : dermasuriHistory())
   const historySeries = ds.series
   const gran = granularity === 'monthly' ? 'monthly' : 'weekly'
-  const raw = gran === 'monthly' ? ds.monthly : ds.weekly
-  const scaled = !scale ? raw : raw.map((p) => ({ ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, Math.round(p[s.key] * (scale[s.key] ?? 1))])) }))
+  const gapMonths = new Set(gaps.map((iso) => iso.slice(0, 7)).filter((m) => ds.weekly.filter((w) => w.iso?.startsWith(m)).every((w) => gaps.includes(w.iso))))
+  const isGap = (p) => !!p.iso && (gran === 'monthly' ? gapMonths.has(p.iso.slice(0, 7)) : gaps.includes(p.iso))
+  const raw = (gran === 'monthly' ? ds.monthly : ds.weekly).map((p) => (isGap(p) ? { ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, null])) } : p))
+  // a missing value stays missing (null × a scale is 0 in JS: a gap must never become a drop to 0)
+  const scaled = !scale ? raw : raw.map((p) => ({ ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, p[s.key] == null ? null : Math.round(p[s.key] * (scale[s.key] ?? 1))])) }))
   // ?history=single: a brand with one sync so far (the chart's first-sync state)
   // ?history=empty: nothing on record yet (no sync, or every day at 0%)
-  const all = historyPreview === 'empty' ? [] : singleSync ? scaled.slice(-1) : scaled
+  // ?history=short: three weekly syncs (two months)
+  const all = historyPreview === 'empty' ? [] : singleSync ? scaled.slice(-1) : shortHistory ? scaled.slice(gran === 'monthly' ? -2 : -3) : scaled
   const opts = historyRanges[gran]
   const opt = opts.find((r) => r.id === range) ?? opts.find((r) => r.id === defaultRange[gran])
-  const start = Math.max(0, all.length - opt.count)
+  // weekly: the syncs within the range's days of the latest one; All time, months, or data with no dates: by count
+  const lastIso = all[all.length - 1]?.iso
+  const DAY = 86400000
+  const inRange = gran === 'weekly' && lastIso && opt.days != null
+    ? all.filter((p) => p.iso && Date.parse(lastIso) - Date.parse(p.iso) <= opt.days * DAY).length
+    : opt.count
+  const start = Math.max(0, all.length - Math.max(1, inRange))
+  // the first sync on record (the earliest weekly sync, whichever view): with less history than the range, the card
+  // says "Since <that day>" under the chart; All time always does. Data with no dates (Reports): no line.
+  const weeklyAll = historyPreview === 'empty' ? [] : singleSync ? ds.weekly.slice(-1) : shortHistory ? ds.weekly.slice(-3) : ds.weekly
+  const firstIso = weeklyAll[0]?.iso
+  const since = all.length ? sinceNote({ range: opt, firstIso, lastIso, periods: all.length }) : null
   // a scoring change: points up to its `after` date were scored the old way (drawn lighter)
   const mark = ds.scoring?.[gran] ?? null
   const scoringIdx = mark ? all.findIndex((p) => p.date === mark.after) : -1
   const points = all.slice(start).map((p, i) => {
     const prev = all[start + i - 1] // the period before the window, when it exists
-    const deltas = Object.fromEntries(historySeries.map((s) => [s.key, prev ? p[s.key] - prev[s.key] : null]))
+    const deltas = Object.fromEntries(historySeries.map((s) => [s.key, prev && p[s.key] != null && prev[s.key] != null ? p[s.key] - prev[s.key] : null]))
     const prevs = Object.fromEntries(historySeries.map((s) => [s.key, prev ? prev[s.key] : null]))
     return { ...p, delta: deltas[focal], deltas, prevs, beforeScoring: scoringIdx !== -1 && start + i <= scoringIdx }
   })
@@ -158,16 +231,21 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
   const series = (compare ? historySeries.filter((s) => !hidden.includes(s.key)) : historySeries.filter((s) => s.key === focal))
     .sort((a, b) => (b.key === focal) - (a.key === focal)) // focal brand first (legend, bars, tooltip)
 
-  // Growth view: change vs the previous period, per visible series. Periods with no previous period are omitted.
+  // Growth view: change vs the previous period, per visible series. Periods with no previous period are omitted. With
+  // gaps (an engine with no result), a period whose change can't be worked out (it, or the one before, has no result)
+  // stays in as a gap: null, an empty slot, never a 0 bar. (Reports pass no gaps: their periods are as before.)
   const growthPoints = points
-    .filter((p) => p.delta != null)
+    .filter((p, i) => p.delta != null || (gaps.length > 0 && start + i > 0))
     .map((p) => ({ date: p.date, ...Object.fromEntries(series.map((s) => [s.key, p.deltas[s.key]])), prevs: p.prevs, values: p }))
   const maxAbs = Math.max(0, ...growthPoints.flatMap((p) => series.map((s) => Math.abs(p[s.key] ?? 0))))
   const growth = {
     points: growthPoints,
     ...symmetricTicks(maxAbs), // round, symmetric: −20, −10, 0, +10, +20
     // the focal brand's average growth (read from the raw deltas, so it exists even when it is hidden)
-    average: growthPoints.length ? Math.round((growthPoints.reduce((a, p) => a + p.values.delta, 0) / growthPoints.length) * 10) / 10 : 0,
+    average: (() => {
+      const ds = growthPoints.map((p) => p.values.delta).filter((d) => d != null)
+      return ds.length ? Math.round((ds.reduce((a, d) => a + d, 0) / ds.length) * 10) / 10 : 0
+    })(),
   }
   const you = points.map((p) => p[focal]).filter((v) => v != null)
   const last = points[points.length - 1] || {}
@@ -175,14 +253,19 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
   const best = valued.reduce((a, p) => (p[focal] > a[focal] ? p : a), valued[0] || null)
   const unit = gran === 'monthly' ? 'month' : 'week'
   // competitors alone sit at 3–21%: on 0–100 they'd be flat lines along the floor, so fit them
-  const axis = !compare ? fitDomain(you.length ? you : [0])
-    : youHidden ? fitDomain(points.flatMap((p) => series.map((s) => p[s.key])).filter((v) => v != null).concat(points.length ? [] : [0]))
+  // a dataset of counts (Reports: prompts named, prompts they win) has no 100% ceiling
+  const counts = ds.unit === 'count'
+  const all0 = points.flatMap((p) => series.map((s) => p[s.key])).filter((v) => v != null)
+  const axis = !compare ? fitDomain(you.length ? you : [0], counts ? Infinity : 100)
+    : youHidden || counts ? fitDomain(all0.length ? all0 : [0], counts ? Infinity : 100)
     : shareAxis(Math.max(0, ...points.flatMap((p) => series.map((s) => p[s.key] ?? 0))))
   return {
     granularity: gran,
     range: opt.id,
+    since,
     points,
-    scoring: mark ? { label: ds.scoring.label, at: scoringPosition(points.map((p) => p.date), mark) } : null,
+    scoring: mark ? { label: ds.scoring.label, tip: ds.scoring.tip ?? null, at: scoringPosition(points.map((p) => p.date), mark) } : null,
+    setupChange: setup?.[gran] ? { label: setup.label, at: scoringPosition(points.map((p) => p.date), setup[gran]) } : null,
     series,
     youHidden,
     ...axis,
@@ -192,7 +275,7 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
       change: last.delta ?? null,
       unit,
       best: best ? best[focal] : null,
-      bestLabel: !best ? null : best === last ? `this ${unit}` : gran === 'monthly' ? best.date : `${best.date}, 2026`,
+      bestLabel: !best ? null : best === last ? `this ${unit}` : gran === 'monthly' ? best.date : best.iso ? longDay(best.iso) : `${best.date}, 2026`,
       average: you.length ? Math.round(you.reduce((a, b) => a + b, 0) / you.length) : null,
     },
   }
@@ -203,15 +286,30 @@ export const historySeries = [
   { key: 'cerave', label: 'cerave.com' },
   { key: 'ordinary', label: 'theordinary.com' },
   { key: 'paulas', label: 'paulaschoice.com' },
+  ...extraCompetitors.map((c) => ({ key: c.key, label: c.domain })), // ?competitors=many
 ]
 
+// AI Mode previews: ?aimode=off = an account without AI Mode (the toggle off): it's hidden everywhere, never shown as 0
+// (owner's rule); ?aimode=new = the latest sync is AI Mode's first (brandViews aiModeSplit: "Scoring updated <day>").
+export const aiModePreview = () => { try { return new URLSearchParams(window.location.search).get('aimode') } catch { return null } }
+const AIMODE_OFF = aiModePreview() === 'off'
+// Google is two engines: AI Overview (the answer box on the results page) and AI Mode (Google's conversational search).
+// AI Mode is last in this list only so the seeded draws for the others stay as they were; ENGINE_ORDER (brandViews)
+// is the display order everywhere.
 export const platforms = [
   { id: 'chatgpt', name: 'ChatGPT', visible: 54, cited: 4 },
   { id: 'aio', name: 'AI Overview', visible: 111, cited: 30 },
   { id: 'gemini', name: 'Gemini', visible: 90, cited: 1 },
   { id: 'claude', name: 'Claude', visible: 0, cited: 0 },
   { id: 'grok', name: 'Grok', visible: 0, cited: 0 },
-]
+  { id: 'aimode', name: 'AI Mode', visible: 82, cited: 12 },
+].filter((p) => !(AIMODE_OFF && p.id === 'aimode'))
+// the display order of a prompt's engines (prompt-data ids: 'google' = AI Overview, 'aimode' = AI Mode)
+export const PID_ORDER = ['google', 'aimode', 'gemini', 'chatgpt', 'claude', 'grok']
+// AI Mode in sample rows that already have AI Overview: a fixed hash of the row, so adding it moves no other draw
+const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return (h >>> 0) / 4294967296 }
+// inserted right after AI Overview; the rest keep their order
+export const withAiMode = (list, key, share = 0.7) => (AIMODE_OFF ? list : list.includes('google') && !list.includes('aimode') && hashStr(`aimode|${key}`) < share ? list.flatMap((p) => (p === 'google' ? ['google', 'aimode'] : [p])) : list)
 
 // ---- filler generation (deterministic) ----
 const topics = [
@@ -277,17 +375,17 @@ export const brands = {
   'cerave.com': { name: 'CeraVe' },
   'theordinary.com': { name: 'The Ordinary' },
   'paulaschoice.com': { name: 'Paula’s Choice' },
-  'lumiere-labs.com': { name: 'Lumière Labs' },
-  'dewdrop-skin.com': { name: 'Dewdrop' },
+  'laroche-posay.us': { name: 'La Roche-Posay' },
+  'drunkelephant.com': { name: 'Drunk Elephant' },
 }
-const brandWeights = ['cerave.com', 'cerave.com', 'cerave.com', 'theordinary.com', 'theordinary.com', 'paulaschoice.com', 'lumiere-labs.com', 'dewdrop-skin.com']
+const brandWeights = ['cerave.com', 'cerave.com', 'cerave.com', 'theordinary.com', 'theordinary.com', 'paulaschoice.com', 'laroche-posay.us', 'drunkelephant.com']
 
 // logos stored for a brand or marketplace, by domain (Setup uploads); SiteLogo falls back to the favicon, then the initial.
 // None stored in this demo.
 export const brandLogos = {}
 
 // platform ids match PlatformIcon (google = AI Overview)
-export const platformNames = { google: 'Google AI Overview', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude', grok: 'Grok' }
+export const platformNames = { google: 'Google AI Overview', aimode: 'Google AI Mode', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude', grok: 'Grok' }
 
 const topicOf = (p) =>
   /blush|highlighter|cheek tint/.test(p) ? 'Makeup'
@@ -327,7 +425,7 @@ const topicDetails = {
     angle: 'Target the condition by name (keratosis pilaris) with a clinical-style FAQ and a weekly exfoliation schedule.' },
 }
 
-const publishers = ['skinwiki.org', 'dermdaily.com', 'beautyedit.co', 'thecosmeticchemist.blog']
+const publishers = ['healthline.com', 'byrdie.com', 'allure.com', 'verywellhealth.com']
 const publisherPaths = (slug) => [`/guides/best-${slug}`, `/reviews/${slug}-2026`, `/ingredients/${slug}-explained`, `/top-picks/${slug}`]
 
 function answerFor(prompt, topic, winners) {
@@ -388,7 +486,8 @@ export const missedPrompts = missedTexts.map((prompt, id) => {
   const winners = nWinners >= 4
     ? sample(Object.keys(brands), nWinners)
     : [...new Set(Array.from({ length: nWinners * 2 }, () => pick(brandWeights)))].slice(0, nWinners)
-  const platforms = ['google', ...sample(['chatgpt', 'gemini', 'claude'], Math.floor(rand() * 3))]
+  const basePlatforms = ['google', ...sample(['chatgpt', 'gemini', 'claude'], Math.floor(rand() * 3))]
+  const platforms = withAiMode(basePlatforms, `m${id}`)
   const d = topicDetails[topic]
   return {
     id,
@@ -402,8 +501,8 @@ export const missedPrompts = missedTexts.map((prompt, id) => {
     history,
     answer: answerFor(prompt, topic, winners),
     brandsMentioned: winners.map((domain) => {
-      const seen = platforms.filter(() => rand() < 0.75)
-      return { domain, platforms: seen.length ? seen : ['google'] }
+      const seen = basePlatforms.filter(() => rand() < 0.75) // drawn before AI Mode (keeps the seeded stream)
+      return { domain, platforms: withAiMode(seen.length ? seen : ['google'], `m${id}|${domain}`) }
     }),
     sources: [
       ...winners.slice(0, 2).map((w) => ({ domain: w, path: `/blog/${d.slug}-guide` })),
@@ -513,7 +612,7 @@ export const competitorPrompts = [
     ...r,
     topic,
     discovery: 'google',
-    platforms: ['google', ...['chatgpt', 'gemini'].filter(() => crand() < 0.45)],
+    platforms: withAiMode(['google', ...['chatgpt', 'gemini'].filter(() => crand() < 0.45)], `c${id}`),
     isNew,
     streak, // consecutive syncs the competitor has won this prompt
     you, // 'cited' | 'missing'
@@ -540,8 +639,10 @@ export const competitorSummary = Object.entries(
   }, {}),
 ).map(([domain, c]) => ({ domain, ...c })).sort((a, b) => b.total - a.total)
 
-const SYNC_PLATFORMS = ['aio', 'gemini', 'chatgpt', 'claude', 'grok'] // display order
+const SYNC_PLATFORMS = ['aio', 'gemini', 'chatgpt', 'claude', 'grok', 'aimode'] // drawn in this order (seeded); shown in SYNC_SHOWN's
+const SYNC_SHOWN = ['aio', 'aimode', 'gemini', 'chatgpt', 'claude', 'grok']
 const srand = mulberry32(440)
+const aimodeRand = mulberry32(441) // AI Mode's own stream, so its draws don't shift the other engines' rows
 // PLACEHOLDER: the first 5 scores come from the weekly history; everything else must be
 // replaced with the exact screenshot values.
 export const syncHistory = [
@@ -564,13 +665,13 @@ export const syncHistory = [
     // per-platform breakdown (Sync history mini bars + expanded row; Platform visibility history).
     // Mention % wanders ±5 around today's platform values; the latest sync is exact so it matches
     // Platform visibility, and platforms at 0% stay at 0.
-    breakdown: SYNC_PLATFORMS.map((id) => {
+    breakdown: SYNC_PLATFORMS.filter((id) => platforms.some((x) => x.id === id)).map((id) => {
       const p = platforms.find((x) => x.id === id)
       const base = Math.round((p.visible / total) * 100)
-      const mentionPct = i === 0 || base === 0 ? base : Math.min(100, Math.max(0, base + Math.round(srand() * 10 - 5)))
+      const mentionPct = i === 0 || base === 0 ? base : Math.min(100, Math.max(0, base + Math.round((id === 'aimode' ? aimodeRand : srand)() * 10 - 5)))
       const cited = i === 0 ? p.cited : p.cited === 0 ? 0 : Math.max(0, Math.round(p.cited * (r.cited / 30)))
       return { id, platform: p.name, mentionPct, citedPct: Math.round((cited / total) * 100), visible: i === 0 ? p.visible : Math.round((mentionPct / 100) * total), cited }
-    }),
+    }).sort((a, b) => SYNC_SHOWN.indexOf(a.id) - SYNC_SHOWN.indexOf(b.id)),
   }
 })
 export const syncTotal = 40
@@ -638,21 +739,21 @@ export const platformStats = platforms.map((p) => ({
   const counts = Object.fromEntries(platforms.map((p) => [p.id, p.visible]))
   const chosen = Object.fromEntries(Object.entries(counts).map(([id, n]) => [id, n >= visiblePrompts.length ? null : pickIds(n)]))
   visiblePrompts.forEach((r) => {
-    r.platforms = platforms
-      .filter((p) => p.visible > 0 && (chosen[p.id] === null || chosen[p.id].has(r.id)))
-      .map((p) => (p.id === 'aio' ? 'google' : p.id))
+    const on = platforms.filter((p) => p.visible > 0 && (chosen[p.id] === null || chosen[p.id].has(r.id))).map((p) => (p.id === 'aio' ? 'google' : p.id))
+    // AI Mode sits right after AI Overview; the others keep the order they always had
+    r.platforms = on.includes('aimode') ? on.filter((p) => p !== 'aimode').flatMap((p) => (p === 'google' ? ['google', 'aimode'] : [p])) : on
   })
 }
 
 // Top cited pages: Dermasuri URLs cited in the latest sync. Counts = prompts citing the page, summing to the
 // sync's 30 citations; deltas sum to +3 (27 → 30). Platforms follow the per-platform cited counts:
-// AI Overview cites in all 30 prompts, ChatGPT in 4, Gemini in 1.
+// AI Overview cites in all 30 prompts, ChatGPT in 4, Gemini in 1; AI Mode cites three of the pages (12 prompts).
 export const citedPages = [
-  { path: '/products/vitamin-c-serum', count: 9, delta: 3, platforms: ['google', 'chatgpt', 'gemini'] },
-  { path: '/blog/sunscreen-without-white-cast', count: 7, delta: 2, platforms: ['google', 'chatgpt'] },
+  { path: '/products/vitamin-c-serum', count: 9, delta: 3, platforms: ['google', 'aimode', 'chatgpt', 'gemini'] },
+  { path: '/blog/sunscreen-without-white-cast', count: 7, delta: 2, platforms: ['google', 'aimode', 'chatgpt'] },
   { path: '/products/ceramide-barrier-cream', count: 5, delta: 0, platforms: ['google', 'chatgpt'] },
   { path: '/blog/retinol-for-beginners', count: 4, delta: -1, platforms: ['google', 'chatgpt'] },
-  { path: '/collections/serums', count: 3, delta: 1, platforms: ['google'] },
+  { path: '/collections/serums', count: 3, delta: 1, platforms: ['google', 'aimode'] },
   { path: null, label: '2 other pages', count: 2, delta: -2, platforms: [] },
 ]
 // the "2 other pages" above, one by one (Top cited pages lists them when the card has room)
@@ -879,10 +980,10 @@ export const MAX_COMPETITORS = 5
 // "Citations and Mentions" card: per brand → per engine [mentions, citations] (engines not listed = 0).
 // Totals are always summed from these rows.
 export const citationsMentions = {
-  'dermasuri.com': { aio: [111, 30], gemini: [90, 2], chatgpt: [54, 4] },
-  'cerave.com': { aio: [33, 9], gemini: [23, 3], chatgpt: [18, 2] },
-  'theordinary.com': { aio: [8, 2], gemini: [5, 0], chatgpt: [6, 0] },
-  'paulaschoice.com': { aio: [6, 1], gemini: [3, 0], chatgpt: [5, 0] },
+  'dermasuri.com': { aio: [111, 30], aimode: [82, 12], gemini: [90, 2], chatgpt: [54, 4] },
+  'cerave.com': { aio: [33, 9], aimode: [26, 5], gemini: [23, 3], chatgpt: [18, 2] },
+  'theordinary.com': { aio: [8, 2], aimode: [6, 1], gemini: [5, 0], chatgpt: [6, 0] },
+  'paulaschoice.com': { aio: [6, 1], aimode: [4, 0], gemini: [3, 0], chatgpt: [5, 0] },
 }
 
 // the agency's other client workspaces (sidebar workspace switcher); not loaded in this demo
@@ -929,11 +1030,18 @@ const setupPromptTexts = [
   'best botanical toner for oily skin', 'squalane vs jojoba oil', 'fragrance free natural cleanser',
 ]
 const setupPrompts = setupPromptTexts.map((text, i) => ({ id: `sp${i + 1}`, text })).reverse()
+// scanned: the prompt has a last scan date (editing it then warns "Editing starts a new history for this prompt",
+// firstSetup/promptEdits.js). The first scan reaches the oldest prompts first; the rest are saved without history yet.
+const scannedFirst = (n) => setupPrompts.map((p) => (Number(p.id.slice(2)) <= n ? { ...p, scanned: true } : p))
 const setupBrand = { name: 'Brightside Botanics', domain: 'brightsidebotanics.com' }
 const setupCompetitors = [
   { id: 'sc1', name: 'Herbivore', domain: 'herbivorebotanicals.com' },
   { id: 'sc2', name: 'Pai Skincare', domain: 'paiskincare.com' },
   { id: 'sc3', name: 'Tata Harper', domain: 'tataharperskincare.com' },
+  // no name of its own: saved as a website, so the name is read off it (Edit gives it a real one)
+  { id: 'sc4', name: 'oseamalibu', domain: 'oseamalibu.com' },
+  // a name and no website
+  { id: 'sc5', name: 'Indie Lee', domain: null },
 ]
 const setupSuggested = [
   { id: 'ss1', name: 'Youth to the People', domain: 'youthtothepeople.com', reason: 'Named next to you in answers about plant-based serums' },
@@ -947,11 +1055,11 @@ export const firstSetupStates = {
   brand: setupState(setupBrand, [], [], { status: 'idle' }),
   competitors: setupState(setupBrand, setupCompetitors, [], { status: 'idle' }),
   prompts: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'idle' }),
-  scanning: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'running', scanned: 3, total: setupPrompts.length }),
+  scanning: setupState(setupBrand, setupCompetitors, scannedFirst(3), { status: 'running', scanned: 3, total: setupPrompts.length }),
   'scan-none': setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'none' }),
-  done: setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'done' }),
+  done: setupState(setupBrand, setupCompetitors, scannedFirst(setupPrompts.length), { status: 'done' }),
   // the scan finished but some prompts got no result (a timed-out search): the dashboard opens anyway
-  'scan-partial': setupState(setupBrand, setupCompetitors, setupPrompts, { status: 'done', scanned: setupPrompts.length - 2, total: setupPrompts.length, failed: 2 }),
+  'scan-partial': setupState(setupBrand, setupCompetitors, scannedFirst(setupPrompts.length - 2), { status: 'done', scanned: setupPrompts.length - 2, total: setupPrompts.length, failed: 2 }),
   'name-only': setupState({ name: 'Brightside Botanics', domain: null }, [], [], { status: 'idle' }),
 }
 export const firstSetupScanMinutes = 10
@@ -963,8 +1071,15 @@ export const firstSetupClient = 'Brightside'
 // scan is ({ status: 'running' | 'done' | 'none', scanned, total, failed }); done once the scan has finished with
 // results, failed: prompts it couldn't check (they're checked again with the next sync); ?mock=scan-none: no scan running
 const firstScan = { scanned: 0 }
+// ?save=fail: a saved prompt's edit or remove and a competitor's Edit are refused, to show the inline error with Retry
+const saveFails = (() => { try { return new URLSearchParams(window.location.search).get('save') === 'fail' } catch { return false } })()
+const settleOrFail = (value) => new Promise((resolve, reject) => setTimeout(() => (saveFails ? reject(new Error('The server didn’t respond')) : resolve(value)), 300))
 export const firstSetupActions = {
   onSavePrompts: (items) => new Promise((resolve) => setTimeout(() => resolve(items.map((it, i) => ({ id: `np${Date.now()}${i}`, text: it.text }))), 600)),
+  // a saved prompt's new wording (renamed in place, its history kept) · saved prompts removed (with their scan history).
+  // Unsaved prompts never come here: they change on the page until Continue.
+  onEditPrompt: (id, text) => settleOrFail({ id, text }),
+  onDeletePrompts: (ids) => settleOrFail(ids),
   onScanProgress: () => new Promise((resolve) => setTimeout(() => {
     if (new URLSearchParams(window.location.search).get('mock') === 'scan-none') { resolve({ status: 'none' }); return }
     const total = setupPrompts.length
@@ -983,6 +1098,8 @@ export const setupActions = {
   onDeleteTopic: (brandId, name) => settle(name),
   onAddCompetitor: (brandId, { name, domain }) => settle({ id: `c${++setupSeq}`, name, domain }),
   onRenameCompetitor: (brandId, competitor, name) => settle({ ...competitor, name }),
+  // First-time setup's Edit: the name and website together (?save=fail: refused)
+  onUpdateCompetitor: (brandId, competitor, { name, domain }) => settleOrFail({ ...competitor, name, domain }),
   onRemoveCompetitor: (brandId, competitor) => settle(competitor),
   onRestoreCompetitor: (brandId, competitor) => settle(competitor),
   onAcceptSuggestion: (brandId, s) => settle({ id: s.id, name: s.name, domain: s.domain }),
@@ -1016,7 +1133,8 @@ export const setupActions = {
 // ---------------------------------------------------------------------------
 export const initialTracking = {
   platforms: [
-    { id: 'aio', name: 'AI Overview', enabled: true, ready: true },
+    { id: 'aio', name: 'Google AI Overview', enabled: true, ready: true },
+    { id: 'aimode', name: 'Google AI Mode', enabled: true, ready: true },
     { id: 'gemini', name: 'Gemini', enabled: true, ready: true },
     { id: 'chatgpt', name: 'ChatGPT', enabled: true, ready: true },
     { id: 'claude', name: 'Claude', enabled: true, ready: true },
@@ -1032,34 +1150,34 @@ export const trackingOptions = {
 }
 // Sync now's modes: the app's agency Sync menu (components/ClientSyncDropdown.js), word for word. engines: the ones a mode
 // runs; prompts: 'all' or 'missed' (Google's missed prompts only); calls: paid API calls per prompt per engine, low–high,
-// read from the app's scan routes: Google 1 SerpAPI search on a hit, up to 3 tries on a miss, each with a possible AI
-// Overview fetch (6), +1 AI Mode call when the client's AI Mode is on (7); ChatGPT 1 (2 with the gpt-4o fallback);
+// read from the app's scan routes: Google AI Overview 1 SerpAPI search on a hit, up to 3 tries on a miss, each with a
+// possible AI Overview fetch (6); Google AI Mode, now its own engine, 1 call (it was the "+1 when AI Mode is on" add-on
+// to the Google scan); ChatGPT 1 (2 with the gpt-4o fallback);
 // Gemini 1 (2 on the retry without location); Claude 1 call with up to 5 web searches inside it (6). After a sync, each
 // branded domain gets about 8 more SerpAPI searches and 1 LLM call (SYNC_AFTER).
-export const SYNC_CALLS = { aio: [1, 6], chatgpt: [1, 2], gemini: [1, 2], claude: [1, 6] }
-export const SYNC_AI_MODE = 1
+export const SYNC_CALLS = { aio: [1, 6], aimode: [1, 1], chatgpt: [1, 2], gemini: [1, 2], claude: [1, 6] }
 export const SYNC_AFTER = 9
-// roughly how many paid calls a mode makes: { n: prompts it runs, lo, hi }. counts: { prompts, missed, domains, aiMode }
-export const estimateSync = (m, { prompts, missed, domains = 1, aiMode = false }) => {
+// roughly how many paid calls a mode makes: { n: prompts it runs, lo, hi }. counts: { prompts, missed, domains }
+export const estimateSync = (m, { prompts, missed, domains = 1 }) => {
   const n = m.prompts === 'missed' ? missed : prompts
   if (!m.engines.length || !n) return { n, lo: 0, hi: 0 }
-  const [lo, hi] = m.engines.reduce(([a, b], e) => [a + SYNC_CALLS[e][0] * n, b + (SYNC_CALLS[e][1] + (e === 'aio' && aiMode ? SYNC_AI_MODE : 0)) * n], [0, 0])
+  const [lo, hi] = m.engines.reduce(([a, b], e) => [a + SYNC_CALLS[e][0] * n, b + SYNC_CALLS[e][1] * n], [0, 0])
   return { n, lo: lo + SYNC_AFTER * domains, hi: hi + SYNC_AFTER * domains }
 }
 export const syncModes = {
   website: [
-    { id: 'full', title: 'Full sync', description: 'Runs Google (SERP + AI Mode), ChatGPT, Gemini, and Claude for every prompt.', engines: ['aio', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
-    { id: 'missed_google', title: 'Missed prompts (Google only)', description: 'Only re-checks prompts still marked missed on Google. Skips ChatGPT, Gemini, and Claude.', engines: ['aio'], prompts: 'missed' },
-    { id: 'chatgpt_only', title: 'ChatGPT sync', description: 'Runs ChatGPT for every prompt. Skips Google, Gemini, and Claude.', engines: ['chatgpt'], prompts: 'all' },
-    { id: 'gemini_only', title: 'Gemini sync', description: 'Runs Gemini for every prompt. Skips Google, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
-    { id: 'claude_only', title: 'Claude sync', description: 'Runs Claude for every prompt. Skips Google, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
+    { id: 'full', title: 'Full sync', description: 'Runs Google AI Overview and AI Mode, ChatGPT, Gemini, and Claude for every prompt.', engines: ['aio', 'aimode', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
+    { id: 'missed_google', title: 'Missed prompts (Google only)', description: 'Only re-checks prompts still marked missed on Google AI Overview and AI Mode. Skips ChatGPT, Gemini, and Claude.', engines: ['aio', 'aimode'], prompts: 'missed' },
+    { id: 'chatgpt_only', title: 'ChatGPT sync', description: 'Runs ChatGPT for every prompt. Skips Google AI Overview and AI Mode, Gemini, and Claude.', engines: ['chatgpt'], prompts: 'all' },
+    { id: 'gemini_only', title: 'Gemini sync', description: 'Runs Gemini for every prompt. Skips Google AI Overview and AI Mode, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
+    { id: 'claude_only', title: 'Claude sync', description: 'Runs Claude for every prompt. Skips Google AI Overview and AI Mode, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
   ],
   brand: [
-    { id: 'brand_full', title: 'Full brand sync', description: 'Runs every platform for this brand and its competitors, then rebuilds the Brand vs Brand comparison.', engines: ['aio', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
+    { id: 'brand_full', title: 'Full brand sync', description: 'Runs every platform for this brand and its competitors, then rebuilds the Brand vs Brand comparison.', engines: ['aio', 'aimode', 'chatgpt', 'gemini', 'claude'], prompts: 'all' },
     { id: 'brand_insights', title: 'Rebuild insights only', description: 'Re-reads the answers already stored and regenerates the topic comparison and recommendations. No new scans, no scan cost.', engines: [], prompts: 'all' },
-    { id: 'gemini_only', title: 'Gemini only', description: 'Runs Gemini for every prompt. Skips Google, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
-    { id: 'chatgpt_only', title: 'ChatGPT only', description: 'Runs ChatGPT for every prompt. Skips Google, Gemini, and Claude.', engines: ['chatgpt'], prompts: 'all' },
-    { id: 'claude_only', title: 'Claude only', description: 'Runs Claude for every prompt. Skips Google, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
+    { id: 'gemini_only', title: 'Gemini only', description: 'Runs Gemini for every prompt. Skips Google AI Overview and AI Mode, ChatGPT, and Claude.', engines: ['gemini'], prompts: 'all' },
+    { id: 'chatgpt_only', title: 'ChatGPT only', description: 'Runs ChatGPT for every prompt. Skips Google AI Overview and AI Mode, Gemini, and Claude.', engines: ['chatgpt'], prompts: 'all' },
+    { id: 'claude_only', title: 'Claude only', description: 'Runs Claude for every prompt. Skips Google AI Overview and AI Mode, ChatGPT, and Gemini.', engines: ['claude'], prompts: 'all' },
   ],
 }
 // a sync here: accepted after a moment, then each engine works through its prompts (progress). ?sync=slow: it outlasts
@@ -1125,6 +1243,10 @@ export const appTrackingOptions = {
   languages: ['English (US)', 'English (UK)', 'Japanese', 'German', 'French', 'Arabic'],
   currencies: [['Dollar', 'Dollar (USD)'], ['Euro', 'Euro (EUR)'], ['Pound', 'Pound (GBP)'], ['Yen', 'Yen (JPY)'], ['Rupee', 'Rupee (INR)'], ['Canadian Dollar', 'Canadian Dollar (CAD)'], ['Australian Dollar', 'Australian Dollar (AUD)']],
   frequencies: [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']],
+}
+if (AIMODE_OFF) {
+  Object.values(citationsMentions).forEach((m) => { delete m.aimode })
+  initialTracking.platforms.forEach((p) => { if (p.id === 'aimode') p.enabled = false })
 }
 export const appInitialTracking = {
   ...initialTracking,

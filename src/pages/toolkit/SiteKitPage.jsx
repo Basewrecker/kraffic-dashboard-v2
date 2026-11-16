@@ -30,7 +30,7 @@ const SOURCES = {
 const NEXT = { none: { GOOGLE_SEARCH_CONSOLE: 'gsc' }, expired: { GOOGLE_SEARCH_CONSOLE: 'gsc' }, gsc: { GOOGLE_ANALYTICS_4: 'connected' } }
 
 export default function SiteKitPage() {
-  useEffect(() => { document.title = 'Site Kit · Toolkit · Kraffic' }, [])
+  useEffect(() => { document.title = 'Site Kit · Toolkit · Auden AI' }, [])
   const q = useParams()
   const state = q.get('mock') ?? 'none'
   const conns = integrationsFor(state)
@@ -314,7 +314,7 @@ function AiVisits({ d }) {
       <ul className="mt-3">
         {d.engines.map((e) => (
           <li key={e.domain} {...hl(explain, e === top ? 'top' : e.domain, { row: true })} className="grid h-10 grid-cols-[20px_minmax(0,1fr)_56px_120px] items-center gap-3 max-sm:grid-cols-[20px_minmax(0,1fr)_48px_72px]">
-            <SiteLogo domain={e.domain} name={e.engine} className="h-5 w-5 rounded !border-0" imgPad="p-0" initialClass="text-[10px]" />
+            <SiteLogo domain={e.domain} name={e.engine} className="h-5 w-5 rounded !border-0" initialClass="text-[10px]" />
             <span className="min-w-0 truncate text-[14px] leading-5 text-stone-900">{e.engine} <span className={t3}>{e.domain}</span></span>
             <span className="text-right text-[14px] leading-5 text-stone-900 tabular-nums">{nf.format(e.sessions)}</span>
             <span className="block h-1.5 overflow-hidden rounded-full bg-tint" aria-hidden><span className="block h-full min-w-[6px] rounded-full bg-ink" style={{ width: `${(e.sessions / max) * 100}%` }} /></span>

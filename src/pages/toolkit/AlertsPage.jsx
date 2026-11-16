@@ -34,7 +34,7 @@ const time = (iso) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric
 const pathOf = (url) => { try { return new URL(url).pathname } catch { return url } }
 
 export default function AlertsPage() {
-  useEffect(() => { document.title = 'Competitor Alerts · Toolkit · Kraffic' }, [])
+  useEffect(() => { document.title = 'Competitor Alerts · Toolkit · Auden AI' }, [])
   const q = useParams()
   const key = competitorAlertStates[q.get('mock')] ? q.get('mock') : 'full'
   const st = competitorAlertStates[key]

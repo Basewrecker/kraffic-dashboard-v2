@@ -21,7 +21,7 @@ export default function MentionDrawer({ run }) {
     <DrawerShell
       drawer={drawer}
       title={`${sourceName(m)} · ${fmtDate(m.publishedAt)}`}
-      meta={<span className="flex items-center gap-2"><Logo domain={m.domain} name={sourceName(m)} className="h-4 w-4 rounded-[4px]" imgPad="p-0" initialClass="text-[10px]" />{CHANNELS[m.channel].label}{m.handle && m.author && <><Dot /><span>{m.author}</span></>}</span>}
+      meta={<span className="flex items-center gap-2"><Logo domain={m.domain} name={sourceName(m)} className="h-4 w-4 rounded-[4px]" initialClass="text-[10px]" />{CHANNELS[m.channel].label}{m.handle && m.author && <><Dot /><span>{m.author}</span></>}</span>}
       footer={(
         <a href={m.url} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 rounded font-medium text-stone-900 underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus">
           Open on {host} <ArrowUpRight size={14} aria-hidden /><span className="sr-only">(opens in a new tab)</span>

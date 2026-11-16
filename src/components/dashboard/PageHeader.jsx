@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Info } from 'lucide-react'
 import { account } from '../../data/mock'
-import { ENGINES, OWN, TRACKED_BRANDS, getBrandView } from '../../data/brandViews'
+import { ENGINES, OWN, TRACKED_BRANDS, getBrandView, hasResult } from '../../data/brandViews'
+import { NO_SCORE, fmtScore } from '../../utils/score'
 import { PlatformIcon } from './icons'
 import { PlatformFilterPill } from './PlatformFilter'
 import { useBrandView } from '../../hooks/useBrandView'
@@ -26,7 +27,8 @@ export function HeaderIconButton({ label, icon: Icon, onClick, children, tipAlig
   )
 }
 
-const score = (domain) => getBrandView(domain).kpis.score
+// each brand's score on the engine shown (the KPI ring's number); "—" when that engine's latest scan had no result
+const score = (domain, engine) => fmtScore(getBrandView(domain, engine).kpis.score, '%')
 // header selects: full width, 40px tall below lg; exactly the old h-8 trigger from lg
 const MOBILE_TRIGGER = `${triggerClass('sm')} max-lg:h-10 max-lg:w-full max-lg:rounded-lg max-lg:text-[14px] [&>svg:last-child]:max-lg:ml-auto`
 
@@ -93,10 +95,12 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
           aria-label={listLabel}
           aria-activedescendant={`${uid}-opt-${active}`}
           onKeyDown={onKey}
-          className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full z-30 mt-1 w-64 max-lg:left-0 max-lg:right-0 max-lg:w-auto rounded-lg border border-line bg-raised p-1 shadow-md outline-none`}
+          className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full z-30 mt-1 w-72 max-lg:left-0 max-lg:right-0 max-lg:w-auto rounded-lg border border-line bg-raised p-1 shadow-md outline-none`}
         >
           {groups.map((g, gi) => (
             <div key={g.label ?? gi} role="group" aria-label={g.label}>
+              {/* as the app (owner, 2026-11-14): an optional hairline above a group (Opportunities' "Custom range…") */}
+              {gi > 0 && g.divider && <div aria-hidden className="mx-1 my-1 h-px bg-line" />}
               {g.label && <div className="px-2 pb-1 pt-1.5 text-[11px] leading-4 font-medium text-stone-500">{g.label}</div>}
               {g.items.map((x) => {
                 const i = order.indexOf(x)
@@ -114,7 +118,7 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
                     {selected ? <Check size={14} className="shrink-0 text-ink" aria-hidden /> : <span className="w-3.5 shrink-0" aria-hidden />}
                     {x.icon}
                     <span className={`flex-1 truncate ${selected ? 'font-medium' : ''}`}>{x.label}</span>
-                    {x.meta != null && <span className="text-[12px] leading-4 text-stone-500 tabular-nums">{x.meta}</span>}
+                    {x.meta != null && <span className="shrink-0 text-[12px] leading-4 text-stone-500 tabular-nums">{x.meta}</span>}
                   </div>
                 )
               })}
@@ -127,21 +131,23 @@ export function MenuSelect({ prefix = '', value, onChange, groups, footer, title
   )
 }
 
+// w-72: the longest engine ("Google AI Overview" + "111 prompts") fits without an ellipsis
 // built when the header draws (not when the module loads), so the scores are the current ones
-const brandGroups = () => [
+const brandGroups = (engine) => [
   { label: 'Your brand', items: TRACKED_BRANDS.filter((b) => b.you) },
   { label: 'View as a competitor', items: TRACKED_BRANDS.filter((b) => !b.you) },
-].map((g) => ({ ...g, items: g.items.map((b) => ({ id: b.domain, label: b.name, meta: `${score(b.domain)}%` })) }))
+].map((g) => ({ ...g, items: g.items.map((b) => ({ id: b.domain, label: b.name, meta: score(b.domain, engine) })) }))
 
 export default function PageHeader() {
   const tracking = useTracking()
   const { focal, isOwnBrand, setView, engine, setEngine } = useBrandView()
+  const [tip, setTip] = useState(false)
   // prompts where each engine mentions the brand being viewed (unfiltered: the card data covers all engines)
   const perEngine = Object.fromEntries(getBrandView(focal.domain).platforms.map((p) => [p.id, p.visible]))
   const engineGroups = [{
     items: [
       { id: 'all', label: 'All engines' },
-      ...ENGINES.map((e) => ({ id: e.id, label: e.name, icon: <PlatformIcon id={e.id} size={16} />, meta: `${perEngine[e.id] ?? 0} prompts` })),
+      ...ENGINES.map((e) => ({ id: e.id, label: e.full, short: e.name, icon: <PlatformIcon id={e.id} size={16} />, meta: hasResult(e.id) ? `${perEngine[e.id] ?? 0} prompts` : NO_SCORE })),
     ],
   }]
 
@@ -151,11 +157,29 @@ export default function PageHeader() {
       {/* phones / tablets: title, subtitle, then the two filters full width (one row each) */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div className="min-w-0">
-          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Visibility Overview</h1>
-          {/* the only competitor-view indicator: same line, same height */}
-          <p className="mt-1 text-body font-normal text-stone-600">
+          <div className="relative flex items-center gap-1.5">
+            <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Visibility Overview</h1>
+            {/* desktop, own brand: the description sits in an ⓘ, so the header is one row and the next row of cards
+                peeks in on short screens (1366×768) */}
+            {isOwnBrand && (
+              <>
+                <button type="button" aria-label="About this page" aria-describedby={tip ? 'overview-hint' : undefined}
+                  onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)} onFocus={() => setTip(true)} onBlur={() => setTip(false)}
+                  className="hidden h-5 w-5 place-items-center rounded-full text-stone-500 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus lg:grid">
+                  <Info size={14} aria-hidden />
+                </button>
+                {tip && (
+                  <span id="overview-hint" role="tooltip" className="absolute left-0 top-full z-20 mt-1 hidden w-72 rounded-md border border-line bg-raised px-2.5 py-2 text-[12px] leading-4 font-normal text-stone-700 shadow-md lg:block">
+                    Track how often {account.name} appears in AI answers across Google AI Overview and AI Mode, ChatGPT, Gemini &amp; Claude.
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+          {/* the only competitor-view indicator: same line, same height (own brand: phones and tablets only) */}
+          <p className={`mt-1 text-body font-normal text-stone-600 ${isOwnBrand ? 'lg:hidden' : ''}`}>
             {isOwnBrand ? (
-              <>Track how often {account.name} appears in AI answers across Google, ChatGPT, Gemini &amp; Claude.</>
+              <>Track how often {account.name} appears in AI answers across Google AI Overview and AI Mode, ChatGPT, Gemini &amp; Claude.</>
             ) : (
               <>
                 {focal.name}’s view · read-only ·{' '}
@@ -170,16 +194,16 @@ export default function PageHeader() {
           </p>
         </div>
         <div className="relative flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:gap-2.5 lg:pt-1">
-          {/* engine filter chip sits just above the KPI row's right edge; absolute, so nothing shifts */}
-          <PlatformFilterPill className="self-start lg:absolute lg:right-0 lg:top-full lg:mt-1.5" />
-          <MenuSelect prefix="Engine" value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" footer="Filters every card to answers from this engine."
-            className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER} />
+          <div data-tour="overview-engine" className="max-lg:w-full">
+            <MenuSelect prefix="Engine" value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" footer="Filters every card to answers from this engine."
+              className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER} />
+          </div>
           <MenuSelect
             className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER}
             prefix="Viewing as"
             value={focal.domain}
             onChange={setView}
-            groups={brandGroups()}
+            groups={brandGroups(engine)}
             listLabel="View the dashboard as"
             title="See the dashboard from a competitor’s point of view"
           />
@@ -189,6 +213,9 @@ export default function PageHeader() {
           </span>
         </div>
       </div>
+      {/* as the app (owner, 2026-11-12): the engine filter chip on its own right-aligned row under the filters, pushing the
+          cards down (it was absolute at lg+ and covered the KPI row's top-right card) */}
+      {engine !== 'all' && <div className="mt-2 flex justify-end"><PlatformFilterPill /></div>}
     </div>
   )
 }

@@ -154,8 +154,9 @@ export function marketplaceEvidence(s, { tracking }) {
 // ---------------------------------------------------------------- Sync history
 // keys: 'sync:<id>' (rows)
 export function syncEvidence(shown, { view, tracking, openRows }) {
-  // no sync on record (for this brand or engine): nothing to say
-  if (!shown.length) return null
+  // no sync on record (for this brand or engine), or no result in the latest one: nothing to say
+  if (!shown.length || shown[0].visibility == null) return null
+  shown = shown.filter((r) => r.visibility != null)
   const latest = shown[0]
   const best = shown.reduce((a, r) => (r.visibility > a.visibility ? r : a), shown[0])
   const gap = best.visibility - latest.visibility

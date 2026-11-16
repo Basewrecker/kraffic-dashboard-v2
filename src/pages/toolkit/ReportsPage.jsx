@@ -44,7 +44,7 @@ export default function ReportsPage({ id }) {
   useEffect(() => setReports(st.reports), [st])
   const [doomed, setDoomed] = useState(null)
   const [toastNode, toast] = useToast({ position: 'center' })
-  useEffect(() => { document.title = `${id ? 'Report' : 'Executive Reports'} · Toolkit · Kraffic` }, [id])
+  useEffect(() => { document.title = `${id ? 'Report' : 'Executive Reports'} · Toolkit · Auden AI` }, [id])
   const report = id && reports.find((r) => r.id === id)
   if (id) return report ? <ReportView r={report} toast={toast} toastNode={toastNode} /> : <p className={`text-[14px] ${t2}`}>This report doesn’t exist any more.</p>
 
@@ -166,7 +166,7 @@ function NewReportDrawer({ onDone }) {
           <SiteLogo domain={f.whiteLabel ? agency.domain : account.domain} name={f.whiteLabel ? agency.name : account.name} className="h-8 w-8 rounded-lg" imgPad="p-1" />
           <span className="min-w-0 flex-1">
             <span className="block text-[14px] leading-5 text-stone-900">{f.whiteLabel ? agency.name : account.name}</span>
-            <span className={`block text-[13px] leading-[18px] ${t3}`}>{f.whiteLabel ? 'Your agency’s logo and colours; no Kraffic branding' : 'Logo on the cover'}</span>
+            <span className={`block text-[13px] leading-[18px] ${t3}`}>{f.whiteLabel ? 'Your agency’s logo and colours; no Auden AI branding' : 'Logo on the cover'}</span>
           </span>
         </div>
         {isAgency && <Switch className="mt-3" checked={f.whiteLabel} onChange={set('whiteLabel')}>White label with {agency.name} branding</Switch>}

@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Check, Loader2, Sparkles, Upload } from 'lucide-react'
+import { ArrowRight, Check, Loader2, Pencil, Sparkles, Upload, X } from 'lucide-react'
 import { PrimaryButton, SecondaryButton } from '../dashboard/overlays'
+import ConfirmPopover from '../prompts/ConfirmPopover'
 import ImportModal from '../prompts/ImportModal'
 import ResearchModal from '../prompts/ResearchModal'
+import { useInlineEdit } from '../../hooks/useInlineEdit'
+import { editProblem, editWarning, keepSelected, needsConfirm, removePrompts, renamePrompt, savedIds, toggleId } from './promptEdits'
 import { linkClick } from '../../router'
 import { firstSetupActions } from '../../data/mock'
 import { fieldCls, stepCard, stepFooter, t2, t3, textBtn } from './ui'
@@ -29,7 +32,9 @@ export default function PromptsStep({ brand, prompts, competitors, update, toast
     const draft = readDraft(brand).filter((d) => !prompts.some((p) => p.text.toLowerCase() === d.text.toLowerCase()))
     if (draft.length) update((s) => ({ prompts: [...draft.map((d, i) => ({ id: `draft${i}`, text: d.text, unsaved: true })), ...s.prompts] }))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { writeDraft(brand, unsaved.map((p) => ({ text: p.text }))) }, [unsaved.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  // the draft follows the unsaved list: an add, an edit or a remove
+  const unsavedKey = unsaved.map((p) => p.text).join('\n')
+  useEffect(() => { writeDraft(brand, unsaved.map((p) => ({ text: p.text }))) }, [unsavedKey]) // eslint-disable-line react-hooks/exhaustive-deps
   const [modal, setModal] = useState(null) // 'import' | 'research'
   const [finding, setFinding] = useState(null) // the research step that's running (index), null when idle
   const timer = useRef(null)
@@ -83,6 +88,65 @@ export default function PromptsStep({ brand, prompts, competitors, update, toast
     tick(0)
   }
 
+  // ---- the list: edit a row (Enter saves, Esc cancels), remove one (×), or tick several and Remove selected. Unsaved
+  // prompts change on the page; a saved one (already in the app, with scan history) is saved through Prompt Hub's own
+  // routes, and removing it asks first.
+  const [editing, setEditing] = useState(null) // { id, draft }
+  const [selected, setSelected] = useState(() => new Set())
+  const [confirm, setConfirm] = useState(null) // { anchor, ids }
+  const [listError, setListError] = useState(null) // { message, retry }
+  const editRef = useRef(null)
+  useEffect(() => { setSelected((sel) => (sel.size ? keepSelected(sel, prompts) : sel)) }, [prompts])
+  const editIssue = editing ? editProblem(prompts, editing.id, editing.draft) : null
+  const saveEdit = () => {
+    const row = prompts.find((p) => p.id === editing?.id)
+    const text = editing?.draft.trim()
+    setEditing(null)
+    if (!row || editProblem(prompts, row.id, text)) return
+    const save = () => {
+      setListError(null)
+      update((s) => ({ prompts: renamePrompt(s.prompts, row.id, text) }))
+      if (row.unsaved) return
+      firstSetupActions.onEditPrompt(row.id, text).catch((err) => {
+        update((s) => ({ prompts: renamePrompt(s.prompts, row.id, row.text) }))
+        setListError({ message: `Couldn’t save “${text}”${err?.message ? `: ${err.message}` : '.'}`, retry: save })
+      })
+    }
+    save()
+  }
+  const editKeys = useInlineEdit({
+    ref: editRef,
+    active: Boolean(editing),
+    isDirty: Boolean(editing) && editIssue !== 'same',
+    isValid: !editIssue,
+    onSave: saveEdit,
+    onCancel: () => setEditing(null),
+  }).onKeyDown
+  const removeNow = (ids) => {
+    const before = prompts
+    const saved = savedIds(prompts, ids)
+    setListError(null)
+    setSelected((sel) => new Set([...sel].filter((id) => !ids.includes(id))))
+    update((s) => ({ prompts: removePrompts(s.prompts, ids) }))
+    if (!saved.length) return
+    firstSetupActions.onDeletePrompts(saved).catch(
+      (err) => {
+        // the saved ones come back where they were
+        update((s) => ({ prompts: before.filter((p) => saved.includes(p.id) || s.prompts.some((q) => q.id === p.id)).concat(s.prompts.filter((q) => !before.some((p) => p.id === q.id))) }))
+        setListError({ message: `Couldn’t remove ${saved.length === 1 ? 'the prompt' : 'the prompts'}${err?.message ? `: ${err.message}` : '.'}`, retry: () => removeNow(saved) })
+      },
+    )
+  }
+  const askRemove = (ids, anchor) => {
+    if (!ids.length) return
+    if (needsConfirm(prompts, ids)) setConfirm({ anchor, ids })
+    else removeNow(ids)
+  }
+  const confirmSaved = confirm ? savedIds(prompts, confirm.ids).length : 0
+  const allSelected = prompts.length > 0 && selected.size === prompts.length
+  const iconBtn = 'grid h-7 w-7 shrink-0 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus'
+  const checkCls = 'size-4 shrink-0 cursor-pointer accent-ink'
+
   const recent = prompts.slice(0, RECENT)
   return (
     <section aria-label="Prompts" className={stepCard}>
@@ -115,11 +179,47 @@ export default function PromptsStep({ brand, prompts, competitors, update, toast
       {prompts.length > 0 ? (
         <div className="border-t border-[var(--div)]">
           <div className="flex h-11 items-center justify-between gap-3 px-5 max-md:px-4">
-            <span className="text-[14px] leading-5 font-medium text-stone-900 tabular-nums">{prompts.length} {prompts.length === 1 ? 'prompt' : 'prompts'} added{unsaved.length > 0 && <span className={`font-normal ${t3}`}> · {unsaved.length === prompts.length ? 'saved' : `${unsaved.length} saved`} when you continue</span>}</span>
-            <a href="/tracker" onClick={linkClick('/tracker')} className={textBtn}>View all in Prompt Hub <ArrowRight size={14} aria-hidden /></a>
+            <span className="flex min-w-0 items-center gap-3">
+              {/* select all: every prompt in the list (a CSV import can add more than the rows shown) */}
+              <input type="checkbox" aria-label={`Select all ${prompts.length} ${prompts.length === 1 ? 'prompt' : 'prompts'}`} checked={allSelected}
+                ref={(el) => { if (el) el.indeterminate = selected.size > 0 && !allSelected }}
+                onChange={() => setSelected(allSelected ? new Set() : new Set(prompts.map((p) => p.id)))} className={checkCls} />
+              <span className="truncate text-[14px] leading-5 font-medium text-stone-900 tabular-nums">{prompts.length} {prompts.length === 1 ? 'prompt' : 'prompts'} added{selected.size > 0
+                ? <span className={`font-normal ${t3}`}> · {selected.size} selected</span>
+                : unsaved.length > 0 && <span className={`font-normal ${t3}`}> · {unsaved.length === prompts.length ? 'saved' : `${unsaved.length} saved`} when you continue</span>}</span>
+            </span>
+            {selected.size > 0
+              ? <button type="button" onClick={(e) => askRemove([...selected], e.currentTarget)} className={`${textBtn} h-8`}>Remove selected</button>
+              : <a href="/tracker" onClick={linkClick('/tracker')} className={textBtn}>View all in Prompt Hub <ArrowRight size={14} aria-hidden /></a>}
           </div>
+          {listError && (
+            <p role="alert" className="flex flex-wrap items-center gap-x-3 border-t border-[var(--div)] px-5 py-2.5 text-[13px] leading-[18px] text-negative max-md:px-4">
+              {listError.message}
+              <button type="button" onClick={listError.retry} className={textBtn}>Retry</button>
+            </p>
+          )}
           <ul aria-label={`Last ${recent.length} added`} className="divide-y divide-[var(--div)] border-t border-[var(--div)]">
-            {recent.map((p) => <li key={p.id} className="flex h-11 items-center truncate px-5 text-[14px] leading-5 text-stone-900 max-md:px-4" title={p.text}><span className="truncate">{p.text}</span></li>)}
+            {recent.map((p) => (
+              <li key={p.id} className="flex min-h-11 items-center gap-3 py-1 pr-3 pl-5 text-[14px] leading-5 text-stone-900 max-md:pl-4">
+                <input type="checkbox" aria-label={`Select “${p.text}”`} checked={selected.has(p.id)} onChange={() => setSelected((sel) => toggleId(sel, p.id))} className={checkCls} />
+                {editing?.id === p.id ? (
+                  <div ref={editRef} onKeyDown={editKeys} className="flex min-w-0 flex-1 flex-col gap-1">
+                    <input autoFocus aria-label="Edit prompt" value={editing.draft} onFocus={(e) => e.target.select()}
+                      onChange={(e) => setEditing({ ...editing, draft: e.target.value })} aria-invalid={editIssue === 'dupe' || editIssue === 'empty'}
+                      className={`${fieldCls} h-8`} />
+                    {editIssue === 'dupe' && <span role="alert" className={`text-[12px] leading-4 ${t2}`}>Already added</span>}
+                    {editIssue !== 'dupe' && editWarning(p) && <span className={`text-[12px] leading-4 ${t2}`}>{editWarning(p)}</span>}
+                  </div>
+                ) : (
+                  <span className="min-w-0 flex-1 truncate" title={p.text}>{p.text}</span>
+                )}
+                {/* always visible here (a short list, and touch has no hover) */}
+                <span className="flex shrink-0 items-center">
+                  <button type="button" aria-label={`Edit “${p.text}”`} onClick={() => setEditing({ id: p.id, draft: p.text })} className={iconBtn}><Pencil size={14} aria-hidden /></button>
+                  <button type="button" aria-label={`Remove “${p.text}”`} onClick={(e) => askRemove([p.id], e.currentTarget)} className={iconBtn}><X size={14} aria-hidden /></button>
+                </span>
+              </li>
+            ))}
           </ul>
         </div>
       ) : null}
@@ -131,6 +231,18 @@ export default function PromptsStep({ brand, prompts, competitors, update, toast
         </PrimaryButton>
       </div>
 
+      {confirm && (
+        <ConfirmPopover
+          anchor={confirm.anchor}
+          title={confirm.ids.length === 1 ? 'Remove prompt?' : `Remove ${confirm.ids.length} prompts?`}
+          body={confirm.ids.length === 1 ? 'It has scan history. Removing it deletes that history.'
+            : confirmSaved === confirm.ids.length ? 'They have scan history. Removing them deletes that history.'
+              : `${confirmSaved} of them ${confirmSaved === 1 ? 'has' : 'have'} scan history. Removing ${confirmSaved === 1 ? 'it deletes' : 'them deletes'} that history.`}
+          confirmLabel="Remove"
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => { const ids = confirm.ids; setConfirm(null); removeNow(ids) }}
+        />
+      )}
       <ImportModal open={modal === 'import'} onClose={() => setModal(null)} trackedTexts={trackedTexts}
         onImport={(rows) => insert(rows)} onView={() => setModal(null)} />
       <ResearchModal open={modal === 'research'} onClose={() => setModal(null)} trackedTexts={trackedTexts}

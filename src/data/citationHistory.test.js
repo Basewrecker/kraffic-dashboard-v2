@@ -8,7 +8,7 @@ import {
 import { pagePath } from './brandViews.js'
 import { citationsMentions } from './mock.js'
 
-const ALL = ['aio', 'gemini', 'chatgpt', 'claude', 'grok']
+const ALL = ['aio', 'aimode', 'gemini', 'chatgpt', 'claude', 'grok'] // ENGINE_ORDER: Google is two engines (AI Overview, AI Mode)
 const D = 'dermasuri.com'
 const rowsOf = () => weekRows(D, 'all', ALL)
 const changesOf = (rows, metric = 'mentions') => rows.map((r) => weekChanges({ domain: D, metric, row: r, engine: 'all' }))
@@ -26,9 +26,9 @@ test('weekTotals counts the engines that ran and names the rest (ran, failed, ap
   const { weeks } = citationWeeks(D)
   const t = weekTotals(weeks[4], 'all', ALL) // Sep 7 – 13: Gemini didn't run
   assert.deepEqual(t.failed, ['gemini'])
-  assert.deepEqual(t.ran, ['aio', 'chatgpt', 'claude', 'grok'])
+  assert.deepEqual(t.ran, ['aio', 'aimode', 'chatgpt', 'claude', 'grok'])
   assert.equal(t.approx, false)
-  assert.equal(t.mentions, ['aio', 'chatgpt', 'claude', 'grok'].reduce((n, e) => n + weeks[4].engines[e].mentions, 0))
+  assert.equal(t.mentions, ['aio', 'aimode', 'chatgpt', 'claude', 'grok'].reduce((n, e) => n + weeks[4].engines[e].mentions, 0))
   // one engine in scope that didn't run: nothing is known, never 0
   assert.equal(weekTotals(weeks[4], 'gemini', ALL).mentions, null)
   setHistoryMock('approx')
@@ -133,7 +133,7 @@ test('the insight line: skips a scan-due week, names engines that didn’t run, 
   // an engine that didn't run this week is named
   setHistoryMock('notrun')
   const n = rowsOf()
-  assert.match(weekInsight({ metric: 'mentions', rows: n, changes: changesOf(n) }).text, /^255 mentions this week so far \(Claude didn’t run\); the week before has nothing to compare$/)
+  assert.match(weekInsight({ metric: 'mentions', rows: n, changes: changesOf(n) }).text, /^337 mentions this week so far \(Claude didn’t run\); the week before has nothing to compare$/)
   // no engine finished
   const none = { ...rows[1], totals: { ...rows[1].totals, ran: [], mentions: null } }
   assert.match(weekInsight({ metric: 'mentions', rows: [none, ...rows.slice(2)], changes: [null, ...changesOf(rows).slice(2)] }).text, /^No engine finished this week: the last week with numbers was /)

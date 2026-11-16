@@ -95,7 +95,7 @@ export default function SettingsTab() {
   return (
     <div className="mx-auto flex w-full max-w-[880px] flex-col gap-4">
       {(has.has('sitemap') || has.has('include') || has.has('exclude')) && (
-        <SettingsCard title="Crawl" description="How Kraffic finds the pages to analyze. Changes apply on the next run.">
+        <SettingsCard title="Crawl" description="How Auden AI finds the pages to analyze. Changes apply on the next run.">
           {has.has('sitemap') && (
             <Row name="Sitemap URL" meta="Only used if robots.txt has no sitemap" saved={savedKey === 'sitemap'} top>
               <input aria-label="Sitemap URL" value={sitemap} onChange={(e) => setSitemap(e.target.value)} placeholder={`https://${SD.domain}/sitemap.xml`}
