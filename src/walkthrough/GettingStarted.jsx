@@ -1,59 +1,117 @@
 // Getting started (mock only): the small card above the brand switcher, Brand Setup's Save bar, the demo "Mark as done"
-// bar of steps 4 to 6, and the Walkthrough rows in Settings. The card opens the board (Board.jsx), which replaced the
-// list (owner, 2026-11-15). Words and rules: tour.js. Motion: motion.js.
+// bar of steps 4 to 6, and the Walkthrough rows in Settings. The card opens the board (Board.jsx). Words and rules:
+// tour.js. Motion: motion.js.
 //
-// Card: "Getting started", the six segments (done: ink; the current one: its step's colour; the rest: the light track)
-// and "Next: <the next step's short name>".
-//   hover   it lifts 1px over a soft shadow, the chevron slides 3px right, and a faint light follows the cursor inside
-//           it (the Opportunities button's effect)
-//   press   0.98, and back
-// When a step finishes, the next segment fills and the "Next:" line swaps. After the board's Done the card fades and the
-// sidebar closes the gap. In the phone menu drawer (`inline`) the same card opens the same board, full screen.
-import { useRef } from 'react'
-import { ChevronRight } from 'lucide-react'
+// Card, the "stack" (owner, 2026-11-16): one row.
+//   left    a small stack of three cards (48 by 40, 9px corners, a 1.5px surface-coloured edge, a faint shadow). The top
+//           one is the current step's trail frame: its colour tint and the same grey miniature as on the board. The
+//           next two steps' cards peek out to the right behind it, turned 5 and 11 degrees, in their own colours
+//           (fewer cards when fewer steps remain).
+//   right   "Getting started", "Next: <short name>" with the name in ink, and six 7px dots: done steps filled with
+//           their colour, the current one a ring in its colour, later ones light grey.
+//   hover   the stack fans out (back cards to 9 and 20 degrees, the top one tilts -4 degrees and lifts over a deeper
+//           shadow) and the card gains a soft shadow, 320ms. Press: 0.98.
+//   a step finishing   the top card slides up and fades, the next one turns to the front and settles, a new card
+//           appears at the back, the step's dot fills: one move, 450ms.
+//   all done   the stack is one tile of the six colours, 3 by 2; "You're set up", "All six steps done", six filled
+//           dots. A few seconds after the board is closed the card fades and the sidebar closes the gap.
+// The board grows out of the stack's top card. Reduced motion: no fan or slide; the cards swap with a fade.
+import { useEffect, useRef, useState } from 'react'
 import Switch from '../components/ui/Switch'
 import { useIsCompact } from '../hooks/useMedia'
-import { TASKS, TOURS, demoTask, doneCount, isDone, nextLine } from './tour.js'
-import { reduced } from './motion.js'
+import { DONE_TITLE, TASKS, TOURS, allDone, currentTask, demoTask, doneCount, isDone, nextLine, nextTask, taskStatus } from './tour.js'
+import { LARGE, ms } from './motion.js'
 import Swap from './Swap'
-import { Segments } from './Board'
-import { restart, setHints, setShow, startTour, tick, toggleList, useWalkthrough } from './store.js'
+import { Mini } from './Board'
+import { finish, restart, setHints, setShow, startTour, tick, toggleList, useWalkthrough } from './store.js'
 
 const inkBtn = 'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-ink font-medium text-on-ink outline-none transition-colors duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2'
+const colourOf = (t) => `var(--wt-c${TASKS.indexOf(t) + 1})`
+const DONE_WAIT = 6000 // how long the all-done card stays once the board is closed
+
+// the stack: the current step's card on top, the next two behind it; `out`: the step that has just finished (its card
+// is on its way up and out)
+function Stack({ w, out }) {
+  const at = TASKS.indexOf(currentTask(w))
+  if (at < 0) {
+    return (
+      <span className="wt-stack" data-stack="done" aria-hidden>
+        <span className="wt-scard wt-scard-new" data-pos="0" data-stack-top>
+          <span className="grid h-full w-full grid-cols-3 grid-rows-2 gap-[2px] p-[3px]">{TASKS.map((t) => <span key={t.id} className="rounded-[3px]" style={{ background: colourOf(t) }} />)}</span>
+        </span>
+        {out && <span key={`out-${out.id}`} className="wt-scard wt-scard-out" data-pos="0" style={{ '--c': colourOf(out) }}><Mini id={out.id} /></span>}
+      </span>
+    )
+  }
+  const cards = TASKS.slice(at, at + 3)
+  return (
+    <span className="wt-stack" data-stack={cards.length} aria-hidden>
+      {cards.map((t, i) => (
+        <span key={t.id} className={`wt-scard ${out && i === cards.length - 1 && cards.length === 3 ? 'wt-scard-new' : ''}`} data-pos={i} data-step={t.id} {...(i === 0 ? { 'data-stack-top': '' } : {})} style={{ '--c': colourOf(t) }}>
+          {i === 0 && <Mini id={t.id} />}
+        </span>
+      ))}
+      {out && <span key={`out-${out.id}`} className="wt-scard wt-scard-out" data-pos="0" style={{ '--c': colourOf(out) }}><Mini id={out.id} /></span>}
+    </span>
+  )
+}
+
+// six dots: done steps filled with their colour, the current one a ring in its colour, later ones light grey
+function Dots({ w }) {
+  return (
+    <span className="flex items-center gap-[5px]" role="progressbar" aria-valuemin={0} aria-valuemax={TASKS.length} aria-valuenow={doneCount(w)} aria-label="Steps done">
+      {TASKS.map((t) => <span key={t.id} className="wt-dot" data-state={taskStatus(w, t) === 'done' ? 'done' : taskStatus(w, t) === 'current' ? 'current' : 'rest'} style={{ '--c': colourOf(t) }} />)}
+    </span>
+  )
+}
 
 // inline: in the phone menu drawer
 export default function GettingStarted({ inline = false }) {
   const w = useWalkthrough()
-  const glow = useRef(null)
   const compact = useIsCompact()
+  const current = currentTask(w)
+  // the step whose card is leaving the stack (it has just finished): kept for one move
+  const [out, setOut] = useState(null)
+  const last = useRef(current)
+  useEffect(() => {
+    const before = last.current
+    last.current = current
+    if (!before || before === current || !w.ticked) return undefined
+    setOut(before)
+    const t = setTimeout(() => setOut(null), ms(LARGE) + 40)
+    return () => clearTimeout(t)
+  }, [current]) // eslint-disable-line react-hooks/exhaustive-deps
+  // all done: a few seconds after the board is closed, the card goes
+  const finished = allDone(w)
+  useEffect(() => {
+    if (!finished || w.list || !w.show || w.leaving) return undefined
+    const t = setTimeout(finish, DONE_WAIT)
+    return () => clearTimeout(t)
+  }, [finished, w.list, w.show, w.leaving])
   // below lg the sidebar isn't drawn: only the drawer's card is there
   if (!w.show || (!inline && compact)) return null
   const n = doneCount(w)
-  const next = nextLine(w)
-  const open = Boolean(w.list)
-  // the faint light that follows the cursor (mouse only; not under reduced motion)
-  const aim = (e) => {
-    if (e.pointerType !== 'mouse' || reduced() || !glow.current) return
-    const r = e.currentTarget.getBoundingClientRect()
-    glow.current.style.transform = `translate3d(${(e.clientX - r.left - 60).toFixed(1)}px, ${(e.clientY - r.top - 60).toFixed(1)}px, 0)`
-  }
+  const next = nextTask(w)
+  const line = nextLine(w)
   return (
-    // leaving (the board's Done): it fades and its height closes, then it is gone
+    // leaving: it fades and its height closes, then it is gone
     <div data-getting-started={inline ? 'drawer' : 'sidebar'} data-leaving={w.leaving ? '' : undefined}
       className={`wt-leave grid grid-cols-[minmax(0,1fr)] ${w.leaving ? '-mb-2 grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`}>
       <div className={`min-h-0 ${w.leaving ? 'overflow-hidden' : ''}`}>
         <div className="wt-card relative">
           <span aria-hidden className="wt-card-shadow" />
-          <button type="button" data-tour="getting-started" data-count={`${n} of ${TASKS.length}`} onClick={toggleList} onPointerMove={aim} onPointerEnter={aim} aria-expanded={open} aria-haspopup="dialog"
-            aria-label={`Getting started: ${n} of ${TASKS.length} done. ${next}`}
-            className="relative flex w-full flex-col overflow-hidden rounded-lg border border-line bg-surface px-3 pb-2.5 pt-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-focus">
-            <span ref={glow} aria-hidden className="wt-glow" />
-            <span className="relative flex w-full items-center gap-2">
-              <span className="min-w-0 flex-1 text-[13px] leading-[18px] font-semibold text-stone-900">Getting started</span>
-              <ChevronRight size={14} className="wt-chev shrink-0 text-stone-500" aria-hidden />
+          <button type="button" data-tour="getting-started" data-count={`${n} of ${TASKS.length}`} onClick={toggleList} aria-expanded={Boolean(w.list)} aria-haspopup="dialog"
+            aria-label={`Getting started: ${n} of ${TASKS.length} done. ${line}`}
+            className="relative flex w-full items-center gap-2.5 rounded-lg border border-line bg-surface px-2.5 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-focus">
+            <Stack w={w} out={out} />
+            <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
+              <span className="text-[13px] leading-[18px] font-semibold text-stone-900" data-card-title>{finished ? DONE_TITLE : 'Getting started'}</span>
+              <Swap k={line} block className="text-[12px] leading-4 text-stone-600">
+                {/* a long name goes onto a second line at the laptop size; it is never cut */}
+                <span className="block" data-next-line>{next ? <>Next: <span className="font-semibold text-stone-900">{next.short}</span></> : line}</span>
+              </Swap>
+              <span className="mt-[3px]"><Dots w={w} /></span>
             </span>
-            <Segments w={w} className="relative mt-2" />
-            <Swap k={next} block className="relative mt-2 text-[12px] leading-4 text-stone-900"><span className="block truncate" data-next-line>{next}</span></Swap>
           </button>
         </div>
       </div>

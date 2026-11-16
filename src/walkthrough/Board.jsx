@@ -251,7 +251,7 @@ const PREVIEW = { brand: BrandPreview, prompts: PromptsPreview, results: ScorePr
 // ---------------------------------------------------------------- the trail
 // a step not done yet: a faint grey miniature of its own preview
 const g = 'bg-[var(--color-line-strong)]'
-function Mini({ id }) {
+export function Mini({ id }) {
   if (id === 'brand') return <span className="flex items-center gap-1.5"><span className={`h-4 w-4 rounded-full ${g}`} /><span className="flex flex-col gap-1"><span className={`h-1 w-7 rounded-full ${g}`} /><span className={`h-1 w-4 rounded-full ${g} opacity-60`} /></span></span>
   if (id === 'prompts') return <span className="flex flex-col gap-1.5"><span className={`h-1 w-10 rounded-full ${g}`} /><span className={`h-1 w-8 rounded-full ${g} opacity-70`} /><span className={`h-1 w-9 rounded-full ${g} opacity-50`} /></span>
   if (id === 'results') return <span className="flex items-end gap-2"><span className="h-5 w-5 rounded-full border-[2.5px] border-[var(--color-line-strong)] border-b-transparent" /><span className={`mb-1 h-1 w-7 rounded-full ${g} opacity-70`} /></span>
@@ -346,7 +346,8 @@ export default function Board() {
   useEffect(() => { if (w.ticked || !open) setPick(null) }, [w.ticked, open])
   useLayoutEffect(() => {
     if (!mounted || !sheet.current) return
-    const card = [...document.querySelectorAll('[data-tour="getting-started"]')].find((el) => el.getClientRects().length)?.getBoundingClientRect()
+    // it grows out of the sidebar card's stack: its top card (else the card itself)
+    const card = [...document.querySelectorAll('[data-stack-top], [data-tour="getting-started"]')].filter((el) => el.getClientRects().length).sort((a, b) => Number(b.hasAttribute('data-stack-top')) - Number(a.hasAttribute('data-stack-top')))[0]?.getBoundingClientRect()
     const s = sheet.current
     const box = s.offsetParent?.getBoundingClientRect() ?? { left: 0, top: 0 }
     setOrigin(card ? { x: card.left + card.width / 2 - (box.left + s.offsetLeft), y: card.top + card.height / 2 - (box.top + s.offsetTop) } : null)

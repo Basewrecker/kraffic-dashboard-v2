@@ -4,7 +4,7 @@
 import { useSyncExternalStore } from 'react'
 import { navigate } from '../router'
 import { OFF, TASKS, TOURS, allDone, complete, fresh, fromParam, move, restore, tourDone, visit } from './tour.js'
-import { FADE, MOVE, ms, reduced } from './motion.js'
+import { FADE, LARGE, MOVE, ms, reduced } from './motion.js'
 
 const KEY = 'kraffic:walkthrough'
 const read = () => { try { return restore(JSON.parse(localStorage.getItem(KEY) ?? 'null')) } catch { return { ...OFF } } }
@@ -96,14 +96,17 @@ export const startFromMenu = () => { setSaved({ ...saved, welcome: false, show: 
 // A step ticking: the board opens so it can be seen (its trail tile fills with its result, the hero moves on to the
 // next step: Board.jsx, for as long as `ticked` names the step). While pointers are up the tick waits
 // for them to close (endTour).
-let tickTimer, doneTimer
+let tickTimer, doneTimer, openTimer
 let pending = null
 function apply(next) {
   if (next === saved) return
   setSaved(next)
   clearTimeout(tickTimer)
-  setLive({ ticked: next.done.at(-1), list: true })
-  tickTimer = setTimeout(() => setLive({ ticked: null }), ms(1500) + 700) // as long as the tick's animations take (GettingStarted.jsx)
+  // the sidebar card makes its move first (its top card slides away, 450ms), then the board grows out of the new one
+  setLive({ ticked: next.done.at(-1) })
+  clearTimeout(openTimer)
+  if (!live.list) openTimer = setTimeout(() => { if (saved.show && !live.tour) setLive({ list: true }) }, reduced() ? 0 : ms(LARGE))
+  tickTimer = setTimeout(() => setLive({ ticked: null }), ms(1950) + 700) // as long as the tick's animations take (GettingStarted.jsx)
 }
 const tickWith = (fn) => { if (fn(saved) === saved) return; if (live.tour) pending = fn; else apply(fn(saved)) }
 export const tick = (id) => tickWith((s) => complete(s, id))
