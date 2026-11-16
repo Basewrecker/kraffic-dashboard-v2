@@ -5,7 +5,6 @@ import { useIsMobile } from '../../hooks/useMedia'
 import MobileActions, { exportTable } from '../ui/MobileActions'
 import Segmented from '../dashboard/Segmented'
 import { brandName } from '../../utils/brand'
-import { TourHelp } from '../../walkthrough/Walkthrough'
 import { PrimaryButton, SecondaryButton, useToast } from '../dashboard/overlays'
 import { PlatformIcon } from '../dashboard/icons'
 import { MenuSelect } from '../dashboard/PageHeader'
@@ -625,7 +624,6 @@ function PromptHub() {
         <div>
           <div className="flex items-center gap-1.5">
             <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Prompt Hub</h1>
-            <TourHelp tour="prompt-hub" />
           </div>
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Manage the prompts tracked for {brandName(account.domain)}</p>
         </div>

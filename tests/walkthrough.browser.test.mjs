@@ -166,7 +166,9 @@ test('first-time run: Welcome, the menu pointers as a cut-out, then the six step
     await page.keyboard.press('Escape')
     await page.waitForFunction(() => !document.querySelector('[data-walkthrough]'))
     assert.equal(await card(page).getAttribute('data-count'), '1 of 6')
-    await page.getByRole('button', { name: 'Show me around Prompt Hub' }).click()
+    // Start again: the run resumes on the page it stopped on
+    await card(page).click()
+    await start(page).click()
     for (let i = 1; i <= 3; i++) { assert.equal((await pointer(page, `${i} of 3`)).over, false); await page.locator('[data-next]').click() }
     assert.deepEqual(await steps(page), ['done', 'done', 'current', 'later', 'later', 'later'])
 

@@ -43,7 +43,6 @@ test('saved progress is read back whole; the ticked steps are always the first f
   assert.deepEqual(restore('x'), OFF)
   assert.deepEqual(restore({ show: 1, done: ['prompts', 'gone', 'brand'] }), { ...OFF, show: true, done: ['brand', 'prompts'] })
   assert.deepEqual(restore({ done: ['prompts', 'results'] }).done, []) // step 1 isn't ticked: nothing after it counts
-  assert.equal(restore({ hints: false }).hints, false)
 })
 
 test('steps are done in order: only the current one ticks', () => {

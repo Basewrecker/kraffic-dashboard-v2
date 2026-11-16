@@ -126,7 +126,7 @@ export function skipWelcome() {
   setTimeout(() => setLive({ welcomeOut: null }), ms(FADE) + 20)
 }
 // Settings → Restart the walkthrough: everything from the start
-export const restart = () => { clearTimeout(doneTimer); pending = null; for (const k of Object.keys(resume)) delete resume[k]; setLive({ welcomeOut: null, closing: null, wait: false, tour: null, step: 0, list: false, ticked: null, leaving: false }); setSaved({ ...fresh(), hints: saved.hints }) }
+export const restart = () => { clearTimeout(doneTimer); pending = null; for (const k of Object.keys(resume)) delete resume[k]; setLive({ welcomeOut: null, closing: null, wait: false, tour: null, step: 0, list: false, ticked: null, leaving: false }); setSaved(fresh()) }
 // the brand menu's "Walkthrough": the menu's pointers again (and the Getting started card back, if it was hidden)
 export const startFromMenu = () => { setSaved({ ...saved, welcome: false, show: true, closed: false }); startTour('orientation') }
 
@@ -182,7 +182,6 @@ export function openTask(task) {
 export const toggleList = () => setLive({ list: !live.list })
 export const closeList = () => { if (live.list) setLive({ list: false }) }
 export const setShow = (on) => { clearTimeout(doneTimer); setLive({ list: false, leaving: false }); setSaved({ ...saved, show: on, closed: on ? false : saved.closed, done: on && saved.closed ? [] : saved.done }) }
-export const setHints = (on) => setSaved({ ...saved, hints: on })
 // the board's last screen: Done. The board closes, the card fades out and the sidebar closes the gap, then it is gone
 export function finish() {
   clearTimeout(doneTimer)

@@ -144,7 +144,7 @@ export const resumeStep = (tour, i) => { let k = Math.min(i, tour.steps.length -
 // the tour that is a Getting started step's own run (its end is the step's end)
 export const taskOfTour = (name) => TASKS.find((t) => t.tour === name && t.how !== 'save') ?? null
 
-// the pointers a page has (its "?" replays them)
+// the pointers a page has
 export const tourForPath = (path) => Object.keys(TOURS).find((k) => TOURS[k].href === path) ?? null
 
 
@@ -170,9 +170,9 @@ export const DONE_LINE = '{app} keeps checking AI for you. Come back each week t
 
 // ---------------------------------------------------------------- saved progress
 // show: the Getting started card is in the sidebar · welcome: the Welcome card is up · done: ticked task ids ·
-// hints: the "?" beside page titles · scanning: a first scan is running (no results yet) · closed: the last message
+// scanning: a first scan is running (no results yet) · closed: the last message
 // was read and the card has gone
-export const OFF = { show: false, welcome: false, done: [], hints: true, scanning: false, closed: false }
+export const OFF = { show: false, welcome: false, done: [], scanning: false, closed: false }
 export const fresh = () => ({ ...OFF, show: true, welcome: true })
 
 // ?walkthrough=<value>: new (first time, from the start) · slow (the same, in slow motion) · reset (clears progress) ·
@@ -198,7 +198,6 @@ export function restore(saved) {
     show: Boolean(saved.show),
     welcome: Boolean(saved.welcome),
     done: Array.isArray(saved.done) ? firstDone(saved.done) : [],
-    hints: saved.hints !== false,
     scanning: Boolean(saved.scanning),
     closed: Boolean(saved.closed),
   }

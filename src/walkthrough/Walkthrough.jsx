@@ -25,7 +25,6 @@
 // while the keyboard is being used (.wt-keys in index.css).
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CircleHelp } from 'lucide-react'
 import { account } from '../data/mock'
 import { usePath } from '../router'
 import { useIsCompact } from '../hooks/useMedia'
@@ -363,17 +362,5 @@ export default function Walkthrough() {
       {/* a small confirmation (Reach out, whose link stays on the page in the mock) */}
       {w.note && createPortal(<div role="status" data-wt-note className="wt-fade fixed bottom-6 left-1/2 z-[97] -translate-x-1/2 rounded-lg bg-ink px-4 py-2.5 text-[13px] leading-[18px] font-medium text-on-ink shadow-lg">{w.note}</div>, document.body)}
     </>
-  )
-}
-
-// the small "?" beside a page title: replays that page's pointers (Settings → Show hints on pages)
-export function TourHelp({ tour, className = '' }) {
-  const w = useWalkthrough()
-  if (!w.hints) return null
-  return (
-    <button type="button" onClick={() => startTour(tour)} aria-label={`Show me around ${TOURS[tour].label}`} title="Show me around"
-      className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-stone-500 outline-none transition-colors duration-150 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus ${className}`}>
-      <CircleHelp size={14} aria-hidden />
-    </button>
   )
 }

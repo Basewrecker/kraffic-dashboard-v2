@@ -7,7 +7,6 @@ import { PlatformIcon } from './icons'
 import { PlatformFilterPill } from './PlatformFilter'
 import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
-import { TourHelp } from '../../walkthrough/Walkthrough'
 
 // size 'sm' = h-8 (header and page toolbars), 'md' = h-10; label optional
 const triggerClass = (size) =>
@@ -176,8 +175,6 @@ export default function PageHeader() {
                 )}
               </>
             )}
-            {/* replays this page's walkthrough pointers */}
-            {isOwnBrand && <TourHelp tour="overview" />}
           </div>
           {/* the only competitor-view indicator: same line, same height (own brand: phones and tablets only) */}
           <p className={`mt-1 text-body font-normal text-stone-600 ${isOwnBrand ? 'lg:hidden' : ''}`}>

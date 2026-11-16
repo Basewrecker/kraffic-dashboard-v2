@@ -21,7 +21,7 @@ All in `src/walkthrough/` unless a path says otherwise.
 | `tour.test.js` | 14 unit tests for the rules above. |
 | `motion.js` | The one motion system: easing `cubic-bezier(0.22, 1, 0.36, 1)`, fades 200ms, moves 320ms, large moves 450ms, `tween` for the lit area, reduced-motion check, and the 4x slow-motion switch. |
 | `store.js` | State (a `useSyncExternalStore` store). Saved in `localStorage` under `kraffic:walkthrough`; live state (which pointer is up, board open, the step that just ticked). All actions: start/end/step a run, the "do this" click (`didStep`), ticking, resume, `restart`, `finish`. |
-| `Walkthrough.jsx` | Mounted once in `src/App.jsx`. The **Welcome** card; the **pointers** (one dim layer as an SVG with the lit area cut out, the card with its caret, the arrival ring, keys); the **"do this" pointer** (lit element clickable, "Click it to continue", waits for what the click opened); the closing card; the small confirmation toast; `TourHelp`, the "?" beside page titles. |
+| `Walkthrough.jsx` | Mounted once in `src/App.jsx`. The **Welcome** card; the **pointers** (one dim layer as an SVG with the lit area cut out, the card with its caret, the arrival ring, keys); the **"do this" pointer** (lit element clickable, "Click it to continue", waits for what the click opened); the closing card; the small confirmation toast. |
 | `Board.jsx` | The **board**: the sheet with the hero (step name, reason, Start/Replay, "Opens …"), the preview of what the step opens, the six-frame trail, the all-done summary. Also exports `Mini`, the grey miniatures shared with the sidebar card. |
 | `GettingStarted.jsx` | The **sidebar stack card** (default export); `ConfirmSetup`, Brand Setup's Save bar for step 1; `ReplayGuide`, the **Settings card's** Replay button and its confirm dialog. |
 | `Swap.jsx` | A text swap used by the card and board (out and up, in from below; `roll` for numbers). |
@@ -29,7 +29,7 @@ All in `src/walkthrough/` unless a path says otherwise.
 | `src/components/ui/SiteLogo.jsx` | Gained an optional `fallback` prop (the globe shown when a logo doesn't load), as the app's SiteLogo has. |
 | `src/components/dashboard/Sidebar.jsx`, `MobileNav.jsx` | Mount the stack card above the brand switcher (and in the phone menu drawer); `data-tour="nav-…"` on each sidebar group; `data-tour-near` on the theme toggle. |
 | `src/components/setup/SetupPage.jsx` | `data-tour` marks on the Brand Setup cards, `<ConfirmSetup />`, and the Settings card (`#getting-started`) at the bottom of the page. |
-| `src/components/prompts/PromptsPage.jsx`, `dashboard/PageHeader.jsx`, `dashboard/KpiCard.jsx` | `data-tour` marks for the Prompt Hub and Visibility Overview pointers, and the "?" (`TourHelp`). |
+| `src/components/prompts/PromptsPage.jsx`, `dashboard/PageHeader.jsx`, `dashboard/KpiCard.jsx` | `data-tour` marks for the Prompt Hub and Visibility Overview pointers. |
 | `tests/walkthrough.browser.test.mjs` | One browser test of the whole first-time run: Welcome, the sidebar pointers, steps 1 to 6 through their flows, leaving midway and resuming, Replay, all done, the scanning state, reduced motion, phone width. |
 
 Pages that are copies of the app's own files (Sentiment, Fact Check, Content, the Content workspace) have **no marks
@@ -168,12 +168,11 @@ selector the mock uses.
 | 3 | `/sentiment` | These AI engines use this page as a source. | `#missed-opportunities thead tr:first-child th:nth-child(2), #missed-opportunities tbody td:nth-child(2)` (all matches, lit as one box) (top 340px only) | card prefers: right |
 | 4 | `/sentiment` | This opens the best way to contact the publication. | `#missed-opportunities a.k-reach` | **do this**, ticks the step, link stays (mock); confirmation: “Reach out opened. In this mock the link stays on this page.”; card prefers: left |
 
-### Page hints (the "?" beside a page title)
+### No page hints
 
-Brand Setup, Prompt Hub, Visibility Overview, Sentiment and Fact Check each replay their own pointers from a small "?"
-(`TourHelp`, label "Show me around"). These are the same pointers as in the tables above (`sentiment` is pointers 1 to 4
-of step 4; `fact-check` is 5 to 7). They never tick a step. **Open question for the owner:** whether the "?" stays, since
-the Settings card is meant to be the only way to start the guide again.
+There is no "?" beside page titles (removed on the owner's instruction, 2026-11-16). The Settings card is the only way
+back in. `TOURS` still holds `sentiment` and `fact-check` as separate lists only because step 4's run (`tone`) is built
+from them; nothing starts them on their own.
 
 ### Rules for every run
 
@@ -266,7 +265,7 @@ there), with no caret; the board is full screen; the stack card is in the menu d
 
 | Where | Mock | App needs |
 |---|---|---|
-| Progress | `localStorage` key `kraffic:walkthrough`: `{ show, welcome, done: [step ids], hints, scanning, closed }`, per browser | Saved per user (or per brand: owner to decide), on the server |
+| Progress | `localStorage` key `kraffic:walkthrough`: `{ show, welcome, done: [step ids], scanning, closed }`, per browser | Saved per user (or per brand: owner to decide), on the server |
 | Who sees Welcome | Only `?walkthrough=new`, or Replay in Settings | A real first-sign-in rule |
 | `scanning` (steps 3 to 6 wait) | A demo flag | The brand's real "first scan finished" state |
 | Step 1 tick | The mock's own Save bar (`ConfirmSetup`), because the mock's Brand Setup saves as you type | The app's real save or confirm on Brand Setup |

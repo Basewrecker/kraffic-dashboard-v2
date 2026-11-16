@@ -18,7 +18,6 @@ import { EMPTY_GUIDELINES, GUIDE_ACCEPT, guideReject, guidelinesPreview, hasGuid
 import { readFile } from '../../pages/opportunities/data/extract'
 import GuidelinesForm from '../../pages/opportunities/workspace/Guidelines'
 import { ConfirmSetup, ReplayGuide } from '../../walkthrough/GettingStarted'
-import { TourHelp } from '../../walkthrough/Walkthrough'
 
 // /setup: what Kraffic tracks for a brand, in the same settings layout as /llm-settings —
 // cards of 60px rows (name + meta left, one quiet value + hover-only Edit / Remove right),
@@ -837,7 +836,6 @@ export default function SetupPage() {
         <div>
           <div className="flex items-center gap-1.5">
             <h1 className="text-[22px] leading-7 font-semibold text-stone-900 lg:text-[28px] lg:leading-9">Brand Setup</h1>
-            <TourHelp tour="brand-setup" />
           </div>
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">What Kraffic tracks for your brand</p>
         </div>
