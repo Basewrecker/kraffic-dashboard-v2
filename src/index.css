@@ -933,13 +933,13 @@ tr:has(.k-reach:hover) .k-tile, tr:has(.k-reach:focus-visible) .k-tile { transfo
 /* ---- Walkthrough (src/walkthrough) ---------------------------------------------------------------------------------
    The board's six step colours (owner, 2026-11-15; used only as named in Board.jsx): --wt-c1 Your brand (indigo),
    c2 Your prompts (sky), c3 Where you stand (green), c4 What AI says (violet), c5 First content (amber), c6 Reach out
-   (teal). --wt-tile-mix: how much of it a trail tile's background takes (10%, 16% in dark).
+   (teal). --wt-tile-mix: how much of it a trail tile's background takes (14%, 20% in dark).
    One motion system (src/walkthrough/motion.js sets --wt-k: 1, or 4 with ?walkthrough=slow):
    one easing; fades 200ms, moves 320ms, large moves 450ms; transform and opacity (the exceptions are named in
    motion.js). Reduced motion, at the end of this block: fades only, no movement. */
-:root { --wt-c1: #6366DB; --wt-c2: #4AA8E8; --wt-c3: #2FB98A; --wt-c4: #8B6FE8; --wt-c5: #E0A23B; --wt-c6: #2AA7A1; --wt-tile-mix: 10%; }
-html[data-theme="dark"] { --wt-tile-mix: 16%; }
-@media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { --wt-tile-mix: 16%; } }
+:root { --wt-c1: #6366DB; --wt-c2: #4AA8E8; --wt-c3: #2FB98A; --wt-c4: #8B6FE8; --wt-c5: #E0A23B; --wt-c6: #2AA7A1; --wt-tile-mix: 14%; }
+html[data-theme="dark"] { --wt-tile-mix: 20%; }
+@media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { --wt-tile-mix: 20%; } }
 :root { --wt-k: 1; --wt-ease: cubic-bezier(0.22, 1, 0.36, 1); --wt-fade: calc(200ms * var(--wt-k)); --wt-move: calc(320ms * var(--wt-k)); --wt-large: calc(450ms * var(--wt-k)); }
 @keyframes wt-fade-in { from { opacity: 0; } }
 @keyframes wt-fade-out { to { opacity: 0; } }
@@ -1003,9 +1003,9 @@ html[data-theme="dark"] { --wt-tile-mix: 16%; }
 .wt-swap-move { --wt-shift: 16px; }
 .wt-swap-move > .wt-swap-in { animation-duration: var(--wt-move); }
 .wt-swap-move > .wt-swap-out { animation-duration: var(--wt-move); }
-/* the preview's wash: the step's colour from the top right corner, 8% to nothing; one layer per step, cross-fading */
+/* the preview's wash: the step's colour over the top right half, 16% fading to nothing; one layer per step, cross-fading */
 .wt-wash { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity var(--wt-large) var(--wt-ease);
-  background: radial-gradient(120% 120% at 100% 0%, color-mix(in srgb, var(--c) 8%, transparent) 0%, transparent 62%); }
+  background: radial-gradient(130% 150% at 100% 0%, color-mix(in srgb, var(--c) 16%, transparent) 0%, transparent 55%); }
 .wt-wash[data-on] { opacity: 1; }
 .wt-preview > .wt-swap-move { position: relative; }
 /* the trail: a frame lifts 2px on hover */
@@ -1013,9 +1013,13 @@ html[data-theme="dark"] { --wt-tile-mix: 16%; }
 button.wt-frame:hover { transform: translateY(-2px); }
 .wt-tile { --tile: color-mix(in srgb, var(--c) var(--wt-tile-mix), var(--color-surface)); }
 .wt-tile-done { background: color-mix(in srgb, var(--c) var(--wt-tile-mix), transparent); }
-.wt-tile-current { background: var(--color-surface); box-shadow: inset 0 0 0 1.5px var(--c); }
-.wt-tile-later { box-shadow: inset 0 0 0 1px var(--color-line); }
-.wt-tile-picked { box-shadow: inset 0 0 0 1.5px var(--ink); }
+/* a step not done yet: a faint outline around its grey miniature. Only the frame shown in the hero has the 1.5px outline,
+   in its step's colour */
+.wt-tile-open { box-shadow: inset 0 0 0 1px var(--color-line); }
+.wt-tile-shown { box-shadow: inset 0 0 0 1.5px var(--c); }
+/* all done: the six frames rise from the trail into the preview area and settle, one after another */
+@keyframes wt-settle { from { opacity: 0; transform: translateY(150px) scale(.82); } }
+.wt-settle { animation: wt-settle var(--wt-large) var(--wt-ease) both; animation-delay: calc((120ms + var(--i) * 50ms) * var(--wt-k)); }
 .wt-dash { background: var(--c); }
 /* a step finishing: its tile fills with its result, the tick appears, the result line comes in */
 @keyframes wt-pop { from { opacity: 0; transform: scale(.6); } }
@@ -1026,7 +1030,7 @@ button.wt-frame:hover { transform: translateY(-2px); }
 
 /* reduced motion: fades only, no movement */
 @media (prefers-reduced-motion: reduce) {
-  .wt-welcome, .wt-stagger > *, .wt-swap-in, .wt-tile-in, .wt-tick-in { animation-name: wt-fade-in; }
+  .wt-welcome, .wt-stagger > *, .wt-swap-in, .wt-tile-in, .wt-tick-in, .wt-settle { animation-name: wt-fade-in; }
   .wt-swap-out { animation-name: wt-fade-out; }
   .wt-pulse, .wt-glow { display: none; }
   .wt-card, .wt-card:hover, .wt-card:active, button.wt-frame:hover { transform: none; }

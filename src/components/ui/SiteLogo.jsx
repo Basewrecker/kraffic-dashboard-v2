@@ -12,7 +12,8 @@ import { brandLogos } from '../../data/mock'
 const favicon = (domain) => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`
 const PLACEHOLDER_MAX = 16
 
-export default function SiteLogo({ domain, name, className = 'h-8 w-8 rounded-lg', initialClass = 'text-[13px]' }) {
+// fallback (as the app's SiteLogo): what to draw when no logo loads, in place of the letter tile
+export default function SiteLogo({ domain, name, className = 'h-8 w-8 rounded-lg', initialClass = 'text-[13px]', fallback = null }) {
   const sources = [brandLogos[domain], domain && favicon(domain)].filter(Boolean)
   const [step, setStep] = useState(0)
   const [loaded, setLoaded] = useState(false)
@@ -28,6 +29,7 @@ export default function SiteLogo({ domain, name, className = 'h-8 w-8 rounded-lg
   }, [src]) // eslint-disable-line react-hooks/exhaustive-deps
   const initial = (name || domain || '?')[0].toUpperCase()
 
+  if (!src && fallback) return fallback
   if (!src) {
     return <span aria-hidden className={`grid shrink-0 place-items-center overflow-hidden bg-tint font-semibold text-stone-600 ${className} ${initialClass}`}>{initial}</span>
   }
