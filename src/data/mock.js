@@ -381,8 +381,8 @@ export const brands = {
 const brandWeights = ['cerave.com', 'cerave.com', 'cerave.com', 'theordinary.com', 'theordinary.com', 'paulaschoice.com', 'laroche-posay.us', 'drunkelephant.com']
 
 // logos stored for a brand or marketplace, by domain (Setup uploads); SiteLogo falls back to the favicon, then the initial.
-// None stored in this demo.
-export const brandLogos = {}
+// Dermasuri's: a sharp 256px copy of its emblem (public/logos/dermasuri.png, owner 2026-11-18: its favicon is 32px).
+export const brandLogos = { 'dermasuri.com': '/logos/dermasuri.png' }
 
 // platform ids match PlatformIcon (google = AI Overview)
 export const platformNames = { google: 'Google AI Overview', aimode: 'Google AI Mode', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude', grok: 'Grok' }

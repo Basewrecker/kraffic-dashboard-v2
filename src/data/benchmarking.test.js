@@ -1,10 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { BENCH_ENGINES, beats, benchBrands, benchCsv, citedBrands, counts, engineGrid, engineStatus, leaderboard, promptsTheyWin, rankLine, rankRows, sortRows, versus } from './benchmarking.js'
+import { BENCH_ENGINES, beats, benchBrands, benchCsv, citedBrands, counts, engineGrid, engineStatus, leaderboard, previews, promptsTheyWin, rankLine, rankRows, sortRows, versus } from './benchmarking.js'
 import { OWN, getBrandView, setNoResult } from './brandViews.js'
 import { citationsMentions } from './mock.js'
 
-const P = { none: false, oneSync: false, never: [] }
+const P = { none: false, oneSync: false, never: [], missed: [] }
 
 test('the leaderboard is the Overview\'s numbers, by place', () => {
   setNoResult([])
@@ -63,6 +63,10 @@ test('by engine: the best brand on each engine is marked; an engine with no resu
   assert.deepEqual(counts(OWN.domain, 'gemini', P), { mentions: null, citations: null })
   assert.ok(leaderboard('gemini', P).every((r) => r.visibility === null && r.rank === null && r.share === null))
   setNoResult([])
+  // the sample: Claude didn't run in the latest sync
+  const sample = previews({ none: false, oneSync: false, never: [] })
+  assert.equal(engineStatus('claude', sample), 'missed')
+  assert.ok(Object.values(engineGrid(sample).find((g) => g.engine === 'claude').values).every((v) => v === null))
   // never ran
   const never = { ...P, never: ['claude'] }
   assert.equal(engineStatus('claude', never), 'never')

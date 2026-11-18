@@ -9,6 +9,7 @@
 //   ?history=single    only one sync so far (no change column, no history)
 //   ?never=claude      an engine that has never run (a comma list works); ?noresult=<engine> is one that didn't run in
 //                      the latest sync (brandViews.hasResult)
+// Sample (owner, 2026-11-18): Claude didn't run in the latest sync, so the page shows "—" for it, never 0%.
 import { citationsMentions, trackedPrompts } from './mock.js'
 import { ENGINE_ORDER, OWN, TRACKED_BRANDS, appearances, engineDetail, enginePid, getBrandView, hasResult } from './brandViews.js'
 import { displayShares } from '../utils/shareOfVoice.js'
@@ -22,6 +23,7 @@ export function previews(opts = {}) {
     none: opts.none ?? q.get('competitors') === 'none',
     oneSync: opts.oneSync ?? q.get('history') === 'single',
     never: opts.never ?? (q.get('never') ?? '').split(',').filter((e) => ENGINE_ORDER.includes(e)),
+    missed: opts.missed ?? ['claude'], // didn't run in the latest sync (the sample), as well as ?noresult=
   }
 }
 
@@ -32,7 +34,7 @@ export const BENCH_ENGINES = ['chatgpt', 'aio', 'aimode', 'claude', 'gemini'].fi
 export function engineStatus(engine, p = previews()) {
   if (!engine || engine === 'all') return 'ran'
   if (p.never.includes(engine)) return 'never'
-  return hasResult(engine) ? 'ran' : 'missed'
+  return hasResult(engine) && !(p.missed ?? []).includes(engine) ? 'ran' : 'missed'
 }
 
 // the brands compared: the brand and its competitors (none yet: the brand alone)

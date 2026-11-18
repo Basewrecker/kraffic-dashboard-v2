@@ -16,7 +16,6 @@ export const groups = [
   { label: 'Insights', items: [
     { label: 'Visibility Overview', icon: BarChart3, href: '/overview' },
     { label: 'Prompt Hub', icon: MessageSquareText, href: '/tracker' },
-    { label: 'Benchmarking', icon: Trophy, href: '/benchmarking' }, // mock only (owner, 2026-11-18)
     { label: 'Sentiment', icon: Gauge, href: '/sentiment', beta: true },
     { label: 'Trends', icon: TrendingUp, href: '/trends', soon: true }, // as the app (owner, 2026-11-05): a Soon pill
   ] },
@@ -24,6 +23,7 @@ export const groups = [
     { label: 'New report', icon: Sparkles, href: '/reports', beta: true },
     { label: 'All reports', icon: FileText, href: '/reports/all' },
     { label: 'Scheduled', icon: CalendarClock, href: '/reports/scheduled' },
+    { label: 'Benchmarking', icon: Trophy, href: '/benchmarking' }, // mock only (owner, 2026-11-18: in Reports, after Scheduled)
   ] },
   { label: 'Opportunities', items: [
     { label: 'Content', icon: PenLine, href: '/opportunities/content', beta: true }, // the app's icon (synced 2026-11-15)

@@ -23,7 +23,6 @@ import { DashboardViewProvider, useDashboardView } from '../../hooks/useBrandVie
 import { ENGINES, OWN, TRACKED_BRANDS, engineFullName, engineName } from '../../data/brandViews'
 import { account, defaultRange, historyRanges } from '../../data/mock'
 import { beats, benchCsv, citedBrands, engineGrid, engineStatus, leaderboard, previews, rankLine, sortRows, versus } from '../../data/benchmarking'
-import { MEDALS } from '../../utils/shareOfVoice'
 import { linkClick, navigate } from '../../router'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
 
@@ -31,7 +30,6 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 const pct = (v) => (v == null ? '—' : `${v}%`)
 const num = (v) => (v == null ? '—' : v.toLocaleString('en-US'))
 const signed = (v) => (v == null ? '—' : v === 0 ? '0' : v > 0 ? `+${v}` : `−${Math.abs(v)}`)
-const GOLD = MEDALS[1].fill
 const titleCls = 'text-title font-semibold text-stone-900'
 const subCls = 'mt-0.5 text-[13px] leading-[18px] text-stone-600'
 const linkCls = 'inline-flex shrink-0 items-center gap-1 rounded text-[13px] leading-[18px] font-medium text-ink outline-none hover:underline underline-offset-2 focus-visible:ring-2 focus-visible:ring-focus'
@@ -177,7 +175,7 @@ const COLS = [
   { key: 'share', label: 'Share of voice', w: 'w-[136px]' },
   { key: 'mentions', label: 'Mentions', w: 'w-[112px]' },
   { key: 'citations', label: 'Citations', w: 'w-[112px]' },
-  { key: 'change', label: 'Change', w: 'w-[112px]', hint: 'Visibility points since the last sync' },
+  { key: 'change', label: 'Change (pts)', w: 'w-[136px]', hint: 'Visibility points since the last sync' },
 ]
 function Leaderboard({ rows, engine, status, oneSync, sort, setSort }) {
   const cols = COLS.filter((c) => !(oneSync && c.key === 'change'))
@@ -195,7 +193,7 @@ function Leaderboard({ rows, engine, status, oneSync, sort, setSort }) {
       )
     }
     if (c.key === 'visibility' || c.key === 'share') return pct(r[c.key])
-    if (c.key === 'change') return r.change == null ? '—' : <span className={r.change < 0 ? 'text-negative' : r.change > 0 ? 'text-stone-900' : 'text-stone-500'}>{r.change === 0 ? 'No change' : signed(r.change)}</span>
+    if (c.key === 'change') return r.change == null ? '—' : <span className={r.change < 0 ? 'text-negative' : r.change > 0 ? 'text-stone-900' : 'text-stone-500'}>{signed(r.change)}</span>
     return num(r[c.key])
   }
   return (
@@ -212,7 +210,7 @@ function Leaderboard({ rows, engine, status, oneSync, sort, setSort }) {
                 return (
                   <th key={c.key} scope="col" aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
                     className={`${c.w} px-3 ${i === 0 ? 'pl-5' : ''} font-medium ${c.align === 'left' ? 'text-left' : 'text-right'}`}>
-                    <button type="button" onClick={() => by(c.key)} title={c.hint} className={`inline-flex items-center gap-1 rounded outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus ${active ? 'text-stone-900' : ''}`}>
+                    <button type="button" onClick={() => by(c.key)} title={c.hint} className={`inline-flex items-center gap-1 whitespace-nowrap rounded outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus ${active ? 'text-stone-900' : ''}`}>
                       {c.label}
                       {active ? (sort.dir === 'asc' ? <ArrowUp size={12} aria-hidden /> : <ArrowDown size={12} aria-hidden />) : <span className="w-3" aria-hidden />}
                     </button>
@@ -244,12 +242,12 @@ function Leaderboard({ rows, engine, status, oneSync, sort, setSort }) {
   )
 }
 
-// 3. By engine: brands × engines; the best brand on each engine marked; no result "—" with why on hover
+// 3. By engine: brands × engines; the best value on each engine in bold; no result "—" with why on hover (never 0%)
 function ByEngine({ grid, brands }) {
   return (
     <Card className="min-w-0 px-5 pb-2 pt-5" data-by-engine>
       <h2 className={titleCls}>By engine</h2>
-      <p className={`${subCls} flex flex-wrap items-center gap-x-1.5`}>Visibility on each engine, latest sync.<span className="inline-flex items-center gap-1"><span aria-hidden className="h-2 w-2 rounded-full" style={{ background: GOLD }} />Best on that engine</span></p>
+      <p className={subCls}>Visibility on each engine, latest sync. The best on each engine is in bold.</p>
       <div className="-mx-5 mt-3 overflow-x-auto">
         <table className="w-full min-w-[720px] table-fixed text-[14px] leading-5">
           <thead>
@@ -275,11 +273,7 @@ function ByEngine({ grid, brands }) {
                     <td key={g.engine} className={`px-3 text-right tabular-nums text-stone-900 ${i === grid.length - 1 ? 'pr-5' : ''}`} data-cell={`${b.key}|${g.engine}`} data-best={best || undefined}>
                       {g.status === 'missed' ? <Dash text="Didn’t run" /> : g.status === 'never' ? <Dash text="Never ran" />
                         : (
-                          <span className="inline-flex items-center gap-1.5">
-                            {best && <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: GOLD }} />}
-                            <span className={best ? 'font-semibold' : ''}>{v}%</span>
-                            {best && <span className="sr-only">, best on {engineName(g.engine)}</span>}
-                          </span>
+                          <span className={best ? 'font-bold' : ''}>{v}%{best && <span className="sr-only">, best on {engineName(g.engine)}</span>}</span>
                         )}
                     </td>
                   )
@@ -306,7 +300,7 @@ function OverTime({ oneSync, range, rivals }) {
   }
   return (
     <div data-over-time className="min-w-0">
-      <VisibilityHistory key={`${range}|${rivals.join(',')}`} syncUrl={false} initial={{ range }} rivals={rivals} title="Over time" subtitle="Each brand’s share of prompts, every sync" plotClass="h-[260px] min-h-0" />
+      <VisibilityHistory key={`${range}|${rivals.join(',')}`} syncUrl={false} initial={{ range }} rivals={rivals} title="Over time" subtitle="Each brand’s visibility score, every sync" plotClass="h-[260px] min-h-0" />
     </div>
   )
 }
