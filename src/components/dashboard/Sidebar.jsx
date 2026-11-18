@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, Compass, PenLine, Globe } from 'lucide-react'
+import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, Compass, PenLine, Trophy, Globe } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
@@ -16,6 +16,7 @@ export const groups = [
   { label: 'Insights', items: [
     { label: 'Visibility Overview', icon: BarChart3, href: '/overview' },
     { label: 'Prompt Hub', icon: MessageSquareText, href: '/tracker' },
+    { label: 'Benchmarking', icon: Trophy, href: '/benchmarking' }, // mock only (owner, 2026-11-18)
     { label: 'Sentiment', icon: Gauge, href: '/sentiment', beta: true },
     { label: 'Trends', icon: TrendingUp, href: '/trends', soon: true }, // as the app (owner, 2026-11-05): a Soon pill
   ] },

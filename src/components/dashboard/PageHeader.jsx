@@ -9,7 +9,7 @@ import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
 
 // size 'sm' = h-8 (header and page toolbars), 'md' = h-10; label optional
-const triggerClass = (size) =>
+export const triggerClass = (size) =>
   `inline-flex ${size === 'sm' ? 'h-8 rounded-md px-3 text-[13px]' : 'h-10 rounded-lg px-3.5 text-small'} shrink-0 items-center gap-2 whitespace-nowrap border border-line bg-raised outline-none focus-visible:ring-2 focus-visible:ring-focus`
 
 // A card header's icon action, next to its dropdowns: the 'sm' trigger's height, border, radius, surface and focus
@@ -30,7 +30,7 @@ export function HeaderIconButton({ label, icon: Icon, onClick, children, tipAlig
 // each brand's score on the engine shown (the KPI ring's number); "—" when that engine's latest scan had no result
 const score = (domain, engine) => fmtScore(getBrandView(domain, engine).kpis.score, '%')
 // header selects: full width, 40px tall below lg; exactly the old h-8 trigger from lg
-const MOBILE_TRIGGER = `${triggerClass('sm')} max-lg:h-10 max-lg:w-full max-lg:rounded-lg max-lg:text-[14px] [&>svg:last-child]:max-lg:ml-auto`
+export const MOBILE_TRIGGER = `${triggerClass('sm')} max-lg:h-10 max-lg:w-full max-lg:rounded-lg max-lg:text-[14px] [&>svg:last-child]:max-lg:ml-auto`
 
 // Header dropdown: trigger like the other selects ("Prefix  Value ▾"), grouped listbox, optional footer.
 // ↓ opens; ↑/↓ move, Enter/Space pick, Esc closes and returns focus to the trigger.

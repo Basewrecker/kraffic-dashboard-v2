@@ -982,7 +982,7 @@ export const MAX_COMPETITORS = 5
 export const citationsMentions = {
   'dermasuri.com': { aio: [111, 30], aimode: [82, 12], gemini: [90, 2], chatgpt: [54, 4] },
   'cerave.com': { aio: [33, 9], aimode: [26, 5], gemini: [23, 3], chatgpt: [18, 2] },
-  'theordinary.com': { aio: [8, 2], aimode: [6, 1], gemini: [5, 0], chatgpt: [6, 0] },
+  'theordinary.com': { aio: [8, 24], aimode: [6, 9], gemini: [5, 0], chatgpt: [6, 0] }, // cited more often than named: its product pages are the ingredient reference in answers that name other brands (brandViews),
   'paulaschoice.com': { aio: [6, 1], aimode: [4, 0], gemini: [3, 0], chatgpt: [5, 0] },
 }
 
