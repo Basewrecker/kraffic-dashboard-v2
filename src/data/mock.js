@@ -83,10 +83,12 @@ export const extraCompetitors = competitorPreview ? [
 competitors.push(...extraCompetitors.map((c) => ({ domain: c.domain, share: c.share })))
 
 export const history = [
-  { date: 'Sep 7', iso: '2026-09-07', dermasuri: 71, paulas: 2, cerave: 20, ordinary: 12 },
-  { date: 'Sep 16', iso: '2026-09-16', dermasuri: 74, paulas: 2, cerave: 21, ordinary: 9 },
-  { date: 'Sep 21', iso: '2026-09-21', dermasuri: 71, paulas: 3, cerave: 19, ordinary: 6 },
-  { date: 'Sep 28', iso: '2026-09-28', dermasuri: 66, paulas: 3, cerave: 17, ordinary: 9 },
+  // Paula’s Choice (owner, 2026-11-18, Benchmarking's rank chart): it passes The Ordinary on Sep 21 and The Ordinary
+  // passes it back on Sep 28
+  { date: 'Sep 7', iso: '2026-09-07', dermasuri: 71, paulas: 4, cerave: 20, ordinary: 12 },
+  { date: 'Sep 16', iso: '2026-09-16', dermasuri: 74, paulas: 7, cerave: 21, ordinary: 9 },
+  { date: 'Sep 21', iso: '2026-09-21', dermasuri: 71, paulas: 8, cerave: 19, ordinary: 6 },
+  { date: 'Sep 28', iso: '2026-09-28', dermasuri: 66, paulas: 6, cerave: 17, ordinary: 9 },
   { date: 'Oct 5', iso: '2026-10-05', dermasuri: 73, paulas: 3, cerave: 18, ordinary: 4 },
 ]
 
@@ -121,7 +123,7 @@ export const historyMonthly = [
   { date: 'Jun 2026', iso: '2026-06-01', dermasuri: 64, cerave: 20, ordinary: 11, paulas: 3 },
   { date: 'Jul 2026', iso: '2026-07-01', dermasuri: 66, cerave: 21, ordinary: 10, paulas: 2 },
   { date: 'Aug 2026', iso: '2026-08-01', dermasuri: 68, cerave: 20, ordinary: 11, paulas: 2 },
-  { date: 'Sep 2026', iso: '2026-09-01', dermasuri: 71, cerave: 19, ordinary: 9, paulas: 3 },
+  { date: 'Sep 2026', iso: '2026-09-01', dermasuri: 71, cerave: 19, ordinary: 9, paulas: 6 },
   { date: 'Oct 2026', iso: '2026-10-01', dermasuri: 73, cerave: 18, ordinary: 4, paulas: 3 },
 ]
 

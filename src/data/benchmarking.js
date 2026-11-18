@@ -10,7 +10,7 @@
 //   ?never=claude      an engine that has never run (a comma list works); ?noresult=<engine> is one that didn't run in
 //                      the latest sync (brandViews.hasResult)
 // Sample (owner, 2026-11-18): Claude didn't run in the latest sync, so the page shows "—" for it, never 0%.
-import { citationsMentions, trackedPrompts } from './mock.js'
+import { citationsMentions, getHistory, trackedPrompts } from './mock.js'
 import { ENGINE_ORDER, OWN, TRACKED_BRANDS, appearances, engineDetail, enginePid, getBrandView, hasResult } from './brandViews.js'
 import { displayShares } from '../utils/shareOfVoice.js'
 import { csvLine } from '../app/lib/csv-cell.js'
@@ -186,4 +186,58 @@ export function benchCsv(engine = 'all', p = previews(), engineLabel = (e) => e)
     ...rows.map((r) => csvLine([r.name, ...grid.map((g) => v(g.values[r.domain]))])),
   ]
   return `${lines.join('\n')}\n`
+}
+
+// ---------------------------------------------------------------- the redesign (owner, 2026-11-18)
+// One colour per brand across the page: the brand ink; competitors by place indigo, red, green; the rest the greys.
+// rows: the leaderboard (by place). → { domain: CSS colour }
+const GREYS = ['--data-c1', '--data-c2', '--data-c3', '--data-c4']
+export function brandColours(rows) {
+  const out = {}
+  let i = 0
+  for (const r of rows) {
+    if (r.you) { out[r.domain] = 'var(--line-you)'; continue }
+    out[r.domain] = i < 3 ? `var(--line-${i + 1})` : `var(${GREYS[(i - 3) % GREYS.length]})`
+    i++
+  }
+  return out
+}
+
+// Over time as ranks: per weekly sync in the range, each brand's place by its visibility (1 = the most; a tie keeps
+// the tracked order), and where two brands changed places. → { weeks: [{ date, iso, ranks: { key: n }, values }],
+// keys, crossings: [{ week, ahead, behind, date }] } (ahead passed behind in that week)
+export function rankHistory(range = 'last-30d', keys = TRACKED_BRANDS.map((b) => b.key)) {
+  const h = getHistory({ compare: true, hidden: [], granularity: 'weekly', range })
+  const present = keys.filter((k) => h.points.some((pt) => pt[k] != null))
+  const weeks = h.points.map((pt) => {
+    const order = present.filter((k) => pt[k] != null).sort((a, b) => pt[b] - pt[a] || present.indexOf(a) - present.indexOf(b))
+    return { date: pt.date, iso: pt.iso, values: Object.fromEntries(present.map((k) => [k, pt[k] ?? null])), ranks: Object.fromEntries(order.map((k, i) => [k, i + 1])) }
+  })
+  const crossings = []
+  for (let w = 1; w < weeks.length; w++) {
+    const a = weeks[w - 1].ranks, b = weeks[w].ranks
+    for (const x of present) for (const y of present) {
+      if (x === y || a[x] == null || a[y] == null || b[x] == null || b[y] == null) continue
+      if (a[x] > a[y] && b[x] < b[y]) crossings.push({ week: w, ahead: x, behind: y, date: weeks[w].date })
+    }
+  }
+  return { weeks, keys: present, crossings }
+}
+
+// Where they beat you, as one list: each prompt the brand misses that a competitor wins, once, with every competitor
+// named for it and the engines that name them; most competitors first, then most engines
+export function lostPrompts(engine = 'all', p = previews(), rivals = null) {
+  if (engineStatus(engine, p) !== 'ran') return []
+  const pid = engine === 'all' ? null : enginePid(engine)
+  const on = (a) => (pid ? a.platforms.includes(pid) : a.visible)
+  const comps = benchBrands(p).filter((b) => !b.you && (!rivals || rivals.includes(b.key)))
+  return trackedPrompts
+    .filter((pr) => !on(appearances[pr.id][OWN.domain]))
+    .map((pr) => {
+      const winners = comps.filter((b) => on(appearances[pr.id][b.domain])).map((b) => b.domain)
+      const engines = [...new Set(winners.flatMap((d) => appearances[pr.id][d].platforms))]
+      return { key: pr.id, id: Number(String(pr.id).replace(/^m/, '')), prompt: pr.prompt, winners, engines }
+    })
+    .filter((x) => x.winners.length)
+    .sort((a, b) => b.winners.length - a.winners.length || b.engines.length - a.engines.length || a.prompt.localeCompare(b.prompt))
 }
