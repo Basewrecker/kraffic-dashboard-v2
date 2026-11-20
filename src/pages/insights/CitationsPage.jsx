@@ -10,6 +10,8 @@ import { openAnswer } from '../../components/answer/AnswerDrawer'
 import { ENGINES, citationsStates } from '../../data/insights'
 import { account, trackedPrompts } from '../../data/mock'
 import { EngineMark, EngineMarks, NoData, PageHead, cardTitle, head, pct, rowCls, scrollTo, subtitleCls, t2, t3, useInsightState } from './parts'
+import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
+import { citationsChangesFor } from '../../whatChanged/citations'
 
 // /citations — "Which sources do AI engines cite, and are you one of them?" (hidden from the sidebar)
 // Production: GET citations/insights + citations/sources (see data/insights.js). GAP: per-engine × who split is added
@@ -20,7 +22,13 @@ const Logo = ({ domain, size = 'h-5 w-5' }) => <SiteLogo domain={domain} name={d
 
 export default function CitationsPage() {
   const { key, st } = useInsightState(citationsStates, 'Citations')
-  const head1 = <PageHead title="Citations" subtitle="Which sources AI engines cite, and whether you’re one of them" syncs={st?.syncs} />
+  const changes = st ? citationsChangesFor(key) : null
+  const head1 = (
+    <div className="relative flex items-start gap-3">
+      <div className="min-w-0 flex-1"><PageHead title="Citations" subtitle="Which sources AI engines cite, and whether you’re one of them" syncs={st?.syncs} /></div>
+      {changes && <><WhatChangedButton config={changes} size="md" className="mt-0.5" /><WhatChangedPanel config={changes} /></>}
+    </div>
+  )
   if (!st) {
     return <>{head1}<NoData kind={key} icon={QuoteIcon} title="No sources cited yet"
       body="Your prompts are tracked, but none of the AI answers so far listed a source. Most engines start citing once a prompt has a few syncs; the next one runs Oct 12." /></>

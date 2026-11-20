@@ -11,7 +11,7 @@ import ErrorBoundary from '../ui/ErrorBoundary'
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 let handoff = null // the first drawer's opener, kept when one drawer swaps in for another
 
-export function useDrawer(key, find) {
+export function useDrawer(key, find, { exitMs = 250 } = {}) {
   const q = useParams()
   const id = q.get(key)
   const live = id ? find(id) : null
@@ -40,9 +40,9 @@ export function useDrawer(key, find) {
       if (other) handoff = opener.current
       else { (opener.current?.isConnected ? opener.current : handoff)?.focus?.({ preventScroll: true }); handoff = null }
       opener.current = null
-    }, reduced() ? 0 : 250)
+    }, reduced() ? 0 : exitMs)
     return () => clearTimeout(t)
-  }, [open, item])
+  }, [open, item, exitMs])
   const close = useCallback(() => closeDrawer(key), [key])
   return { item, open, shown: open && shown, close, panel }
 }

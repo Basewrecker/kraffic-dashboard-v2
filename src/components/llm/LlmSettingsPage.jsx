@@ -165,14 +165,13 @@ export default function LlmSettingsPage({
       <div className="mb-2 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-4">
         <div>
           <h1 className="text-[22px] leading-7 font-semibold text-stone-900 lg:text-[28px] lg:leading-9">Tracking</h1>
-          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">How Auden AI checks AI answers for {account.domain}</p>
-          <p className="mt-1 text-[13px] leading-[18px] text-stone-500 tabular-nums md:hidden">{updated}</p>
+          {/* owner, 2026-11-20: the last update ends the subtitle, plain grey */}
+          <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">How Auden AI checks AI answers for {account.domain}<span className="tabular-nums text-stone-500"> · {updated}</span></p>
         </div>
         <div className="flex flex-wrap items-center gap-3 md:pt-1">
           {failed?.key === 'sync' && <Failed onRetry={failed.retry} />}
           {/* too soon for another sync: when it's possible again */}
           {canSync && tooSoon && !t.syncing && <span className="text-[13px] leading-[18px] text-stone-500 tabular-nums max-md:order-last max-md:w-full">Available {fmtAvailable(t.schedule.nextScanAt)}</span>}
-          <span className="hidden text-[13px] leading-[18px] text-stone-600 tabular-nums md:inline">{updated}</span>
           {onSyncNow && !canSync && <span className="text-[13px] leading-[18px] text-stone-500">Your agency runs syncs</span>}
           {canSync && (
           <button

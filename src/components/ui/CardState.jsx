@@ -41,7 +41,8 @@ export function CardGate({ card, height, label, children }) {
   const status = useSyncExternalStore(subscribeCards, () => cardStatus(card), () => cardStatus(card))
   if (status.state === 'loading') return <CardLoading className={height} label={label} />
   if (status.state === 'error') return <CardError className={height} message={status.message} onRetry={() => retryCard(card)} />
-  return <CardBoundary card={card} height={height}>{children}</CardBoundary>
+  // data-card: What changed scrolls to and outlines a card by its key (display: contents keeps the grid as it was)
+  return <div data-card={card} className="contents"><CardBoundary card={card} height={height}>{children}</CardBoundary></div>
 }
 
 class CardBoundary extends Component {

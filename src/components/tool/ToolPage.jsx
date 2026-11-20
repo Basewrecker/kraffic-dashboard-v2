@@ -5,6 +5,7 @@ import SiteLogo from '../ui/SiteLogo'
 import BackLink from '../BackLink'
 import ActionMenu from '../audit/ActionMenu'
 import MobileActions from '../ui/MobileActions'
+import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
 
 // One template for every Toolkit tool page:
 //   BackLink → H1 + subtitle | controls · primary action (ink) · ⋯ menu
@@ -14,6 +15,7 @@ import MobileActions from '../ui/MobileActions'
 //   connect: { title, sub, rows: [{ id, name, domain, status: 'none'|'expired'|'connected'|'error', account, onConnect }], seeing: [3 lines] }
 //            (a row without onConnect has no Connect / Reconnect button: read-only)
 //            shown in 'not-connected', and above the body when only some sources are connected (partial)
+//   changes: a "What changed" config (whatChanged/*.js): its button at the header row's right end, and its pull-out
 //   Body: the page passes its KPI strip → content rows → table card as children (cards p-5, gap-4).
 export const t2 = 'text-stone-600'
 export const t3 = 'text-stone-500'
@@ -24,7 +26,7 @@ export const lineBtn = 'inline-flex h-9 items-center justify-center gap-2 whites
 
 export default function ToolPage({
   back = { to: '/more-tools', label: 'Toolkit' }, title, subtitle, controls = null, primary = null, menu = [],
-  state = 'ready', connect = null, partial = false, empty = null, running = null, error = null, children,
+  state = 'ready', connect = null, partial = false, empty = null, running = null, error = null, changes = null, children,
 }) {
   return (
     <>
@@ -34,7 +36,7 @@ export default function ToolPage({
           <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">{title}</h1>
           {subtitle && <p className={`mt-1 text-[13px] leading-[18px] ${t2}`}>{subtitle}</p>}
         </div>
-        {(controls || primary || menu.length > 0) && (
+        {(controls || primary || menu.length > 0 || changes) && (
           <div className="flex flex-wrap items-center gap-2">
             {controls}
             {primary && state !== 'not-connected' && (
@@ -52,6 +54,7 @@ export default function ToolPage({
                 <MobileActions items={menu} />
               </>
             )}
+            {changes && <WhatChangedButton config={changes} size="md" />}
           </div>
         )}
       </div>
@@ -66,6 +69,7 @@ export default function ToolPage({
           {children}
         </>
       )}
+      {changes && <WhatChangedPanel config={changes} />}
     </>
   )
 }

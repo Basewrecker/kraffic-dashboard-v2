@@ -29,17 +29,14 @@ export function EngineMark({ id, size = 16 }) {
 export const EngineMarks = ({ ids, size = 14 }) => <span className="flex items-center gap-1.5">{ids.map((e) => <EngineMark key={e} id={e} size={size} />)}</span>
 
 export function PageHead({ title, subtitle, syncs }) {
+  // owner, 2026-11-20: the last update ends the subtitle, plain grey (no dot, nothing on the right)
   return (
-    <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
-      <div className="min-w-0">
-        <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">{title}</h1>
-        <p className={`mt-1 text-[13px] leading-[18px] ${t2} lg:text-[14px] lg:leading-5`}>{subtitle}</p>
-      </div>
-      {syncs != null && (
-        <p className={`flex shrink-0 items-center gap-1.5 text-[13px] leading-[18px] ${t2}`}>
-          <span className="h-1.5 w-1.5 rounded-full bg-ink" aria-hidden />Updated {fmtDay(insightsLastSync)} · {syncs} {syncs === 1 ? 'sync' : 'syncs'}
-        </p>
-      )}
+    <div className="min-w-0">
+      <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">{title}</h1>
+      <p className={`mt-1 text-[13px] leading-[18px] ${t2} lg:text-[14px] lg:leading-5`}>
+        {subtitle}
+        {syncs != null && <span className="tabular-nums text-stone-500"> · Updated {fmtDay(insightsLastSync)} · {syncs} {syncs === 1 ? 'sync' : 'syncs'}</span>}
+      </p>
     </div>
   )
 }

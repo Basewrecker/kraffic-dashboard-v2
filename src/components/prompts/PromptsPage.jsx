@@ -15,6 +15,8 @@ import { useInlineEdit } from '../../hooks/useInlineEdit'
 import ResearchModal from './ResearchModal'
 import ImportModal from './ImportModal'
 import CategorySelect from './CategorySelect'
+import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
+import { prompts as promptsChanges } from '../../whatChanged/prompts'
 import { editProblem, editWarning } from '../firstSetup/promptEdits'
 import { UNCATEGORIZED, allCategories, createCategory, deleteCategory, renameCategory } from '../../store/categories'
 import { DashboardViewProvider, useDashboardView } from '../../hooks/useBrandView'
@@ -645,6 +647,8 @@ function PromptHub() {
           <span ref={addBtnRef} data-tour="prompts-add" className="inline-flex max-lg:flex-1 max-lg:[&>button]:h-10 max-lg:[&>button]:w-full max-lg:[&>button]:justify-center">
             <PrimaryButton size="sm" icon={Plus} aria-expanded={isAdding} onClick={() => (isAdding ? closeAdd() : startAdd())}>Add prompt</PrimaryButton>
           </span>
+          {/* What changed: the header row's right end, the buttons' height (h-9) */}
+          <WhatChangedButton config={promptsChanges} size="md" />
           <MobileActions items={[
             { label: 'Research prompts', icon: FlaskConical, onClick: () => setModal('research') },
             { label: 'Import prompts', icon: Upload, onClick: () => setModal('import') },
@@ -721,6 +725,7 @@ function PromptHub() {
         onView={() => { setModal(null); setStatus('all') }}
       />
       <AnswerDrawer />
+      <WhatChangedPanel config={promptsChanges} />
       {toastNode}
     </>
   )

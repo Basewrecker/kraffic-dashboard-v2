@@ -6,14 +6,20 @@ import { useIsMobile } from '../../hooks/useMedia'
 import { navigate } from '../../router'
 import { useTrends } from './store'
 import { Confirm, Progress, RowMenu, Spinner, StackBar, ago, cardTitle, fmtDay, inkBtn, sentimentParts, subtitleCls, t2, t3 } from './parts'
+import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
+import { trends as trendsChanges } from '../../whatChanged/trends'
 
 // /trends — ask a question, see past runs. A row opens /trends/:runId.
 export default function RunList() {
   useEffect(() => { document.title = 'Trends · Auden AI' }, [])
   return (
     <>
-      <div>
-        <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Trends</h1>
+      <div className="relative">
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Trends</h1>
+          <WhatChangedButton config={trendsChanges} size="md" className="mt-0.5" />
+        </div>
+        <WhatChangedPanel config={trendsChanges} />
         <p className={`mt-1 text-[13px] leading-[18px] ${t2} lg:text-[14px] lg:leading-5`}>See how news and social channels talk about any topic.</p>
         {/* until Trends has a backend, its runs are sample data */}
         <p className={`mt-1 text-[13px] leading-[18px] ${t3}`}>Preview with sample data</p>

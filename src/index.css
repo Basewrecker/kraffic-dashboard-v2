@@ -1055,3 +1055,53 @@ button.wt-frame:hover { transform: translateY(-2px); }
   .wt-seg-full { transition: none; }
   .wt-leave { transition: opacity var(--wt-fade) var(--wt-ease); }
 }
+
+/* What changed pull-out (WhatChanged.jsx): rows fade in once with a 40ms stagger, the chart's ink line draws in, then its
+   end labels appear. Nothing loops; reduced motion shows everything at once. */
+@keyframes wc-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes wc-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .wc-row { animation: wc-in 240ms ease-out both; animation-delay: calc(380ms + var(--i, 0) * 30ms); }
+  .wc-draw { stroke-dasharray: 1; animation: wc-draw 600ms cubic-bezier(.2,.8,.2,1) 380ms both; }
+  .wc-late { animation: fade-in 200ms ease-out 900ms both; }
+  .wc-bar { transform-origin: left; animation: wc-grow 420ms cubic-bezier(.2,.8,.2,1) 400ms both; }
+}
+@keyframes wc-grow { from { transform: scaleX(0); } to { transform: none; } }
+/* the What changed button (WhatChanged.jsx; its fill is .k-reach's). The change: at rest a deep green / red on the light
+   button (dark mode: the light-on-dark ones), semibold; on the fill the ones that read on it. It turns with the label
+   (120ms, 70ms in, as .k-reach-label). The → grows in on hover (width and opacity, 200ms); open keeps the fill. */
+:root { --wc-rest-up: #1F8A5B; --wc-rest-down: #C93838; --wc-fill-up: #6EE7B7; --wc-fill-down: #F27370; }
+html[data-theme="dark"] { --wc-rest-up: #6EE7B7; --wc-rest-down: #F27370; --wc-fill-up: #1F8A5B; --wc-fill-down: #C93838; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --wc-rest-up: #6EE7B7; --wc-rest-down: #F27370; --wc-fill-up: #1F8A5B; --wc-fill-down: #C93838; } }
+.wc-change-up { color: var(--wc-rest-up); } .wc-change-down { color: var(--wc-rest-down); } .wc-change-none { color: var(--color-stone-500); }
+.wc-change-up, .wc-change-down, .wc-change-none, .wc-dot { transition: color 120ms ease-out, background-color 120ms ease-out; }
+.wc-dot { background: var(--ink); }
+.k-reach:is(:hover, :focus-visible) .wc-change-up, .wc-open .wc-change-up { color: var(--wc-fill-up); transition-delay: 70ms; }
+.k-reach:is(:hover, :focus-visible) .wc-change-down, .wc-open .wc-change-down { color: var(--wc-fill-down); transition-delay: 70ms; }
+.k-reach:is(:hover, :focus-visible) .wc-change-none, .wc-open .wc-change-none { color: color-mix(in srgb, var(--on-ink) 70%, transparent); transition-delay: 70ms; }
+.k-reach:is(:hover, :focus-visible) .wc-dot, .wc-open .wc-dot { background: var(--on-ink); transition-delay: 70ms; }
+.wc-arrow { display: inline-block; max-width: 0; opacity: 0; overflow: hidden; transition: max-width 200ms ease-out, opacity 200ms ease-out; }
+.wc-arrow > span { transform: translateX(-3px); transition: transform 200ms ease-out, color 120ms ease-out 140ms; }
+.k-reach:is(:hover, :focus-visible):not(.wc-open) .wc-arrow { max-width: 20px; opacity: 1; }
+.k-reach:is(:hover, :focus-visible) .wc-arrow > span { transform: none; }
+.wc-open { border-color: var(--ink); }
+.wc-open .k-reach-fill { transform: scaleX(1); opacity: 1; }
+.wc-open .k-reach-label { color: var(--on-ink); }
+@media (prefers-reduced-motion: reduce) {
+  .wc-arrow, .wc-arrow > span { transition: opacity 100ms ease-out; }
+  .k-reach:is(:hover, :focus-visible):not(.wc-open) .wc-arrow { max-width: 20px; }
+  .wc-arrow > span { transform: none; }
+}
+/* the bell's unread badge: red, white number */
+:root { --nc-badge: #E5484D; }
+html[data-theme="dark"] { --nc-badge: #F27370; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --nc-badge: #F27370; } }
+/* the notification card (Notifications.jsx): the unread dot on an item's tile; items fade in once, 30ms apart (first 8);
+   the last item fades out under the card's bottom edge */
+:root { --nc-unread: #2F9E6E; }
+html[data-theme="dark"] { --nc-unread: #3CCB7F; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --nc-unread: #3CCB7F; } }
+@media (prefers-reduced-motion: no-preference) {
+  .nc-item { animation: wc-in 200ms ease-out both; animation-delay: calc(80ms + var(--i, 0) * 30ms); }
+}
+.nc-scroll { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); }

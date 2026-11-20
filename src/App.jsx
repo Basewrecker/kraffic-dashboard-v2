@@ -44,6 +44,9 @@ import CookieBanner from './components/ui/CookieBanner'
 import WebsiteFactsPage from './pages/facts/WebsiteFactsPage'
 import BenchmarkingPage from './pages/benchmarking/BenchmarkingPage'
 import Walkthrough from './walkthrough/Walkthrough'
+import { WhatChangedPanel } from './whatChanged/WhatChanged'
+import { overview as overviewChanges } from './whatChanged/overview'
+import { NotificationCard } from './notifications/Notifications'
 
 
 function DashboardPage() {
@@ -80,6 +83,7 @@ function DashboardPage() {
           <CitationsDrawer />
           <FolderDrawer />
           <MarketplaceDrawer />
+          <WhatChangedPanel config={overviewChanges} />
           </PlatformFilterProvider>
           </DashboardViewProvider>
     </>
@@ -130,6 +134,8 @@ export default function App() {
       {state === 'cookies' && <CookieBanner onChoose={() => {}} />}
       {/* the first-time walkthrough (mock only): Welcome and the pointers; ?walkthrough=new shows it from the start */}
       <Walkthrough />
+      {/* the notification card (?inbox=…), from the sidebar's Notifications row */}
+      <NotificationCard />
     </TrackingProvider>
   )
 }

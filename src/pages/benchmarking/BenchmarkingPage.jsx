@@ -26,6 +26,8 @@ import { account, defaultRange, historyRanges } from '../../data/mock'
 import { beats, benchCsv, brandColours, citedBrands, engineGrid, engineStatus, leaderboard, lostPrompts, previews, rankHistory, rankLine, sortRows, versus } from '../../data/benchmarking'
 import { linkClick, navigate } from '../../router'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
+import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
+import { benchmarking as benchChanges } from '../../whatChanged/benchmarking'
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 const pct = (v) => (v == null ? '—' : `${v}%`)
@@ -116,6 +118,8 @@ function Header({ empty, engine, setEngine, range, setRange, rivals, setRivals, 
           <MenuSelect prefix="Range" value={range} onChange={setRange} groups={rangeGroups} listLabel="Date range" footer="The period Over time shows." className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER} />
           <BrandsFilter all={allRivals} value={rivals} onChange={setRivals} />
           <PrimaryButton size="sm" icon={Download} type="button" onClick={onDownload} data-bench-download>Download</PrimaryButton>
+          {/* What changed: the header's right end, the selects' height */}
+          <WhatChangedButton config={benchChanges} size="sm" className="max-lg:self-start" />
         </div>
       )}
     </div>
@@ -673,6 +677,7 @@ function Benchmarking() {
       )}
       <VersusDrawer engine={engine} p={p} />
       <CitedDrawer engine={engine} p={p} />
+      {!p.none && <WhatChangedPanel config={benchChanges} />}
     </>
   )
 }

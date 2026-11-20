@@ -32,6 +32,8 @@ import { EdgeTip } from '@/components/mock-overview/content-tip'
 import { Globe } from 'lucide-react'
 import { buttonLabel, publicationName, reachOutFor } from '@/lib/publication-contacts' // app: where Reach out goes
 import { foundFor, usePublicationContacts } from '@/lib/publication-contacts-client' // app: Reach out's saved lookups
+import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
+import { sentiment as sentimentChanges } from '../../whatChanged/sentiment'
 import { scaled, useUiScale, uiScale } from '@/lib/ui-scale' // app (owner, 2026-11-09): the UI scale for sizes set in JS
 
 // /sentiment: one visual page about how third-party pages talk about the brand.
@@ -750,6 +752,9 @@ function Header({ brand, engine, setEngine, running, onRun, hideRun, missed = nu
             </span>
           </button>
         )}
+        {/* What changed: the header's right end */}
+        <WhatChangedButton config={sentimentChanges} size="md" className="max-lg:self-start" />
+        <WhatChangedPanel config={sentimentChanges} />
       </div>
     </div>
   )
@@ -1010,6 +1015,8 @@ function MissedOpportunities({ pages, history, onBack, brandKey = '', engine = '
             <Seg label="Engine" value={engine} onChange={setEngine} options={engineOptions} full={false} />
             {/* app (owner, 2026-11-14): the filled primary, as Prompt Hub's "Add prompt" (PrimaryButton; dark mode inverts) */}
             <PrimaryButton size="sm" icon={Download} type="button" onClick={download} disabled={!shown} data-missed-csv>Download CSV</PrimaryButton>
+            {/* What changed: Sentiment's, at the end of the row (its panel is the main view's) */}
+            <WhatChangedButton config={sentimentChanges} size="md" />
           </div>
         </div>
       </div>

@@ -17,6 +17,8 @@ import { setParams, useTab } from './parts'
 import { CATEGORIES, IMPACT, STATUS, byStatus, getAudit } from '../../data/audit'
 import { account, auditActions } from '../../data/mock'
 import FeatureOff from '../ui/FeatureOff'
+import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
+import { auditChanges } from '../../whatChanged/audit'
 
 // /audit — "Site Audit": how ready the site is for AI answers. Tabs: Overview · Checks · Pages · Crawl (?tab=).
 // Data: data/audit (derived from the API-shaped mock in data/mock.js). ?mock=full|first|clean|never picks the state.
@@ -67,6 +69,7 @@ export default function AuditPage() {
     requestAnimationFrame(() => document.querySelector(`[data-audit-tab="${next}"]`)?.focus())
   }
   const off = !account.features.siteAudit
+  const changes = auditChanges(a.key)
   const meta = off ? null : running ? 'Running…' : a.never ? 'Not run yet' : `Last run ${a.run.date} · ${a.run.pages} pages`
   // a failed run: the reason on its own line under the subtitle, with Retry (the Structured Data pattern)
   const failLine = !running && runError && (
@@ -98,6 +101,8 @@ export default function AuditPage() {
               <MoreHorizontal size={16} aria-hidden />
             </ActionMenu>
           </span>}
+          {/* What changed: the row's right end (every tab), once there's an audit */}
+          {!off && !a.never && <WhatChangedButton config={changes} size="md" />}
         </div>
       </div>
 
@@ -127,6 +132,7 @@ export default function AuditPage() {
           <ErrorBoundary name="Check drawer" floating><AuditDrawer /></ErrorBoundary>
           <ErrorBoundary name="Page drawer" floating><PageDrawer /></ErrorBoundary>
           <ErrorBoundary name="Status code drawer" floating><CodesDrawer /></ErrorBoundary>
+          <WhatChangedPanel config={changes} />
         </>
       )}
 

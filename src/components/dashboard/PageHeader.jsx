@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Info } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import { account } from '../../data/mock'
 import { ENGINES, OWN, TRACKED_BRANDS, getBrandView, hasResult } from '../../data/brandViews'
 import { NO_SCORE, fmtScore } from '../../utils/score'
@@ -7,6 +7,8 @@ import { PlatformIcon } from './icons'
 import { PlatformFilterPill } from './PlatformFilter'
 import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
+import { WhatChangedButton } from '../../whatChanged/WhatChanged'
+import { overview as overviewChanges } from '../../whatChanged/overview'
 
 // size 'sm' = h-8 (header and page toolbars), 'md' = h-10; label optional
 export const triggerClass = (size) =>
@@ -141,7 +143,6 @@ const brandGroups = (engine) => [
 export default function PageHeader() {
   const tracking = useTracking()
   const { focal, isOwnBrand, setView, engine, setEngine } = useBrandView()
-  const [tip, setTip] = useState(false)
   // prompts where each engine mentions the brand being viewed (unfiltered: the card data covers all engines)
   const perEngine = Object.fromEntries(getBrandView(focal.domain).platforms.map((p) => [p.id, p.visible]))
   const engineGroups = [{
@@ -157,29 +158,13 @@ export default function PageHeader() {
       {/* phones / tablets: title, subtitle, then the two filters full width (one row each) */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div className="min-w-0">
-          <div className="relative flex items-center gap-1.5">
-            <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Visibility Overview</h1>
-            {/* desktop, own brand: the description sits in an ⓘ, so the header is one row and the next row of cards
-                peeks in on short screens (1366×768) */}
-            {isOwnBrand && (
-              <>
-                <button type="button" aria-label="About this page" aria-describedby={tip ? 'overview-hint' : undefined}
-                  onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)} onFocus={() => setTip(true)} onBlur={() => setTip(false)}
-                  className="hidden h-5 w-5 place-items-center rounded-full text-stone-500 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus lg:grid">
-                  <Info size={14} aria-hidden />
-                </button>
-                {tip && (
-                  <span id="overview-hint" role="tooltip" className="absolute left-0 top-full z-20 mt-1 hidden w-72 rounded-md border border-line bg-raised px-2.5 py-2 text-[12px] leading-4 font-normal text-stone-700 shadow-md lg:block">
-                    Track how often {account.name} appears in AI answers across Google AI Overview and AI Mode, ChatGPT, Gemini &amp; Claude.
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-          {/* the only competitor-view indicator: same line, same height (own brand: phones and tablets only) */}
-          <p className={`mt-1 text-body font-normal text-stone-600 ${isOwnBrand ? 'lg:hidden' : ''}`}>
+          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Visibility Overview</h1>
+          {/* owner, 2026-11-20: the subtitle shows at every width and ends with the last update, plain grey ("… · Updated
+              Oct 5"); it replaced the desktop ⓘ and the dotted "Updated" in the controls row. Competitor view: the
+              read-only line, then the update */}
+          <p className="mt-1 text-body font-normal text-stone-600">
             {isOwnBrand ? (
-              <>Track how often {account.name} appears in AI answers across Google AI Overview and AI Mode, ChatGPT, Gemini &amp; Claude.</>
+              <>Track how often {account.name} appears in AI answers across {ENGINES.length} engines</>
             ) : (
               <>
                 {focal.name}’s view · read-only ·{' '}
@@ -188,12 +173,10 @@ export default function PageHeader() {
                 </button>
               </>
             )}
-          </p>
-          <p className="mt-1 inline-flex items-center gap-1.5 text-[13px] leading-[18px] text-stone-600 lg:hidden">
-            <span className="h-2 w-2 rounded-full bg-ink" /> {tracking.syncing ? 'Syncing…' : `Updated ${fmtDay(tracking.schedule.lastSync)}`}
+            <span className="tabular-nums text-stone-500"> · {tracking.syncing ? 'Syncing…' : `Updated ${fmtDay(tracking.schedule.lastSync)}`}</span>
           </p>
         </div>
-        <div className="relative flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:gap-2.5 lg:pt-1">
+        <div className="relative flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:justify-end lg:gap-3 lg:pt-1">
           <div data-tour="overview-engine" className="max-lg:w-full">
             <MenuSelect prefix="Engine" value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" footer="Filters every card to answers from this engine."
               className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER} />
@@ -207,10 +190,9 @@ export default function PageHeader() {
             listLabel="View the dashboard as"
             title="See the dashboard from a competitor’s point of view"
           />
-          {/* from the tracking store, so a sync on /tracking or /brands shows here too */}
-          <span className="hidden items-center gap-1.5 whitespace-nowrap text-[13px] leading-[18px] font-normal text-stone-600 lg:inline-flex">
-            <span className="h-2 w-2 rounded-full bg-ink" /> {tracking.syncing ? 'Syncing…' : `Updated ${fmtDay(tracking.schedule.lastSync)}`}
-          </span>
+          {/* What changed: the row's right end (own brand); phones / tablets: under the filters, left */}
+          {isOwnBrand && <WhatChangedButton config={overviewChanges} className="max-lg:h-10 max-lg:self-start" />}
+          {/* What changed (own brand): a quiet line next to the date, opens the pull-out */}
         </div>
       </div>
       {/* as the app (owner, 2026-11-12): the engine filter chip on its own right-aligned row under the filters, pushing the

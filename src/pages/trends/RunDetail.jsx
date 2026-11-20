@@ -8,6 +8,8 @@ import { CHANNELS, dayOf, displayText, sourceName } from './analyze'
 import Results from './Results'
 import BackLink from '../../components/BackLink'
 import { Confirm, Progress, RowMenu, SENTIMENT, STANCE, cardTitle, fmtDate, lineBtn, subtitleCls, t2, t3 } from './parts'
+import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
+import { trends as trendsChanges } from '../../whatChanged/trends'
 
 // /trends/:runId — one run: KPIs, coverage over time, how it's discussed, where, and every mention.
 export default function RunDetail({ runId }) {
@@ -59,6 +61,9 @@ export default function RunDetail({ runId }) {
         <div className="flex shrink-0 items-center gap-2 lg:pt-6">
           <button type="button" onClick={doRerun} disabled={run.status === 'running'} className={`${lineBtn} max-lg:h-10 max-lg:flex-1`}><RefreshCw size={14} aria-hidden />Re-run</button>
           <span className="rounded-lg border border-line"><RowMenu label="More actions" items={menu} /></span>
+          {/* What changed: Trends' (all questions), the header's right end */}
+          <WhatChangedButton config={trendsChanges} size="md" />
+          <WhatChangedPanel config={trendsChanges} />
         </div>
       </div>
 
