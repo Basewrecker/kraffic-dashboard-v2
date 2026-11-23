@@ -12,6 +12,7 @@ import ToolPage from '../../components/tool/ToolPage'
 import KpiStrip from '../../components/tool/KpiStrip'
 import { account, guessCategory, promptActions, siteKit, trackedPrompts } from '../../data/mock'
 import { RANGES, analytics, fmtDay, integrationsFor, searchConsole, windowOf } from './sitekit'
+import { siteKitChanges } from '../../whatChanged/siteKit'
 
 // /more-tools/site-kit — Search Console + Analytics for the project's site.
 // Not connected / expired: only the connection card. Connected: tabs per connected source (?tab=sc|ga).
@@ -82,7 +83,8 @@ export default function SiteKitPage() {
   return (
     <>
       <ToolPage title="Site Kit" subtitle={`Search Console and Analytics for ${account.domain}`} controls={controls}
-        state={connected.length ? 'ready' : 'not-connected'} connect={connectProps} partial={!all}>
+        state={connected.length ? 'ready' : 'not-connected'} connect={connectProps} partial={!all}
+        changes={connected.some((c) => c.provider === 'GOOGLE_SEARCH_CONSOLE') ? siteKitChanges(state) : null}>
         <div role="tablist" aria-label="Site Kit" className="no-scrollbar -mx-4 mt-2 flex gap-6 overflow-x-auto border-b border-line px-4 md:mx-0 md:px-0">
           {tabs.map((t) => (
             <button key={t.tab} type="button" role="tab" aria-selected={tab === t.tab} onClick={() => setParams({ tab: t.tab })}
@@ -258,7 +260,7 @@ function Queries({ rows, toast }) {
     },
   ]
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden" data-wc="sk-queries">
       <div className="px-5 pb-3 pt-5 max-md:px-4">
         <h2 className={cardTitle}>Top queries</h2>
         <p className={subtitle}>What people searched before they visited. Track one to see if AI answers mention you for it too.</p>

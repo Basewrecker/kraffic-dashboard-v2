@@ -569,7 +569,9 @@ export function fit4(values) {
   return { domain: [0, hi], ticks: [0, hi / 3, (2 * hi) / 3, hi].map(Math.round) }
 }
 
-export default function VisibilityHistory({ dataset: given = null, syncUrl = true, initial = null, bare = false, title = 'Visibility history', subtitle = null, plotClass = null, note = null, compact = false } = {}) {
+// rivals (Benchmarking): the competitors to draw, all of them (the top three by share in indigo, red and green, the rest
+// grey); the page's own header picks them and the range, so the card's Brands and range menus are left out
+export default function VisibilityHistory({ dataset: given = null, syncUrl = true, initial = null, bare = false, title = 'Visibility history', subtitle = null, plotClass = null, note = null, compact = false, rivals = null } = {}) {
   const mobile = useIsMobile()
   const view0 = useBrandView()
   // ?history=many: the 6-competitor preview brand (data/historyMany.js) in place of the dashboard's brand, this card only
@@ -595,7 +597,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
   // competitors by share (highest first); the top 3 are drawn unless others were picked in "All N brands"
   const ranked = historySeries.filter((s) => s.key !== YOU).sort((a, b) => b.share - a.share)
   const rankedKeys = ranked.map((s) => s.key)
-  const drawn = view.picks?.swap ? drawnRivals(rankedKeys, view.picks.swap).drawn : picksFrom(rankedKeys, view.picks, MAX_RIVALS)
+  const drawn = rivals ? rankedKeys.filter((k) => rivals.includes(k)) : view.picks?.swap ? drawnRivals(rankedKeys, view.picks.swap).drawn : picksFrom(rankedKeys, view.picks, MAX_RIVALS)
   const notDrawn = rankedKeys.filter((k) => !drawn.includes(k))
   const byKey = (k) => historySeries.find((s) => s.key === k)
   const COMPETITORS = drawn.map(byKey) // the competitors on the chart (and in the legend), in slot order
@@ -982,8 +984,8 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
               ...(single ? [] : [{ value: 'growth', label: 'Growth per period', icon: TrendingUp }]),
             ]}
           />
-          <RangeSelect granularity={view.granularity} value={view.range} onChange={(range) => update({ range })} />
-          {compare && notDrawn.length > 0 && <BrandsMenu brands={[byKey(YOU), ...ranked]} focalKey={YOU} drawn={drawn} onPick={setPicks} />}
+          {!rivals && <RangeSelect granularity={view.granularity} value={view.range} onChange={(range) => update({ range })} />}
+          {!rivals && compare && notDrawn.length > 0 && <BrandsMenu brands={[byKey(YOU), ...ranked]} focalKey={YOU} drawn={drawn} onPick={setPicks} />}
         </div>
       </div>
 

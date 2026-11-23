@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BarChart3, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, Compass, PenLine, Globe } from 'lucide-react'
+import { BarChart3, Bell, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, Compass, PenLine, Trophy, Globe } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
@@ -9,6 +9,7 @@ import SiteLogo from '../ui/SiteLogo'
 import BetaTag from '../ui/BetaTag'
 import { agency, brand, recentBrands, role, switchBrand, visibleDirectory } from '../../store/workspace'
 import GettingStarted from '../../walkthrough/GettingStarted'
+import { UnreadPill, useNotificationsEntry } from '../../notifications/Notifications'
 
 // grouped nav (same items and order as production); items without an href have no page yet.
 // Old routes redirect (see router.js REDIRECTS).
@@ -17,12 +18,13 @@ export const groups = [
     { label: 'Visibility Overview', icon: BarChart3, href: '/overview' },
     { label: 'Prompt Hub', icon: MessageSquareText, href: '/tracker' },
     { label: 'Sentiment', icon: Gauge, href: '/sentiment', beta: true },
-    { label: 'Trends', icon: TrendingUp, href: '/trends', soon: true }, // as the app (owner, 2026-11-05): a Soon pill
+    { label: 'Trends', icon: TrendingUp, href: '/trends', beta: true }, // owner, 2026-11-20: Beta (was Soon)
   ] },
   { label: 'Reports', items: [
     { label: 'New report', icon: Sparkles, href: '/reports', beta: true },
     { label: 'All reports', icon: FileText, href: '/reports/all' },
     { label: 'Scheduled', icon: CalendarClock, href: '/reports/scheduled' },
+    { label: 'Benchmarking', icon: Trophy, href: '/benchmarking' }, // mock only (owner, 2026-11-18: in Reports, after Scheduled)
   ] },
   { label: 'Opportunities', items: [
     { label: 'Content', icon: PenLine, href: '/opportunities/content', beta: true }, // the app's icon (synced 2026-11-15)
@@ -225,6 +227,38 @@ function Fold({ open, children }) {
   )
 }
 
+// one nav row and its icon (the sidebar's items and the Notifications row share them)
+const navRow = (active) => `flex h-11 w-full items-center gap-2.5 rounded-md px-2 text-left text-[14px] leading-5 font-medium text-ink outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus lg:h-[30px] ${
+  active ? 'bg-[var(--tint)]' : 'hover:bg-nav-hover'
+}`
+const navIcon = (active) => `shrink-0 ${active ? 'text-ink' : 'text-stone-500'}`
+
+// Notifications (owner, 2026-11-20): the footer's first row. It opens the notification card to the sidebar's right
+// (Notifications.jsx) and keeps its hover fill while that's open; the unread count sits on the right where the Beta
+// tags do. compact (an icon-only rail): the bell with a small red dot on its corner; the card opens the same way.
+export function NotificationsRow({ compact = false }) {
+  const { unread, shown, open, toggle } = useNotificationsEntry()
+  const label = unread ? `Notifications, ${unread} unread` : 'Notifications'
+  const cls = `${navRow(false)} ${open ? 'bg-nav-hover' : ''}`
+  if (compact) {
+    return (
+      <button type="button" onClick={toggle} aria-label={label} aria-expanded={open} aria-haspopup="dialog" title="Notifications" data-nav-notifications className={`${cls} justify-center`}>
+        <span className="relative">
+          <Bell size={16} strokeWidth={1.5} aria-hidden className={navIcon(open)} />
+          {unread > 0 && <span aria-hidden className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[var(--nc-badge)] ring-2 ring-[var(--color-sidebar)]" />}
+        </span>
+      </button>
+    )
+  }
+  return (
+    <button type="button" onClick={toggle} aria-label={label} aria-expanded={open} aria-haspopup="dialog" data-nav-notifications className={cls}>
+      <Bell size={16} strokeWidth={1.5} aria-hidden className={navIcon(open)} />
+      <span className="min-w-0 truncate">Notifications</span>
+      {shown > 0 && <UnreadPill n={shown} className="ml-auto" />}
+    </button>
+  )
+}
+
 // the grouped nav links (sidebar on desktop, the drawer on phones); onNavigate runs before an in-app link navigates.
 // nav: another set of groups (First-time setup's setup mode)
 export function NavLinks({ path, onNavigate, nav = groups }) {
@@ -258,11 +292,9 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
           href={href ?? '#'}
           onClick={href ? (e) => { onNavigate?.(); linkClick(href)(e) } : (e) => e.preventDefault()}
           aria-current={active ? 'page' : undefined}
-          className={`flex h-11 items-center gap-2.5 rounded-md px-2 text-[14px] leading-5 font-medium text-ink outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus lg:h-[30px] ${i ? 'mt-px' : ''} ${
-            active ? 'bg-[var(--tint)]' : 'hover:bg-nav-hover'
-          }`}
+          className={`${navRow(active)} ${i ? 'mt-px' : ''}`}
         >
-          <Icon size={16} strokeWidth={1.5} aria-hidden className={`shrink-0 ${active ? 'text-ink' : 'text-stone-500'}`} />
+          <Icon size={16} strokeWidth={1.5} aria-hidden className={navIcon(active)} />
           <span className="min-w-0 truncate">{label}</span>
           {beta && <BetaTag className="ml-auto" />}
           {soon && <BetaTag variant="soon" className="ml-auto" />}
@@ -290,8 +322,9 @@ export default function Sidebar({ path = '/overview', nav }) {
         <a href={HOME} title="Home" aria-label="Auden AI — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
       </div>
       <div className="nav-scroll mt-6 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 pb-2"><NavLinks path={path} nav={nav} /></div>
-      {/* footer: Getting started (while it is on), theme, then the workspace (its menu holds Home) */}
+      {/* footer: Notifications, Getting started (while it is on), theme, then the workspace (its menu holds Home) */}
       <div className="flex shrink-0 flex-col gap-2 px-3 pb-3 pt-1">
+        <NotificationsRow />
         <GettingStarted />
         <ThemeToggle />
         <WorkspaceSwitcher />

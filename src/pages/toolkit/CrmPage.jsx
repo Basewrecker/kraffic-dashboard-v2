@@ -13,6 +13,7 @@ import ToolPage, { cardTitle, subtitleCls, t2, t3 } from '../../components/tool/
 import KpiStrip from '../../components/tool/KpiStrip'
 import { crmProviders, crmStates, skAiReferrals, skGa4Daily, trackedPrompts } from '../../data/mock'
 import { fmtDay } from './sitekit'
+import { crmChanges } from '../../whatChanged/crm'
 
 // /more-tools/crm-attribution — sales that started with an AI answer. Production: crm-attribution module
 // (CrmIntegrationConfig, AiConversionEvent); every number there is sample. ?mock=none|empty|running|error|full (default full).
@@ -78,7 +79,7 @@ export default function CrmPage() {
       <ToolPage title="CRM & Revenue Attribution" subtitle={config ? `Sales from AI assistant visits · ${crm.name} · last ${DAYS} days` : 'Sales in your CRM linked to the AI answers that started them'}
         primary={{ label: 'Sync now', icon: RefreshCw, onClick: sync }}
         menu={config ? [{ label: 'Export CSV', onClick: exportCsv }, { label: `Disconnect ${crm.name}`, onClick: () => setParams({ mock: 'none' }) }] : []}
-        state={state} connect={connect}
+        state={state} connect={connect} changes={state === 'ready' ? crmChanges(key) : null}
         empty={{ icon: Wallet, title: `${crm?.name ?? 'Your CRM'} is connected`, body: 'Nothing has synced yet. The first sync reads the last 90 days of deals and takes a few minutes.', action: { label: 'Sync now', icon: RefreshCw, onClick: sync } }}
         running={{ label: `Syncing ${crm?.name ?? ''}…`, since: st.syncing?.startedAt ?? new Date().toISOString() }}
         error={{ title: `${crm?.name ?? 'The CRM'} sync failed`, reason: st.error, onRetry: sync }}>

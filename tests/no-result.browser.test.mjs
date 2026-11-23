@@ -14,6 +14,15 @@ import { chromePath } from './chromePath.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const ZERO = /^0\s*%?$/
+// Each test starts its own Vite server, so its first page load transforms ~330 modules from cold: 7–20s on an idle
+// Mac, past Playwright's 30s default when the machine is busy. So: a 90s ceiling on the load (it returns as soon as
+// the page is there), then wait for the elements a test reads rather than for the network to go quiet. Reduced
+// motion makes the count-ups change at once, so no fixed wait is needed for them.
+const LOAD_MS = 90_000
+const open = async (page, url, ...selectors) => {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: LOAD_MS })
+  for (const sel of selectors) await page.locator(sel).first().waitFor({ state: 'attached' })
+}
 
 test('a null engine score renders as "—" with its ⓘ, never as 0', async () => {
   const server = await createServer({ root, logLevel: 'silent', server: { port: 0, strictPort: false } })
@@ -22,9 +31,10 @@ test('a null engine score renders as "—" with its ⓘ, never as 0', async () =
   let browser
   try {
     browser = await chromium.launch({ executablePath: chromePath() })
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
-    await page.goto(`http://localhost:${port}/overview?noresult=gemini&engine=gemini`, { waitUntil: 'networkidle' })
-    await page.waitForTimeout(400) // count-ups
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
+    await open(page, `http://localhost:${port}/overview?noresult=gemini&engine=gemini`,
+      'main svg text', '#history', 'main li:has(button span:text("Latest"))', 'main li:has(button span:text-matches("^\\s*Sep 7"))',
+      '#visible-prompts', '#missed-prompts', '#prompt-mix', 'main button[aria-label^="Viewing as"]')
 
     const shown = await page.evaluate(() => {
       const text = (el) => el?.textContent.trim() ?? null
@@ -103,15 +113,15 @@ test('a null engine score renders as "—" with its ⓘ, never as 0', async () =
     }
 
     // Growth view: the period with no result is an empty slot whose tooltip reads "—", never a 0 bar
-    await page.goto(`http://localhost:${port}/overview?noresult=gemini&engine=gemini&chart=growth&compare=off`, { waitUntil: 'networkidle' })
-    await page.waitForTimeout(700)
+    await open(page, `http://localhost:${port}/overview?noresult=gemini&engine=gemini&chart=growth&compare=off`, '#history')
     const hist = page.locator('#history')
     const tick = hist.locator('.recharts-cartesian-axis-tick-label', { hasText: 'Oct 5' })
     await tick.waitFor({ state: 'visible' })
     const tb = await tick.boundingBox()
     await page.mouse.move(tb.x + tb.width / 2, tb.y - 90) // inside the plot, above the date
     const gtip = hist.locator('.recharts-tooltip-wrapper')
-    await page.waitForTimeout(250)
+    // wait for the tooltip to reach Oct 5; if it doesn't, the assertion below reports what it shows
+    await page.waitForFunction(() => /^Oct 5/.test(document.querySelector('#history .recharts-tooltip-wrapper')?.textContent.trim() ?? ''), null, { timeout: 10000 }).catch(() => {})
     const gtext = (await gtip.textContent()).trim()
     assert.match(gtext, /^Oct 5 · —$/, `the Oct 5 growth tooltip reads "${gtext}"`)
   } finally {
@@ -128,9 +138,9 @@ test('Google AI Mode with no result: the same no-result state, never 0', async (
   let browser
   try {
     browser = await chromium.launch({ executablePath: chromePath() })
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
-    await page.goto(`http://localhost:${port}/overview?noresult=aimode&engine=aimode`, { waitUntil: 'networkidle' })
-    await page.waitForTimeout(400)
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
+    await open(page, `http://localhost:${port}/overview?noresult=aimode&engine=aimode`,
+      '#visible-prompts', '#missed-prompts', '#prompt-mix', 'main button[aria-label^="Engine"]')
     const t = await page.evaluate(() => ({
       lines: ['visible-prompts', 'missed-prompts', 'prompt-mix'].map((id) => document.getElementById(id)?.querySelector('[data-no-result]')?.textContent.trim() ?? null),
       main: document.querySelector('main').textContent,

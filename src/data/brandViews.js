@@ -98,6 +98,19 @@ export const appearances = (() => {
       }
     })
   }
+  // cited without being named (sample, 2026-11-18, for Benchmarking's "cited more often than named"): AI answers that
+  // name other brands cite The Ordinary's product pages as the ingredient reference. Its own random stream, after
+  // everything above, so no other row changes.
+  const rc = rng(777)
+  const unnamed = shuffle(trackedPrompts.filter((p) => !table[p.id]['theordinary.com'].visible).map((p) => p.id), rc).slice(0, 24)
+  unnamed.forEach((id) => {
+    table[id]['theordinary.com'] = {
+      ...table[id]['theordinary.com'],
+      cited: true,
+      citedPlatforms: withAiMode(['google'], `cite|theordinary.com|${id}`, 0.4),
+      citedPage: PAGES['theordinary.com'][Math.floor(rc() * 2)], // the two product pages
+    }
+  })
   return table
 })()
 

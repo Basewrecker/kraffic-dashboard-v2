@@ -42,7 +42,11 @@ import { AppLoading, PageError, PageLoading, PageNotFound } from './components/u
 import { CardGate } from './components/ui/CardState'
 import CookieBanner from './components/ui/CookieBanner'
 import WebsiteFactsPage from './pages/facts/WebsiteFactsPage'
+import BenchmarkingPage from './pages/benchmarking/BenchmarkingPage'
 import Walkthrough from './walkthrough/Walkthrough'
+import { WhatChangedPanel } from './whatChanged/WhatChanged'
+import { overview as overviewChanges } from './whatChanged/overview'
+import { NotificationCard } from './notifications/Notifications'
 
 
 function DashboardPage() {
@@ -79,6 +83,7 @@ function DashboardPage() {
           <CitationsDrawer />
           <FolderDrawer />
           <MarketplaceDrawer />
+          <WhatChangedPanel config={overviewChanges} />
           </PlatformFilterProvider>
           </DashboardViewProvider>
     </>
@@ -92,7 +97,7 @@ const TrackingPage = () => <LlmSettingsPage {...(krafficBackend ? krafficTrackin
 
 export default function App() {
   const path = usePath()
-  const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/team': TeamPage, '/reports': ReportsRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter, '/opportunities': ContentRouter, '/website-facts': WebsiteFactsPage }
+  const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/benchmarking': BenchmarkingPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/team': TeamPage, '/reports': ReportsRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter, '/opportunities': ContentRouter, '/website-facts': WebsiteFactsPage }
   // /trends/:runId and /more-tools/<tool>[/…] are one page each (they read the rest of the path)
   const route = path.startsWith('/opportunities/') ? '/opportunities' : path.startsWith('/reports/') ? '/reports' : path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/billing/') ? '/billing' : path
   // tool pages light up Toolkit; Reports: /reports/all and /reports/scheduled are themselves, writing a report is New report,
@@ -129,6 +134,8 @@ export default function App() {
       {state === 'cookies' && <CookieBanner onChoose={() => {}} />}
       {/* the first-time walkthrough (mock only): Welcome and the pointers; ?walkthrough=new shows it from the start */}
       <Walkthrough />
+      {/* the notification card (?inbox=…), from the sidebar's Notifications row */}
+      <NotificationCard />
     </TrackingProvider>
   )
 }

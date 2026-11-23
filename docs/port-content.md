@@ -49,6 +49,7 @@ don't port it until the line says approved.
 | 403ff49 | A site on two page-1 spots: ladder shows both; matrix and competitor lists once at the best rank with "+1 page" (`bySite`, `MorePages`, rows' `others`); §13 | Approved · port with 2ec8a3e |
 | 2ec8a3e | "+1 page" fixes: two-line hover (page path + format / "Also #rank on Google page 1" + path) on the winners table and the draft rail, dotted underline, page-1 strip lights both spots of a site (others dim to 40%), brand display names (tidied domain for untracked sites) | Owner fixes · port with 403ff49 |
 | de2f86d | Sentiment scatter tweak: 24px clear of the cross's two lines and the edges (dot edge + badge, from a line's far side; badge inside the dot's corner; `EDGE = 25`) | Owner tweak · port with 9416ecd |
+| ae4af9b | What changed (header button + pull-out on every page with data over time; `src/whatChanged/`), "Updated <date>" into the page subtitle, Notifications (sidebar footer row + card, settings; `src/notifications/`, not `samples.js`: mock data), Trends tag Beta | Owner asked to commit for the port · queued |
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed

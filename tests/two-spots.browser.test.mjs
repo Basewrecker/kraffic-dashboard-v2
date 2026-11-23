@@ -13,6 +13,9 @@ import { chromePath } from './chromePath.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const SECOND = /^Also #\d+ on Google page 1 · \/\S*/
+// The test's own Vite server transforms ~330 modules on the first load (7–20s idle, past the 30s default when the Mac
+// is busy): a 90s ceiling, returning as soon as the page is there; then wait for elements, not for a quiet network.
+const LOAD_MS = 90_000
 
 test('two page-1 spots: display names, the two-line hover (table and rail), the dotted note, both circles lit', async () => {
   const server = await createServer({ root, logLevel: 'silent', server: { port: 0, strictPort: false } })
@@ -24,7 +27,7 @@ test('two page-1 spots: display names, the two-line hover (table and rail), the 
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
 
     // prompt 11: The Ordinary at #1 and #5
-    await page.goto(`${base}/opportunities/content/11`, { waitUntil: 'networkidle' })
+    await page.goto(`${base}/opportunities/content/11`, { waitUntil: 'domcontentloaded', timeout: LOAD_MS })
     const table = page.getByRole('table', { name: 'Formats by page' })
     await table.waitFor()
     const names = await table.locator('[role="rowheader"] .truncate.font-semibold').allInnerTexts()
@@ -43,8 +46,10 @@ test('two page-1 spots: display names, the two-line hover (table and rail), the 
     // the page-1 strip: hover one of The Ordinary's circles → both bright, the rest dimmed
     await page.mouse.move(5, 5)
     const slots = page.locator('[data-slot-host="theordinary.com"]')
+    await slots.first().waitFor()
     assert.equal(await slots.count(), 2, 'both spots on the strip')
     await slots.first().hover()
+    await page.locator('[data-slot-host][data-dim]').first().waitFor({ state: 'attached' })
     assert.equal(await page.locator('[data-slot-host="theordinary.com"][data-dim]').count(), 0, 'both of its circles stay bright')
     assert.ok(await page.locator('[data-slot-host][data-dim]').count() >= 5, 'the other sites dim')
     // (current layout: the card is drawn on the page's top layer, not inside the circle)
@@ -54,13 +59,15 @@ test('two page-1 spots: display names, the two-line hover (table and rail), the 
     assert.match(await cards.first().innerText(), /^The Ordinary · #\d+/, 'the card is that site\'s')
 
     // the Draft rail (prompt 2 opens on its draft): the display name, the dotted note, the same two lines
-    await page.goto(`${base}/opportunities/content/2`, { waitUntil: 'networkidle' })
+    await page.goto(`${base}/opportunities/content/2`, { waitUntil: 'domcontentloaded', timeout: LOAD_MS })
     const row = page.locator('li', { has: page.locator('[data-more-pages]') }).first()
+    await row.waitFor()
     await row.scrollIntoViewIfNeeded()
     assert.match(await row.locator('[data-more-pages]').getAttribute('class'), /decoration-dotted/)
     assert.doesNotMatch(await row.locator('.truncate.font-semibold').first().innerText(), /\.(com|org|net)\b/)
     await row.hover()
     const card = row.locator('[role="tooltip"]')
+    await card.waitFor({ state: 'visible' })
     const cl = (await card.innerText()).split('\n').map((s) => s.trim()).filter(Boolean)
     assert.match(cl[0], /^\/\S* · .+/, `rail line 1 (${cl[0]})`)
     assert.match(cl[1], SECOND, `rail line 2 (${cl[1]})`)

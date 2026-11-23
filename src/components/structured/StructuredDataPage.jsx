@@ -23,6 +23,8 @@ import FeatureOff from '../ui/FeatureOff'
 import { IMPORTANCE, KINDS, PAGE_COUNT, STATUS, analyze, isPageType, pageFor } from './analyze'
 import ErrorBoundary from '../ui/ErrorBoundary'
 import ActionSteps, { fmtMin, orderSteps } from '../ui/ActionSteps'
+import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
+import { structured as structuredChanges } from '../../whatChanged/structured'
 
 // /structured-data — "Structured Data": which schema.org types the site publishes and what to add.
 // Same system as /audit: header, scope bar (?scope=page&url=), underline tabs (?tab=), rows → Schema drawer (?schema=).
@@ -168,6 +170,8 @@ export default function StructuredDataPage() {
             { label: 'Client report', icon: FileText, onClick: exportReport },
             { label: 'Share link', icon: Share2, onClick: share },
           ]} />}
+          {/* What changed: the row's right end, once there's a crawl */}
+          {on && SD.crawled && <WhatChangedButton config={structuredChanges} size="md" />}
         </div>
       </div>
 
@@ -220,6 +224,7 @@ export default function StructuredDataPage() {
       <HowModal open={howOpen} onClose={() => setHowOpen(false)} />
       {failed?.length > 0 && <CrawlErrors failed={failed} date={lastRun.date} />}
       <ErrorBoundary name="Schema drawer" floating><SchemaDrawer result={result} scope={scope} /></ErrorBoundary>
+      {on && SD.crawled && <WhatChangedPanel config={structuredChanges} />}
       {toastNode}
     </>
   )

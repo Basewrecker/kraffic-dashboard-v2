@@ -31,6 +31,8 @@ import { KpiCards } from '@/components/mock-overview/content-v1'
 import { RowTip } from '@/components/mock-overview/content-v1'
 import StatusCell, { STATUS_WIDTH } from './list/StatusCell'
 import { statusText, tabById, withStage } from './list/model'
+import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
+import { content as contentChanges } from '../../whatChanged/content'
 
 // A draft written in this browser (the brief saved under the app's key, `written`) shows as "Draft ready" and opens
 // on its Draft step; the sample states (proposed data) take precedence.
@@ -187,8 +189,13 @@ export default function ContentList() {
           <h1 className="text-[28px] leading-[34px] font-semibold tracking-[-0.02em] text-stone-900">Content</h1>
           <p className="mt-1 text-body text-stone-600">Let’s create winning copies</p>
         </div>
-        <GuidelinesButton domain={CO_BRAND.domain} brand={CO_BRAND.name} />
+        {/* What changed at the right end, the guidelines button's height (h-9) */}
+        <div className="flex shrink-0 items-start gap-2">
+          <GuidelinesButton domain={CO_BRAND.domain} brand={CO_BRAND.name} />
+          <WhatChangedButton config={contentChanges} size="md" />
+        </div>
       </div>
+      <WhatChangedPanel config={contentChanges} />
       {(scState === 'new' || scState === 'skipped' || scState === 'reconnect' || scState === 'no-property' || scOn) && (
         <div data-sc-banner role="status" className="mb-1 flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg bg-tint px-4 py-2.5">
           <span className="flex min-w-0 items-center gap-2.5 text-[14px] leading-5 text-stone-700"><GoogleIcon size={16} />
