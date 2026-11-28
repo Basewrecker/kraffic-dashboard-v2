@@ -1240,3 +1240,13 @@ html[data-theme="dark"] { --medal-silver-text: #C4CAD4; --medal-bronze-text: #DD
   .gl-check-in path { stroke-dashoffset: 0; animation: fade-in var(--motion-morph) ease-out both; }
   .gl-eye-in { animation: fade-in var(--motion-morph) ease-out both; }
 }
+
+/* Connect and Research (as the app, #223 / #232): the rows fade in once, 30ms apart; a Connect button that has just
+   connected becomes the Connected pill (the morph, 250ms). Reduced motion: fades only. */
+.rc-row { animation: fade-in var(--motion-step) var(--motion-ease-out) both; animation-delay: calc(var(--i, 0) * var(--motion-stagger)); }
+.rc-morph { animation: rc-morph var(--motion-morph) var(--motion-ease-out) both; transform-origin: right center; }
+@keyframes rc-morph { from { opacity: 0; transform: scale(var(--motion-menu-scale)); } }
+@media (prefers-reduced-motion: reduce) {
+  .rc-row { animation-delay: 0ms; }
+  .rc-morph { animation: fade-in var(--motion-morph) ease-out both; }
+}

@@ -5,6 +5,7 @@ import Modal from '../ui/Modal'
 import Segmented from '../dashboard/Segmented'
 import { PrimaryButton, SecondaryButton } from '../dashboard/overlays'
 import ConfirmPopover from './ConfirmPopover'
+import ResearchConnect from './ResearchConnect'
 import { getResearch, researchMeta } from '../../data/research'
 import { promptActions } from '../../data/mock'
 
@@ -31,11 +32,16 @@ function Checkbox({ checked, indeterminate = false, disabled, onChange, label })
   )
 }
 
+// Two steps (as the app, #216 / #223 / #232): "Connect and Research" first (ResearchConnect: the sources research can
+// read), then Continue starts the research. The research step has real loading, empty and error states.
+// ?researchState=empty | error (preview only) shows those two.
 // trackedTexts: lowercase prompt texts already in the table, so "Already tracking" stays true after adds.
 // topic: opened from Setup's "Run research" for a new product/topic → its prompts are added and the list starts filtered to it.
 export default function ResearchModal({ open, onClose, trackedTexts, onAdd, topic = null }) {
   const [run, setRun] = useState({ round: 0, extraPages: 0, updated: researchMeta.updated, pagesFound: researchMeta.pagesFound, pagesAnalyzed: researchMeta.pagesAnalyzed })
-  const [loading, setLoading] = useState(null) // 'check' | 'rerun' | null
+  const [loading, setLoading] = useState(null) // 'start' | 'check' | 'rerun' | null
+  const [step, setStep] = useState('connect') // 'connect' → 'research'
+  const previewState = new URLSearchParams(window.location.search).get('researchState')
   const [tab, setTab] = useState('all')
   const [category, setCategory] = useState('all')
   const [query, setQuery] = useState('')
@@ -54,7 +60,7 @@ export default function ResearchModal({ open, onClose, trackedTexts, onAdd, topi
   useEffect(() => {
     if (open) setSelected(new Set(newOnes.map((s) => s.id)))
   }, [open, suggestions]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (open) { setTab('all'); setCategory('all'); setQuery(topic ?? '') } }, [open, topic])
+  useEffect(() => { if (open) { setStep('connect'); setRunError(null); setTab('all'); setCategory('all'); setQuery(topic ?? '') } }, [open, topic])
 
   const shown = suggestions.filter((s) =>
     (tab === 'all' || s.status === tab) &&
@@ -76,9 +82,13 @@ export default function ResearchModal({ open, onClose, trackedTexts, onAdd, topi
     setRunError(null)
     const work = kind === 'rerun' ? promptActions.onRerunResearch() : Promise.resolve()
     Promise.all([work, new Promise((r) => setTimeout(r, SKELETON_MS))])
-      .then(() => setRun((r) => kind === 'check'
-        ? { ...r, extraPages: r.extraPages + 1, pagesFound: r.pagesFound + 3, pagesAnalyzed: r.pagesAnalyzed + 3, updated: stamp() }
-        : { ...r, round: r.round + 1, extraPages: 0, updated: stamp() }))
+      .then(() => {
+        if (previewState === 'error') throw new Error('Research couldn’t run. Try again.')
+        if (kind === 'start') return
+        setRun((r) => kind === 'check'
+          ? { ...r, extraPages: r.extraPages + 1, pagesFound: r.pagesFound + 3, pagesAnalyzed: r.pagesAnalyzed + 3, updated: stamp() }
+          : { ...r, round: r.round + 1, extraPages: 0, updated: stamp() })
+      })
       .catch((err) => setRunError(err?.message || 'Research couldn’t run. Try again.'))
       .finally(() => setLoading(null))
   }
@@ -125,24 +135,41 @@ export default function ResearchModal({ open, onClose, trackedTexts, onAdd, topi
     </>
   )
 
+  const closeBtn = 'inline-flex h-9 items-center rounded-lg px-3 text-small font-medium text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus'
+  if (step === 'connect') {
+    return (
+      <Modal open={open} onClose={onClose} size="lg" stepKey="connect" title="Connect and Research" subtitle="Read-only access. We never change anything in your accounts."
+        footer={<>
+          <button type="button" onClick={onClose} className={closeBtn}>Close</button>
+          <PrimaryButton size="sm" onClick={() => { setStep('research'); refresh('start') }}>Continue</PrimaryButton>
+        </>}>
+        <ResearchConnect />
+      </Modal>
+    )
+  }
+  const empty = previewState === 'empty' || suggestions.length === 0
+  const failed = Boolean(runError) && loading == null && previewState === 'error'
+
   const footer = (
     <>
       <button type="button" onClick={onClose} className="inline-flex h-9 items-center rounded-lg px-3 text-small font-medium text-stone-600 outline-none transition-colors duration-150 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
         Close
       </button>
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {runError && <span role="alert" className="text-[13px] leading-[18px] text-negative">{runError}</span>}
-        {promptActions.canCheckNewPages && (
+        {runError && !failed && <span role="alert" className="text-[13px] leading-[18px] text-negative">{runError}</span>}
+        {promptActions.canCheckNewPages && !empty && !failed && (
           <SecondaryButton size="sm" icon={loading === 'check' ? Spinner : undefined} disabled={Boolean(loading)} onClick={() => refresh('check')}>
             Check for new pages
           </SecondaryButton>
         )}
-        {promptActions.canRerunResearch && <SecondaryButton size="sm" icon={loading === 'rerun' ? Spinner : undefined} disabled={Boolean(loading)} onClick={(e) => setConfirmAnchor(e.currentTarget)}>
+        {promptActions.canRerunResearch && !empty && !failed && <SecondaryButton size="sm" icon={loading === 'rerun' ? Spinner : undefined} disabled={Boolean(loading)} onClick={(e) => setConfirmAnchor(e.currentTarget)}>
           Re-run research
         </SecondaryButton>}
-        <PrimaryButton size="sm" disabled={!selectedCount || Boolean(loading)} onClick={() => onAdd(newOnes.filter((s) => selected.has(s.id)))}>
-          Add {selectedCount} prompt{selectedCount === 1 ? '' : 's'}
-        </PrimaryButton>
+        {!empty && !failed && (
+          <PrimaryButton size="sm" disabled={!selectedCount || Boolean(loading)} onClick={() => onAdd(newOnes.filter((s) => selected.has(s.id)))}>
+            Add {selectedCount} prompt{selectedCount === 1 ? '' : 's'}
+          </PrimaryButton>
+        )}
       </div>
     </>
   )
@@ -152,10 +179,11 @@ export default function ResearchModal({ open, onClose, trackedTexts, onAdd, topi
       open={open}
       onClose={onClose}
       size="lg"
+      stepKey="research"
       title="Prompt research"
-      subtitle={`${researchMeta.domain} · ${counts.all} suggestions · updated ${run.updated}`}
-      meta={`Based on ${run.pagesFound} pages (${run.pagesAnalyzed} analyzed) and competitors ${researchMeta.competitors.join(', ')}`}
-      toolbar={toolbar}
+      subtitle={empty || failed ? researchMeta.domain : `${researchMeta.domain} · ${counts.all} suggestions · updated ${run.updated}`}
+      meta={empty || failed ? null : `Based on ${run.pagesFound} pages (${run.pagesAnalyzed} analyzed) and competitors ${researchMeta.competitors.join(', ')}`}
+      toolbar={empty || failed ? null : toolbar}
       footer={footer}
     >
       {loading ? (
@@ -167,6 +195,18 @@ export default function ResearchModal({ open, onClose, trackedTexts, onAdd, topi
               <span className="shimmer ml-auto h-4 w-24 rounded" />
             </div>
           ))}
+        </div>
+      ) : failed ? (
+        <div role="alert" className="flex flex-col items-center px-4 py-12 text-center">
+          <p className="text-[15px] leading-5 font-semibold text-stone-900">Research couldn’t run</p>
+          <p className="mt-1 max-w-[420px] text-[14px] leading-5 text-stone-600 text-pretty">Nothing was added or changed. Try again in a moment.</p>
+          <div className="mt-4"><SecondaryButton size="sm" onClick={() => refresh('start')}>Retry</SecondaryButton></div>
+        </div>
+      ) : empty ? (
+        <div className="flex flex-col items-center px-4 py-12 text-center">
+          <p className="text-[15px] leading-5 font-semibold text-stone-900">No prompt ideas yet</p>
+          <p className="mt-1 max-w-[420px] text-[14px] leading-5 text-stone-600 text-pretty">Research didn’t find questions to suggest from your site and sources. Connect a source or upload a file, then run it again.</p>
+          <div className="mt-4"><SecondaryButton size="sm" onClick={() => setStep('connect')}>Back to sources</SecondaryButton></div>
         </div>
       ) : groups.length === 0 ? (
         <p className="py-10 text-center text-small text-stone-600">No suggestions match these filters</p>

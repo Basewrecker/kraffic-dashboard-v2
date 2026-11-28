@@ -6,6 +6,7 @@ import { PrimaryButton } from '../dashboard/overlays'
 import { promptCategories, trackedPrompts } from '../../data/mock'
 // the CSV reading and the main button (utils/promptImport.js, tested without a browser)
 import { PREVIEW_ROWS, importButton, parseCsvFile } from '../../utils/promptImport'
+import { promptUsage } from '../../plan/plan'
 
 const fmtSize = (b) => (b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`)
 const ghostBtn = 'inline-flex h-9 items-center rounded-lg px-3 text-small font-medium text-stone-600 outline-none transition-colors duration-150 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus'
@@ -56,8 +57,14 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
   const known = new Map(promptCategories.map((c) => [c.toLowerCase(), c]))
   const resolve = (c) => known.get(c.toLowerCase()) ?? defaultCategory
 
+  // as the app (#216): the dialog says what will happen before it does: how many are new, how many are already
+  // tracked, and how many fit when the plan is short (only those are added)
+  const room = promptUsage().left
+  const fits = parsed ? Math.min(parsed.rows.length, room) : 0
+  const short = parsed ? parsed.rows.length > room : false
+
   const doImport = () => {
-    const rows = parsed.rows.map((r) => ({ text: r.text, category: resolve(r.category) }))
+    const rows = parsed.rows.slice(0, fits).map((r) => ({ text: r.text, category: resolve(r.category) }))
     onImport(rows)
     setImported({ count: rows.length })
     setStep('done')
@@ -77,7 +84,7 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
     upload: (
       <>
         <button type="button" onClick={onClose} className={ghostBtn}>Cancel</button>
-        <PrimaryButton size="sm" disabled={main.disabled} onClick={main.action === 'import' ? doImport : pick} data-import-main="">{main.label}</PrimaryButton>
+        <PrimaryButton size="sm" disabled={main.disabled || (main.action === 'import' && fits === 0)} onClick={main.action === 'import' ? doImport : pick} data-import-main="">{main.action === 'import' && short && fits > 0 ? `Import ${fits} prompt${fits === 1 ? '' : 's'}` : main.label}</PrimaryButton>
       </>
     ),
     done: (
@@ -164,6 +171,13 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
                   </p>
                 )}
               </div>
+            )}
+            {parsed && (
+              <p className="mt-3 text-[13px] leading-[18px] text-stone-600 tabular-nums text-pretty" data-import-summary="">
+                <span className="font-medium text-stone-900">Add to your {trackedTexts.size.toLocaleString('en-US')} prompts:</span>{' '}
+                adds {parsed.rows.length.toLocaleString('en-US')} new, skips {parsed.duplicates.toLocaleString('en-US')} already tracked.
+                {short && <> Your plan has room for {room.toLocaleString('en-US')} more, so the first {fits.toLocaleString('en-US')} will be added.</>}
+              </p>
             )}
             {error && (
               <p role="alert" className="mt-2 flex items-center gap-1.5 text-[13px] leading-[18px] text-negative">
