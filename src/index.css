@@ -1177,3 +1177,8 @@ html[data-theme="dark"] { --connected-bg: color-mix(in srgb, var(--connected) 14
    pixels (the --real-* name keeps the UI scale off it), content at most 1440px wide and centred (App.jsx <main>). */
 :root { --real-gutter: clamp(24px, 3vw, 48px); }
 @media (min-width: 1024px) { .page-gutters { padding-left: var(--real-gutter); padding-right: var(--real-gutter); } }
+
+/* a logo file that is a near-black tile gets a 1px hairline in dark mode so it doesn't vanish (as the app, #235):
+   the Trusted by strip, the brand menus */
+html[data-theme="dark"] .logo-dark-tile { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.18); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .logo-dark-tile { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.18); } }

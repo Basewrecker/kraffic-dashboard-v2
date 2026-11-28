@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 const EVENT = 'app:navigate'
 
 // old routes → new ones (query string and hash are kept), so bookmarks and ?view= / ?engine= links still work
-export const REDIRECTS = { '/': '/overview', '/prompts': '/tracker', '/setup': '/brands', '/llm-settings': '/tracking' }
+export const REDIRECTS = { '/': '/overview', '/prompts': '/tracker', '/setup': '/brands', '/llm-settings': '/tracking', '/billing': '/plans', '/billing/plans': '/plans' }
 const resolve = (to) => {
   const url = new URL(to, window.location.origin)
   if (REDIRECTS[url.pathname]) url.pathname = REDIRECTS[url.pathname]

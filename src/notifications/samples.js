@@ -41,7 +41,7 @@ export const SAMPLE_ITEMS = [
   { id: 'sample:draft-waiting:7', type: 'draft-waiting', kind: 'system', icon: 'warn', at: '2026-11-03T07:00:00Z', page: 'Content',
     text: ['Your draft for ', B(`“${m(7)}”`), ' has waited ', B('9 days'), ' for review'], href: '/opportunities/content/7', action: 'Review draft', weight: 12 },
   { id: 'sample:limit:prompts', type: 'limit', kind: 'system', icon: 'warn', at: '2026-10-30T07:00:00Z', page: 'Billing',
-    text: [B('180 of 200 prompts'), ' used on your plan'], href: '/billing', action: 'See plan', weight: 10 },
+    text: [B('180 of 200 prompts'), ' used on your plan'], href: '/plans', action: 'See plan', weight: 10 },
   { id: 'sample:skipped:claude', type: 'scan-skipped', kind: 'system', icon: 'warn', at: '2026-10-28T08:00:00Z', page: 'Tracking',
     text: [B('Claude was down'), ', so its part of the Oct 28 scan was skipped. It runs again in the next scan'], href: '/tracking', weight: 9 },
   { id: 'sample:getting-started', type: 'getting-started', kind: 'system', icon: 'done', at: '2026-11-03T06:00:00Z', page: 'Getting started',
