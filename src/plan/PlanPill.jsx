@@ -13,18 +13,25 @@ import { PLANS_HREF, roomPill } from './plan.js'
 const SEEN = 'auden:plan-pill:seen'
 export default function PlanPill({ className = '' }) {
   const p = roomPill()
-  const first = (() => { try { return !sessionStorage.getItem(SEEN) && !reducedMotion() } catch { return false } })()
-  const [pct, setPct] = useState(first ? 0 : p.pct)
-  const [left, setLeft] = useState(first ? p.limit : p.left)
+  // once per visit the ring fills and the number counts down. After an upgrade (the limit changed since the pill was
+  // last shown) the ring moves from where it was and the number rolls to the new room, so the upgrade shows here too
+  const LAST = 'auden:plan-pill:last'
+  const read = (k) => { try { return sessionStorage.getItem(k) } catch { return null } }
+  const last = (() => { try { return JSON.parse(read(LAST) ?? 'null') } catch { return null } })()
+  const first = !read(SEEN) && !reducedMotion()
+  const changed = !first && last && (last.left !== p.left || last.pct !== p.pct) && !reducedMotion()
+  const [pct, setPct] = useState(first ? 0 : changed ? last.pct : p.pct)
+  const [left, setLeft] = useState(first ? p.limit : changed ? last.left : p.left)
   useEffect(() => {
-    if (!first) { setPct(p.pct); setLeft(p.left); return undefined }
-    try { sessionStorage.setItem(SEEN, '1') } catch { /* private window: it plays again next time */ }
+    try { sessionStorage.setItem(SEEN, '1'); sessionStorage.setItem(LAST, JSON.stringify({ left: p.left, pct: p.pct })) } catch { /* private window */ }
+    if (!first && !changed) { setPct(p.pct); setLeft(p.left); return undefined }
+    const start = first ? p.limit : last.left
     const raf0 = requestAnimationFrame(() => setPct(p.pct))
     const t0 = performance.now()
     let raf
     const step = (t) => {
       const k = Math.min(1, (t - t0) / 600)
-      setLeft(Math.round(p.limit - (p.limit - p.left) * (1 - Math.pow(1 - k, 3))))
+      setLeft(Math.round(start + (p.left - start) * (1 - Math.pow(1 - k, 3))))
       if (k < 1) raf = requestAnimationFrame(step)
     }
     raf = requestAnimationFrame(step)

@@ -7,12 +7,13 @@ import { billingState, priceOf, tabFor, WORKSPACE } from '../../billing/state.js
 import { money, shortDate } from '../../billing/format.js'
 import { B, Btn, DateTip, Pending, RenewalTerms, Skeleton, StatusPill, Tabs, TextLink } from '../../billing/ui.jsx'
 import BillingTab from './BillingTab'
-import ReviewModal from './ReviewModal'
 import SiteLogo from '../../components/ui/SiteLogo'
 import { PlatformIcon } from '../../components/dashboard/icons'
 import HeaderBell from '../../notifications/NotificationsBell'
 import { account } from '../../data/mock'
-import { PLAN, isSuperadmin, promptUsage } from '../../plan/plan.js'
+import { PLAN, activePlan, isSuperadmin, promptUsage } from '../../plan/plan.js'
+import { setMoment, useMoment } from '../../billing/moment.js'
+import { reducedMotion } from '../../lib/motionTokens'
 import { FOOT_NOTE, GROUPS, PLANS, SECTIONS, TRUSTED, planAction, planNote } from '../../plan/catalog.js'
 
 // Plans (/plans; the old /billing address lands here). As the app's page (components/dashboard-redesign/plans.tsx,
@@ -80,7 +81,7 @@ function cardAction(plan, b, current) {
   if (plan.custom || priceOf(plan.id) == null) return { label: 'Talk to us', look: 'soft', act: 'request', legacy: true }
   const guard = (x) => (b.who === 'viewas' ? { ...x, off: 'Can’t change plans from this view', helper: null } : b.who === 'member' ? { ...x, dead: true, helper: 'Only the account owner can change the plan.' } : x)
   switch (b.status) {
-    case 'demo': return guard({ label: 'Subscribe', look: mine ? 'ink' : 'soft', act: 'review', tag: mine ? 'Your demo plan' : null })
+    case 'demo': return guard({ label: !mine && planAction(plan, current) === 'Upgrade' ? 'Upgrade' : 'Subscribe', look: mine ? 'ink' : 'soft', act: 'review', tag: mine ? 'Your demo plan' : null })
     case 'pending': return b.pending.plan.id === plan.id
       ? guard({ label: 'Finish payment', look: 'ink', act: 'pay', helper: <>You started a payment for {plan.name}. <Pending n="decision 13">It’s held until <B>{date(b.pending.heldUntil)}</B>, {b.pending.heldTime}.</Pending></> })
       : { label: 'Subscribe', look: 'soft', dead: true }
@@ -99,7 +100,7 @@ function cardAction(plan, b, current) {
   }
 }
 
-function PlanCard({ plan, b, current, req, onAct }) {
+function PlanCard({ plan, b, current, req, onAct, picked = false, gone = false, landed = false }) {
   const a = cardAction(plan, b, current)
   const priced = b.pricesShown && b.canPay && priceOf(plan.id) != null
   // which plan the "+100 prompts" note compares with: yours; none marked for an ended or plan-less account
@@ -121,16 +122,16 @@ function PlanCard({ plan, b, current, req, onAct }) {
           : <Btn look={a.look} size="lg" full off={a.off} disabled={a.dead} busy={req === 'opening'} onClick={a.act ? (e) => onAct(a.act, plan, e.currentTarget) : undefined}>{a.label}</Btn>
   return (
     // border: light at rest, ink only on hover or focus; the "Most chosen" card is not raised
-    <article aria-label={`${plan.name} plan`} data-plan={plan.id} data-lead={yours || a.look === 'ink' ? '' : undefined} className={`flex min-w-[240px] flex-1 snap-start flex-col rounded-2xl border bg-surface p-5 transition-[border-color] duration-150 hover:border-ink focus-within:border-ink ${yours ? 'border-ink' : 'border-line'}`}>
+    <article aria-label={`${plan.name} plan`} data-plan={plan.id} data-picked={picked ? '' : undefined} data-gone={gone ? '' : undefined} data-landed={landed ? '' : undefined} data-lead={yours || a.look === 'ink' ? '' : undefined} className={`flex min-w-[240px] flex-1 snap-start flex-col rounded-2xl border bg-surface p-5 transition-[border-color] duration-150 hover:border-ink focus-within:border-ink ${yours ? 'border-ink' : 'border-line'}`}>
       <div className="flex items-center gap-2">
-        <h3 className="truncate text-title font-medium text-stone-900">{plan.name}</h3>
+        <h3 data-card-name className="truncate text-title font-medium text-stone-900">{plan.name}</h3>
         {/* the current plan is marked by its tag and an ink outline (as the live Plans page); it takes the tag's place */}
         {(yours ? (a.tag ?? 'Your plan') : (a.tag ?? plan.tag)) && <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-tint px-2 text-[12px] leading-4 font-medium text-stone-600">{yours ? (a.tag ?? 'Your plan') : (a.tag ?? plan.tag)}</span>}
       </div>
       {/* the big number: the plan's prompts; where billing is live, the workspace's price with a small muted "/mo"
           (the one place "/mo" is used). The number stays with its unit */}
       {priced
-        ? <Pending as="p" n="decision 6" className="mt-2.5 whitespace-nowrap"><span className="text-kpi font-bold tabular-nums text-stone-900">{money(priceOf(plan.id))}</span> <span className="text-[13px] leading-[18px] text-stone-500">/mo</span></Pending>
+        ? <Pending as="p" n="decision 6" className="mt-2.5 whitespace-nowrap"><span data-card-num className="text-kpi font-bold tabular-nums text-stone-900">{money(priceOf(plan.id))}</span> <span className="text-[13px] leading-[18px] text-stone-500">/mo</span></Pending>
         : <p className="mt-2.5 whitespace-nowrap"><span className="text-kpi font-bold tabular-nums text-stone-900">{plan.prompts}{plan.promptsPlus ? '+' : ''}</span> <span className="text-[13px] leading-[18px] text-stone-500">prompts</span></p>}
       <div aria-hidden className="mt-3 h-px bg-line" />
       <p className={`mt-3 line-clamp-2 min-h-[44px] text-[13px] leading-[18px] text-pretty tabular-nums ${yours ? 'font-medium text-stone-700' : 'text-stone-500'}`}>{note}</p>
@@ -195,7 +196,8 @@ export default function PlansPage() {
   const params = useParams() // re-draws when the address changes (states and actions live in the address)
   const b = billingState()
   const none = params.get('plan') === 'none' || (b.live && ['none', 'ended', 'demo-ended'].includes(b.status))
-  const current = none ? null : PLANS.find((p) => p.id === PLAN.id)
+  const current = none ? null : PLANS.find((p) => p.id === activePlan().id)
+  const mo = useMoment()
   const viewAs = b.who === 'viewas'
   const u = promptUsage()
   const show = params.get('show')
@@ -214,7 +216,16 @@ export default function PlansPage() {
     if (act === 'request') {
       setReq((r) => ({ ...r, [plan.id]: 'sending' }))
       setTimeout(() => setReq((r) => ({ ...r, [plan.id]: preview === 'failed' ? 'failed' : 'sent' })), 900)
-    } else if (act === 'review') setParams({ review: plan.id, rshow: null }, { push: true })
+    } else if (act === 'review') {
+      // the card the client picks is one continuous object (owner, 2026-11-28): it lifts here, then flies into its place
+      // in the checkout's first step (Checkout.jsx). Phones and reduced motion: straight to the checkout
+      const card = anchor?.closest?.('article')
+      if (card && !reducedMotion() && window.matchMedia('(min-width: 768px)').matches) {
+        const r = (sel) => card.querySelector(sel)?.getBoundingClientRect() ?? null
+        setMoment({ pick: { planId: plan.id, rect: card.getBoundingClientRect(), nameRect: r('[data-card-name]'), numRect: r('[data-card-num]') }, landed: null })
+        setTimeout(() => navigate(`/plans/checkout?plan=${plan.id}&from=${activePlan().id}`), 170)
+      } else navigate(`/plans/checkout?plan=${plan.id}&from=${activePlan().id}`)
+    }
     else if (act === 'manage') { setParams({ tab: 'billing', msg: null }); requestAnimationFrame(() => document.getElementById('billing-first')?.focus()) }
     else if (act === 'change') setParams({ tab: 'billing', change: plan.id, msg: null })
     else if (act === 'withdraw' || act === 'resume') setConfirm({ kind: act, anchor, plan })
@@ -309,8 +320,9 @@ export default function PlansPage() {
       ) : (
         <>
           <div className="mt-2"><GroupSwitch id="plans-top" value={group} onChange={setGroup} counts={counts} /></div>
-          <div ref={row} className="no-scrollbar -mx-1 flex snap-x snap-mandatory scroll-px-1 items-stretch gap-3 overflow-x-auto px-1 py-1" style={{ maskImage: mask, WebkitMaskImage: mask }}>
-            {shown.map((p) => <PlanCard key={p.id} plan={p} b={b} current={current} req={stateOf(p)} onAct={onAct} />)}
+          <div ref={row} data-picking={mo.pick ? mo.pick.planId : undefined} className="plan-row no-scrollbar -mx-1 flex snap-x snap-mandatory scroll-px-1 items-stretch gap-3 overflow-x-auto px-1 py-1.5" style={{ maskImage: mask, WebkitMaskImage: mask }}>
+            {shown.map((p) => <PlanCard key={p.id} plan={p} b={b} current={current} req={stateOf(p)} onAct={onAct}
+              picked={mo.pick?.planId === p.id} gone={false} landed={mo.landed === p.id} />)}
           </div>
 
           {/* the compare table, with no heading of its own (as live, 2026-11-28) */}
@@ -383,7 +395,6 @@ export default function PlansPage() {
         {b.hasSub && tab === 'billing' ? <BillingTab b={b} /> : plansTab}
       </div>
 
-      <ReviewModal b={b} />
       {confirm?.kind === 'withdraw' && (
         <ConfirmPopover anchor={confirm.anchor} title={`Stay on ${b.plan.name}?`} body={`The switch to ${confirm.plan.name} on ${shortDate(b.scheduled?.starts)} is withdrawn.`} confirmLabel="Withdraw change" cancelLabel="Keep it"
           onConfirm={() => { setConfirm(null); setParams({ sub: 'active', msg: 'withdrawn' }) }} onCancel={() => setConfirm(null)} />

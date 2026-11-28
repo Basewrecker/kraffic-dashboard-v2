@@ -3,6 +3,9 @@ import { Check, Clock, CreditCard, Loader2, ReceiptText, ShieldCheck, TriangleAl
 import { navigate } from '../../router'
 import { billingState, WORKSPACE, whyOff } from '../../billing/state.js'
 import { Btn, B, DateTip, InlineError, Pending } from '../../billing/ui.jsx'
+import { getMoment, setMoment, useMoment } from '../../billing/moment.js'
+import { setParams, useParams } from '../../components/audit/parts'
+import { activePlan } from '../../plan/plan.js'
 
 // Screen 3. The return page (/plans/return): where the owner lands coming back from the payment page. A single
 // centred card inside the normal shell; no dialog. One icon, one headline, one or two lines, one or two buttons.
@@ -10,6 +13,10 @@ import { Btn, B, DateTip, InlineError, Pending } from '../../billing/ui.jsx'
 // States, by ?show=: loading · processing · paid (default) · declined (&reason=funds|expired|details|bank|other) ·
 // bank (needs the bank's approval) · expired · error · empty. ?userId=… : an admin's View as (read-only).
 // Clients never see the word "Stripe": it's the "payment page".
+// Processing and paid are the full-screen moment (billing/PaymentMoment.jsx, owner 2026-11-28): this page starts it.
+// ?show=processing waits (on the real app: until the confirmation arrives); &then=paid|declined|bank|expired|error is
+// what the mock's stand-in confirmation brings back after a second or two. The other states are this light card;
+// arriving from the moment it rises in as the ink fades. &plan= and &from= are the plan bought and the one before.
 const DECLINE = {
   funds: 'The card doesn’t have enough funds.',
   expired: 'The card has expired.',
@@ -25,8 +32,25 @@ function Tile({ children }) {
 }
 
 export default function ReturnPage() {
+  useParams() // re-draws when the confirmation changes ?show=
   const b = billingState()
   const show = q().get('show') ?? 'paid'
+  const planId = q().get('plan') ?? 'growth'
+  const fromId = q().get('from') ?? activePlan().id
+  const { moment } = useMoment()
+  const arrived = useRef(false) // this card came out of the moment (it rises in under the fading ink)
+  // processing / paid: start the moment; the stand-in confirmation brings back ?then= after a second or two
+  useEffect(() => {
+    if (show !== 'processing' && show !== 'paid') return undefined
+    if (!getMoment().moment) setMoment({ moment: { phase: show, plan: planId, from: fromId } })
+    const then = q().get('then')
+    if (show !== 'processing' || !then || then === 'hold') return undefined
+    const t = setTimeout(() => {
+      if (then === 'paid') { setParams({ show: 'paid', then: null }); setMoment({ moment: { ...getMoment().moment, phase: 'paid' } }) }
+      else { arrived.current = true; setParams({ show: then, then: null }); setMoment({ moment: { ...getMoment().moment, phase: 'leaving' } }) }
+    }, 1400 + Math.round(Math.random() * 700))
+    return () => clearTimeout(t)
+  }, [show]) // eslint-disable-line react-hooks/exhaustive-deps
   const reason = DECLINE[q().get('reason')] ?? DECLINE.other
   const off = whyOff(b) && b.who === 'viewas' ? whyOff(b) : null
   const head = useRef(null)
@@ -61,7 +85,7 @@ export default function ReturnPage() {
     declined: {
       live: 'alert', icon: <CreditCard size={20} />, title: 'Your card was declined',
       body: <><InlineError>{reason}</InlineError><span className="mt-1.5 block">Nothing was charged.</span></>,
-      buttons: <><Btn look="ink" off={off}>Try again</Btn>{plans('Choose another plan')}</>,
+      buttons: <><Btn look="ink" off={off} onClick={() => navigate(`/plans/pay?kind=checkout&plan=${planId}&from=${fromId}`)}>Try again</Btn>{plans('Choose another plan')}</>,
     },
     bank: {
       live: 'status', icon: <ShieldCheck size={20} />, title: 'Your bank needs to approve this payment',
@@ -84,10 +108,12 @@ export default function ReturnPage() {
       buttons: plans('See plans', 'ink'),
     },
   }[show] ?? null
+  // processing and paid live in the full-screen moment; nothing under it
+  if (show === 'processing' || (show === 'paid' && moment)) return <div className="min-h-[60vh]" />
   if (!S) return null
   return (
     <div className="grid min-h-[60vh] place-items-center py-8">
-      <section role={S.live} aria-labelledby="return-title" className="flex w-full max-w-[480px] flex-col items-center rounded-2xl border border-line bg-surface px-6 py-10 text-center md:px-10">
+      <section role={S.live} aria-labelledby="return-title" className={`${arrived.current ? 'moment-reveal ' : ''}flex w-full max-w-[480px] flex-col items-center rounded-2xl border border-line bg-surface px-6 py-10 text-center md:px-10`}>
         <Tile>{S.icon}</Tile>
         <h1 id="return-title" ref={head} tabIndex={-1} className="mt-5 text-[22px] leading-7 font-semibold tracking-[-0.01em] text-stone-900 text-balance outline-none">{S.title}</h1>
         {S.body && <div className="mt-2 text-[14px] leading-5 text-stone-600 text-pretty">{S.body}</div>}

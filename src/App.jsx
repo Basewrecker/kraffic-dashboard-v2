@@ -28,6 +28,8 @@ import HistoryPanel from './components/dashboard/HistoryPanel'
 import BillingStates from './pages/plans/BillingStates'
 import { AccessEnded, ReducedShell, ShellNotices, isReduced } from './billing/Shell'
 import { billingState } from './billing/state.js'
+import PaymentMoment from './billing/PaymentMoment'
+import Checkout from './pages/plans/Checkout'
 import ConsoleRouter from './pages/console/ConsoleRouter'
 import { useParams as useUrlParams } from './components/audit/parts'
 import TeamPage from './pages/team/TeamPage'
@@ -130,6 +132,8 @@ export default function App() {
   // billing (screen 6): an ended account signs in to the Plans page only, in a reduced shell; a demo that expired
   // where billing isn't live keeps today's small card
   // billing's two superadmin console pages (screens 7 and 8) sit outside the dashboard's shell
+  // the checkout (owner, 2026-11-28): a focused full page, no sidebar
+  if (path.startsWith('/plans/checkout')) return <TrackingProvider initial={krafficBackend ? initialTracking : appInitialTracking}><Checkout /></TrackingProvider>
   if (path.startsWith('/console')) return <TrackingProvider initial={krafficBackend ? initialTracking : appInitialTracking}><ConsoleRouter /></TrackingProvider>
   const bill = billingState()
   if (isReduced(bill)) return <TrackingProvider initial={krafficBackend ? initialTracking : appInitialTracking}><ReducedShell><PlansRouter /></ReducedShell></TrackingProvider>
@@ -161,6 +165,8 @@ export default function App() {
       <Walkthrough />
       {/* the notification card (?inbox=…), from the sidebar's Notifications row */}
       <NotificationCard />
+      {/* billing: the full-screen moment after the payment page (confirming, then the confirmation) */}
+      <PaymentMoment />
     </TrackingProvider>
   )
 }

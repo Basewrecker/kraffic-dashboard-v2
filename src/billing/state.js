@@ -11,7 +11,7 @@
 //
 // Words: the product's 30-day free period is a "demo" everywhere (never "trial"). Clients never see "Stripe".
 import { PLANS } from '../plan/catalog.js'
-import { PLAN } from '../plan/plan.js'
+import { PLAN, activePlan } from '../plan/plan.js'
 import { TODAY, addDays, addMonths } from './format.js'
 
 // The billing switches stick for the browser tab's session, so a state survives moving between pages (the past-due
@@ -52,7 +52,7 @@ export function billingState() {
   const admin = p.get('as') === 'admin' || p.get('as') === 'superadmin'
   const sub = p.get('sub') ?? (live ? 'active' : 'none')
   const who = p.has('userId') ? 'viewas' : p.get('who') === 'member' ? 'member' : 'owner'
-  const plan = PLANS.find((x) => x.id === PLAN.id)
+  const plan = PLANS.find((x) => x.id === activePlan().id) ?? PLANS.find((x) => x.id === PLAN.id)
   const renews = addMonths(TODAY, 1) // Dec 27
   const days = Math.max(0, Math.min(14, Number(p.get('days') ?? 11)))
   const endedOn = '2027-01-10'

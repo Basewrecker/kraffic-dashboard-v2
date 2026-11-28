@@ -11,6 +11,8 @@ import { agency, brand, recentBrands, role, switchBrand, visibleDirectory } from
 import GettingStarted from '../../walkthrough/GettingStarted'
 import { UnreadPill, useNotificationsEntry } from '../../notifications/Notifications'
 import UsageRing from '../../plan/UsageRing'
+import RollNumber from '../../plan/RollNumber'
+import { useMoment } from '../../billing/moment.js'
 import { PLANS_HREF, isSuperadmin, promptUsage } from '../../plan/plan.js'
 
 // grouped nav (same items and order as production); items without an href have no page yet.
@@ -267,8 +269,18 @@ export function NotificationsRow({ compact = false }) {
 // The plan meter (as the app, #216): one 40px row at the bottom of the sidebar, a link to Plans. Card icon,
 // "Prompts", "152/200" in grey, and a small usage ring. The ring's arc is ink, amber from 80% used, red from 95%;
 // the number is always grey; no tints. A client never sees a count above the limit; a superadmin sees how far over.
+// After an upgrade the row shows the new limit once the confirmation has landed (it holds the old numbers while the
+// full-screen moment is up), then the ring refills and the numbers roll, so the upgrade shows up here too.
 export function PlanMeterRow({ onNavigate }) {
-  const u = promptUsage()
+  const live = promptUsage()
+  const { moment } = useMoment()
+  const [u, setU] = useState(() => { try { return { ...live, ...JSON.parse(sessionStorage.getItem('auden:plan-meter:last') ?? '{}') } } catch { return live } })
+  useEffect(() => {
+    if (moment) return
+    const t = setTimeout(() => setU(live), 250) // a beat after the page draws, so the roll is seen
+    try { sessionStorage.setItem('auden:plan-meter:last', JSON.stringify({ used: live.used, limit: live.limit, real: live.real, pct: live.pct })) } catch { /* private window */ }
+    return () => clearTimeout(t)
+  }, [moment, live.used, live.limit, live.real]) // eslint-disable-line react-hooks/exhaustive-deps
   const over = u.over > 0 && isSuperadmin()
   return (
     <a href={PLANS_HREF} onClick={(e) => { onNavigate?.(); linkClick(PLANS_HREF)(e) }} data-plan-meter
@@ -276,7 +288,7 @@ export function PlanMeterRow({ onNavigate }) {
       className="flex h-10 w-full items-center gap-2.5 rounded-md px-2 text-[14px] leading-5 font-medium text-ink outline-none transition-colors duration-150 hover:bg-nav-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
       <CreditCard size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-stone-500" />
       <span className="min-w-0 truncate">Prompts</span>
-      <span className="ml-auto shrink-0 text-[13px] leading-[18px] font-normal text-stone-500 tabular-nums">{over ? `${u.real}/${u.limit}` : `${u.used}/${u.limit}`}</span>
+      <span className="ml-auto shrink-0 text-[13px] leading-[18px] font-normal text-stone-500 tabular-nums"><RollNumber value={over ? u.real : u.used} />/<RollNumber value={u.limit} /></span>
       <UsageRing pct={u.pct} size={16} stroke={2} />
     </a>
   )

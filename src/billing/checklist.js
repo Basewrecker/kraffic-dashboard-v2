@@ -47,7 +47,15 @@ export const SCREENS = [
     ['The payment page placeholder (not ours)', '/plans/pay?kind=checkout&plan=growth'],
   ] },
   { n: 3, title: 'The return page', states: [
-    ['Loading', `${R}&show=loading`], ['Processing', `${R}&show=processing`], ['Paid', `${R}&sub=active&show=paid`],
+    ['Loading', `${R}&show=loading`],
+    // the full-screen moment (owner, 2026-11-28): waiting, then each ending
+    ['Confirming (waits)', `${R}&sub=demo&show=processing&plan=growth&from=visibility`],
+    ['Confirming → paid (the confirmation)', `${R}&sub=demo&show=processing&then=paid&plan=growth&from=visibility`],
+    ['Paid (the confirmation, straight away)', `${R}&sub=demo&show=paid&plan=growth&from=visibility`],
+    ['Confirming → declined', `${R}&sub=demo&show=processing&then=declined&reason=funds&plan=growth&from=visibility`],
+    ['Confirming → needs bank approval', `${R}&sub=demo&show=processing&then=bank&plan=growth&from=visibility`],
+    ['Confirming → expired', `${R}&sub=demo&show=processing&then=expired&plan=growth&from=visibility`],
+    ['Confirming → error', `${R}&sub=demo&show=processing&then=error&plan=growth&from=visibility`],
     ['Declined · not enough funds', `${R}&show=declined&reason=funds`], ['Declined · card expired', `${R}&show=declined&reason=expired`],
     ['Declined · details didn’t match', `${R}&show=declined&reason=details`], ['Declined · bank refused', `${R}&show=declined&reason=bank`],
     ['Declined · anything else', `${R}&show=declined&reason=other`], ['Needs the bank’s approval', `${R}&show=bank`],

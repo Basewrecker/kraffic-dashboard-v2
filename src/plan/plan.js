@@ -7,19 +7,25 @@ import { kpis } from '../data/mock.js'
 
 const q = () => new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search)
 export const PLAN = { id: 'growth', name: 'Growth', prompts: 200, competitors: 5, logins: 3 }
+// a demo runs on the smaller Visibility plan in the sample, so subscribing to Growth is an upgrade (100 → 200 prompts)
+export const DEMO_PLAN = { id: 'visibility', name: 'Visibility', prompts: 100, competitors: 3, logins: 2 }
+// the subscription state the billing previews set (billing/state.js keeps it for the tab; read here without importing
+// it, which would be a loop)
+const subNow = () => { const u = q().get('sub'); if (u) return u; try { return JSON.parse(sessionStorage.getItem('auden:billing:preview') ?? '{}').sub ?? null } catch { return null } }
+export const activePlan = () => (subNow() === 'demo' ? DEMO_PLAN : PLAN)
 const PREVIEW = { warn: 170, near: 192, limit: 200, over: 221 }
 
 export const isSuperadmin = () => q().get('as') === 'superadmin'
 // prompts are counted across all the account's brands
 export function promptUsage() {
   const real = PREVIEW[q().get('usage')] ?? kpis.total
-  const limit = PLAN.prompts
+  const limit = activePlan().prompts
   const used = Math.min(real, limit) // a client never sees a count above the limit
   return { used, limit, real, over: Math.max(0, real - limit), left: Math.max(0, limit - real), pct: Math.min(1, real / limit), atLimit: real >= limit }
 }
 // competitors on the brand in view; ?competitors=limit previews a brand at its plan's limit
 export function competitorRoom(count) {
-  const limit = PLAN.competitors
+  const limit = activePlan().competitors
   const real = q().get('competitors') === 'limit' ? Math.max(count, limit) : count
   return { used: Math.min(real, limit), limit, real, over: Math.max(0, real - limit), atLimit: real >= limit }
 }
