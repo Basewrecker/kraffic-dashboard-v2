@@ -63,8 +63,9 @@ export function parseCsvFile(file, trackedTexts) {
 // ---- the window's main button -----------------------------------------------------------------------------------
 // Before a file: "Upload", which opens the file picker (the same as "browse"); also after an error, so it's never a
 // dead end. With a file read: "Import n prompts" (disabled only when every row is already tracked).
-export function importButton(parsed) {
+export function importButton(parsed, room = Infinity) {
   if (!parsed?.rows) return { label: 'Upload', action: 'pick', disabled: false }
-  const n = parsed.rows.length
+  // when the plan is short, only the prompts that fit are imported, and the button says that number
+  const n = Math.min(parsed.rows.length, Math.max(0, room))
   return { label: `Import ${n} prompt${n === 1 ? '' : 's'}`, action: 'import', disabled: n === 0 }
 }

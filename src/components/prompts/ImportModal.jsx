@@ -79,12 +79,12 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
     done: ['Import complete', null],
   }
 
-  const main = importButton(parsed)
+  const main = importButton(parsed, room)
   const footer = {
     upload: (
       <>
         <button type="button" onClick={onClose} className={ghostBtn}>Cancel</button>
-        <PrimaryButton size="sm" disabled={main.disabled || (main.action === 'import' && fits === 0)} onClick={main.action === 'import' ? doImport : pick} data-import-main="">{main.action === 'import' && short && fits > 0 ? `Import ${fits} prompt${fits === 1 ? '' : 's'}` : main.label}</PrimaryButton>
+        <PrimaryButton size="sm" disabled={main.disabled} onClick={main.action === 'import' ? doImport : pick} data-import-main="">{main.label}</PrimaryButton>
       </>
     ),
     done: (
