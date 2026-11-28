@@ -11,7 +11,8 @@ import { VsLastWeek } from './CitationsMentions'
 import { openMarketplaceDrawer } from '../answer/MarketplaceDrawer'
 import { marketMock, marketRows } from '../../data/marketplaceHistory'
 import { ArrowRight } from 'lucide-react'
-import { ENGINE_ORDER } from '../../data/brandViews'
+import { ENGINE_ORDER, TRACKED_BRANDS } from '../../data/brandViews'
+import { PlatformIcon } from './icons'
 import SiteLogo from '../ui/SiteLogo'
 import { brandName, isDomain } from '../../utils/brand'
 import { OWN } from '../../data/brandViews'
@@ -27,6 +28,36 @@ const GLYPH = { category: LayoutGrid, web: Globe, reviews: Star, forums: Message
 // by count, high → low; Category pages always last
 const sortRows = (rows) => [...rows].sort((a, b) => (a.icon === 'category') - (b.icon === 'category') || b.value - a.value)
 const HOVER_DELAY = 80 // ms; sweeping across slices doesn't flicker through each one
+
+// What AI cites besides stores (as the app, #223), from the marketplace prompts' cited pages:
+//   threads: the forum threads (Reddit, Quora) cited most, each { key, domain, name, path, prompts, engines }
+//   sites:   with no thread, the sites cited in place of a store, most prompts first; a tracked competitor's is marked
+// ?threads=none (mock only) previews the second list.
+const THREAD_HOSTS = ['reddit.com', 'quora.com']
+const NO_THREADS = (() => { try { return new URLSearchParams(window.location.search).get('threads') === 'none' } catch { return false } })()
+export function citedInstead(prompts, { noThreads = NO_THREADS, max = 3 } = {}) {
+  const group = (rows, keyOf, make) => {
+    const m = new Map()
+    rows.forEach((r) => {
+      const k = keyOf(r)
+      const g = m.get(k) ?? { ...make(r), key: k, prompts: 0, engines: new Set() }
+      g.prompts += 1
+      ;(r.engines ?? []).forEach((e) => g.engines.add(e))
+      m.set(k, g)
+    })
+    return [...m.values()].map((g) => ({ ...g, engines: ENGINE_ORDER.filter((e) => g.engines.has(e)) })).sort((a, b) => b.prompts - a.prompts || a.key.localeCompare(b.key))
+  }
+  const off = (prompts ?? []).filter((r) => r.result === 'none' && r.page)
+  const threads = noThreads ? [] : group(off.filter((r) => THREAD_HOSTS.includes(r.page.domain)), (r) => `${r.page.domain}${r.page.path}`, (r) => {
+    // "/r/SkincareAddiction/comments/retinol-night-cream" → "r/SkincareAddiction · retinol night cream"
+    const parts = r.page.path.split('/').filter(Boolean)
+    const sub = parts[0] === 'r' && parts[1] ? `r/${parts[1]}` : r.page.domain
+    return { domain: r.page.domain, path: r.page.path, name: `${sub} · ${(parts.at(-1) ?? '').replace(/-/g, ' ')}` }
+  })
+  if (threads.length) return { title: 'Threads AI cites most', kind: 'threads', rows: threads.slice(0, max) }
+  const sites = group(off.filter((r) => !THREAD_HOSTS.includes(r.page.domain) && r.page.domain !== OWN.domain), (r) => r.page.domain, (r) => ({ domain: r.page.domain, name: r.page.domain }))
+  return { title: 'Sites AI cites instead', kind: 'sites', rows: sites.slice(0, max) }
+}
 
 // Opens the Marketplace prompts card (optionally pre-filtered) and scrolls to it.
 export function showMarketplacePrompts(filter = 'all') {
@@ -195,8 +226,9 @@ function MarketplaceCard() {
           </div>
         </div>
 
+        <div className="flex min-w-[200px] flex-1 flex-col max-sm:w-full">
         {/* all panels share one grid cell, so the card is always as tall as the tallest panel */}
-        <div className="grid min-w-[200px] flex-1 max-sm:w-full" aria-live="polite">
+        <div className="grid min-w-0" aria-live="polite">
           {segs.map((s) => {
             const on = activeKey === s.key
             return (
@@ -251,11 +283,49 @@ function MarketplaceCard() {
             )
           })}
         </div>
+        <CitedInstead />
+        </div>
       </div>
 
       {/* insight for the active segment, with its evidence */}
       {/* footer: pinned to the bottom (aligns with the card beside it); the card has no bottom padding */}
       <div className="mt-auto pb-3"><Insight explain={explain} {...marketplaceEvidence(active, { tracking })} /></div>
     </Card>
+  )
+}
+
+// Under the panel, after a hairline: "Threads AI cites most", or with no thread "Sites AI cites instead" (a tracked
+// competitor's site carries a small grey "Competitor" tag). Each row: logo · name · "cited in N prompts" · the engines
+// that cited it · → (a thread opens in a new tab; a site shows its prompts in Marketplace prompts).
+function CitedInstead() {
+  const list = citedInstead(marketplace.prompts)
+  if (!list.rows.length) return null
+  const rivals = new Set(TRACKED_BRANDS.filter((b) => !b.you).map((b) => b.domain))
+  const rowClass = 'group/ci -mx-2 flex min-h-9 items-center gap-2.5 rounded-md px-2 py-1 text-left outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus'
+  return (
+    <div className="mt-4 border-t border-[var(--color-line-soft)] pt-3" data-cited-instead={list.kind}>
+      <h3 className="text-[13px] leading-[18px] font-medium text-stone-900">{list.title}</h3>
+      <ul className="mt-1">
+        {list.rows.map((r) => {
+          const inner = (
+            <>
+              <SiteLogo domain={r.domain} name={r.name} className="h-5 w-5 shrink-0 rounded-md" initialClass="text-[10px]" />
+              <span className="min-w-0 truncate text-[14px] leading-5 text-stone-900">{r.name}</span>
+              {list.kind === 'sites' && rivals.has(r.domain) && <span className="inline-flex h-[18px] shrink-0 items-center rounded bg-tint px-1.5 text-[11px] leading-none font-medium text-stone-600">Competitor</span>}
+              <span className="ml-auto shrink-0 whitespace-nowrap pl-2 text-[13px] leading-[18px] text-stone-500 tabular-nums">cited in {r.prompts} {r.prompts === 1 ? 'prompt' : 'prompts'}</span>
+              {r.engines.length > 0 && <span className="hidden shrink-0 items-center gap-1 sm:flex" aria-label={`Cited by ${r.engines.length} ${r.engines.length === 1 ? 'engine' : 'engines'}`}>{r.engines.map((e) => <PlatformIcon key={e} id={e} size={14} />)}</span>}
+              <ArrowRight size={13} className="shrink-0 text-stone-400 transition-colors duration-150 group-hover/ci:text-ink" aria-hidden />
+            </>
+          )
+          return (
+            <li key={r.key}>
+              {list.kind === 'threads'
+                ? <a href={`https://${r.domain}${r.path}`} target="_blank" rel="noopener noreferrer" aria-label={`${r.name}: cited in ${r.prompts} prompts. Open the thread in a new tab`} className={rowClass}>{inner}</a>
+                : <button type="button" onClick={() => showMarketplacePrompts('none')} aria-label={`${r.name}: cited in ${r.prompts} prompts. View the prompts`} className={`${rowClass} w-[calc(100%+16px)]`}>{inner}</button>}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }

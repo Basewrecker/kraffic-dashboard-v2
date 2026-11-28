@@ -63,7 +63,7 @@ function DashboardPage() {
           <PlatformFilterProvider>
           <PageHeader />
           {/* each card loads on its own (data/cards.js): its skeleton or error keeps the card's height */}
-          <CardGate card="kpis" height="h-[308px] lg:h-[174px]" label="Loading the numbers"><KpiRow /></CardGate>
+          <CardGate card="kpis" height="h-[300px] lg:h-[155px]" label="Loading the numbers"><KpiRow /></CardGate>
           {/* equal-height rows: cards are h-full flex-col, bodies flex-1, insight footers mt-auto */}
           <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
             <CardGate card="history" height="h-[443px] lg:h-[457px]" label="Loading visibility history"><VisibilityHistory /></CardGate>
@@ -74,13 +74,16 @@ function DashboardPage() {
             <CardGate card="citations" height="h-[389px] lg:h-[364px]" label="Loading citations and mentions"><CitationsMentions /></CardGate>
             {account.features.ecommerce && <CardGate card="marketplace" height="h-[564px] lg:h-[364px]" label="Loading marketplace visibility"><MarketplaceVisibility /></CardGate>}
           </div>
-          {/* phones / tablets reorder (desktop keeps this order): … Sync history → Top cited pages → Prompt mix → the other tables */}
+          {/* as the app (#223): … Missed prompts → Prompt mix → Sync history (a full-width table) → Marketplace prompts
+              beside Cited pages by folder. Phones / tablets reorder (desktop keeps this order): Sync history → Prompt
+              mix → the other tables → the last row */}
           <div className="max-lg:order-3"><CardGate card="visiblePrompts" height="h-[945px] lg:h-[605px]" label="Loading visible prompts"><VisiblePromptsTable /></CardGate></div>
           <div className="max-lg:order-4"><CardGate card="missedPrompts" height="h-[1305px] lg:h-[729px]" label="Loading missed prompts"><MissedPromptsTable /></CardGate></div>
           <div className="max-lg:order-2"><CardGate card="competitorPrompts" height="h-[969px] lg:h-[729px]" label="Loading prompt mix"><CompetitorPromptsTable /></CardGate></div>
-          {account.features.ecommerce && <div className="max-lg:order-5"><CardGate card="marketplacePrompts" height="h-[987px] lg:h-[649px]" label="Loading marketplace prompts"><MarketplacePrompts /></CardGate></div>}
-          <div className="grid grid-cols-1 items-stretch gap-3 md:gap-4 lg:grid-cols-2 max-lg:order-1">
-            <CardGate card="syncHistory" height="h-[367px] lg:h-[415px]" label="Loading sync history"><SyncHistory /></CardGate>
+          <div className="max-lg:order-1"><CardGate card="syncHistory" height="h-[760px] lg:h-[716px]" label="Loading sync history"><SyncHistory /></CardGate></div>
+          {/* the marketplace card only for accounts with ecommerce switched on; without it Cited pages takes the row */}
+          <div className={`grid grid-cols-1 items-stretch gap-3 md:gap-4 max-lg:order-5 ${account.features.ecommerce ? 'lg:grid-cols-2' : ''}`}>
+            {account.features.ecommerce && <CardGate card="marketplacePrompts" height="h-[470px] lg:h-[415px]" label="Loading marketplace prompts"><MarketplacePrompts /></CardGate>}
             <CardGate card="citedPages" height="h-[407px] lg:h-[415px]" label="Loading cited pages by folder"><CitedFolders /></CardGate>
           </div>
           <AnswerDrawer />

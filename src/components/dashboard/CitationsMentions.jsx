@@ -2,6 +2,7 @@ import { ArrowRight, ChevronRight, History } from 'lucide-react'
 import { HeaderIconButton } from './PageHeader'
 import Card from './Card'
 import Gauge from '../ui/Gauge'
+import InfoTip from './InfoTip'
 import Insight, { hl, useExplain } from '../ui/Insight'
 import { platformEvidence } from './insights'
 import { useCardBrand } from './BrandSelect'
@@ -117,8 +118,15 @@ export default function CitationsMentions() {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-[17px] leading-6 font-semibold text-stone-900">Citations and Mentions</h2>
-          <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 tabular-nums [text-wrap:pretty]">
-            {TOTAL} prompts{notRunLine && ` · ${notRunLine}`}{silentLine && ` · ${silentLine}`}
+          {/* as the app (#223): the count alone; what else applies (engines that didn't run, engines that don't
+              mention the brand yet) is in the ⓘ beside it */}
+          <p className="mt-0.5 flex items-center gap-1 text-[13px] leading-[18px] text-stone-600 tabular-nums">
+            {TOTAL} prompts
+            {(notRunLine || silentLine) && (
+              <InfoTip label="Notes on these numbers">
+                {[notRunLine, silentLine].filter(Boolean).map((l, i) => <span key={l} className={i ? 'mt-1.5 block' : 'block'}>{l}.</span>)}
+              </InfoTip>
+            )}
           </p>
         </div>
         <div className="-mt-1 flex shrink-0 items-center gap-2">
@@ -149,7 +157,7 @@ export default function CitationsMentions() {
       </div>
 
       {/* per engine, in the same columns */}
-      <div className="mb-4 mt-4">
+      <div className="mb-3 mt-4">
         {rows.length === 0 ? (
           <p className="py-6 text-[14px] leading-5 text-stone-600">No engine mentions {brand?.name} yet</p>
         ) : (
@@ -188,6 +196,17 @@ export default function CitationsMentions() {
           </>
         )}
       </div>
+
+      {/* the footnote is one line; the rest of it is in the ⓘ (as the app, #223) */}
+      {rows.length > 0 && (
+        <p className="mb-3 flex items-center gap-1 text-[12px] leading-4 text-stone-500" data-counting-note>
+          Counted per answer: prompt × engine
+          <InfoTip label="How mentions and citations are counted" size={13}>
+            <span className="block">A prompt answered by {all.length} engines can count up to {all.length} times.</span>
+            <span className="mt-1.5 block">Mention: the answer names {domain === OWN.domain ? 'your brand' : brand?.name}. Citation: the answer links to {domain === OWN.domain ? 'your site' : `${brand?.name}’s site`}.</span>
+          </InfoTip>
+        </p>
+      )}
 
       {/* footer: at least 16px under the body, pinned to the bottom when the row is taller */}
       {insight && <div className="mt-auto pb-3"><Insight explain={explain} {...insight} /></div>}

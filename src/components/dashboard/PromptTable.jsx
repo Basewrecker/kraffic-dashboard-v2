@@ -38,6 +38,7 @@ import { downloadCsv } from './csv'
 //   column.mobileText(row): plain text for the meta line instead of rendering the cell (on the primary: 2-line text)
 //   column.desktop: false → a phones-only column (e.g. a meta fact the desktop shows inside another cell)
 //   mobileRowClick(row, el): what a tap does on phones when the desktop row has no click (its action button is hidden)
+//   searchable: false → no search box, only Export (Sync history)
 //   noResult: an engine id whose latest scan had no result (the table follows that engine): the list is replaced by one
 //     muted line, "No Gemini result in the latest scan" + ⓘ, with no count badge and no pagination (never a 0)
 export default function PromptTable({ noResult = null, ...props }) {
@@ -79,6 +80,7 @@ function Table({
   emptyQuery = (q) => <>No prompts match “{q}”</>,
   pagination = true, // false: every row on one page, no footer (short lists)
   mobileRowClick = null,
+  searchable = true, // false: no search box (a short list of dated rows: Sync history)
 }) {
   const mobile = useIsMobile()
   const [query, setQuery] = useState('')
@@ -205,7 +207,7 @@ function Table({
   const colWidth = (c) => c.width
   const align = (c) => (c.align === 'right' ? 'text-right' : 'text-left')
 
-  const searchInput = (
+  const searchInput = searchable && (
     <label className="relative min-w-0 max-md:flex-1">
       <span className="sr-only">{searchLabel}</span>
       <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
@@ -500,7 +502,7 @@ function MobileList({
           </div>
           {subtitle && <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600">{subtitle}</p>}
           {notice && <div className="mt-0.5 text-[13px] leading-[18px] text-stone-600">{notice}</div>}
-          <div className="mt-3 flex items-center gap-2">{search}{sortButton}</div>
+          {(search || sortButton) && <div className="mt-3 flex items-center gap-2">{search}{sortButton}</div>}
         </div>
       )}
       {filterBar && <div className="mt-3 px-4">{filterBar}</div>}
