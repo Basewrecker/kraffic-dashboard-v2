@@ -1,3 +1,4 @@
+import FilterPills from '../ui/FilterPills'
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, AlertTriangle, Check, ChevronRight } from 'lucide-react'
 import { IMPACT, STATUS } from '../../data/audit'
@@ -184,12 +185,7 @@ export const STATUS_FILL = { fail: 'var(--negative)', warn: 'var(--color-stone-5
 export const fmtMs = (ms) => `${ms.toLocaleString('en-US')} ms`
 
 // filter chips (same look as the topic chips on the dashboard): ink when on, tint when off
+// the shared filter pills row (ui/FilterPills.jsx): the active pill ink-filled, the rest plain text
 export function Chips({ label, value, onChange, options }) {
-  const chip = (on) => `inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-small font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
-    on ? 'border-ink bg-ink text-on-ink' : 'border-transparent bg-tint text-stone-700 hover:text-stone-900'}`
-  return (
-    <div role="toolbar" aria-label={label} className="flex shrink-0 gap-1.5">
-      {options.map(([v, l]) => <button key={v} type="button" aria-pressed={value === v} onClick={() => onChange(v)} className={chip(value === v)}>{l}</button>)}
-    </div>
-  )
+  return <FilterPills label={label} value={value} onChange={onChange} options={options} />
 }

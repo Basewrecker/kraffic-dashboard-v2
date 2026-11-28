@@ -5,6 +5,7 @@ import { useToast } from '../../components/dashboard/overlays'
 import { useParams } from '../../components/audit/parts'
 import { useIsMobile } from '../../hooks/useMedia'
 import HeaderBell from '../../notifications/NotificationsBell'
+import FilterPills from '../../components/ui/FilterPills'
 import { account } from '../../data/mock'
 import { navigate } from '../../router'
 import { SECTIONS, toolkitView } from './toolkit'
@@ -70,16 +71,14 @@ function AllTools({ tools, open }) {
   const [cat, setCat] = useState(readCat)
   const pick = (c) => { setCat(c); try { localStorage.setItem(CAT_KEY, c) } catch { /* private mode */ } }
   const rows = tools.filter((t) => cat === 'all' || t.section === cat)
-  const chip = (on) => `inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-small font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'border-ink bg-ink text-on-ink' : 'border-transparent bg-tint text-stone-700 hover:text-stone-900'}`
   const resultCls = (t) => (t.result.tone === 'problem' ? 'text-negative' : t.result.tone === 'muted' ? t3 : 'text-stone-900')
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 pb-3 max-md:px-4">
         <h2 className="text-[15px] leading-5 font-semibold text-stone-900">All tools</h2>
-        <div role="toolbar" aria-label="Category" className="no-scrollbar flex gap-1.5 overflow-x-auto max-md:-mx-4 max-md:w-[calc(100%+32px)] max-md:px-4">
-          {[['all', `All ${tools.length}`], ...SECTIONS.map((s) => [s, s])].map(([v, l]) => (
-            <button key={v} type="button" aria-pressed={cat === v} onClick={() => pick(v)} className={chip(cat === v)}>{l}</button>
-          ))}
+        {/* the shared filter pills row (as the app, #223): All with its count, the categories as plain text */}
+        <div className="no-scrollbar overflow-x-auto max-md:-mx-4 max-md:w-[calc(100%+32px)] max-md:px-4">
+          <FilterPills label="Category" value={cat} onChange={pick} options={[{ value: 'all', label: 'All', count: tools.length }, ...SECTIONS.map((s) => ({ value: s, label: s }))]} />
         </div>
       </div>
       {mobile ? (
