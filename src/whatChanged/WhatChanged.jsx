@@ -115,7 +115,8 @@ export function WhatChangedPanel({ config }) {
                   <X size={16} aria-hidden />
                 </button>
               </div>
-              <Segmented size="sm" label="Compare with" value={period} onChange={(p) => setParams({ [KEY]: p })} options={PERIOD_OPTIONS} className="mt-4" />
+              {/* a page with nothing to compare (Fact Check: one read, no scans) has no period switch */}
+              {!data.noPeriods && <Segmented size="sm" label="Compare with" value={period} onChange={(p) => setParams({ [KEY]: p })} options={PERIOD_OPTIONS} className="mt-4" />}
             </header>
 
             {data.state === 'one' ? (
@@ -131,8 +132,8 @@ export function WhatChangedPanel({ config }) {
                     {data.glance.map((g, i) => (
                       <div key={g.label} className={`flex min-w-0 flex-col ${i ? 'pl-3.5' : ''} ${i < data.glance.length - 1 ? 'pr-3.5' : ''}`}>
                         <dd className="text-[24px] leading-8 font-semibold tracking-[-0.01em] text-stone-900 tabular-nums">{g.value}</dd>
-                        <dd className={`text-[13px] leading-[18px] font-medium tabular-nums ${g.delta ? toneCls(g.delta.good) : 'text-stone-400'}`}>{g.delta ? g.delta.text : '—'}</dd>
-                        <dt className="mt-1 truncate text-[12.5px] leading-[18px] font-semibold text-stone-600">{g.label}</dt>
+                        {!data.noPeriods && <dd className={`text-[13px] leading-[18px] font-medium tabular-nums ${g.delta ? toneCls(g.delta.good) : 'text-stone-400'}`}>{g.delta ? g.delta.text : '—'}</dd>}
+                        <dt className={`mt-1 text-[12.5px] leading-[18px] font-semibold text-stone-600 ${data.wrapLabels ? 'text-pretty' : 'truncate'}`}>{g.label}</dt>
                       </div>
                     ))}
                   </dl>

@@ -17,6 +17,12 @@
 // read is one blocking call, so its live progress isn't shown; Keep / Drop / Confirm / Dismiss are held 5 s with Undo,
 // then sent; a failed save or read shows one plain line with Retry; no "Rejected" bar; logos fall back to a line icon.
 'use client'
+import { FactQuote } from '@/components/mock-overview/fact-quote'
+import AdminOnlyReason from '../../plan/AdminOnlyReason'
+import { isSuperadmin } from '../../plan/plan'
+import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
+import { factCheckChanges } from '../../whatChanged/factCheck'
+import { Lock } from 'lucide-react'
 import HeaderBell from '../../notifications/NotificationsBell'
 import { createPortal } from 'react-dom' // app: the page texts' popover is drawn in <body>
 import { Fragment, createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -120,7 +126,7 @@ const checkedAt = (at) => (at && !Number.isNaN(Date.parse(at)) ? `${dayOf(at)}, 
 // resultGroupsOf, the partition the filters and lists use): match (solid neutral) · don't match (Sentiment red) · not
 // checked (outline). A label opens the Facts on your site list below on its filter (not checked: All).
 export const RESULT_FILTER = { match: 'matches', mismatch: 'mismatched', unchecked: 'all' }
-function Hero({ b, groups, total, scan, hasRead, onRead, scanLine, failed, onGo, seg, setSeg, readAt }) {
+function Hero({ b, groups, total, scan, hasRead, onRead, scanLine, failed, onGo, seg, setSeg, readAt, check = null, changes = null }) {
   const dim = 'fc-dimmable'
   const counted = useCountUp(hasRead ? total : 0, 600, 0)
   // app: "Checked against" only names a source the check reached (a claim that only names a source, with no result and
@@ -152,10 +158,16 @@ function Hero({ b, groups, total, scan, hasRead, onRead, scanLine, failed, onGo,
           )}
           {/* app (owner, 2026-11-12): "Check facts again" (the same paid read), with when the last one ran beside it */}
           {hasRead && !scan && checkedAt(readAt) && <span className={`num ${sub}`}>Last checked {checkedAt(readAt)}</span>}
-          <button type="button" onClick={onRead} disabled={!!scan} className={primary}>
-            <RefreshCw size={15} aria-hidden className={scan ? 'wf-anim wf-spin' : ''} />{scan ? 'Reading…' : hasRead ? 'Check facts again' : 'Read website'}
-          </button>
-          {/* the header ends like every page: hairline · bell (12px from the button: the row's gap is 20px) */}
+          {/* as the app (#223): Summary, then the check button, then hairline · bell (12px apart: the row's gap is 20px) */}
+          {changes && hasRead && <WhatChangedButton config={changes} size="md" bell={false} />}
+          {/* as the app (#227 / #230): the check runs once a month. The words live only in the button's dark tip:
+              available, locked (when it's next available), superadmin. No visible line under the header. */}
+          <span className={`group/fc relative inline-flex rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-focus ${changes && hasRead ? 'lg:-ml-2' : ''}`} tabIndex={check?.locked ? 0 : undefined} aria-label={check?.locked ? check.tip : undefined}>
+            <button type="button" onClick={onRead} disabled={!!scan || !!check?.locked} aria-describedby={check?.tip ? 'fc-check-tip' : undefined} className={`${primary} disabled:opacity-50`} data-fc-check={check?.locked ? 'locked' : ''}>
+              {check?.locked ? <Lock size={15} aria-hidden /> : <RefreshCw size={15} aria-hidden className={scan ? 'wf-anim wf-spin' : ''} />}{scan ? 'Reading…' : hasRead ? 'Check facts again' : 'Read website'}
+            </button>
+            {check?.tip && !scan && <span id="fc-check-tip" role="tooltip" className="tip-dark pointer-events-none absolute right-0 top-full z-40 mt-2 w-max max-w-[280px] text-left opacity-0 transition-opacity duration-150 group-hover/fc:opacity-100 group-focus-within/fc:opacity-100">{check.tip}</span>}
+          </span>
           <HeaderBell className="-ml-2" />
         </div>
       </div>
@@ -195,7 +207,8 @@ function Hero({ b, groups, total, scan, hasRead, onRead, scanLine, failed, onGo,
             : <>We haven’t read <b className={val}>{yourSite()}</b> yet. Reading it finds your contact details, ratings, awards and claims, and <b className={val}>checks each one against its source</b>.</>}
         </p>
       )}
-      {failed && <FailLine fail={failed} className="-mt-2" text="text-[15px] leading-[22px]" />}{/* app: a read that failed */}
+      {/* as the app (#226 / #227): no read-error line for anyone; a superadmin sees the reason as one small muted line */}
+      <AdminOnlyReason className="-mt-2">{failed?.message}</AdminOnlyReason>
     </section>
   )
 }
@@ -1036,6 +1049,8 @@ function WhyLink({ f, why }) {
           <div ref={box} id={id} role="tooltip" data-fc-why={w.kind} style={{ transformOrigin: pos?.up ? 'center bottom' : 'center top' }}
             className={`${closing ? 'fc-pop-out' : pos ? 'fc-pop-in' : 'invisible'} flex flex-col gap-1 rounded-md border border-line bg-raised px-3 py-2 text-left text-[12.5px] leading-[17px] font-normal text-stone-700 shadow-md`}>
             {lines}
+            {/* as the app (#229): the exact quote from the page, its year set apart, and the page link */}
+            <FactQuote evidence={siteEvidence(f)} className="mt-1 border-t border-line pt-1.5" />
             {w.kind === 'a' && w.checkedAt && <span className="num pt-0.5 text-[11.5px] leading-4 text-stone-600">Checked {dayOf(w.checkedAt)}</span>}
           </div>
         </div>,
@@ -1751,13 +1766,22 @@ export default function WebsiteFactsPage() {
   useEffect(() => { if (sheetUndo && (!holds[sheetUndo.key] || holds[sheetUndo.key].sending)) setSheetUndo(null) }, [sheetUndo, holds])
   useEffect(() => { if (batch && !holds[batch.key]) setBatch(null) }, [batch, holds])
   // "Read website again": app: one paid read (Harsh's refresh); the data it returns replaces the page's
-  const read = () => refresh()
+  const [checkUsed, setCheckUsed] = useState(false) // this visit's check has run (the month's one)
+  const read = () => { setCheckUsed(true); refresh() }
 
   // app: a failed save's line: Retry sends it again at once (a Confirm's facts with the button's progress)
   const failLine = (where) => failed[where] && { message: failed[where].message, retry: where === 'ready' ? () => startConfirm(takeFailed('ready'), 0) : () => retrySaves(where) }
   // app (owner, 2026-11-12): the hero's three groups, the same partition as the filters and lists (resultGroupsOf)
   const resultGroups = resultGroupsOf(rowFacts, rowConflictIds)
-  const hero = <Hero key={`hero-${round}`} b={b} groups={resultGroups} total={rowFacts.length} scan={scan} hasRead={hasRead} onRead={read} readAt={readAt} failed={readError && { message: readError, retry: read }} onGo={(filter) => setBoxCmd({ filter, at: Date.now() })} seg={seg} setSeg={setSeg} />
+  // the monthly check (as the app, #227): used up once a read has run this month; ?check=locked previews it. A
+  // superadmin is never locked. The reason is the button's tip only.
+  const admin = isSuperadmin()
+  const lockedNow = !admin && hasRead && (checkUsed || new URLSearchParams(window.location.search).get('check') === 'locked')
+  const nextCheck = (() => { const d = new Date(readAt && !Number.isNaN(Date.parse(readAt)) ? readAt : Date.now()); d.setMonth(d.getMonth() + 1); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) })()
+  const check = { locked: lockedNow, tip: admin ? 'Superadmin: no monthly limit. Clients can check once a month.' : lockedNow ? `Fact check runs once a month. Next check available ${nextCheck}.` : 'Fact check runs once a month.' }
+  const changes = useMemo(() => factCheckChanges({ total: rowFacts.length, match: resultGroups.match.length, mismatch: resultGroups.mismatch.map((f) => ({ kind: KIND[f.field] ?? 'Fact' })), unchecked: resultGroups.unchecked.length, readAt, brand: brandName() }),
+    [rowFacts.length, resultGroups.match.length, resultGroups.mismatch.length, resultGroups.unchecked.length, readAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  const hero = <Hero key={`hero-${round}`} check={check} changes={changes} b={b} groups={resultGroups} total={rowFacts.length} scan={scan} hasRead={hasRead} onRead={read} readAt={readAt} failed={readError && { message: readError, retry: read }} onGo={(filter) => setBoxCmd({ filter, at: Date.now() })} seg={seg} setSeg={setSeg} />
   // app (owner, 2026-11-12): the page texts (was Read, but not facts) open from their box in Where we read it
   const texts = { items: b.notFacts, gone, failed: failed.text && failLine('text'), failedBox: failed.text && (gone ? textBox(gone) : 'home'), onUse: useAsFact, onDismiss: dismissText, onUndo: undoText, busy: using }
   // app (owner, 2026-11-12): the picked section's line: its unconfirmed facts, each count a link to them, and Show all
@@ -1853,6 +1877,7 @@ export default function WebsiteFactsPage() {
   return (
     <Hot.Provider value={hotCtx}>
       {hero}
+      <WhatChangedPanel config={changes} />
       {/* app (owner, 2026-11-12, step 2): one card with two boxes replaces step 1's tabs and Where we read it (their code is kept, not rendered) */}
       <FactBoxes cmd={boxCmd} conflictIds={conflictIds} partners={partners} facts={rowFacts} onAdd={add} onConfirm={(f) => holdOne(f, 'CONFIRMED', 'confirm')} onHide={(f) => holdOne(f, 'REJECTED', 'remove')} onShow={(f) => holdOne(f, 'CONFIRMED', 'use')} onUseText={useAsFact} using={using} footer={factsFooter} />
     </Hot.Provider>
