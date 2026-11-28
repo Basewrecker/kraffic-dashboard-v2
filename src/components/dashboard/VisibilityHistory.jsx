@@ -17,6 +17,7 @@ import { sourceLine } from './insights'
 import { useTracking } from '../../store/trackingSettings'
 import { aiModeSplit, engineGaps, engineName, engineScale, hasResult, setupPreview } from '../../data/brandViews'
 import NoResult from '../ui/NoResult'
+import HistoryHoverCard from './HistoryHoverCard'
 import { useBrandColors } from '../../hooks/useBrandColors' // one colour per brand, the same as Share of voice
 
 // colours follow the slots, set once per render by the card: the focal brand ("Viewing as") is ink; the 3 competitors
@@ -50,7 +51,7 @@ const DEFAULT_VIEW = { compare: true, hidden: [], granularity: 'weekly', chart: 
 // still opens with that brand in the 3rd slot.
 function readView(historySeries) {
   const q = new URLSearchParams(window.location.search)
-  const granularity = q.get('period') === 'monthly' ? 'monthly' : 'weekly'
+  const granularity = ['daily', 'monthly'].includes(q.get('period')) ? q.get('period') : 'weekly'
   const range = historyRanges[granularity].some((r) => r.id === q.get('range')) ? q.get('range') : defaultRange[granularity]
   const hidden = (q.get('hide') ?? '').split(',').filter((k) => historySeries.some((c) => c.key === k))
   return {
@@ -148,48 +149,41 @@ const fmtDelta = (d) => (d == null ? '—' : d > 0 ? `+${d}` : d < 0 ? `−${Mat
 const FOCUS_FX = 'motion-safe:[&_.recharts-line-curve]:transition-[stroke-opacity,stroke-width] motion-safe:[&_.recharts-line-curve]:duration-150 motion-safe:[&_.recharts-line-curve]:ease-out motion-safe:[&_.recharts-line-dots_g]:transition-opacity motion-safe:[&_.recharts-line-dots_g]:duration-150 motion-safe:[&_.recharts-line-dots_g]:ease-out motion-safe:[&_.recharts-bar-rectangle_path]:transition-[fill-opacity] motion-safe:[&_.recharts-bar-rectangle_path]:duration-150 motion-safe:[&_.recharts-bar-rectangle_path]:ease-out'
 const listNames = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
 
-// app (owner, 2026-11-07): GA4-style focus on hover: `focus` (a series key or null); the focused brand's row bold, the
-// others greyed; no focus: today's look
-const toneClass = (t, base) => (t === 'focus' ? 'font-semibold text-stone-900' : t === 'muted' ? 'text-stone-400' : base)
-function HistoryTooltip({ active, payload, label, series, compare, unit, line = false, lone = {}, focus = null, onFocusBrand }) {
+// The hover card's title: the period, then the day it was scanned. Weekly "Week of Oct 26 · synced Wed Oct 28" (the
+// week's Monday, then the scan's day); daily "Wed Oct 28"; monthly the month as the axis prints it. Data with no dates
+// (Reports' datasets): the axis label.
+const UTC = { timeZone: 'UTC' }
+export function hoverTitle(p, granularity) {
+  if (!p) return ''
+  const so = p.current ? ' · so far' : ''
+  if (!p.iso || granularity === 'monthly') return `${p.date}${so}`
+  const d = new Date(`${String(p.iso).slice(0, 10)}T12:00:00Z`)
+  const day = `${d.toLocaleDateString('en-US', { weekday: 'short', ...UTC })} ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...UTC })}`
+  if (granularity === 'daily') return `${day}${so}`
+  const monday = new Date(d); monday.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
+  return `Week of ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...UTC })} · synced ${day}${so}`
+}
+
+// app (owner, 2026-11-07): GA4-style focus on hover: `focus` (a series key or null); the focused brand's row white, the
+// others muted; no focus: the brand viewed leads. The shared dark hover card (HistoryHoverCard), every brand on the
+// chart, highest value first (no value last, as "—")
+function HistoryTooltip({ active, payload, series, compare, unit, granularity, lone = {}, focus = null, onFocusBrand }) {
   if (!active || !payload?.length) return null
-  const delta = payload[0]?.payload?.delta
-  // line mode: vibrant swatches, 8px rounded-[2px], your row first at 500
+  const p = payload[0]?.payload
   const YOU = FOCAL.key
-  // app (owner, 2026-11-15): line view: every brand, highest value first (no value last)
-  const v = (s) => payload[0]?.payload?.[s.key]
-  const rows = line ? [...series].sort((a, b) => (v(b) ?? -Infinity) - (v(a) ?? -Infinity) || (b.key === YOU) - (a.key === YOU)) : series
-  return (
-    <div className="rounded-lg border border-stone-200 bg-raised px-3 py-2 text-small shadow-sm">
-      <div className="mb-1 font-semibold text-stone-900">{label}{payload[0]?.payload?.current ? ' · so far' : ''}</div>
-      {rows.map((s) => (
-        <div key={s.key} className="flex items-center justify-between gap-6" onMouseEnter={() => onFocusBrand?.(s.key)} onMouseLeave={() => onFocusBrand?.(null)}>
-          <span className={`inline-flex items-center gap-1.5 ${toneClass(tooltipTone(s.key, focus), line && s.key === YOU ? 'font-medium text-stone-900' : 'text-stone-600')}`}>
-            {/* Trend and Share views share the colours */}
-            {line
-              ? <span className="h-2 w-2 rounded-[2px]" style={{ background: lineColor(s) }} />
-              : <span className="h-2.5 w-2.5 rounded-sm" style={{ background: lineColor(s) }} />}
-            {brandName(s.label)}
-          </span>
-          <span className={`num ${toneClass(tooltipTone(s.key, focus), `text-stone-900 ${line && s.key !== YOU ? 'font-normal' : 'font-semibold'}`)}`}>{(() => { const v = payload[0]?.payload?.[s.key]; return v == null ? '—' : val(v) })()}</span>
-        </div>
-      ))}
-      {/* why a brand with a single point has no earlier ones */}
-      {series.filter((s) => lone[s.key] && lone[s.key].date === payload[0]?.payload?.date).map((s) => (
-        <div key={`lone-${s.key}`} className="mt-1 max-w-[240px] border-t border-stone-100 pt-1 text-stone-600">{lone[s.key].why}</div>
-      ))}
-      {/* the engines left out of this period (they didn't run) */}
-      {payload[0]?.payload?.notRun?.length > 0 && (
-        <div className="mt-1 max-w-[240px] border-t border-stone-100 pt-1 text-stone-600">{listNames(payload[0].payload.notRun.map(engineName))} didn’t run</div>
-      )}
-      {!compare && delta != null && (
-        <div className="mt-1 flex justify-between gap-6 border-t border-stone-100 pt-1 text-stone-600">
-          <span>vs last {unit}</span>
-          <span className={`num font-semibold ${delta < 0 ? 'text-negative' : 'text-stone-900'}`}>{fmtDelta(delta)}</span>
-        </div>
-      )}
-    </div>
-  )
+  const v = (s) => p?.[s.key]
+  const rows = [...series].sort((a, b) => (v(b) ?? -Infinity) - (v(a) ?? -Infinity) || (b.key === YOU) - (a.key === YOU)).map((s) => ({
+    key: s.key, color: lineColor(s), ink: s.key === YOU, domain: UNIT.pct ? s.label : null, name: brandName(s.label), value: val(v(s)),
+    focus: tooltipTone(s.key, focus) === 'focus', lead: s.key === YOU,
+  }))
+  const notes = [
+    // why a brand with a single point has no earlier ones
+    ...series.filter((s) => lone[s.key] && lone[s.key].date === p?.date).map((s) => lone[s.key].why),
+    // the engines left out of this period (they didn't run)
+    ...(p?.notRun?.length > 0 ? [`${listNames(p.notRun.map(engineName))} didn’t run`] : []),
+  ]
+  return <HistoryHoverCard title={hoverTitle(p, granularity)} rows={rows} notes={notes} onFocusRow={onFocusBrand}
+    footer={!compare && p?.delta != null ? { label: `vs last ${unit}`, change: p.delta } : null} />
 }
 
 function Stat({ label, children }) {
@@ -213,30 +207,17 @@ function GrowthLabel({ x, y, width = 0, value }) {
 
 const signClass = (d) => (d < 0 ? 'text-negative' : 'text-stone-900')
 
-// Growth tooltip: "Jul 2026 · +2 (64% → 66%)", one line per visible series
-function GrowthTooltip({ active, payload, label, series, compare, focus = null, onFocusBrand }) {
+// Growth hover card: the change per brand with its "64% → 66%" (a period with no result on either side: "—")
+function GrowthTooltip({ active, payload, series, granularity, focus = null, onFocusBrand }) {
   if (!active || !payload?.length) return null
   const p = payload[0].payload
   const YOU = FOCAL.key
-  const line = (s) => (
-    <>
-      <span className={`num font-semibold ${p[s.key] == null ? 'text-stone-500' : s.key === YOU ? signClass(p[s.key]) : 'text-stone-900'}`}>{fmtDelta(p[s.key])}</span>{' '}
-      {/* a period with no result (either side): no "a → b" */}
-      {p[s.key] != null && <span className="num text-stone-600">({val(p.prevs[s.key])} → {val(p.values[s.key])})</span>}
-    </>
-  )
-  if (!compare) return <div className="rounded-lg border border-stone-200 bg-raised px-3 py-2 text-small shadow-sm"><span className="font-semibold text-stone-900">{label}</span> · {line(series[0])}</div>
-  return (
-    <div className="rounded-lg border border-stone-200 bg-raised px-3 py-2 text-small shadow-sm">
-      <div className="mb-1 font-semibold text-stone-900">{label}</div>
-      {series.map((s) => (
-        <div key={s.key} className="flex items-center justify-between gap-6" onMouseEnter={() => onFocusBrand?.(s.key)} onMouseLeave={() => onFocusBrand?.(null)}>
-          <span className={`inline-flex items-center gap-1.5 ${toneClass(tooltipTone(s.key, focus), 'text-stone-600')}`}><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color(s) }} /> {brandName(s.label)}</span>
-          <span>{line(s)}</span>
-        </div>
-      ))}
-    </div>
-  )
+  const rows = series.map((s) => ({
+    key: s.key, color: color(s), ink: s.key === YOU, domain: UNIT.pct ? s.label : null, name: brandName(s.label), lead: s.key === YOU,
+    focus: tooltipTone(s.key, focus) === 'focus', change: p[s.key] ?? null,
+    value: p[s.key] == null ? '—' : `${val(p.prevs[s.key])} → ${val(p.values[s.key])}`,
+  }))
+  return <HistoryHoverCard title={hoverTitle(p.values, granularity)} rows={rows} onFocusRow={onFocusBrand} />
 }
 
 // Growth bar: positive → rounded top; negative → rounded bottom (and red for "you"); zero → 2px stub on the zero line.
@@ -431,7 +412,8 @@ function BrandsMenu({ brands, focalKey, drawn, onPick }) {
 // hovering the line or its label opens the explanation (onHover gets its position, or null)
 // a 12px label's width (Manrope, tabular figures), close enough to decide whether two labels collide
 const labelW = (text) => Math.ceil(text.length * 6.6) + 4
-function ScoringMarker({ at, dates, label, onHover, avoidAt = null, avoidLabel = '' }) {
+// line false (the Overview, as the app #216): the label alone marks the day, with no dashed line down the plot
+function ScoringMarker({ at, dates, label, onHover, avoidAt = null, avoidLabel = '', line = true }) {
   const scale = useXAxisScale()
   const plot = usePlotArea()
   if (at == null || !scale || !plot) return null
@@ -459,10 +441,10 @@ function ScoringMarker({ at, dates, label, onHover, avoidAt = null, avoidLabel =
   const leave = () => onHover?.(null)
   return (
     <g>
-      <line className="pointer-events-none" x1={x} x2={x} y1={labelY + 4} y2={plot.y + plot.height} stroke="var(--color-stone-400)" strokeWidth={1} strokeDasharray="3 3" />
+      {line && <line className="pointer-events-none" x1={x} x2={x} y1={labelY + 4} y2={plot.y + plot.height} stroke="var(--color-stone-400)" strokeWidth={1} strokeDasharray="3 3" />}
       <text className="pointer-events-none num" x={right ? x - 6 : x + 6} y={labelY} textAnchor={right ? 'end' : 'start'} fontSize={12} fill="var(--color-stone-500)">{label}</text>
       {/* hover targets: a strip along the line and the label */}
-      <rect x={x - 6} y={plot.y - 4} width={12} height={plot.height + 4} fill="transparent" style={{ pointerEvents: 'all' }} onMouseEnter={enter} onMouseLeave={leave} />
+      {line && <rect x={x - 6} y={plot.y - 4} width={12} height={plot.height + 4} fill="transparent" style={{ pointerEvents: 'all' }} onMouseEnter={enter} onMouseLeave={leave} />}
       <rect x={right ? x - labelW(label) - 6 : x} y={labelY - 14} width={labelW(label) + 6} height={18} fill="transparent" style={{ pointerEvents: 'all' }} onMouseEnter={enter} onMouseLeave={leave} />
     </g>
   )
@@ -503,15 +485,20 @@ function EndLabels({ items, dates }) {
     g.sort((a, b) => a.y - b.y)
     const ys = g.map((p) => p.y)
     g.forEach((p, k) => { p.ty = k === 0 ? ys[0] : Math.max(ys[k], g[k - 1].ty + LH) })
-    // pushed below the plot: the whole group moves up
-    const over = g.length ? g.at(-1).ty - (plot.y + plot.height) : 0
-    if (over > 0) g.forEach((p) => { p.ty -= over })
+    // pushed below the plot: the last label goes back to the plot's bottom, and only the labels it then touches move up
+    const floor = plot.y + plot.height
+    for (let k = g.length - 1; k >= 0; k--) {
+      const max = k === g.length - 1 ? floor : g[k + 1].ty - LH
+      if (g[k].ty > max) g[k].ty = max
+    }
   }
   return (
     <g>
       {placed.map((p) => (
         <g key={p.key} opacity={p.opacity} className="motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-out" onMouseEnter={p.onEnter} onMouseLeave={p.onLeave}>
           <circle cx={p.x} cy={p.y} r={p.you ? 4 : 3.5} fill={p.color} stroke="var(--color-surface)" strokeWidth={2} />
+          {/* a label nudged off its point: a hairline from the point to it */}
+          {Math.abs(p.ty - p.y) > 1 && <path d={`M${p.x + 5},${p.y} L${Math.max(p.x + 9, plot.x + plot.width + 6) - 3},${p.ty}`} stroke={p.color} strokeWidth={1} fill="none" />}
           <text x={Math.max(p.x + 9, plot.x + plot.width + 6)} y={p.ty + 4.5} fontSize={13} fontWeight={p.you ? 600 : 500} fill={p.color} className="num" style={{ cursor: 'default' }}>{p.text}</text>
         </g>
       ))}
@@ -573,6 +560,8 @@ export function fit4(values) {
 // grey); the page's own header picks them and the range, so the card's Brands and range menus are left out
 export default function VisibilityHistory({ dataset: given = null, syncUrl = true, initial = null, bare = false, title = 'Visibility history', subtitle = null, plotClass = null, note = null, compact = false, rivals = null } = {}) {
   const mobile = useIsMobile()
+  // the hover card follows the pointer with a short spring; with reduced motion it jumps
+  const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   const view0 = useBrandView()
   // ?history=many: the 6-competitor preview brand (data/historyMany.js) in place of the dashboard's brand, this card only
   const dataset = given ?? (historyManyPreview ? historyMany : null)
@@ -684,10 +673,10 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
     <XAxis key="x" dataKey="date" height={26} tickMargin={10} tickLine={false} axisLine={false} tick={tick} padding={xPadding} interval={interval ?? (mobile ? Math.max(0, Math.ceil(points.length / 4) - 1) : 'preserveEnd')} />,
     <YAxis key="y" width={mobile ? 30 : 36} tickMargin={mobile ? 4 : 8} domain={yDomain} ticks={yTicks} tickFormatter={yFormat} allowDataOverflow tickLine={false} axisLine={false} tick={tick} />,
     // filterNull off: a period with no result (null on every series) still gets its tooltip, reading "—"
-    <Tooltip key="tip" cursor={cursor} content={tooltip} filterNull={false} {...(markerTip ? { active: false } : {})} />,
-    scoringAt != null && <ScoringMarker key="scoring" at={scoringAt} dates={dates} label={mobile ? scoring.label.replace('Scoring updated', 'Scoring') : scoring.label} onHover={setMarkerTip} />,
+    <Tooltip key="tip" cursor={cursor} content={tooltip} filterNull={false} offset={16} allowEscapeViewBox={{ x: false, y: true }} wrapperStyle={{ zIndex: 20, outline: 'none' }} isAnimationActive={!reduced} animationDuration={260} animationEasing="cubic-bezier(0.34, 1.3, 0.64, 1)" {...(markerTip ? { active: false } : {})} />,
+    scoringAt != null && <ScoringMarker key="scoring" at={scoringAt} dates={dates} label={mobile ? scoring.label.replace('Scoring updated', 'Scoring') : scoring.label} onHover={setMarkerTip} line={compact} />,
     // a Brand Setup change (it applies from the next scan; earlier points stay as they were scored)
-    h.setupChange && <ScoringMarker key="setup" at={h.setupChange.at ?? dates.length - 1} dates={dates} label={mobile ? h.setupChange.label.replace('Setup changed', 'Setup') : h.setupChange.label} onHover={(t) => setMarkerTip(t && { ...t, kind: 'setup' })} avoidAt={scoringAt} avoidLabel={scoring ? (mobile ? scoring.label.replace('Scoring updated', 'Scoring') : scoring.label) : ''} />,
+    h.setupChange && <ScoringMarker key="setup" at={h.setupChange.at ?? dates.length - 1} dates={dates} label={mobile ? h.setupChange.label.replace('Setup changed', 'Setup') : h.setupChange.label} onHover={(t) => setMarkerTip(t && { ...t, kind: 'setup' })} line={compact} avoidAt={scoringAt} avoidLabel={scoring ? (mobile ? scoring.label.replace('Scoring updated', 'Scoring') : scoring.label) : ''} />,
   ].filter(Boolean)
   // Line view: label inside the plot, right-aligned above the line. Bar/Growth: the last column reaches the right edge,
   // so the label sits just outside the plot at the end of the line (a right gutter is reserved for it).
@@ -705,7 +694,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
     ...(!compare && bestText ? [{ key: 'best', v: stats.best, text: bestText }] : []),
   ]
   const AVG_GUTTER = compact ? 112 : 84
-  const shareTooltip = <HistoryTooltip series={series} compare={compare} unit={stats.unit} line={isLine} lone={lonePoints} focus={focus} onFocusBrand={setFocusBrand} />
+  const shareTooltip = <HistoryTooltip series={series} compare={compare} unit={stats.unit} granularity={view.granularity} lone={lonePoints} focus={focus} onFocusBrand={setFocusBrand} />
   // the same margins in every view, so Trend, Share and Growth draw the same plot height; the top margin holds the
   // value labels above a first sync's bars / growth bars and the scoring marker's label
   // room for two stacked marker labels when the scoring and setup changes sit close together
@@ -778,7 +767,8 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
       // competitors 1.5px; the right margin holds the end labels
       const lastRealOf = (s) => { for (let i = points.length - 1; i >= 0; i--) if (points[i][s.key] != null) return i; return -1 }
       const ends = compact ? [] : series.map((s) => ({ s, at: lastRealOf(s) })).filter((e) => e.at >= 0)
-      const endText = (s, at) => `${brandName(s.label)} ${val(points[at][s.key])}`
+      // as the app (#216): the value alone (the legend chips above carry the names)
+      const endText = (s, at) => val(points[at][s.key])
       const lineMargin = compact ? margin : { ...margin, right: Math.min(240, Math.max(24, ...ends.map((e) => endTextW(endText(e.s, e.at)) + 16))) }
       const widthOf = (s) => (compact || s.key === YOU ? 2.5 : 1.5) + widen(s.key)
       // one engine picked with no result since some week: the empty stretch after the last real point says so
@@ -789,8 +779,9 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
       // brand's only point). Solid on both sides of a scoring change
       return (
         <RLineChart data={points} margin={lineMargin}>
-          {furniture({ yDomain: domain, yTicks: ticks, tooltip: shareTooltip, cursor: { stroke: chart.c3, strokeWidth: 1 }, xPadding: { left: 16, right: 16 } })}
-          {!compare && avgLine(stats.average, `Avg ${val(stats.average)}`)}
+          {furniture({ yDomain: domain, yTicks: ticks, tooltip: shareTooltip, cursor: { stroke: chart.c3, strokeWidth: 1, strokeOpacity: compact ? 1 : 0.7 }, xPadding: { left: 16, right: 16 } })}
+          {/* no dashed Avg line on the Overview (as the app, #216); Reports keep theirs */}
+          {compact && !compare && avgLine(stats.average, `Avg ${val(stats.average)}`)}
           {compact && !compare && bestLine(stats.best)}
           {compact && (
             <GutterLabels items={[
@@ -802,7 +793,7 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
             ]} />
           )}
           {/* a missing period between two with values: a dashed segment across it, not a jump */}
-          {bridges.filter((g) => series.some((s) => s.key === g.series)).map((g) => {
+          {(compact ? bridges : []).filter((g) => series.some((s) => s.key === g.series)).map((g) => {
             const s = series.find((x) => x.key === g.series)
             return <Line key={g.key} type="linear" dataKey={g.key} connectNulls stroke={lineColor(s)} strokeOpacity={dim(s.key) * (compact ? 1 : 0.4)} strokeWidth={compact ? 1.5 : 1.25} strokeDasharray={compact ? '4 4' : '1 4'} strokeLinecap="round"
               dot={false} activeDot={false} legendType="none" tooltipType="none" isAnimationActive={false} />
@@ -815,14 +806,16 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
             // compact (Reports): a 3px dot on every sync; the Overview: the last point (and a lone point) only
             const dot = (p) => (compact
               ? (p.value != null ? <circle key={`d${p.index}`} cx={p.cx} cy={p.cy} r={3} fill={c} opacity={dim(s.key)} /> : <g key={`d${p.index}`} />)
-              : p.value != null && p.index === lone?.index && lone.index !== lastRealOf(s) // as the app: a line's last point is its end dot (EndLabels)
+              // as the app (#216): solid lines only; a point with no value on either side has no line to sit on, so it
+              // is drawn as a dot (a line's last point is its end dot, EndLabels)
+              : p.value != null && p.index !== lastRealOf(s) && (p.index === lone?.index || (points[p.index - 1]?.[s.key] == null && points[p.index + 1]?.[s.key] == null))
                 ? <g key={`d${p.index}`} opacity={dim(s.key)}>
                     <circle cx={p.cx} cy={p.cy} r={4} fill={c} stroke="var(--color-surface)" strokeWidth={2} />
                   </g>
                 : <g key={`d${p.index}`} />)
             return (
               <Line key={s.key} type={curve} dataKey={s.key} name={s.label} stroke={c} strokeOpacity={dim(s.key)} strokeWidth={widthOf(s)} strokeLinecap="round"
-                dot={dot} activeDot={{ r: 5, fill: c, stroke: 'var(--color-surface)', strokeWidth: 2 }} {...ANIM}>
+                dot={dot} activeDot={compact ? { r: 5, fill: c, stroke: 'var(--color-surface)', strokeWidth: 2 } : { r: 4.5, fill: 'var(--color-surface)', stroke: c, strokeWidth: 2 }} {...ANIM}>
                 {you && showGrowthLabels && <LabelList dataKey="delta" content={GrowthLabel} />}
               </Line>
             )
@@ -855,12 +848,12 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
       // share per period: grouped bars (Compare on) / one bar (off), at most 4 per date. Each bar at most 20px wide
       // (phones 10), with at least a third of every date's slot left empty, so the dates read as groups. Values only in
       // the hover tooltip (a first sync's single group keeps its values above the bars).
-      const plotW = Math.max(0, plotWidth - (mobile ? 30 : 36) - (compare ? margin.right : AVG_GUTTER))
+      const plotW = Math.max(0, plotWidth - (mobile ? 30 : 36) - (compare || !compact ? margin.right : AVG_GUTTER))
       const barSize = groupedBarSize({ width: plotW, groups: points.length, bars: series.length, cap: single ? 44 : mobile ? 10 : 20, gap: 2 })
       return (
-        <RBarChart data={points} barSize={barSize} barGap={2} margin={{ ...margin, right: compare ? margin.right : AVG_GUTTER }}>
+        <RBarChart data={points} barSize={barSize} barGap={2} margin={{ ...margin, right: compare || !compact ? margin.right : AVG_GUTTER }}>
           {furniture({ yDomain: domain, yTicks: ticks, tooltip: shareTooltip, cursor: { fill: chart.track, fillOpacity: 0.6, radius: 6 } })}
-          {!compare && !single && avgLine(stats.average, `Avg ${val(stats.average)}`, true)}
+          {compact && !compare && !single && avgLine(stats.average, `Avg ${val(stats.average)}`, true)}
           {compact && !compare && !single && bestLine(stats.best)}
           {compact && !single && <GutterLabels items={refLabels()} />}
           {series.map((s) => {
@@ -877,13 +870,13 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
     }
     // growth per period: change vs previous period, on a round symmetric axis (−20, −10, 0, +10, +20)
     const avgText = `Avg ${g.average > 0 ? '+' : g.average < 0 ? '−' : ''}${Math.abs(g.average)}`
-    const gPlotW = Math.max(0, plotWidth - (mobile ? 30 : 36) - AVG_GUTTER)
+    const gPlotW = Math.max(0, plotWidth - (mobile ? 30 : 36) - (compact ? AVG_GUTTER : margin.right))
     const gBar = groupedBarSize({ width: gPlotW, groups: g.points.length, bars: series.length, cap: mobile ? 10 : 20, gap: 3 })
     return (
-      <RBarChart data={g.points} barSize={gBar} barGap={3} margin={{ ...margin, right: AVG_GUTTER }}>
-        {furniture({ yDomain: g.domain, yTicks: g.ticks, yFormat: fmtDelta, tooltip: <GrowthTooltip series={series} compare={compare} focus={focus} onFocusBrand={setFocusBrand} />, cursor: { fill: chart.track, fillOpacity: 0.6, radius: 6 } })}
+      <RBarChart data={g.points} barSize={gBar} barGap={3} margin={{ ...margin, right: compact ? AVG_GUTTER : margin.right }}>
+        {furniture({ yDomain: g.domain, yTicks: g.ticks, yFormat: fmtDelta, tooltip: <GrowthTooltip series={series} granularity={view.granularity} focus={focus} onFocusBrand={setFocusBrand} />, cursor: { fill: chart.track, fillOpacity: 0.6, radius: 6 } })}
         <ReferenceLine key="zero" y={0} stroke="var(--color-stone-600)" strokeOpacity={0.4} strokeWidth={1} />
-        {!youHidden && avgLine(g.average, avgText, true)}
+        {compact && !youHidden && avgLine(g.average, avgText, true)}
         {compact && !youHidden && <GutterLabels items={[{ key: 'avg', v: g.average, text: avgText }]} />}
         {series.map((s) => {
           const you = s.key === YOU
@@ -972,8 +965,10 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
             {points.at(-1)?.notRun?.length > 0 && ` · ${listNames(points.at(-1).notRun.map(engineName))} didn’t run this ${stats.unit}`}
           </>}</p>
         </div>}
+        {/* as the app (#216): one line: period, range, chart type, Brands (it wraps under the title on a narrow card) */}
         <div className="flex flex-wrap items-center gap-2">
-          <Segmented label="Period" value={view.granularity} onChange={setGranularity} options={[{ value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }]} />
+          <Segmented label="Period" value={view.granularity} onChange={setGranularity} options={[...(dataset ? [] : [{ value: 'daily', label: 'Daily' }]), { value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }]} />
+          {!rivals && <RangeSelect granularity={view.granularity} value={view.range} onChange={(range) => update({ range })} />}
           <Segmented
             label="Chart type"
             value={chartType}
@@ -984,8 +979,8 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
               ...(single ? [] : [{ value: 'growth', label: 'Growth per period', icon: TrendingUp }]),
             ]}
           />
-          {!rivals && <RangeSelect granularity={view.granularity} value={view.range} onChange={(range) => update({ range })} />}
-          {!rivals && compare && notDrawn.length > 0 && <BrandsMenu brands={[byKey(YOU), ...ranked]} focalKey={YOU} drawn={drawn} onPick={setPicks} />}
+          {/* Brands: always there with a competitor to pick (compact, Reports: only when some aren't drawn) */}
+          {!rivals && compare && (compact ? notDrawn.length > 0 : ranked.length > 0) && <BrandsMenu brands={[byKey(YOU), ...ranked]} focalKey={YOU} drawn={drawn} onPick={setPicks} />}
         </div>
       </div>
 
@@ -1039,24 +1034,19 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
         {/* the scoring marker's explanation, while its line or label is hovered */}
         {markerTip && (markerTip.kind === 'setup' ? h.setupChange : scoring) && !noChange && (
           <div role="tooltip" style={markerTip.right ? { right: `calc(100% - ${markerTip.x - 8}px)`, top: markerTip.y + 4 } : { left: markerTip.x + 8, top: markerTip.y + 4 }}
-            className="pointer-events-none absolute z-10 w-[260px] rounded-lg border border-stone-200 bg-raised px-3 py-2 text-small shadow-sm">
-            {markerTip.kind === 'setup' ? (
-              <>
-                <div className="mb-1 font-semibold text-stone-900">{h.setupChange?.label}</div>
-                <div className="text-stone-600">Competitors, domain or brand profile changed in Brand Setup. Earlier points stay as they were scored; the new setup counts from the next scan.</div>
-              </>
-            ) : (
-              <>
-                <div className="mb-1 font-semibold text-stone-900">{scoring?.label}</div>
-                <div className="text-stone-600">{scoring?.tip ?? `Points before this line were counted the old way, so changes across it aren’t compared. Competitors the old way miscounted are hidden there.`}</div>
-              </>
-            )}
+            className="tip-dark pointer-events-none absolute z-10 w-[260px] font-normal">
+            <div className="mb-1 font-semibold">{markerTip.kind === 'setup' ? h.setupChange?.label : scoring?.label}</div>
+            <div className="tip-muted">{markerTip.kind === 'setup'
+              ? 'Competitors, domain or brand profile changed in Brand Setup. Earlier points stay as they were scored; the new setup counts from the next scan.'
+              : scoring?.tip ?? 'Points before this line were counted the old way, so changes across it aren’t compared. Competitors the old way miscounted are hidden there.'}</div>
           </div>
         )}
       </div>
       {single && <p className="mt-1 text-[12px] leading-4 text-stone-500">{note ?? 'Showing your first sync. Trend lines appear after the next sync.'}</p>}
       {/* less history than the range picked: what there is, and where it starts */}
       {!single && !empty && h.since && <p className="mt-1 text-[12px] leading-4 text-stone-500 tabular-nums">{h.since}</p>}
+      {/* a range with very few scans in it (as the app): say so, the lines are short for that reason */}
+      {!single && !empty && !h.since && !compact && points.length <= 3 && <p className="mt-1 text-[12px] leading-4 text-stone-500 tabular-nums">Only {points.length} scans in this range</p>}
 
       {/* 16px between the dates and the insight's divider; the insight wraps, never cut off */}
       {insight && <div className="mt-auto pb-3 pt-4"><Insight explain={explain} {...insight} wrap /></div>}

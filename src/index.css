@@ -1218,3 +1218,12 @@ html[data-notes] [data-pending]::after {
   .trend-tail { animation-delay: calc(var(--motion-morph) * 2); }
 }
 @media (prefers-reduced-motion: reduce) { .trend-draw { animation: trend-fade var(--motion-step) var(--motion-ease-out) both; } }
+/* The chart hover card's change colours (HistoryHoverCard): light green / red that read on the dark card, the same in
+   both themes (the card itself doesn't flip). */
+:root { --hc-up: #6EE7B7; --hc-down: #F27370; }
+
+/* Share of voice: the text of the "2nd place" / "3rd place" pills beside the big share (as the app, #216 / #225): a
+   deeper silver and bronze so the small text reads on its 14% tint; lighter in dark. The medals keep their own fills. */
+:root { --medal-silver-text: #5B6472; --medal-bronze-text: #8A5326; }
+html[data-theme="dark"] { --medal-silver-text: #C4CAD4; --medal-bronze-text: #DDA273; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --medal-silver-text: #C4CAD4; --medal-bronze-text: #DDA273; } }

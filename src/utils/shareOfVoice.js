@@ -60,3 +60,15 @@ export function displayShares(values) {
 // pulled-out one, not #1's.)
 export const topShare = (r) => r?.rank === 1
 export const medalSize = (r) => (!r?.medal ? 0 : topShare(r) ? 22 : 16)
+
+// The place beside the big share when the brand isn't 1st (as the app, #216 / #225): "2nd place" with the silver medal,
+// "3rd place" with bronze, from 4th a muted "#4 of 6" (of: the brands that appear at all). 1st keeps "Top share"; a
+// brand that doesn't appear has no place. r: a rankShares row; ranked: all of them.
+// → null | { kind: 'top' | 'medal' | 'rank', label, medal? }
+export function placeBadge(r, ranked) {
+  if (!r?.rank) return null
+  if (r.rank === 1) return { kind: 'top', label: 'Top share', medal: MEDALS[1] }
+  if (r.rank === 2) return { kind: 'medal', label: '2nd place', medal: MEDALS[2] }
+  if (r.rank === 3) return { kind: 'medal', label: '3rd place', medal: MEDALS[3] }
+  return { kind: 'rank', label: `#${r.rank} of ${(ranked ?? []).filter((x) => x.rank).length}` }
+}

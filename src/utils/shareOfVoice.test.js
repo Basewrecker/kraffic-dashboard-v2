@@ -3,7 +3,7 @@
 // show the same %. Ported from the app's scripts/mock-unit/next-round, sov-polish and palette-by-rank tests.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { MEDALS, TOP_TEXT, TOP_TINT, displayShares, medalSize, rankShares, topShare, wholeShares } from './shareOfVoice.js'
+import { MEDALS, TOP_TEXT, TOP_TINT, displayShares, medalSize, placeBadge, rankShares, topShare, wholeShares } from './shareOfVoice.js'
 
 test('medals by exact counts: gold, silver, bronze for the top three distinct counts; only an exact tie shares', () => {
   const r = rankShares([{ domain: 'a', prompts: 10 }, { domain: 'b', prompts: 30 }, { domain: 'c', prompts: 30 }, { domain: 'd', prompts: 20 }, { domain: 'e', prompts: 5 }, { domain: 'f', prompts: 0 }])
@@ -36,4 +36,13 @@ test('shares: whole % adding to 100; one decimal only where different counts wou
   assert.deepEqual(displayShares([0, 0]), [0, 0])
   // close counts get real silver / bronze and one decimal
   assert.deepEqual(displayShares([600, 134, 131, 128, 7]), [60, 13.4, 13.1, 12.8, 1])
+})
+
+test('the place beside the share: Top share, 2nd place (silver), 3rd place (bronze), then "#4 of 6"; none for a brand that does not appear', () => {
+  const r = rankShares([{ domain: 'a', prompts: 50 }, { domain: 'b', prompts: 40 }, { domain: 'c', prompts: 30 }, { domain: 'd', prompts: 20 }, { domain: 'e', prompts: 10 }, { domain: 'f', prompts: 5 }, { domain: 'g', prompts: 0 }])
+  assert.deepEqual(r.map((x) => placeBadge(x, r)?.label ?? null), ['Top share', '2nd place', '3rd place', '#4 of 6', '#5 of 6', '#6 of 6', null])
+  assert.equal(placeBadge(r[1], r).medal, MEDALS[2])
+  assert.equal(placeBadge(r[2], r).medal, MEDALS[3])
+  assert.equal(placeBadge(r[3], r).kind, 'rank')
+  assert.equal(placeBadge(null, r), null)
 })

@@ -8,12 +8,13 @@ import { sourceLine } from './insights'
 import { OWN, TRACKED_BRANDS, appearances, brandByDomain, enginePid, getBrandView, hasResult } from '../../data/brandViews'
 import { NO_SCORE } from '../../utils/score'
 import NoResult from '../ui/NoResult'
-import { trackedPrompts } from '../../data/mock'
+import { getHistory, trackedPrompts } from '../../data/mock'
+import { chart } from '../../theme/chart'
 import { useBrandView } from '../../hooks/useBrandView'
 import { navigate } from '../../router'
 import { useTracking } from '../../store/trackingSettings'
 import { useBrandColors } from '../../hooks/useBrandColors' // one colour per brand, the same as Visibility history
-import { MEDALS, TOP_TEXT, TOP_TINT, displayShares, medalSize, rankShares, topShare, wholeShares } from '../../utils/shareOfVoice' // places and medals by exact counts
+import { MEDALS, TOP_TEXT, TOP_TINT, displayShares, medalSize, placeBadge, rankShares, topShare, wholeShares } from '../../utils/shareOfVoice' // places and medals by exact counts
 import { brandListName } from '../../utils/brand' // Brand Setup's names, never a domain-style one
 import { OTHER_COLOR } from '../../utils/brandColors'
 
@@ -33,6 +34,10 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`
 const promptsLink = (domain, engine) => `/tracker?brand=${brandByDomain(domain).key}${engine !== 'all' ? `&brandEngine=${engine}` : ''}`
 
 const ROWS = 5 // the brand + its top 4 competitors; the rest under "+N more"
+// ?place=2|3|4 (mock only): the brand in that place, to see the badge beside the share ("2nd place", "3rd place",
+// "#4 of 4"): that many competitors' counts are lifted above the brand's
+const PLACE = (() => { try { const n = Number(new URLSearchParams(window.location.search).get('place')); return n >= 2 && n <= 4 ? n : null } catch { return null } })()
+const GREYS = [chart.c1, chart.c2, chart.c3, chart.c4]
 export default function PromptCoverage() {
   // always the brand picked in the sidebar (no brand menu of its own, like Sentiment)
   const page = useBrandView()
@@ -41,7 +46,12 @@ export default function PromptCoverage() {
   const tracking = useTracking()
   const [showAll, setShowAll] = useState(false)
   // each brand by its Brand Setup / competitor name, else its domain tidied (utils/brand.js brandListName)
-  const counts = TRACKED_BRANDS.map((b) => ({ ...b, name: brandListName([b.name], b.site ?? b.domain), prompts: getBrandView(b.domain, engine).kpis.visible }))
+  const counts0 = TRACKED_BRANDS.map((b) => ({ ...b, name: brandListName([b.name], b.site ?? b.domain), prompts: getBrandView(b.domain, engine).kpis.visible }))
+  const counts = !PLACE ? counts0 : (() => {
+    const mine = counts0.find((b) => b.domain === domain)?.prompts ?? 0
+    const ahead = counts0.filter((b) => b.domain !== domain).sort((a, b) => b.prompts - a.prompts).slice(0, PLACE - 1).map((b) => b.domain)
+    return counts0.map((b) => (ahead.includes(b.domain) ? { ...b, prompts: mine + 12 * (PLACE - 1 - ahead.indexOf(b.domain)) } : b))
+  })()
   // whole % adding up to 100 (equal counts, equal %), for the "Other brands" slice; each brand shows one decimal
   // when a different count would show the same whole % (utils/shareOfVoice.js)
   const pct = wholeShares(counts.map((b) => b.prompts))
@@ -54,7 +64,14 @@ export default function PromptCoverage() {
   const top = others.filter((b) => b.prompts > 0 && brandColors[b.domain])
   const rest = others.filter((b) => b.prompts > 0 && !top.includes(b))
   const own = domain === OWN.domain
-  const brandColor = (b) => brandColors[b.domain]?.css ?? OTHER_COLOR
+  // as the app (#216): the colours are Visibility history's: the brand viewed is ink; the competitors the chart draws
+  // first (its top three by share) are indigo, red and green; a later one takes the graphite steps
+  const byShare = getHistory().series.filter((x) => x.label !== domain).sort((a, b) => (b.share ?? 0) - (a.share ?? 0)).map((x) => x.label)
+  const brandColor = (b) => {
+    if (b.domain === domain) return chart.lineYou
+    const i = byShare.indexOf(b.domain)
+    return i === -1 ? OTHER_COLOR : i < 3 ? chart[`line${i + 1}`] : GREYS[(i - 3) % GREYS.length]
+  }
   const colorOf = (b) => (b.domain === domain || top.includes(b) ? brandColor(b) : rest.includes(b) ? OTHER_COLOR : 'transparent')
   // no result from this engine's latest scan: every share is unknown ("—"), never 0%; an empty pie, no insight
   const noResult = !hasResult(engine)
@@ -107,13 +124,29 @@ export default function PromptCoverage() {
   }
 
   // hero: the selected brand, or the hovered one (crossfades)
-  const hero = (r) => (
-    <>
-      {/* the medal only for #1, with a gold "Top share" pill beside it (darker gold #A87700 text on gold 12%) */}
-      <div className="flex items-center gap-2 text-[32px] leading-none font-semibold text-stone-900 tabular-nums">{r.share == null ? <NoResult engine={engine} /> : `${r.share}%`}{topShare(rankOf(r.domain)) && <span className="flex items-center gap-1"><Medal medal={MEDALS[1]} size={medalSize(rankOf(r.domain))} /><span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] leading-4 font-semibold" style={{ color: TOP_TEXT, background: TOP_TINT }}>Top share</span></span>}</div>
-      <div className="mt-1.5 line-clamp-2 break-words text-[13px] leading-[18px] text-stone-600">{r.domain === OWN.domain ? 'your share' : r.domain === 'other' ? 'other brands’ share' : `${r.name}’s share`}</div>
-    </>
-  )
+  const hero = (r) => {
+    // its place beside the share (as the app, #216 / #225): 1st the gold medal and "Top share"; 2nd / 3rd the silver /
+    // bronze medal and "2nd place" / "3rd place"; from 4th a muted "#4 of 6". The badge wraps under the number.
+    const badge = r.share == null ? null : placeBadge(rankOf(r.domain), ranked)
+    return (
+      <>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5" data-place={badge?.kind}>
+          <span className="text-[32px] leading-none font-semibold text-stone-900 tabular-nums">{r.share == null ? <NoResult engine={engine} /> : `${r.share}%`}</span>
+          {badge && (badge.kind === 'rank'
+            ? <span className="whitespace-nowrap text-[13px] leading-[18px] font-medium text-stone-500 tabular-nums">{badge.label}</span>
+            : (
+              <span className="flex items-center gap-1">
+                <Medal medal={badge.medal} size={badge.kind === 'top' ? 22 : 18} />
+                <span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] leading-4 font-semibold"
+                  style={badge.kind === 'top' ? { color: TOP_TEXT, background: TOP_TINT }
+                    : { color: `var(--medal-${badge.medal.name.toLowerCase()}-text)`, background: `color-mix(in srgb, ${badge.medal.fill} 14%, transparent)` }}>{badge.label}</span>
+              </span>
+            ))}
+        </div>
+        <div className="mt-1.5 line-clamp-2 break-words text-[13px] leading-[18px] text-stone-600">{r.domain === OWN.domain ? 'your share' : r.domain === 'other' ? 'other brands’ share' : `${r.name}’s share`}</div>
+      </>
+    )
+  }
 
   return (
     <Card ref={explain.cardRef} className="flex h-full min-w-0 flex-col px-5 pt-5">
@@ -187,7 +220,7 @@ export default function PromptCoverage() {
             </li>
           )}
         </ul>
-        {noBrand > 0 && !noResult && <p className="mt-2 text-[13px] leading-[18px] text-stone-500 tabular-nums">{Math.round((noBrand / Math.max(1, trackedPrompts.length)) * 100)}% of prompts mention no brand</p>}
+        {noBrand > 0 && !noResult && <p className="mb-3 mt-2 text-[13px] leading-[18px] text-stone-500 tabular-nums">{Math.round((noBrand / Math.max(1, trackedPrompts.length)) * 100)}% of prompts mention no brand</p>}
       </div>
 
       {!noResult && <div className="mt-auto pb-3 pt-2"><Insight explain={explain} {...insight} wrap /></div>}

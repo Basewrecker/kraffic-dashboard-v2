@@ -101,7 +101,7 @@ export function lonePoints(points, series, unit, nameOf) {
 // "Finance of America leads at 60% this month, ahead of Reverse at 28%."
 export function historyInsight({ end, series, youKey, name, unit, nameOf }) {
   if (!end || end[youKey] == null) return null
-  const when = `this ${unit}`
+  const when = unit === 'day' ? 'on the latest day' : `this ${unit}` // daily: the latest day scanned
   const d = end.deltas?.[youKey]
   const you = end[youKey]
   const moved = d == null ? null : d > 0 ? `rose ${d} point${d === 1 ? '' : 's'} to ${you}%` : d < 0 ? `fell ${-d} point${d === -1 ? '' : 's'} to ${you}%` : `held steady at ${you}%`

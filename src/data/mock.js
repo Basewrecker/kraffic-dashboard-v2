@@ -3,7 +3,7 @@
 import { brandName } from '../utils/brand.js' // .js: the unit tests load this file in plain Node
 import { GLOBAL, MARKET_SUGGESTIONS } from './marketSuggestions.js'
 import { scoringPosition, shareAxis, symmetricTicks } from '../utils/historyChart.js'
-import { MONTHLY_RANGES, WEEKLY_RANGES, longDay, sinceNote } from '../utils/historyRanges.js'
+import { DAILY_RANGES, MONTHLY_RANGES, WEEKLY_RANGES, longDay, sinceNote } from '../utils/historyRanges.js'
 
 // ---- Workspace: the agency, its clients and their brands. Two brands have demo data (Dermasuri; Lumen Skin reuses the
 // same dataset under its own name); the rest have none yet and show empty states. The current brand is kept in this
@@ -154,10 +154,12 @@ if (extraCompetitors.length) {
 // Last year and All time (weekly: by days back from the latest sync); Last 3 / 6 / 12 months and All time (monthly).
 // count: the points a range takes when the data has no dates (Reports' datasets, ?history=many): a sync a week.
 export const historyRanges = {
+  // daily: the days that had a scan (the sample brand is scanned weekly, so its days are its weekly syncs)
+  daily: DAILY_RANGES.map((r) => ({ ...r, count: Math.floor(r.days / 7) + 1 })),
   weekly: WEEKLY_RANGES.map((r) => ({ ...r, count: r.days == null ? Infinity : Math.floor(r.days / 7) + 1 })),
   monthly: MONTHLY_RANGES.map((r) => ({ ...r, count: r.count ?? Infinity })),
 }
-export const defaultRange = { weekly: 'last-30d', monthly: 'last-6m' }
+export const defaultRange = { daily: 'last-30d', weekly: 'last-30d', monthly: 'last-6m' }
 
 // Nice auto-fit domain for "your share only": [floor(min − 5) to 5, ceil(max + 5) to 5], 4 evenly spaced ticks.
 function fitDomain(values, cap = 100) {
@@ -196,7 +198,7 @@ const dermasuriHistory = () => ({
 export function getHistory({ compare = true, hidden = [], granularity = 'weekly', range, focal = 'dermasuri', scale = null, dataset = null, gaps = [], scoring = null, setup = null } = {}) {
   const ds = dataset ?? (scoring ? { ...dermasuriHistory(), scoring } : dermasuriHistory())
   const historySeries = ds.series
-  const gran = granularity === 'monthly' ? 'monthly' : 'weekly'
+  const gran = granularity === 'monthly' ? 'monthly' : granularity === 'daily' ? 'daily' : 'weekly'
   const gapMonths = new Set(gaps.map((iso) => iso.slice(0, 7)).filter((m) => ds.weekly.filter((w) => w.iso?.startsWith(m)).every((w) => gaps.includes(w.iso))))
   const isGap = (p) => !!p.iso && (gran === 'monthly' ? gapMonths.has(p.iso.slice(0, 7)) : gaps.includes(p.iso))
   const raw = (gran === 'monthly' ? ds.monthly : ds.weekly).map((p) => (isGap(p) ? { ...p, ...Object.fromEntries(historySeries.map((s) => [s.key, null])) } : p))
@@ -211,7 +213,7 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
   // weekly: the syncs within the range's days of the latest one; All time, months, or data with no dates: by count
   const lastIso = all[all.length - 1]?.iso
   const DAY = 86400000
-  const inRange = gran === 'weekly' && lastIso && opt.days != null
+  const inRange = gran !== 'monthly' && lastIso && opt.days != null
     ? all.filter((p) => p.iso && Date.parse(lastIso) - Date.parse(p.iso) <= opt.days * DAY).length
     : opt.count
   const start = Math.max(0, all.length - Math.max(1, inRange))
@@ -221,7 +223,7 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
   const firstIso = weeklyAll[0]?.iso
   const since = all.length ? sinceNote({ range: opt, firstIso, lastIso, periods: all.length }) : null
   // a scoring change: points up to its `after` date were scored the old way (drawn lighter)
-  const mark = ds.scoring?.[gran] ?? null
+  const mark = ds.scoring?.[gran === 'daily' ? 'weekly' : gran] ?? null // daily: the same sync days as weekly
   const scoringIdx = mark ? all.findIndex((p) => p.date === mark.after) : -1
   const points = all.slice(start).map((p, i) => {
     const prev = all[start + i - 1] // the period before the window, when it exists
@@ -253,7 +255,7 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
   const last = points[points.length - 1] || {}
   const valued = points.filter((p) => p[focal] != null)
   const best = valued.reduce((a, p) => (p[focal] > a[focal] ? p : a), valued[0] || null)
-  const unit = gran === 'monthly' ? 'month' : 'week'
+  const unit = gran === 'monthly' ? 'month' : gran === 'daily' ? 'day' : 'week'
   // competitors alone sit at 3–21%: on 0–100 they'd be flat lines along the floor, so fit them
   // a dataset of counts (Reports: prompts named, prompts they win) has no 100% ceiling
   const counts = ds.unit === 'count'
@@ -267,7 +269,7 @@ export function getHistory({ compare = true, hidden = [], granularity = 'weekly'
     since,
     points,
     scoring: mark ? { label: ds.scoring.label, tip: ds.scoring.tip ?? null, at: scoringPosition(points.map((p) => p.date), mark) } : null,
-    setupChange: setup?.[gran] ? { label: setup.label, at: scoringPosition(points.map((p) => p.date), setup[gran]) } : null,
+    setupChange: setup?.[gran === 'daily' ? 'weekly' : gran] ? { label: setup.label, at: scoringPosition(points.map((p) => p.date), setup[gran === 'daily' ? 'weekly' : gran]) } : null,
     series,
     youHidden,
     ...axis,
@@ -859,6 +861,15 @@ export const marketplace = {
       ? (m === 'Amazon' ? `/s?k=${slug(prompt)}` : `/s/${slug(prompt)}`)
       : (m === 'Amazon' ? `/${item}/dp/B0${7000 + id}` : `/p/${item}/-/A-${81000 + id}`)
     return { id, prompt, result: b.result, markets, ...(b.brand && { brand: b.brand }), page: { domain: host[m], path } }
+  })
+  // the engines whose answer to each prompt carries the citation (engine ids, in display order). Its own seeded
+  // generator, so no other draw above moves. AI Overview is the most likely; a row always has at least one.
+  const erand = mulberry32(131)
+  const odds = { aio: 0.9, aimode: 0.6, gemini: 0.7, chatgpt: 0.55 }
+  const tracked = Object.keys(odds).filter((e) => platforms.some((p) => p.id === e && p.visible > 0))
+  marketplace.prompts.forEach((r) => {
+    const on = tracked.filter((e) => erand() < odds[e])
+    r.engines = on.length ? on : tracked.slice(0, 1)
   })
   // the marketplaces the answers link to, most prompts first (Marketplace visibility subtitle)
   const n = {}

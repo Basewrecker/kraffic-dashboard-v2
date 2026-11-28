@@ -8,6 +8,13 @@ export const WEEKLY_RANGES = [
   { id: 'last-1y', label: 'Last year', days: 365 },
   { id: 'all', label: 'All time', days: null },
 ]
+// Daily (as the app, #216): one point per day that had a scan, by days back from the latest one
+export const DAILY_RANGES = [
+  { id: 'last-7d', label: 'Last 7 days', days: 7 },
+  { id: 'last-14d', label: 'Last 14 days', days: 14 },
+  { id: 'last-30d', label: 'Last 30 days', days: 30 },
+  { id: 'last-90d', label: 'Last 90 days', days: 90 },
+]
 export const MONTHLY_RANGES = [
   { id: 'last-3m', label: 'Last 3 months', count: 3 },
   { id: 'last-6m', label: 'Last 6 months', count: 6 },

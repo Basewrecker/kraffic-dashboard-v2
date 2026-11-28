@@ -47,8 +47,9 @@ export default function Pie({ slices, radius = 96, hover = null, onHover, onSele
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={label} className="shrink-0 overflow-visible" onMouseLeave={() => onHover?.(null)}>
       {arcs.map((s) => {
         const mid = (s.a0 + s.a1) / 2
-        const out = hover === s.key ? 6 : pulled === s.key ? 4 : 0
         const full = s.a1 - s.a0 >= 2 * Math.PI - 1e-6
+        // a slice that is the whole pie (a 100% share) is a full disc and stays centred: nothing to pull it away from
+        const out = full ? 0 : hover === s.key ? 6 : pulled === s.key ? 4 : 0
         const [x0, y0] = pt(s.a0), [x1, y1] = pt(s.a1)
         const d = full
           ? `M ${c - radius} ${c} a ${radius} ${radius} 0 1 0 ${radius * 2} 0 a ${radius} ${radius} 0 1 0 ${-radius * 2} 0`
