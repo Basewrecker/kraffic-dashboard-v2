@@ -80,21 +80,22 @@ function cardAction(plan, b, current) {
   if (plan.custom || priceOf(plan.id) == null) return { label: 'Talk to us', look: 'soft', act: 'request', legacy: true }
   const guard = (x) => (b.who === 'viewas' ? { ...x, off: 'Can’t change plans from this view', helper: null } : b.who === 'member' ? { ...x, dead: true, helper: 'Only the account owner can change the plan.' } : x)
   switch (b.status) {
-    case 'demo': return guard({ label: 'Subscribe', look: 'ink', act: 'review', tag: mine ? 'Your demo plan' : null })
+    case 'demo': return guard({ label: 'Subscribe', look: mine ? 'ink' : 'soft', act: 'review', tag: mine ? 'Your demo plan' : null })
     case 'pending': return b.pending.plan.id === plan.id
       ? guard({ label: 'Finish payment', look: 'ink', act: 'pay', helper: <>You started a payment for {plan.name}. <Pending n="decision 13">It’s held until <B>{date(b.pending.heldUntil)}</B>, {b.pending.heldTime}.</Pending></> })
       : { label: 'Subscribe', look: 'soft', dead: true }
     case 'active':
-      if (mine) return guard({ label: 'Manage subscription', look: 'line', act: 'manage' })
+      if (mine) return guard({ label: 'Manage subscription', look: 'soft', act: 'manage' })
       if (b.scheduled?.plan.id === plan.id) return guard({ label: <>Starts {date(b.scheduled.starts)}</>, look: 'soft', dead: true, link: 'Withdraw', helper: <>{plan.name} starts <B>{date(b.scheduled.starts)}</B>.</> })
-      return guard({ label: 'Switch at renewal', look: 'soft', act: 'change', helper: <Pending n="decision 9">Starts <B>{date(b.renews)}</B>. No charge today.</Pending> })
+      return guard({ label: planAction(plan, current) === 'Upgrade' ? 'Upgrade at renewal' : 'Switch at renewal', look: 'soft', act: 'change', helper: <Pending n="decision 9">Starts <B>{date(b.renews)}</B>. No charge today.</Pending> })
     case 'cancelling': return mine
       ? guard({ label: 'Resume', look: 'ink', act: 'resume', helper: <>Your plan ends <B>{date(b.paidThrough)}</B>.</> })
-      : { label: 'Switch at renewal', look: 'soft', off: b.who === 'viewas' ? 'Can’t change plans from this view' : 'Resume your plan to switch.' }
+      : { label: planAction(plan, current) === 'Upgrade' ? 'Upgrade at renewal' : 'Switch at renewal', look: 'soft', off: b.who === 'viewas' ? 'Can’t change plans from this view' : 'Resume your plan to switch.' }
     case 'pastdue': return mine
-      ? guard({ label: 'Pay now', look: 'ink', act: 'payinvoice' })
-      : { label: 'Switch at renewal', look: 'soft', off: b.who === 'viewas' ? 'Can’t change plans from this view' : 'Pay the overdue invoice to switch plans.' }
-    default: return guard({ label: 'Subscribe', look: 'ink', act: 'review' }) // no plan / hand-set, ended, demo ended
+      ? guard({ label: 'Pay now', look: 'soft', act: 'payinvoice' }) // not black: the banner above has the page's one black Pay now
+      : { label: planAction(plan, current) === 'Upgrade' ? 'Upgrade at renewal' : 'Switch at renewal', look: 'soft', off: b.who === 'viewas' ? 'Can’t change plans from this view' : 'Pay the overdue invoice to switch plans.' }
+    // no plan / hand-set, ended, demo ended. One black primary per view: the most chosen plan's; the others are outlined
+    default: return guard({ label: 'Subscribe', look: plan.tag === 'Most chosen' ? 'ink' : 'soft', act: 'review' })
   }
 }
 
@@ -103,8 +104,8 @@ function PlanCard({ plan, b, current, req, onAct }) {
   const priced = b.pricesShown && b.canPay && priceOf(plan.id) != null
   // which plan the "+100 prompts" note compares with: yours; none marked for an ended or plan-less account
   const marked = b.status === 'ended' || b.status === 'demo-ended' ? null : current
-  const note = planNote(plan, marked)
-  const yours = marked && plan.id === marked.id
+  const yours = Boolean(marked && plan.id === marked.id)
+  const note = yours ? '' : planNote(plan, marked) // the tag says "Your plan", so the note doesn't repeat it
   const reqHelp = req === 'sent' ? 'We’ll reach out within one business day.' : req === 'failed' ? `Couldn’t send your request. Email us at ${WORKSPACE.support}.` : null
   const rows = [
     // where billing is live the price takes the big-number slot, so the prompt count leads this list (never said twice)
@@ -120,10 +121,11 @@ function PlanCard({ plan, b, current, req, onAct }) {
           : <Btn look={a.look} size="lg" full off={a.off} disabled={a.dead} busy={req === 'opening'} onClick={a.act ? (e) => onAct(a.act, plan, e.currentTarget) : undefined}>{a.label}</Btn>
   return (
     // border: light at rest, ink only on hover or focus; the "Most chosen" card is not raised
-    <article aria-label={`${plan.name} plan`} data-plan={plan.id} className="flex min-w-[240px] flex-1 snap-start flex-col rounded-2xl border border-line bg-surface p-5 transition-[border-color] duration-150 hover:border-ink focus-within:border-ink">
+    <article aria-label={`${plan.name} plan`} data-plan={plan.id} data-lead={yours || a.look === 'ink' ? '' : undefined} className={`flex min-w-[240px] flex-1 snap-start flex-col rounded-2xl border bg-surface p-5 transition-[border-color] duration-150 hover:border-ink focus-within:border-ink ${yours ? 'border-ink' : 'border-line'}`}>
       <div className="flex items-center gap-2">
         <h3 className="truncate text-title font-medium text-stone-900">{plan.name}</h3>
-        {(a.tag ?? plan.tag) && <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-tint px-2 text-[12px] leading-4 font-medium text-stone-600">{a.tag ?? plan.tag}</span>}
+        {/* the current plan is marked by its tag and an ink outline (as the live Plans page); it takes the tag's place */}
+        {(yours ? (a.tag ?? 'Your plan') : (a.tag ?? plan.tag)) && <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-tint px-2 text-[12px] leading-4 font-medium text-stone-600">{yours ? (a.tag ?? 'Your plan') : (a.tag ?? plan.tag)}</span>}
       </div>
       {/* the big number: the plan's prompts; where billing is live, the workspace's price with a small muted "/mo"
           (the one place "/mo" is used). The number stays with its unit */}
@@ -169,13 +171,12 @@ function Value({ v }) {
   )
 }
 
-// the footer note: 2 lines + "…", the whole sentence in the dark tip on hover and keyboard focus (150ms fade)
+// the footer note, in full (owner, 2026-11-28: never cut off)
 function FootNote() {
   return (
-    <span tabIndex={0} className="group/fn relative flex items-start gap-1.5 rounded text-[12px] leading-4 text-stone-500 outline-none focus-visible:ring-2 focus-visible:ring-focus">
+    <span className="flex items-start gap-1.5 text-[12px] leading-4 text-stone-500">
       <Info size={13} className="mt-px shrink-0" aria-hidden />
-      <span className="line-clamp-2">{FOOT_NOTE}</span>
-      <span role="tooltip" className="tip-dark pointer-events-none absolute bottom-full left-0 z-20 mb-2 font-normal opacity-0 transition-opacity duration-150 group-hover/fn:opacity-100 group-focus-visible/fn:opacity-100">{FOOT_NOTE}</span>
+      <span className="text-pretty">{FOOT_NOTE}</span>
     </span>
   )
 }
@@ -230,6 +231,9 @@ export default function PlansPage() {
     const el = row.current
     if (!el) return undefined
     const on = () => setFade({ l: el.scrollLeft > 8, r: el.scrollLeft + el.clientWidth < el.scrollWidth - 8 })
+    // a row that scrolls (phones): it opens on your plan's card, or the one with the page's black button
+    const lead = el.querySelector('[data-lead]')
+    if (lead && el.scrollWidth > el.clientWidth + 8) el.scrollLeft = Math.max(0, lead.offsetLeft - el.offsetLeft - 16)
     on()
     el.addEventListener('scroll', on, { passive: true })
     const ro = new ResizeObserver(on); ro.observe(el)
@@ -267,7 +271,7 @@ export default function PlansPage() {
         {/* demo only: when it ends (the date is said here once, not on the cards) */}
         {b.status === 'demo' && <p className="mt-1 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Demo ends <DateTip iso={b.demoEnds} bold /></p>}
       </div>
-      {!ended && <HeaderBell hairline={false} className="lg:pt-1" />}
+      {!ended && b.status !== 'demo-ended' && <HeaderBell hairline={false} className="lg:pt-1" />}
     </div>
   )
   const billingTab = b.hasSub && tab === 'billing' // the Billing tab has its own loading and error states
@@ -309,7 +313,6 @@ export default function PlansPage() {
           <div ref={row} className="no-scrollbar -mx-1 flex snap-x snap-mandatory scroll-px-1 items-stretch gap-3 overflow-x-auto px-1 py-1" style={{ maskImage: mask, WebkitMaskImage: mask }}>
             {shown.map((p) => <PlanCard key={p.id} plan={p} b={b} current={current} req={stateOf(p)} onAct={onAct} />)}
           </div>
-          {payShown && <RenewalTerms price={b.pending ? priceOf(b.pending.plan.id) : null} />}
 
           <section aria-labelledby="compare-title" className="mt-6">
             <h2 id="compare-title" className="text-title font-semibold text-stone-900">Compare plans</h2>
@@ -317,12 +320,13 @@ export default function PlansPage() {
             <div className="mt-4 max-lg:overflow-x-auto">
               <div className="max-lg:min-w-[760px]">
                 <div className="sticky top-0 z-10 grid items-end gap-x-4 border-b border-line bg-page pb-3 pt-4 max-lg:top-14" style={cols}>
-                  <div className="max-lg:sticky max-lg:left-0 max-lg:bg-page"><GroupSwitch id="plans-compare" value={group} onChange={setGroup} counts={counts} /></div>
-                  {/* the price is not repeated here: the header keeps the prompts, as today */}
+                  {/* owner, 2026-11-28: no second switch here (removed on live); the active group as a small muted label */}
+                  <div className="text-[13px] leading-[18px] text-stone-500 max-lg:sticky max-lg:left-0 max-lg:bg-page">{GROUPS.find((g) => g.id === group).label}</div>
+                  {/* owner, 2026-11-28: where billing is live the price sits under the name, before the prompts ("$3,500 /mo · 200 prompts") */}
                   {shown.map((p) => (
                     <div key={p.id} className="text-center">
                       <div className="text-[13px] leading-[18px] font-semibold text-stone-900">{p.name}</div>
-                      <div className="text-[12px] leading-4 text-stone-500 tabular-nums">{p.prompts}{p.promptsPlus ? '+' : ''} prompts</div>
+                      <div className="text-[12px] leading-4 text-stone-500 tabular-nums">{b.pricesShown && b.canPay && priceOf(p.id) != null && <><span className="font-semibold text-stone-900">{money(priceOf(p.id))}</span> /mo · </>}{p.prompts}{p.promptsPlus ? '+' : ''} prompts</div>
                     </div>
                   ))}
                 </div>

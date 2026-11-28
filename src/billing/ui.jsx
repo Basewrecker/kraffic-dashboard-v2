@@ -108,7 +108,7 @@ const LOOK = {
   soft: 'border border-line bg-tint text-stone-900 hover:border-[var(--color-line-strong)]',
   quiet: 'text-stone-600 hover:bg-tint hover:text-stone-900',
 }
-export function Btn({ look = 'ink', size = 'md', busy = false, busyLabel = 'Opening…', off = null, full = false, className = '', children, ...rest }) {
+export function Btn({ look = 'ink', size = 'md', busy = false, busyLabel = 'Opening…', off = null, tip = null, full = false, className = '', children, ...rest }) {
   const cls = `${BTN} ${LOOK[look]} ${size === 'sm' ? 'h-8 px-3 text-[13px]' : size === 'lg' ? 'h-10 px-4' : 'h-9 px-3.5'} ${full ? 'w-full' : ''} ${className}`
   if (off) {
     return (
@@ -118,7 +118,15 @@ export function Btn({ look = 'ink', size = 'md', busy = false, busyLabel = 'Open
       </span>
     )
   }
-  return <button type="button" disabled={busy || rest.disabled} className={cls} {...rest}>{busy && <Loader2 size={14} className="animate-spin" aria-hidden />}{busy ? busyLabel : children}</button>
+  const button = <button type="button" disabled={busy || rest.disabled} className={cls} {...rest}>{busy && <Loader2 size={14} className="animate-spin" aria-hidden />}{busy ? busyLabel : children}</button>
+  // tip: where an enabled button leads, in the dark tip on hover and keyboard focus
+  if (!tip) return button
+  return (
+    <span className={`group/tipb relative inline-flex ${full ? 'w-full' : ''}`}>
+      {button}
+      <span role="tooltip" className="tip-dark pointer-events-none absolute bottom-full right-0 z-30 mb-2 w-max font-normal opacity-0 transition-opacity duration-150 group-hover/tipb:opacity-100 group-focus-within/tipb:opacity-100">{tip}</span>
+    </span>
+  )
 }
 // a quiet text link: ink, underline on hover (no coloured links)
 export const TextLink = ({ className = '', children, ...rest }) => <button type="button" className={`rounded text-[13px] leading-[18px] font-medium text-ink underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus ${className}`} {...rest}>{children}</button>
@@ -135,7 +143,7 @@ export function RenewalTerms({ price, className = '' }) {
           ? <li>Plans renew every month until you cancel. You’ll see the exact price before you pay.</li>
           : <li>Your subscription renews automatically for <B>{money(price)}</B> every month, until you cancel.</li>}
         <li>Cancel any time from Billing in your account, or email <Pending n="conflict 4">{WORKSPACE.support}</Pending>. Cancellation stops the next renewal; the current period stays active until it ends.</li>
-        <li>You will receive a renewal reminder by email before each charge when required by law.</li>
+        <li>We’ll email you before each renewal.</li>
       </ul>
     </section>
   )

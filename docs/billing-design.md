@@ -125,3 +125,63 @@ What the mock fakes and the app must supply:
 - **1024 and 1600 wide** weren't checked; 1440 and 390 were.
 - The "Would block" and "Reason / Workspace" filters on screen 8 are drawn but don't filter the sample rows.
 - Screens 7 and 8 weren't tuned for 390 beyond not breaking (they're staff pages).
+
+## Design review, 2026-11-28
+
+The owner's eight fixes, then four self-review rounds (the fourth found nothing new). Round sheets are in
+`~/Documents/kraffic-worktrees/billing-screenshots/rounds/`, named `r<round>-s<screen>-<light|dark|390>.png`: each is
+one screen's key states. A round's sheets were shot BEFORE its fixes, so a fix's "after" is the next round's sheet.
+
+### The owner's eight fixes (before: the first export; after: `r1-*`)
+
+1. Compare plans header: the second Done for you / Self-serve switch is gone; the active group is a small muted label.
+2. The current plan's card has the "Your plan" tag and an ink outline; the note under the hairline no longer repeats it.
+3. "Upgrade at renewal" for bigger plans, "Switch at renewal" for smaller ones.
+4. Where billing is live the compare header reads "$3,500 /mo · 200 prompts" under each name.
+5. The footer note shows in full.
+6. Review step: "We'll email you before each renewal." The renewal terms stay in the dialog and are no longer on the Plans page.
+7. Billing tab: the status pill sits beside the plan name in the Your plan card; "Opens a secure page to change your card." is Update card's tooltip.
+8. Past-due banner: "11 days left to pay. After that, your plan ends."
+
+### Round 1 (before `r1-s*-light.png`, after `r1b-s*-light.png`)
+
+| Found | Changed |
+|---|---|
+| Three black Subscribe buttons at once (no plan, demo, ended): breaks "one black primary per view" | Black only on one card: the demo's plan, else the "Most chosen" one. The others use the app's tint-filled button |
+| Past due, Plans tab: a black Pay now in the banner and another on the card | The card's Pay now is tint-filled; the banner keeps the black one |
+| A dialog opened straight from its address stayed closed (change plan, cancel, go live, disconnect), so the first export showed those states without their dialog | The shared Modal now opens once the page has settled |
+| Payments, restricted and disconnected: the same Stripe button three times (header, alert, card or checklist) | The alert has the one button |
+| Payments, not connected: no primary | The Stripe account card holds the black "Connect Stripe" |
+
+### Round 2 (before `r1b-*` and close-ups, after `r2-s*-{light,dark,390}.png`)
+
+| Found | Changed |
+|---|---|
+| One row of plan cards mixed two secondary button looks (outlined white and tint-filled) | Every secondary card button is the app's tint-filled one |
+| Past due, Billing tab: "Update card" twice (Your plan and Payment method) | Once, on Payment method |
+| The past-due sentence wrapped early beside empty space | Wider (640px) |
+| Change plan, step 1: a wrapped limits line started with a dot | One limit per line |
+| Phones: the plan row opened on the first card, so the user's plan and the black button were off-screen | The row opens on the user's plan (else the card with the black button) |
+
+### Round 3 (before `r3-s*-light.png`, after `r4-s*-light.png`)
+
+| Found | Changed |
+|---|---|
+| Payments, restricted: the checklist said "Connect your Stripe account" though it is connected | Check 1 passes; check 2 (verified) fails |
+| Payments, not connected: "Connect Stripe" on the card and again in the checklist | Once, on the card |
+| Ended: the locked line and the card both said "Your plan has ended" | The line reads "The rest of {product} is locked until you subscribe again." (demo: "until you pick a plan.") |
+| Demo ended: a notifications bell in the reduced shell | Removed |
+
+### Round 4 (`r4-s*-light.png`)
+
+Nothing new. Checked again: one black primary per view on every sheet; green only on Active and Connected; red only on
+error lines, the alert icon and the overdue / failed dots; no uppercase labels; bold value with a regular unit; no cut-off
+text at 1440; dialogs, pills, tables and tooltips are the shared components.
+
+### Left for the owner (couldn't decide)
+
+- **The past-due Billing tab has one "Update card"** (on Payment method). The brief lists it on the Your plan card too. Removed as a duplicate.
+- **"Subscribe" is black on one card only.** With no plan of your own, the black one is the "Most chosen" plan. That makes the page recommend it. If no plan should be favoured, all would be tint-filled and the page would have no primary.
+- **The compare header uses "/mo"** ("$3,500 /mo · 200 prompts"), as asked. The brief's rule was "/mo only beside a plan card's big number"; this is now a second place.
+- **The renewal terms' middle line** ("Cancel any time from Billing in your account, or email …. Cancellation stops the next renewal; the current period stays active until it ends.") is the brief's kept wording; it still reads a little legal.
+- **Phones and dark** were reviewed on sheets in round 2 only; rounds 3 and 4 were 1440 light.

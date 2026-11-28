@@ -35,7 +35,7 @@ function PlanCard({ b, off, dead, saveFailed }) {
       <h2 id="bill-plan" className={h2}>Your plan</h2>
       <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
-          <p className="text-title font-semibold text-stone-900">{p.name}</p>
+          <p className="flex flex-wrap items-center gap-2.5 text-title font-semibold text-stone-900">{p.name}<SubStatus b={b} /></p>
           {/* the limits bought (the snapshot) */}
           <p className="mt-0.5 text-[14px] leading-5 text-stone-600 tabular-nums"><B>{p.prompts}</B> prompts · <B>{p.competitors}</B> competitors · <B>{p.logins}</B> logins</p>
           {/* the price the customer subscribed at; said once on the page */}
@@ -43,7 +43,7 @@ function PlanCard({ b, off, dead, saveFailed }) {
           {b.status === 'active' && <p className="mt-1 text-[14px] leading-5 text-stone-600">Renews <DateTip iso={b.renews} bold /></p>}
           {b.status === 'cancelling' && <p className="mt-1 text-[14px] leading-5 text-stone-600 text-pretty">Paid through <DateTip iso={b.paidThrough} bold />. Your plan ends then and won’t renew.</p>}
           {b.status === 'pastdue' && (
-            <p className="mt-2 max-w-[520px] text-[14px] leading-5 text-stone-700 text-pretty">
+            <p className="mt-2 max-w-[640px] text-[14px] leading-5 text-stone-700 text-pretty">
               Your {monthName(b.failedOn)} payment of <B>{money(b.due.amount)}</B> didn’t go through. <Pending n="decision 11">Pay by <DateTip iso={b.graceEnd} bold /> to keep your plan.</Pending>
             </p>
           )}
@@ -51,7 +51,6 @@ function PlanCard({ b, off, dead, saveFailed }) {
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2 md:justify-end">
           {b.status === 'pastdue' && <Btn look="ink" off={off} disabled={dead || paused} busy={opening === 'invoice'} onClick={() => leave('invoice')}>Pay now</Btn>}
-          {b.status === 'pastdue' && <Btn look="line" off={off ?? (paused ? NOT_NOW : null)} disabled={dead} busy={opening === 'card'} onClick={() => leave('card')}>Update card</Btn>}
           {b.status === 'cancelling' && <Btn look="ink" off={off} disabled={dead} onClick={(e) => setConfirm(e.currentTarget)}>Resume plan</Btn>}
           <Btn look="line" disabled={dead}
             off={off ?? (paused ? NOT_NOW : b.status === 'cancelling' ? 'Resume your plan to switch.' : b.status === 'pastdue' ? 'Pay the overdue invoice to switch plans.' : null)}
@@ -125,8 +124,7 @@ function PaymentCard({ b, off, dead }) {
         </div>
         {b.who !== 'member' && (
           <div className="flex flex-col gap-1 md:items-end">
-            <Btn look="line" off={off ?? (paused ? NOT_NOW : null)} disabled={dead} busy={opening} onClick={update} className="self-start md:self-auto">{none ? 'Add a card' : 'Update card'}</Btn>
-            {!off && !paused && <p className="text-[12px] leading-4 text-stone-500">Opens a secure page to change your card.</p>}
+            <Btn look="line" off={off ?? (paused ? NOT_NOW : null)} disabled={dead} busy={opening} onClick={update} tip="Opens a secure page to change your card." className="self-start md:self-auto">{none ? 'Add a card' : 'Update card'}</Btn>
           </div>
         )}
       </div>
@@ -280,7 +278,7 @@ function ChangePlan({ b }) {
                   className="flex h-full w-full flex-col rounded-xl border border-line bg-surface p-4 text-left outline-none transition-[border-color] duration-150 hover:border-ink focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-default disabled:hover:border-line">
                   <span className="flex items-center gap-2"><span className="text-[15px] leading-5 font-semibold text-stone-900">{p.name}</span>{mine && <StatusPill>Your plan</StatusPill>}</span>
                   <span className="mt-1.5 text-[14px] leading-5 text-stone-600"><PerMonth amount={priceOf(p.id)} /></span>
-                  <span className="mt-2 text-[13px] leading-[18px] text-stone-600 tabular-nums"><B>{p.prompts}</B> prompts · <B>{p.competitors}</B> competitors · <B>{p.logins}</B> logins</span>
+                  <span className="mt-2 flex flex-col text-[13px] leading-[18px] text-stone-600 tabular-nums"><span><B>{p.prompts}</B> prompts</span><span><B>{p.competitors}</B> competitors</span><span><B>{p.logins}</B> logins</span></span>
                 </button>
               </li>
             )
@@ -328,7 +326,7 @@ export default function BillingTab({ b }) {
     <>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 id="billing-first" tabIndex={-1} className="sr-only">Billing</h2>
-        <SubStatus b={b} />
+        {ended && <SubStatus b={b} />}
         {dead && <p className="text-[13px] leading-[18px] text-stone-500">Only the account owner can manage billing.</p>}
       </div>
       {ended ? <EndedCard b={b} off={off} /> : <PlanCard b={b} off={off} dead={dead} saveFailed={params.get('save') === 'fail' && !params.get('change')} />}

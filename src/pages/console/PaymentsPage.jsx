@@ -142,7 +142,7 @@ export default function PaymentsPage() {
               <ActionMenu label="Stripe account actions" className="grid h-8 w-8 place-items-center rounded-md text-stone-600 outline-none hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"
                 items={[{ label: 'Open Stripe', onClick: () => {} }, { label: 'Reconnect', onClick: () => leave('reconnect') }, { label: 'Disconnect', danger: true, onClick: () => setParams({ dialog: 'disconnect' }) }]}><MoreHorizontal size={16} aria-hidden /></ActionMenu></>
           ) : st === 'connecting' ? <span className="inline-flex items-center gap-2 text-[13px] text-stone-600"><Loader2 size={14} className="animate-spin" aria-hidden />Checking…</span>
-            : <Btn look="line" busy={opening === 'connect'} busyLabel="Opening Stripe…" disabled={switchedOff} onClick={() => leave('connect')}>{st === 'notconnected' ? 'Connect Stripe' : st === 'restricted' ? 'Fix in Stripe' : 'Reconnect Stripe'}</Btn>}
+            : null /* restricted, disconnected: the alert below has the action */}
         </div>
       )}
     </div>
@@ -151,13 +151,14 @@ export default function PaymentsPage() {
   if (show === 'error') return <ConsoleShell crumbs={crumbs}>{header}<section className={card}><InlineError onRetry={() => setParams({ show: null })}>Payment settings couldn’t be loaded.</InlineError></section></ConsoleShell>
 
   const checks = [
-    { ok: connected || house, name: 'Stripe account connected', pass: 'Connected to Stripe.', fail: st === 'disconnected' ? 'We can no longer reach your Stripe account.' : 'Connect your Stripe account to take payments.', action: <Btn look="line" size="sm" onClick={() => leave('connect')}>{st === 'disconnected' ? 'Reconnect Stripe' : 'Connect Stripe'}</Btn> },
+    { ok: connected || house || st === 'restricted', name: 'Stripe account connected', pass: 'Connected to Stripe.', fail: st === 'disconnected' ? 'We can no longer reach your Stripe account.' : 'Connect your Stripe account to take payments.', action: <Btn look="line" size="sm" onClick={() => leave('connect')}>{st === 'disconnected' ? 'Reconnect Stripe' : 'Connect Stripe'}</Btn> },
     { ok: verified || house, name: 'Stripe has verified the account', pass: 'Stripe has verified your account and can take card payments.', fail: 'Stripe still needs details from you before it can take payments.', action: connected || st === 'restricted' ? <Btn look="line" size="sm">Finish in Stripe</Btn> : null },
     { ok: priced > 0, name: 'At least one plan has a price and is shown', pass: <><B>{priced}</B> plans are priced and shown to clients.</>, fail: 'Set a price for at least one plan and show it to clients.', action: rows.length ? <Btn look="line" size="sm" onClick={() => document.getElementById('pay-prices')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Set prices</Btn> : null },
     // self-confirmed: we can't read this from Stripe (open conflict 6: a third check)
     { ok: confirmed, self: true, name: 'Stripe’s own failed-payment emails are off', pass: 'You’ve confirmed Stripe’s failed-payment emails are off.', fail: 'Switch off Stripe’s failed-payment emails, so your clients don’t get two. We send these for you.' },
   ]
   const allOk = checks.every((c) => c.ok)
+  const alerted = ['restricted', 'disconnected', 'different', 'notconnected'].includes(st) // the alert at the top (or the Stripe account card) has the one action
   return (
     <ConsoleShell crumbs={crumbs}>
       {header}
@@ -180,9 +181,9 @@ export default function PaymentsPage() {
         <h2 id="pay-stripe" className={h2}>Stripe account</h2>
         <div className="mt-3 text-[14px] leading-5 text-stone-600 text-pretty">
           {house ? <p>Payments go to {SELLER.legalName}’s own Stripe account.</p>
-            : st === 'notconnected' ? <><p className="font-semibold text-stone-900">Take card payments from your clients</p><p className="mt-0.5">Connect your Stripe account. Clients pay you directly; your name is on the invoice.</p></>
+            : st === 'notconnected' ? <><p className="font-semibold text-stone-900">Take card payments from your clients</p><p className="mt-0.5">Connect your Stripe account. Clients pay you directly; your name is on the invoice.</p><div className="mt-3"><Btn look="ink" busy={opening === 'connect'} busyLabel="Opening Stripe…" disabled={switchedOff} onClick={() => leave('connect')}>Connect Stripe</Btn></div></>
               : st === 'connecting' ? <p className="flex items-center gap-2"><Loader2 size={14} className="animate-spin" aria-hidden />Checking your Stripe account…</p>
-                : st === 'restricted' ? <><p className="text-stone-900">Stripe needs a document to verify your business.</p><div className="mt-3"><Btn look="line">Fix in Stripe</Btn></div></>
+                : st === 'restricted' ? <p className="text-stone-900">Stripe needs a document to verify your business.</p>
                   : st === 'disconnected' ? <p className="text-stone-900">We can no longer reach your Stripe account.</p>
                     : st === 'different' ? <InlineError>Reconnect the same Stripe account. You have <B className="!text-negative">{SELLER.subscribers}</B> paying clients on it.</InlineError>
                       : (
@@ -215,7 +216,7 @@ export default function PaymentsPage() {
                     <label className="inline-flex cursor-pointer items-center gap-2 text-[13px] leading-[18px] text-stone-700"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="h-4 w-4 accent-[var(--ink)]" />I’ve switched these off</label>
                     <Tip text="In Stripe: Settings → Billing → Subscriptions and emails → switch off “Send emails when card payments fail”."><span className="cursor-default text-[13px] font-medium text-ink underline-offset-2 hover:underline">Show me where</span></Tip>
                   </Pending>
-                ) : !c.ok && c.action ? <div className="shrink-0">{c.action}</div> : null}
+                ) : !c.ok && c.action && !alerted ? <div className="shrink-0">{c.action}</div> : null}
               </li>
             ))}
           </ul>

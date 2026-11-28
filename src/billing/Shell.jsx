@@ -51,7 +51,7 @@ export function ShellNotices() {
           <p>{head}, and online payment isn’t available right now. Your access is not affected. We’ll email you when you can pay.</p>
         ) : (
           <>
-            <p className="text-stone-700">{head}<span className="max-md:block md:before:mx-2 md:before:content-['·']"><B>{money(b.due.amount)}</B> is due · <Pending n="decision 11">{d.before}<B>{d.bold}</B>{d.after}</Pending></span></p>
+            <p className="text-stone-700">{head}<span className="max-md:block md:before:mx-2 md:before:content-['·']"><B>{money(b.due.amount)}</B> is due · <Pending n="decision 11">{d.before}<B>{d.bold}</B>{d.after}{b.daysLeft > 0 ? '. After that, your plan ends.' : '.'}</Pending></span></p>
             {/* phones: the "what's paused" line sits behind a disclosure */}
             <p className="mt-0.5 max-md:hidden">{pausedLine}{b.who === 'member' && ' Ask the account owner to pay the invoice.'}</p>
             <div className="mt-1 md:hidden">
@@ -91,7 +91,7 @@ export function ReducedShell({ children }) {
       </header>
       <main className="page-gutters mx-auto flex w-full max-w-[1440px] flex-col gap-3 px-4 pb-10 pt-4 md:gap-4 md:px-6 lg:pt-8">
         {/* why the rest is locked (owner, 2026-11-28): one line, the same notice card as the shell's others */}
-        <ShellBanner data-locked><p className="text-stone-700">{b.status === 'demo-ended' ? 'Your demo has ended' : 'Your plan has ended'}, so the rest of {WORKSPACE.product} is locked. {b.who === 'member' ? 'It opens again when the account owner subscribes.' : 'Subscribe again to open it.'}</p></ShellBanner>
+        <ShellBanner data-locked><p className="text-stone-700">The rest of {WORKSPACE.product} is locked until {b.who === 'member' ? 'the account owner' : 'you'} {b.status === 'demo-ended' ? (b.who === 'member' ? 'picks a plan' : 'pick a plan') : (b.who === 'member' ? 'subscribes again' : 'subscribe again')}.</p></ShellBanner>
         {children}
       </main>
     </div>

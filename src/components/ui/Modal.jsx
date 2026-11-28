@@ -51,7 +51,12 @@ function StepBody({ stepKey, children }) {
 // Motion (as the app, #232 / #234; every dialog gets it by default): the scrim fades in 200ms; the panel rises 8px
 // from 0.98 scale in 240ms; it closes in 160ms sinking 4px, then unmounts. stepKey: a dialog with steps (see
 // StepBody). motion={false} keeps a plain fade. Reduced motion: fades only. Phones: a bottom sheet that slides up.
-export default function Modal({ open, onClose, title, subtitle, meta, toolbar, footer, size = 'md', stepKey, motion = true, children }) {
+export default function Modal({ open: wanted, onClose, title, subtitle, meta, toolbar, footer, size = 'md', stepKey, motion = true, children }) {
+  // a dialog that is already open on the first render (a link straight to it: ?review=, ?change=, ?cancel=) opens once
+  // the page has settled, so its Back handling starts from a settled history entry
+  const [armed, setArmed] = useState(false)
+  useEffect(() => { const t = setTimeout(() => setArmed(true), 60); return () => clearTimeout(t) }, [])
+  const open = wanted && armed
   const [mounted, state] = usePresence(open)
   const panel = useRef(null)
   const close = useRef(onClose)
