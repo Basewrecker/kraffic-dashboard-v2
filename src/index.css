@@ -1157,6 +1157,9 @@ html[data-theme="dark"] { --nc-unread: #3CCB7F; }
   --hc-ink: #FFFFFF;
   --hc-muted: #9A9AA0;
   --hc-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+  /* on the dark card, a rise / fall and a negative row (the card is the same in both themes, so one value each) */
+  --hc-up: #6EE7B7;
+  --hc-down: #F27370;
   /* green: the one status colour (connected / active). The dot token is never used for text */
   --connected: #16A34A;
   --connected-bg: color-mix(in srgb, var(--connected) 12%, transparent);

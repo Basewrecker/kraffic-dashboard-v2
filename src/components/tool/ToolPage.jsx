@@ -7,6 +7,7 @@ import ActionMenu from '../audit/ActionMenu'
 import MobileActions from '../ui/MobileActions'
 import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
 import HeaderBell from '../../notifications/NotificationsBell'
+import AdminOnlyReason from '../../plan/AdminOnlyReason'
 
 // One template for every Toolkit tool page:
 //   BackLink → H1 + subtitle | controls · primary action (ink) · ⋯ menu
@@ -128,13 +129,15 @@ export function EmptyState({ icon: Icon, title, body, action }) {
   )
 }
 
-export function ErrorCard({ title = 'This didn’t finish', reason, onRetry }) {
+// adminReason: why it failed, shown to a superadmin only (one small muted line); a client gets the title and Retry
+export function ErrorCard({ title = 'This didn’t finish', reason, adminReason = null, onRetry }) {
   return (
     <Card role="alert" className="flex items-start gap-3 p-5">
       <AlertCircle size={20} className="mt-0.5 shrink-0 text-negative" aria-hidden />
       <div className="min-w-0 flex-1">
         <h2 className={cardTitle}>{title}</h2>
-        <p className={`mt-1 text-[14px] leading-5 ${t2}`}>{reason}</p>
+        {reason && <p className={`mt-1 text-[14px] leading-5 ${t2} text-pretty`}>{reason}</p>}
+        <AdminOnlyReason className="mt-1">{adminReason}</AdminOnlyReason>
         {onRetry && <button type="button" onClick={onRetry} className={`${lineBtn} mt-4`}><RefreshCw size={14} aria-hidden />Retry</button>}
       </div>
     </Card>

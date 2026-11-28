@@ -404,12 +404,14 @@ export default function SentimentPage() {
         {toastNode}
       </div>
     )}
-    <div className={`k-sent flex max-w-full flex-col gap-16 overflow-x-clip ${missedShown ? 'hidden' : ''}`}>
+    <div className={`k-sent flex max-w-full flex-col gap-16 overflow-x-clip lg:-mr-3 lg:max-w-none lg:pr-3 ${missedShown ? 'hidden' : ''}`}>
       <div className="flex flex-col gap-6">
         {header}
         {endLine}
         {mock === 'error' && latest && (
-          <ErrorCard title="The latest run didn’t finish" reason={`Google credits are used up, so no pages could be found and nothing was charged. Below: the ${fmtDay(latest.date)} run.`} onRetry={() => setConfirm(true)} />
+          <ErrorCard title="The latest run didn’t finish" reason={`Nothing was charged. Below: the ${fmtDay(latest.date)} run.`}
+            // as the app (#226): why it failed (a source that isn't connected, credits used up) is for a superadmin only
+            adminReason="Google credits are used up, so no pages could be found." onRetry={() => setConfirm(true)} />
         )}
       {/* app: while a run is going the same hero shows the loader and its chart, so the dots stay when it ends */}
       <Hero heroRef={hero} col={col} change={change} moveWhy={moveWhy} brand={brand} run={run} isLatest={isLatest} onLatest={() => setRunId(null)} emptyNote={isLatest ? emptyNote : null} pages={pages} lit={lit} engine={engine}
@@ -730,19 +732,38 @@ const CountUp = ({ value }) => <>{useCountUp(value, 300)}</>
 // ---- header: title + subtitle; the engine control, Re-analyze. No numbers. The brand is the sidebar's.
 function Header({ brand, engine, setEngine, running, onRun, hideRun, missed = null, onMissed = null }) {
   const options = [{ value: 'all', label: 'All' }, ...ENGINES.map((e) => ({ value: e.id, label: <><span className="max-sm:hidden">{e.name}</span><span className="sm:hidden">{e.short}</span></> }))]
+  // as the app (#223): "Opportunities n" sits on the header's true centre, on the controls' line and height. When the
+  // title or the controls come within 8px of it, it takes its own centred row under them. Below lg it stays under the
+  // title, left. Controls order: engine filter, Re-analyze, Summary │ bell.
+  const lg = useMedia('(min-width: 1024px)')
+  const wrap = useRef(null); const left = useRef(null); const right = useRef(null); const mid = useRef(null)
+  const [ownRow, setOwnRow] = useState(false)
+  useLayoutEffect(() => {
+    if (!lg || missed == null || typeof ResizeObserver === 'undefined') return undefined
+    const measure = () => {
+      const w = wrap.current?.offsetWidth; const b = mid.current?.offsetWidth
+      if (!w || !b) return
+      const room = (w - b) / 2 - 8
+      setOwnRow(left.current.offsetWidth > room || right.current.offsetWidth > room)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    for (const r of [wrap, left, right, mid]) if (r.current) ro.observe(r.current)
+    return () => ro.disconnect()
+  }, [lg, missed])
   return (
-    // app (owner, 2026-11-15): three columns from lg: the title (left), "Opportunities n" centred on the page and on the
-    // title's line, the engine filter and Re-analyze (right); narrow: the button on its own line under the title, left
-    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-6">
-      <div className="min-w-0">
+    <div ref={wrap} className="relative flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-6">
+      <div ref={left} className="min-w-0">
         <div className="flex items-baseline gap-2.5"><h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Sentiment</h1><BetaTag tipAlign="left" className="-translate-y-[3px] lg:-translate-y-[6px]" /></div>
         <p className="mt-1 text-body text-stone-600">What sources AI relies on say about {brand.name}.</p>
       </div>
-      {/* the filled primary (dark fill, light text and count; dark mode inverts); on the same centre line and height (h-9) as the engine filter and Re-analyze (owner, 2026-11-15) */}
-      {missed != null
-        ? <div className="flex max-lg:self-start lg:self-center lg:justify-self-center max-lg:[&>button]:!w-auto" data-header-center><MissedHeaderButton count={missed} onOpen={onMissed} /></div>
-        : <span aria-hidden className="max-lg:hidden" />}
-      <div className="flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:justify-self-end lg:gap-2.5">
+      {missed != null && (
+        <div data-header-center data-own-row={ownRow || undefined}
+          className={`flex max-lg:self-start max-lg:[&_button]:!w-auto ${ownRow ? 'lg:order-last lg:basis-full lg:justify-center' : 'lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2'}`}>
+          <span ref={mid} className="inline-flex"><MissedHeaderButton count={missed} onOpen={onMissed} /></span>
+        </div>
+      )}
+      <div ref={right} className="flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:gap-2.5">
         <Seg label="Engine" value={engine} onChange={setEngine} options={options} className="max-lg:w-full" full={false} />
         {!hideRun && (
           <button type="button" onClick={onRun} disabled={running} aria-describedby="reanalyze-tip" className={`group/ra relative ${lineBtn} max-lg:h-10 max-lg:w-full`}>
@@ -766,7 +787,7 @@ function TickCount({ value }) {
   const first = useRef(true)
   useEffect(() => { first.current = false }, [])
   return (
-    <span className="k-mo-count relative inline-flex overflow-hidden font-semibold tabular-nums">{/* the button's own colour */}
+    <span className="k-mo-count relative inline-flex h-[18px] min-w-[18px] items-center justify-center overflow-hidden rounded-full bg-ink px-1.5 text-[11px] leading-none font-semibold text-on-ink tabular-nums">{/* a small ink pill */}
       <span key={value} className={first.current ? 'inline-block' : 'k-tick'}>{value}</span>
     </span>
   )
@@ -827,9 +848,10 @@ function MissedHeaderButton({ count, onOpen }) {
       onPointerDown={(e) => { if (reduced()) return; st.current.ts = 0.97; if (e.pointerType !== 'mouse') st.current.on = true; kick() }}
       onPointerUp={(e) => { st.current.ts = 1; if (e.pointerType !== 'mouse') st.current.on = false; kick() }}
       onPointerCancel={() => { st.current.ts = 1; st.current.on = false; kick() }}
-      className={`k-mo-btn relative isolate overflow-hidden ${inkBtn.replace('transition-colors duration-150', 'motion-reduce:transition-colors motion-reduce:duration-200').replace('hover:bg-ink-hover', 'motion-reduce:hover:bg-[color-mix(in_srgb,var(--ink)_90%,var(--on-ink))]')} max-lg:h-10 max-lg:w-full`}>
+      // as the app (#223): outlined like Re-analyze, the count in a small ink pill; the glow is a soft ink tint
+      className={`k-mo-btn relative isolate overflow-hidden ${lineBtn.replace('transition-colors duration-150', 'motion-reduce:transition-colors motion-reduce:duration-200').replace('hover:bg-tint', 'motion-reduce:hover:bg-tint')} !text-stone-900 max-lg:h-10 max-lg:w-full`}>
       <span ref={glow} aria-hidden className="k-mo-glow pointer-events-none absolute left-0 top-0 -z-10 h-20 w-20 rounded-full"
-        style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--on-ink) 14%, transparent) 0%, transparent 70%)' }} />
+        style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--ink) 9%, transparent) 0%, transparent 70%)' }} />
       {/* app (owner, 2026-11-14): the label reads "Opportunities" (the view it opens keeps its title) */}
       Opportunities<TickCount value={count} />
     </button>
@@ -2151,32 +2173,37 @@ function SyncTip({ col, tip, w = TIP_W, card = false }) {
   const { counts, pct } = col
   const score = scoreOf(counts)
   const d = tip.change?.delta ?? null
+  // as the app (#216): the hover tip is the shared dark card (the same in light and dark, --hc-* tokens); the card
+  // docked beside or under the chart keeps the page's surface
+  const c = card
+    ? { box: 'rounded-md border border-line bg-raised shadow-sm', ink: 'text-stone-900', muted: t3, pos: 'text-ink', neu: 'text-stone-600', mix: 'text-stone-700', neg: 'text-negative', up: 'text-[var(--rep-up-fg)]' }
+    : { box: 'rounded-xl border border-[var(--hc-line)] bg-[var(--hc-surface)] shadow-[var(--hc-shadow)]', ink: 'text-[var(--hc-ink)]', muted: 'text-[var(--hc-muted)]', pos: 'text-[var(--hc-ink)]', neu: 'text-[var(--hc-muted)]', mix: 'text-[var(--hc-muted)]', neg: 'text-[var(--hc-down)]', up: 'text-[var(--hc-up)]' }
   const line = (cls, name, t) => (
     <div className={`grid grid-cols-[1fr_3ch_5ch] gap-x-1.5 ${cls}`}><span>{name}</span><span className="text-right">{counts[t]}</span><span className="text-right">{pct[t]}%</span></div>
   )
   return (
-    <div role={card ? 'group' : 'tooltip'} aria-label={card ? `Sync ${fmtDay(col.date)}` : undefined} style={{ width: w, maxWidth: w }} className={`rounded-md border border-line bg-raised px-3 py-2.5 text-[12px] leading-4 tabular-nums ${card ? 'shadow-sm' : 'shadow-md'}`}>
+    <div role={card ? 'group' : 'tooltip'} aria-label={card ? `Sync ${fmtDay(col.date)}` : undefined} style={{ width: w, maxWidth: w }} className={`${c.box} px-3 py-2.5 text-[12px] leading-4 tabular-nums`}>
       <div className="flex items-start justify-between gap-3">
         {/* app (owner, 2026-11-10): the axis shows the date only, so the card carries the sync's time and page count */}
         <span className="flex flex-col">
-          <span className="font-semibold text-stone-900">{syncTime(col) ? `${fmtDay(col.date)}, ${syncTime(col)}` : fmtDay(col.date)}</span>
-          <span className={t3} data-sync-tip-pages>{col.pages.length} {col.pages.length === 1 ? 'page' : 'pages'}</span>
+          <span className={`font-semibold ${c.ink}`}>{syncTime(col) ? `${fmtDay(col.date)}, ${syncTime(col)}` : fmtDay(col.date)}</span>
+          <span className={c.muted} data-sync-tip-pages>{col.pages.length} {col.pages.length === 1 ? 'page' : 'pages'}</span>
         </span>
         {score != null && (
           <span className="flex flex-col items-end">
-            <span className="text-[20px] leading-6 font-semibold text-stone-900">{score}</span>
-            {d != null && <span className={`text-[12px] leading-4 ${d > 0 ? 'text-[var(--rep-up-fg)]' : d < 0 ? 'text-negative' : t3}`}>{d > 0 ? `+${d}` : d < 0 ? `−${-d}` : '0'}</span>}
+            <span className={`text-[20px] leading-6 font-semibold ${c.ink}`}>{score}</span>
+            {d != null && <span className={`text-[12px] leading-4 ${d > 0 ? c.up : d < 0 ? c.neg : c.muted}`}>{d > 0 ? `+${d}` : d < 0 ? `−${-d}` : '0'}</span>}
           </span>
         )}
           </div>
       <div className="mt-1.5 flex flex-col gap-0.5">
-        {line('text-ink', 'Positive', 'positive')}
-        {line('text-stone-600', 'Neutral', 'neutral')}
-        {line('text-stone-700', 'Mixed', 'mixed')}
-        {line('text-negative', 'Negative', 'negative')}
+        {line(c.pos, 'Positive', 'positive')}
+        {line(c.neu, 'Neutral', 'neutral')}
+        {line(c.mix, 'Mixed', 'mixed')}
+        {line(c.neg, 'Negative', 'negative')}
         </div>
-      {tip.fresh.length > 0 && <div className="mt-2 flex items-center justify-between gap-2"><span className={t3}>New this sync</span><FaviconLinks pages={tip.fresh} size="sm" /></div>}
-      {tip.turned.length > 0 && <div className="mt-1.5 flex items-center justify-between gap-2"><span className="text-negative">Turned negative</span><FaviconLinks pages={tip.turned} size="sm" /></div>}
+      {tip.fresh.length > 0 && <div className="mt-2 flex items-center justify-between gap-2"><span className={c.muted}>New this sync</span><FaviconLinks pages={tip.fresh} size="sm" /></div>}
+      {tip.turned.length > 0 && <div className="mt-1.5 flex items-center justify-between gap-2"><span className={c.neg}>Turned negative</span><FaviconLinks pages={tip.turned} size="sm" /></div>}
       </div>
   )
 }
