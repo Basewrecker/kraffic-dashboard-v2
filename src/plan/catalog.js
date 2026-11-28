@@ -18,7 +18,8 @@ const BOTS = { list: [{ label: 'WordPress (plugin)', domain: 'wordpress.org' }, 
 const BOARD = { list: [{ label: 'Slack', domain: 'slack.com' }, { label: 'Email', icon: 'mail' }] }
 const daily = { text: 'Weekly', muted: ', then daily' }
 
-export const GROUPS = [{ id: 'dfy', label: 'Done for you' }, { id: 'self', label: 'Self-serve' }]
+// as live (owner, 2026-11-28): "Customized" / "Self-serve" (was "Done for you")
+export const GROUPS = [{ id: 'dfy', label: 'Customized' }, { id: 'self', label: 'Self-serve' }]
 
 // rank orders plans for Upgrade / Switch: prompts tracked, then competitors, then logins
 export const PLANS = [

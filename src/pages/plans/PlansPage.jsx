@@ -16,8 +16,8 @@ import { PLAN, isSuperadmin, promptUsage } from '../../plan/plan.js'
 import { FOOT_NOTE, GROUPS, PLANS, SECTIONS, TRUSTED, planAction, planNote } from '../../plan/catalog.js'
 
 // Plans (/plans; the old /billing address lands here). As the app's page (components/dashboard-redesign/plans.tsx,
-// 2026-11-27): header with the account's limits on one grey line, a compact "Trusted by" row, a "Done for you /
-// Self-serve" switch, one row of whole, equal plan cards, then Compare plans. No prices anywhere. A click on a card's
+// 2026-11-27; live, 2026-11-28): the title (no limits line), a compact "Trusted by" row, a "Customized / Self-serve"
+// switch (no counts), one row of whole, equal plan cards, then the compare table (no heading). No prices anywhere. A click on a card's
 // button sends a request email; it never changes the plan.
 // Previews: ?plan=none (an account with no package of its own: every card reads "Talk to us") · ?request=sending|sent|
 // failed (the button's slot) · ?userId=… (an admin's View as: buttons off, with the reason) · ?group=self.
@@ -54,7 +54,7 @@ function GroupSwitch({ value, onChange, counts, id }) {
         return (
           <button key={g.id} ref={(el) => { refs.current[g.id] = el }} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} id={`${id}-${g.id}`} onClick={() => onChange(g.id)}
             className={`relative inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-[13px] leading-[18px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'text-on-ink' : 'text-stone-600 hover:text-stone-900'}`}>
-            {g.label}<span className={`font-normal tabular-nums ${on ? 'opacity-70' : 'text-stone-500'}`}>{counts[g.id]}</span>
+            {g.label}{/* no counts (as live, 2026-11-28) */}
           </button>
         )
       })}
@@ -260,14 +260,13 @@ export default function PlansPage() {
             </span>
           )}
         </h1>
-        {/* one grey line: the account's limits (and the client-view note on the same line) */}
-        <p className="mt-1 text-[13px] leading-[18px] text-stone-500 tabular-nums text-pretty lg:text-[14px] lg:leading-5">
-          {current
-            ? <>You’re on <span className="font-semibold text-stone-900">{current.name}</span> · {current.prompts} prompts · {current.competitors} competitors · {current.logins} logins</>
-            : <>Your limits: {u.limit} prompts · {PLAN.competitors} competitors{isSuperadmin() ? ' · No plan assigned' : ''}</>}
-          {u.over > 0 && isSuperadmin() && <> · {u.real} of {u.limit} · {u.over} over plan</>}
-          {viewAs && <> · Viewing as a client, so the plan can’t be changed here.</>}
-        </p>
+        {/* no limits line under the title (as live, 2026-11-28). Only what a viewer must know stays: an admin's View as,
+            and for a superadmin, no plan or how far over it is */}
+        {(viewAs || (isSuperadmin() && (!current || u.over > 0))) && (
+          <p className="mt-1 text-[13px] leading-[18px] text-stone-500 tabular-nums text-pretty lg:text-[14px] lg:leading-5">
+            {[isSuperadmin() && !current && 'No plan assigned', isSuperadmin() && u.over > 0 && `${u.real} of ${u.limit} · ${u.over} over plan`, viewAs && 'Viewing as a client, so the plan can’t be changed here.'].filter(Boolean).join(' · ')}
+          </p>
+        )}
         {/* demo only: when it ends (the date is said here once, not on the cards) */}
         {b.status === 'demo' && <p className="mt-1 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Demo ends <DateTip iso={b.demoEnds} bold /></p>}
       </div>
@@ -314,10 +313,10 @@ export default function PlansPage() {
             {shown.map((p) => <PlanCard key={p.id} plan={p} b={b} current={current} req={stateOf(p)} onAct={onAct} />)}
           </div>
 
-          <section aria-labelledby="compare-title" className="mt-6">
-            <h2 id="compare-title" className="text-title font-semibold text-stone-900">Compare plans</h2>
+          {/* the compare table, with no heading of its own (as live, 2026-11-28) */}
+          <section aria-label="Compare plans" className="mt-4">
             {/* never scrolls sideways from 1024px; below that the table scrolls and the first column stays */}
-            <div className="mt-4 max-lg:overflow-x-auto">
+            <div className="max-lg:overflow-x-auto">
               <div className="max-lg:min-w-[760px]">
                 <div className="sticky top-0 z-10 grid items-end gap-x-4 border-b border-line bg-page pb-3 pt-4 max-lg:top-14" style={cols}>
                   {/* owner, 2026-11-28: no second switch here (removed on live); the active group as a small muted label */}
