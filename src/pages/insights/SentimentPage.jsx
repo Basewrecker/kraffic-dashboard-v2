@@ -409,7 +409,7 @@ export default function SentimentPage() {
         {header}
         {endLine}
         {mock === 'error' && latest && (
-          <ErrorCard title="The latest run didn’t finish" reason={`Nothing was charged. Below: the ${fmtDay(latest.date)} run.`}
+          <ErrorCard title="The latest run didn’t finish" reason={`Below: the ${fmtDay(latest.date)} run.`}
             // as the app (#226): why it failed (a source that isn't connected, credits used up) is for a superadmin only
             adminReason="Google credits are used up, so no pages could be found." onRetry={() => setConfirm(true)} />
         )}

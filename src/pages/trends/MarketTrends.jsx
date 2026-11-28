@@ -92,7 +92,7 @@ export default function MarketTrends() {
     top: {
       id: 'top', title: 'Top prompts', rising: false, all: related[selected].top, empty: noRows,
       sub: <>With {term} · {words}</>,
-      tip: `Searches people make on Google alongside ${selected}, ${words}. Each one is scored against the most-searched one, which is set to 100. A score of 66 means about two-thirds as many searches as the top one. It’s not a count of searches. Track a prompt to see if AI names you for it.`,
+      tip: `Searches people make on Google alongside ${selected}, ${words}. Each one is scored against the most-searched one, which is set to 100. A score of 68 means about two-thirds as many searches as the top one. It’s not a count of searches. Track a prompt to see if AI names you for it.`,
     },
     rising: fill.kind === 'next' ? {
       id: 'rising', title: 'Worth tracking next', rising: false, all: fill.rows, empty: 'Every top prompt for your terms is tracked.',
@@ -101,7 +101,8 @@ export default function MarketTrends() {
     } : {
       id: 'rising', title: 'Rising prompts', rising: true, all: fill.rows, empty: noRows,
       sub: <>With {term}{fill.kind === 'filled' ? ' + your other terms' : ''} · {words}</>,
-      tip: `Searches alongside ${selected}${fill.kind === 'filled' ? ' and your other terms' : ''} that grew the most, ${words}, against the period before. “Breakout” is Google’s word for growth above 5,000%, usually a search that is new.`,
+      // the app's own sentence (its listTip, 2026-11-26): 'this past month' for a month, 'over the past 3 months' otherwise
+      tip: `Searches that grew the most on Google ${/^past /.test(words) ? (words === 'past month' ? 'this past month' : `over the ${words}`) : `in ${words}`}, compared with ${/^past /.test(words) ? `the ${words.replace(/^past /, '')} before` : 'the period before'}. +250% means 3.5 times as many searches. Breakout means it grew more than 5,000%, usually a brand-new search.`,
     },
   }
   for (const l of Object.values(lists)) l.rows = filterRows(l.all, shownFilter, tracked)

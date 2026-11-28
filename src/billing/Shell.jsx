@@ -82,13 +82,18 @@ export function ShellNotices() {
 // account menu (Sign out), and the Plans page. No sidebar navigation.
 export const isReduced = (b) => b.live && (b.status === 'ended' || b.status === 'demo-ended')
 export function ReducedShell({ children }) {
+  const b = billingState()
   return (
     <div className="min-h-screen">
       <header className="flex h-14 items-center justify-between border-b border-[var(--div)] px-4 md:px-6">
         <span className="flex h-10 items-center px-1"><Wordmark /></span>
         <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-[14px] leading-5 font-medium text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><LogOut size={16} aria-hidden />Sign out</button>
       </header>
-      <main className="page-gutters mx-auto flex w-full max-w-[1440px] flex-col gap-3 px-4 pb-10 pt-4 md:gap-4 md:px-6 lg:pt-8">{children}</main>
+      <main className="page-gutters mx-auto flex w-full max-w-[1440px] flex-col gap-3 px-4 pb-10 pt-4 md:gap-4 md:px-6 lg:pt-8">
+        {/* why the rest is locked (owner, 2026-11-28): one line, the same notice card as the shell's others */}
+        <ShellBanner data-locked><p className="text-stone-700">{b.status === 'demo-ended' ? 'Your demo has ended' : 'Your plan has ended'}, so the rest of {WORKSPACE.product} is locked. {b.who === 'member' ? 'It opens again when the account owner subscribes.' : 'Subscribe again to open it.'}</p></ShellBanner>
+        {children}
+      </main>
     </div>
   )
 }

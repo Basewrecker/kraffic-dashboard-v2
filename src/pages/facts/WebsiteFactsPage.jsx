@@ -1778,7 +1778,7 @@ export default function WebsiteFactsPage() {
   const admin = isSuperadmin()
   const lockedNow = !admin && hasRead && (checkUsed || new URLSearchParams(window.location.search).get('check') === 'locked')
   const nextCheck = (() => { const d = new Date(readAt && !Number.isNaN(Date.parse(readAt)) ? readAt : Date.now()); d.setMonth(d.getMonth() + 1); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) })()
-  const check = { locked: lockedNow, tip: admin ? 'Superadmin: no monthly limit. Clients can check once a month.' : lockedNow ? `Fact check runs once a month. Next check available ${nextCheck}.` : 'Fact check runs once a month.' }
+  const check = { locked: lockedNow, tip: admin ? 'Admin runs don’t count toward the monthly limit.' : lockedNow ? `You’ve already run this month’s check. Next check ${nextCheck}.` : 'Fact check runs once a month.' }
   const changes = useMemo(() => factCheckChanges({ total: rowFacts.length, match: resultGroups.match.length, mismatch: resultGroups.mismatch.map((f) => ({ kind: KIND[f.field] ?? 'Fact' })), unchecked: resultGroups.unchecked.length, readAt, brand: brandName() }),
     [rowFacts.length, resultGroups.match.length, resultGroups.mismatch.length, resultGroups.unchecked.length, readAt]) // eslint-disable-line react-hooks/exhaustive-deps
   const hero = <Hero key={`hero-${round}`} check={check} changes={changes} b={b} groups={resultGroups} total={rowFacts.length} scan={scan} hasRead={hasRead} onRead={read} readAt={readAt} failed={readError && { message: readError, retry: read }} onGo={(filter) => setBoxCmd({ filter, at: Date.now() })} seg={seg} setSeg={setSeg} />

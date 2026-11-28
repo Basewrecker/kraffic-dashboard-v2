@@ -79,6 +79,8 @@ None of the brief's listed components was missing a fit. Three small things were
 
 ## The 9 open conflicts: what was designed
 
+**Settled by the owner on 2026-11-28:** 1 to 7 stand as designed below (1: the new design system, the old console is redesigned later; 6: all four checks stay; 7: handled on the app side). 3 gained one line in the reduced shell saying why the rest is locked. 8: the old pages are deleted. 9: superadmin only in v1, agency admins later.
+
 1. **Console style.** Screens 7 and 8 are in the locked design system, inside a plain stand-in frame. The old console wasn't touched or imitated.
 2. **Demo banner.** Built on the plain sentence in a graphite card.
 3. **Expired page.** An ended account signs in to the Plans page in a reduced shell (logo, Sign out). Today's "Account access ended" card is kept only for a demo that expired where billing isn't live, restyled on tokens.
@@ -95,7 +97,7 @@ None of the brief's listed components was missing a fit. Three small things were
 - Where billing is live the card's big number is the price and the prompt count leads "This includes:". The compare table's header still says "200 prompts". Is that the wanted place for the prompts?
 - Does the seller see the minimum price? (Harsh.)
 - The wording for a cancellation asked for while payments are disconnected ("We've received your cancellation. We'll confirm it by email as soon as it's in place."): shown in the cancel dialog, marked "owner sign-off".
-- **New: the renewal terms on the Plans page.** They sit under the plan cards before any plan is picked, so there is no single price to name. The page says "renews automatically for your plan's price every month"; the review step names the amount. OK?
+- **Answered (owner, 2026-11-28): the renewal terms on the Plans page.** Under the plan cards, before a plan is picked, the first line reads "Plans renew every month until you cancel. You'll see the exact price before you pay." The review step names the amount.
 - **New: the overdue invoice's amount.** On the Billing tab in past due, the amount is in the plan card's sentence and also in the overdue invoice's row. The row keeps it (a table row without its amount reads as missing data). The banner stays hidden there, as the brief says.
 - **New: the pending card.** While a payment is pending, the other cards' buttons read "Subscribe" and are off. The brief says "others disabled" without a label.
 - **New: "Card on file" for a team member** has no Update card button and no helper line.
