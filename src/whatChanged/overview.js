@@ -4,6 +4,7 @@
 import { getHistory, missedPrompts, platformNames, syncHistory, visiblePrompts, citedPages } from '../data/mock.js'
 import { ENGINES, TRACKED_BRANDS, OWN } from '../data/brandViews.js'
 import { B, DAYS, baseIndex, delta, fmtDay, fmtWeekday, heroOf, isoOf, noiseCount, noisePts, plural, preview } from './util.js'
+import { hubLink } from './hub-link.js'
 
 const PID_ENGINE = { google: 'aio' }
 const engineOf = (pid) => PID_ENGINE[pid] ?? pid
@@ -112,6 +113,8 @@ export const overview = {
     const gainedAll = ids('gained'), lostAll = ids('lost')
     const won = gainedAll.filter((id) => !lostAll.includes(id)).map((id) => visiblePrompts[id]).filter(Boolean)
     const lost = lostAll.filter((id) => !gainedAll.includes(id)).map((id) => missedPrompts.find((m) => m.id === id)).filter(Boolean)
+    // the period is one scan: the Prompt Hub can show exactly that scan's prompts (else its status tab)
+    const oneScan = span.length === 1 ? span[0].iso : null
     const keyOf = (kind, r) => `${kind === 'won' ? 'v' : 'm'}${r.id}`
     const promptRow = (r, kind) => ({
       id: `${kind}-${r.id}`, mark: { engine: engineOf(r.platforms?.[0] ?? 'google') }, text: [B(r.prompt)],
@@ -145,8 +148,9 @@ export const overview = {
       breakdown: { title: 'By engine', rows: engines },
       lists: [
         { id: 'moved', title: 'What moved', rows: moved.slice(0, 5) },
-        { id: 'won', title: 'Prompts won', count: won.length, rows: won.slice(0, 3).map((r) => promptRow(r, 'won')) },
-        { id: 'lost', title: 'Prompts lost', count: lost.length, rows: lost.slice(0, 3).map((r) => promptRow(r, 'lost')) },
+        // every prompt: the panel shows `limit` rows, then "Show all n"; hub: the section's "View in Prompt Hub →"
+        { id: 'won', title: 'Prompts won', count: won.length, rows: won.map((r) => promptRow(r, 'won')), limit: 5, hub: hubLink({ kind: 'won', iso: oneScan }) },
+        { id: 'lost', title: 'Prompts lost', count: lost.length, rows: lost.map((r) => promptRow(r, 'lost')), limit: 5, hub: hubLink({ kind: 'lost', iso: oneScan }) },
       ],
       next: next.slice(0, 2),
       footer: [...footer, ...notes],

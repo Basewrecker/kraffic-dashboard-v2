@@ -3,6 +3,8 @@ import Select from '../ui/Select'
 import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
 import { ArrowUpRight, ChevronDown, ChevronRight, Search, X } from 'lucide-react'
 import { PlatformIcon } from '../dashboard/icons'
+import EdgeTip from '../ui/EdgeTip'
+import SiteLogo from '../ui/SiteLogo'
 import { LATEST, getAnswer } from '../../data/answers'
 import { ENGINES, TRACKED_BRANDS, brandByDomain, engineDetail, engineFullName, engineName, getBrandView } from '../../data/brandViews'
 import { promptCategories } from '../../data/mock'
@@ -47,14 +49,26 @@ function urlFor(s) {
 }
 const writeUrl = (s) => window.history.replaceState(window.history.state, '', urlFor(s))
 
-// "/products/organic-lavender-shower-steamers" → "/products/…-shower-steamers"
-function middle(path, max = 46) {
-  if (path.length <= max) return path
-  const cut = path.lastIndexOf('/') + 1
-  const head = path.slice(0, cut)
-  const tail = path.slice(cut)
-  const keep = Math.max(12, max - head.length - 1)
-  return head.length + 1 + keep >= path.length ? path : `${head}…${tail.slice(-keep)}`
+// A page's path on one line, cut at its end with "…". Only when it really is cut does hovering (or focusing) it show
+// the whole path, through the shared tip: never the browser's own tooltip.
+function CutPath({ path }) {
+  const ref = useRef(null)
+  const [cut, setCut] = useState(false)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return undefined
+    const measure = () => setCut(el.scrollWidth > el.clientWidth + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [path])
+  return (
+    <span ref={ref} className="min-w-0 truncate text-[14px] leading-5 font-medium text-stone-900">
+      {cut ? <EdgeTip tip={path} label={path} width={360}>{path}</EdgeTip> : path}
+    </span>
+  )
 }
 
 export function download(name, rows) {
@@ -117,22 +131,30 @@ function PageRow({ page, domain, onOpen }) {
   const [all, setAll] = useState(false)
   const chips = all ? page.prompts : page.prompts.slice(0, 2)
   const more = page.prompts.length - chips.length
-  const chip = 'inline-flex h-6 max-w-full items-center rounded-md bg-tint px-2 text-[12px] leading-4 text-stone-700 outline-none transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_10%,transparent)] hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus'
+  // the engines whose answers cite this page, in the header's order
+  const engines = ENGINES.filter((e) => page.prompts.some((p) => p.engine === e.id))
+  // quiet chips: a hairline and muted text, so the path and the count lead
+  const chip = 'inline-flex h-6 max-w-full items-center rounded-md border border-line px-2 text-[12px] leading-4 text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus'
   return (
-    <li className="group px-6 py-4">
+    <li className="group px-6 py-5">
       <div className="flex items-center gap-2">
-        <span title={page.path} className="min-w-0 truncate text-[14px] leading-5 font-medium text-stone-900">{middle(page.path)}</span>
+        <SiteLogo domain={domain} className="h-4 w-4 rounded" initialClass="text-[9px]" />
+        <CutPath path={page.path} />
         <a href={`https://${domain}${page.path}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${domain}${page.path}`}
           className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-stone-500 opacity-0 outline-none transition-[opacity,color,background-color] duration-150 hover:bg-tint hover:text-stone-900 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-focus group-hover:opacity-100 touch:opacity-100 [@media(hover:none)]:opacity-100">
           <ArrowUpRight size={14} aria-hidden />
         </a>
+        <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-2" role="img" aria-label={`Cited by ${engines.map((e) => e.name).join(', ')}`}>
+          {engines.map((e) => <PlatformIcon key={e.id} id={e.id} size={16} />)}
+        </span>
       </div>
-      <div className="mt-1 text-[12px] leading-4">
+      <div className="mt-1 pl-6 text-[12px] leading-4">
         <span className="text-stone-500">{domain}</span>
         <span className="text-stone-500"> · </span>
-        <span className="text-stone-600 tabular-nums">{plural(page.prompts.length, 'prompt')}</span>
+        <span className="font-semibold text-stone-900 tabular-nums">{page.prompts.length}</span>
+        <span className="text-stone-600"> {page.prompts.length === 1 ? 'prompt' : 'prompts'}</span>
       </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2.5 flex flex-wrap gap-1.5 pl-6">
         {chips.map((p, i) => (
           <button key={p.key} type="button" {...(i === 0 && { 'data-nav': '' })} onClick={(e) => onOpen(p, page.prompts, e.currentTarget)} className={chip}>
             <span className="truncate">{p.prompt}</span>

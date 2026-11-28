@@ -76,6 +76,8 @@ export function WhatChangedPanel({ config }) {
   const { item: period, close } = drawer
   const data = useMemo(() => (period ? config.build(period) : null), [period, config])
   const [collapsed, setCollapsed] = useState({})
+  const [expanded, setExpanded] = useState({}) // lists showing every row ("Show all n")
+  useEffect(() => { if (!drawer.open) setExpanded({}) }, [drawer.open])
   useEffect(() => {
     if (!drawer.open || !data?.latestIso) return
     write(seenKey(config.page), data.latestIso)
@@ -130,7 +132,7 @@ export function WhatChangedPanel({ config }) {
                       <div key={g.label} className={`flex min-w-0 flex-col ${i ? 'pl-3.5' : ''} ${i < data.glance.length - 1 ? 'pr-3.5' : ''}`}>
                         <dd className="text-[24px] leading-8 font-semibold tracking-[-0.01em] text-stone-900 tabular-nums">{g.value}</dd>
                         <dd className={`text-[13px] leading-[18px] font-medium tabular-nums ${g.delta ? toneCls(g.delta.good) : 'text-stone-400'}`}>{g.delta ? g.delta.text : '—'}</dd>
-                        <dt className="mt-1 truncate text-[12.5px] leading-[18px] text-stone-500">{g.label}</dt>
+                        <dt className="mt-1 truncate text-[12.5px] leading-[18px] font-semibold text-stone-600">{g.label}</dt>
                       </div>
                     ))}
                   </dl>
@@ -162,16 +164,39 @@ export function WhatChangedPanel({ config }) {
                 )}
 
                 {/* f. list rows: What moved, Prompts won / lost, … (collapsible) */}
-                {lists.map((l) => (
-                  <section key={l.id} className={section}>
-                    <SectionToggle id={l.id} title={l.title} count={l.count} open={!collapsed[l.id]} onToggle={() => toggle(l.id)} />
-                    {!collapsed[l.id] && (
-                      <ul id={`wc-list-${l.id}`} className="mt-2 divide-y divide-[var(--div)]">
-                        {l.rows.map((r) => <Row key={r.id} row={r} i={order++} onPick={clickable(r) ? () => go(r) : null} />)}
-                      </ul>
-                    )}
-                  </section>
-                ))}
+                {lists.map((l) => {
+                  // a long list (Prompts won / lost) shows its first `limit` rows, then "Show all n"
+                  const more = l.limit != null && l.rows.length > l.limit
+                  const rows = more && !expanded[l.id] ? l.rows.slice(0, l.limit) : l.rows
+                  return (
+                    <section key={l.id} className={section}>
+                      <SectionToggle id={l.id} title={l.title} count={l.count} open={!collapsed[l.id]} onToggle={() => toggle(l.id)} />
+                      {!collapsed[l.id] && (
+                        <div id={`wc-list-${l.id}`}>
+                          <ul className="mt-2 divide-y divide-[var(--div)]">
+                            {rows.map((r) => <Row key={r.id} row={r} i={order++} onPick={clickable(r) ? () => go(r) : null} />)}
+                          </ul>
+                          {(more || l.hub) && (
+                            <div className="mt-2 flex min-h-8 items-center justify-between gap-3 text-[13px] leading-[18px] font-medium">
+                              {more ? (
+                                <button type="button" onClick={() => setExpanded((x) => ({ ...x, [l.id]: !x[l.id] }))} aria-expanded={Boolean(expanded[l.id])}
+                                  className="rounded text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus tabular-nums">
+                                  {expanded[l.id] ? 'Show fewer' : `Show all ${l.rows.length}`}
+                                </button>
+                              ) : <span />}
+                              {l.hub && (
+                                <button type="button" onClick={() => go({ href: l.hub })}
+                                  className="group inline-flex items-center gap-1 rounded text-stone-700 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">
+                                  View in Prompt Hub<ArrowRight size={14} className="transition-transform duration-150 group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </section>
+                  )
+                })}
 
                 {/* g. worth doing next (only when the data points at an action) */}
                 {next.length > 0 && (

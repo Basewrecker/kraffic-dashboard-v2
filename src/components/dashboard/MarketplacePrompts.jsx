@@ -1,33 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight } from 'lucide-react'
-import PromptTable, { RowAction } from './PromptTable'
-import { MarketplaceIcon } from './icons'
-import { account, marketplace } from '../../data/mock'
-import { brandName } from '../../utils/brand'
+import { ArrowRight, Download, History, Search } from 'lucide-react'
+import Card from './Card'
+import PillRow from './PillRow'
+import { HeaderIconButton } from './PageHeader'
+import { marketplace } from '../../data/mock'
 import { useBrandView } from '../../hooks/useBrandView'
 import { PromptSetPill, usePromptSet } from './promptSet'
+import { EXPORT_EVENT } from '../ui/MobileActions'
 import { openAnswer } from '../answer/AnswerDrawer'
+import { openMarketplaceDrawer } from '../answer/MarketplaceDrawer'
+import MarketplacePromptsDrawer, { EngineMarks, FILTERS, SiteCell, exportClass, exportRows, openMarketplacePrompts, pillItems, resultText } from '../answer/MarketplacePromptsDrawer'
 
-const YOU = brandName(account.domain)
-const RESULT = { yours: YOU, competitor: 'Competitor product', category: 'Category page', none: 'No marketplace' }
-// chip labels come from the Marketplace visibility segments, so the card and the table never disagree
-const segLabel = (key) => marketplace.segments.find((s) => s.key === key).label
-const FILTERS = [
-  ['all', 'All', () => true],
-  ['yours', segLabel('yours'), (r) => r.result === 'yours'],
-  ['others', segLabel('others'), (r) => r.result === 'competitor' || r.result === 'category'],
-  ['none', segLabel('none'), (r) => r.result === 'none'],
-]
+// Marketplace prompts (as the app's card): always 5 rows, "Showing 5 of N", and "View all N →" opens the whole list
+// in a side panel (answer/MarketplacePromptsDrawer: search, the same pills, Export CSV, pages). The search button opens
+// that panel with its search box focused; the History button opens Marketplace visibility week by week.
+const SHOWN = 5
+// The card sits in a half-width column on desktop, so its columns follow the card's own width (container queries):
+// a narrow card (phones) stacks each row on two lines, a mid one drops Engines, a wide one shows all four.
+const COLS = 'grid grid-cols-[minmax(0,1fr)_auto] @min-[440px]:grid-cols-[minmax(0,1fr)_168px_128px] @min-[520px]:grid-cols-[minmax(0,1fr)_200px_108px_132px]'
+const WIDE = '@min-[440px]:order-none' // a narrow card reorders the cells (prompt · result / site · engines)
 
 // Dev preview of the loading state: add ?loading to the URL.
 const loading = import.meta.env.DEV && new URLSearchParams(window.location.search).has('loading')
 
 // marketplace links are only tracked for Dermasuri: no table in a competitor view
 export default function MarketplacePrompts() {
-  return useBrandView().isOwnBrand ? <MarketplacePromptsTable /> : null
+  return useBrandView().isOwnBrand ? <MarketplacePromptsCard /> : null
 }
 
-function MarketplacePromptsTable() {
+function MarketplacePromptsCard() {
   const [filter, setFilter] = useState('all')
   const scrollNext = useRef(false)
   const set = usePromptSet('marketplace-prompts') // e.g. "Target listings" from the card's insight
@@ -44,105 +45,95 @@ function MarketplacePromptsTable() {
     document.querySelector('#marketplace-prompts')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [filter])
 
-  const rows = useMemo(() => marketplace.prompts.filter((r) => FILTERS.find((f) => f[0] === filter)[2](r) && (!set.ids || set.ids.has(r.id))), [filter, set.ids])
+  // the list before the result filter (an insight's prompt set narrows it), then the pill's rows
+  const base = useMemo(() => marketplace.prompts.filter((r) => !set.ids || set.ids.has(r.id)), [set.ids])
+  const rows = useMemo(() => base.filter(FILTERS[filter]), [base, filter])
+  const shown = rows.slice(0, SHOWN)
 
-  const chip = (active) =>
-    `inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-small font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${
-      active ? 'border-ink bg-ink text-on-ink' : 'border-transparent hover:brightness-[0.97]'
-    }`
-  const filterBar = (
-    <div className="-mx-5 flex gap-1.5 overflow-x-auto px-5 [scrollbar-width:none]" role="toolbar" aria-label="Filter by result">
-      <PromptSetPill set={set} />
-      {FILTERS.map(([id, label, fn]) => (
-        <button key={id} className={chip(filter === id)} style={filter === id ? undefined : { background: 'var(--tint)', color: 'var(--color-stone-700)' }}
-          aria-pressed={filter === id} onClick={() => setFilter(id)}>
-          {label} <span className="proportional-nums opacity-80">{marketplace.prompts.filter(fn).length}</span>
-        </button>
-      ))}
-    </div>
-  )
+  // phones: the page's ⋯ menu asks for the export (see ui/MobileActions exportTable)
+  const exportRef = useRef(null)
+  exportRef.current = () => exportRows(rows)
+  useEffect(() => {
+    const on = (e) => { if (e.detail?.id === 'marketplace-prompts') exportRef.current() }
+    window.addEventListener(EXPORT_EVENT, on)
+    return () => window.removeEventListener(EXPORT_EVENT, on)
+  }, [])
 
-  const columns = [
-    {
-      key: 'prompt',
-      label: 'Prompt',
-      skeleton: '60%',
-      mobileText: (r) => r.prompt,
-      sort: { value: (r) => r.prompt.toLowerCase(), first: 'asc' },
-      cell: (r) => <span title={r.prompt} className="block truncate text-body text-stone-900">{r.prompt}</span>,
-    },
-    {
-      key: 'result',
-      label: 'Result',
-      width: 148,
-      skeleton: '100px',
-      csv: (r) => RESULT[r.result],
-      cell: (r) => (
-        <span className={`inline-flex h-6 items-center whitespace-nowrap rounded-md bg-tint px-2 text-[12px] leading-none ${r.result === 'yours' ? 'font-medium text-ink' : 'text-stone-600'}`}>
-          {RESULT[r.result]}
-        </span>
-      ),
-    },
-    {
-      key: 'markets',
-      label: 'Marketplace',
-      width: 176,
-      skeleton: '90px',
-      csv: (r) => r.markets.join(' + '),
-      cell: (r) => !r.markets.length ? <span className="text-small text-stone-500">—</span> : (
-        <span className="flex items-center gap-2 whitespace-nowrap">
-          {r.markets.map((m) => (
-            <span key={m} className="inline-flex items-center gap-1.5 text-small text-stone-900"><MarketplaceIcon name={m} size={14} />{m}</span>
-          ))}
-        </span>
-      ),
-    },
-    {
-      key: 'page',
-      label: 'Cited page',
-      mobile: false,
-      width: 240,
-      skeleton: '160px',
-      csv: (r) => `https://${r.page.domain}${r.page.path}`,
-      stopRowClick: true,
-      cell: (r) => (
-        <a
-          href={`https://${r.page.domain}${r.page.path}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={`${r.page.domain}${r.page.path}`}
-          className="group/link flex min-w-0 items-center gap-1 rounded text-small text-stone-600 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"
-        >
-          {/* off-marketplace pages show their site, since the domain is the point */}
-          <span className="truncate">{r.result === 'none' ? `${r.page.domain}${r.page.path}` : r.page.path}</span>
-          <ArrowUpRight size={12} className="shrink-0 text-stone-400 group-hover/link:text-stone-900" aria-hidden />
-        </a>
-      ),
-    },
-    {
-      key: 'action',
-      label: '',
-      mobile: false, // phones: the row tap opens the answer
-      width: 148, // spec 88; 'View answer' needs 148 incl. padding (same as Visible prompts)
-      align: 'right',
-      skeleton: '72px',
-      csv: false,
-      cell: (r, sorted) => <RowAction onClick={(e) => openAnswer({ key: `mp${r.id}`, list: sorted.map((x) => `mp${x.id}`), opener: e.currentTarget })}>View answer</RowAction>,
-    },
-  ]
+  const open = (r, el) => openAnswer({ key: `mp${r.id}`, list: rows.map((x) => `mp${x.id}`), opener: el })
+  const pills = <PillRow items={pillItems(base, filter)} value={filter} onChange={setFilter} label="Filter by result" bleed={set.ids ? '' : '-mx-5 px-5'} className={set.ids ? 'min-w-0 flex-1' : ''} />
 
   return (
-    <PromptTable
-      id="marketplace-prompts"
-      title="Marketplace prompts"
-      subtitle="How each tracked prompt's AI answer links to independent citations"
-      count={rows.length}
-      rows={rows}
-      columns={columns}
-      csvName="marketplace-prompts.csv"
-      loading={loading}
-      filterBar={filterBar}
-      mobileRowClick={(r, el) => openAnswer({ key: `mp${r.id}`, list: rows.map((x) => `mp${x.id}`), opener: el })}
-    />
+    <>
+      <Card id="marketplace-prompts" className="@container flex h-full min-w-0 scroll-mt-6 flex-col overflow-hidden pt-5">
+        <div className="flex items-start justify-between gap-3 px-5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-title font-semibold text-stone-900">Marketplace prompts</h2>
+              {!loading && <span className="inline-flex h-6 items-center rounded-full bg-stone-100 px-2 text-[13px] leading-none font-medium text-stone-600 tabular-nums">{rows.length}</span>}
+            </div>
+            <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600">How each tracked prompt's AI answer links to independent citations</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <HeaderIconButton label="Search prompts" icon={Search} onClick={() => openMarketplacePrompts({ search: true })} className="md:h-9 md:w-9 md:rounded-lg" />
+            <HeaderIconButton label="Week by week" icon={History} onClick={(e) => openMarketplaceDrawer({ metric: 'linking', opener: e.currentTarget })} className="md:h-9 md:w-9 md:rounded-lg" />
+            <button type="button" onClick={() => exportRows(rows)} className={`hidden md:inline-flex ${exportClass}`}><Download size={16} aria-hidden /> Export CSV</button>
+          </div>
+        </div>
+
+        <div className="mt-3 px-5">
+          {set.ids ? <div className="flex items-center gap-1.5"><PromptSetPill set={set} />{pills}</div> : pills}
+        </div>
+
+        {/* column names: only once the card is wide enough for a table */}
+        <div className={`${COLS} mt-3 hidden h-9 shrink-0 items-center border-y border-stone-100 bg-tint text-[13px] leading-5 font-medium text-stone-500 @min-[440px]:grid`}>
+          <span className="pl-5 pr-3">Prompt</span>
+          <span className="px-3">Cited site</span>
+          <span className="px-3 @max-[519px]:hidden">Engines</span>
+          <span className="pl-3 pr-5 text-right">Result</span>
+        </div>
+
+        <div className="mt-3 flex-1 border-t border-stone-100 @min-[440px]:mt-0 @min-[440px]:border-t-0" aria-busy={loading || undefined}>
+          {loading ? Array.from({ length: SHOWN }, (_, i) => (
+            <div key={i} className={`${COLS} h-[62px] items-center border-b border-stone-100 @min-[440px]:h-11`}>
+              <span className="pl-5 pr-3"><span className="block h-4 w-3/5 animate-pulse rounded bg-stone-100" /></span>
+              <span className="pl-3 pr-5 @min-[440px]:px-3"><span className="block h-4 w-12 animate-pulse rounded bg-stone-100 @min-[440px]:w-24" /></span>
+              <span className="hidden px-3 @min-[520px]:block"><span className="block h-4 w-16 animate-pulse rounded bg-stone-100" /></span>
+              <span className="hidden pl-3 pr-5 @min-[440px]:block"><span className="ml-auto block h-4 w-14 animate-pulse rounded bg-stone-100" /></span>
+            </div>
+          )) : shown.length === 0 ? (
+            <div className="grid h-32 place-items-center px-5 text-center">
+              <div>
+                <p className="text-small text-stone-600">No prompts here yet</p>
+                {(filter !== 'all' || set.ids) && (
+                  <button type="button" onClick={() => { setFilter('all'); set.clear() }}
+                    className="mt-2 inline-flex h-8 items-center rounded-md px-2.5 text-small font-medium text-stone-600 outline-none transition-colors duration-150 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : shown.map((r) => (
+            <button key={r.id} type="button" onClick={(e) => open(r, e.currentTarget)}
+              className={`${COLS} w-full items-center gap-y-1 border-b border-stone-100 py-2.5 text-left outline-none transition-colors duration-150 hover:bg-stone-50 focus-visible:bg-stone-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus @min-[440px]:h-11 @min-[440px]:py-0`}>
+              <span className={`order-1 ${WIDE} min-w-0 truncate pl-5 pr-3 text-body text-stone-900`}>{r.prompt}</span>
+              <span className={`order-3 ${WIDE} min-w-0 pl-5 pr-3 @min-[440px]:px-3`}><SiteCell row={r} /></span>
+              <span className={`order-4 ${WIDE} flex justify-end pl-3 pr-5 @min-[440px]:justify-start @min-[440px]:px-3 @min-[440px]:@max-[519px]:hidden`}><EngineMarks row={r} /></span>
+              <span className={`order-2 ${WIDE} whitespace-nowrap pl-3 pr-5 text-right text-small ${r.result === 'yours' ? 'font-medium text-stone-900' : r.result === 'none' ? 'text-stone-500' : 'text-stone-600'}`}>{resultText(r)}</span>
+            </button>
+          ))}
+        </div>
+
+        {!loading && rows.length > 0 && (
+          <div className="flex h-12 shrink-0 items-center justify-between gap-3 px-5 text-[13px] leading-[18px]">
+            <span className="text-stone-500 tabular-nums">Showing {shown.length} of {rows.length}</span>
+            <button type="button" onClick={() => openMarketplacePrompts()}
+              className="inline-flex items-center gap-1 rounded font-medium text-stone-700 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus tabular-nums">
+              View all {rows.length} <ArrowRight size={12} aria-hidden />
+            </button>
+          </div>
+        )}
+      </Card>
+      <MarketplacePromptsDrawer rows={base} filter={filter} setFilter={setFilter} set={set} />
+    </>
   )
 }
