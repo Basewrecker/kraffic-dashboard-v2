@@ -60,8 +60,74 @@ function Stack({ w, out }) {
 function Dots({ w }) {
   return (
     <span className="flex items-center gap-[5px]" role="progressbar" aria-valuemin={0} aria-valuemax={TASKS.length} aria-valuenow={doneCount(w)} aria-label="Steps done">
-      {TASKS.map((t) => <span key={t.id} className="wt-dot" data-state={taskStatus(w, t) === 'done' ? 'done' : taskStatus(w, t) === 'current' ? 'current' : 'rest'} style={{ '--c': colourOf(t) }} />)}
+      {/* neutral steppers (as the app, #223): done = a muted circle with a grey tick; current = an ink pill;
+          upcoming = an outlined circle. No step colours here (the board keeps them) */}
+      {TASKS.map((t) => {
+        const s = taskStatus(w, t)
+        if (s === 'done') return <span key={t.id} data-state="done" className="grid h-[9px] w-[9px] place-items-center rounded-full bg-[var(--color-line-strong)]"><svg viewBox="0 0 8 8" width="6" height="6" fill="none" stroke="var(--color-surface)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M1.6 4.2 3.3 5.8 6.4 2.4" /></svg></span>
+        if (s === 'current') return <span key={t.id} data-state="current" className="h-[9px] w-5 rounded-full bg-ink" />
+        return <span key={t.id} data-state="rest" className="h-[9px] w-[9px] rounded-full border-[1.5px] border-[var(--color-line-strong)]" />
+      })}
     </span>
+  )
+}
+
+// The sidebar's row (as the app, #209 / #216 / #223): one 40px row with a progress ring (ink arc), "Getting started"
+// and "1 of 6" in grey; an ink check in place of the ring when every step is done. Hover, focus or a tap opens the
+// full card as a panel to the right of the sidebar, bottom-aligned with the row; a click on the row or the card
+// opens the board, as before.
+function SidebarRow({ w, out, n, next, line, finished }) {
+  const row = useRef(null)
+  const hide = useRef(null)
+  const [peek, setPeek] = useState(false)
+  const [pos, setPos] = useState(null)
+  const show = () => {
+    clearTimeout(hide.current)
+    const r = row.current?.getBoundingClientRect()
+    if (!r) return
+    const edge = row.current.closest('aside')?.getBoundingClientRect().right ?? r.right
+    setPos({ left: edge + 8, bottom: Math.max(8, window.innerHeight - r.bottom) })
+    setPeek(true)
+  }
+  const later = () => { clearTimeout(hide.current); hide.current = setTimeout(() => setPeek(false), 140) }
+  useEffect(() => () => clearTimeout(hide.current), [])
+  const R = 7, C = 2 * Math.PI * R
+  return (
+    <div data-getting-started="sidebar" data-leaving={w.leaving ? '' : undefined}
+      className={`wt-leave grid grid-cols-[minmax(0,1fr)] ${w.leaving ? '-mb-1 grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`}>
+      <div className={`min-h-0 ${w.leaving ? 'overflow-hidden' : ''}`}>
+        <button ref={row} type="button" data-tour="getting-started" data-count={`${n} of ${TASKS.length}`} onClick={toggleList}
+          onMouseEnter={show} onMouseLeave={later} onFocus={show} onBlur={later}
+          aria-expanded={Boolean(w.list)} aria-haspopup="dialog" aria-label={`Getting started: ${n} of ${TASKS.length} done. ${line}`}
+          className={`flex h-10 w-full items-center gap-2.5 rounded-md px-2 text-left text-[14px] leading-5 font-medium text-ink outline-none transition-colors duration-150 hover:bg-nav-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus ${peek ? 'bg-nav-hover' : ''}`}>
+          {finished ? (
+            <span aria-hidden className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-ink text-on-ink"><svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 6.2 5 8.6l4.5-5" /></svg></span>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden className="shrink-0 -rotate-90">
+              <circle cx="8" cy="8" r={R} fill="none" stroke="var(--color-line-strong)" strokeWidth="2" />
+              <circle cx="8" cy="8" r={R} fill="none" stroke="var(--ink)" strokeWidth="2" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - n / TASKS.length)} className="transition-[stroke-dashoffset] duration-500 ease-out motion-reduce:transition-none" />
+            </svg>
+          )}
+          <span className="min-w-0 truncate" data-card-title>{finished ? DONE_TITLE : 'Getting started'}</span>
+          <span className="ml-auto shrink-0 text-[13px] leading-[18px] font-normal text-stone-500 tabular-nums">{n} of {TASKS.length}</span>
+        </button>
+      </div>
+      {peek && pos && createPortal(
+        <div data-getting-started-panel onMouseEnter={show} onMouseLeave={later} style={{ left: pos.left, bottom: pos.bottom }}
+          className="wt-card fixed z-[70] w-[264px] motion-safe:animate-[fade-in_150ms_ease-out]">
+          <button type="button" tabIndex={-1} onClick={() => { setPeek(false); toggleList() }}
+            className="relative flex w-full items-center gap-2.5 rounded-xl border border-line bg-raised px-3 py-3 text-left shadow-[0_8px_24px_-8px_rgba(0,0,0,.18)] outline-none">
+            <Stack w={w} out={out} />
+            <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
+              <span className="text-[13px] leading-[18px] font-semibold text-stone-900">{finished ? DONE_TITLE : 'Getting started'}</span>
+              <span className="block text-[12px] leading-4 text-stone-600" data-next-line>{next ? <>Next: <span className="font-semibold text-stone-900">{next.short}</span></> : line}</span>
+              <span className="mt-[3px]"><Dots w={w} /></span>
+            </span>
+          </button>
+        </div>,
+        document.body,
+      )}
+    </div>
   )
 }
 
@@ -93,6 +159,7 @@ export default function GettingStarted({ inline = false }) {
   const n = doneCount(w)
   const next = nextTask(w)
   const line = nextLine(w)
+  if (!inline) return <SidebarRow w={w} out={out} n={n} next={next} line={line} finished={finished} />
   return (
     // leaving: it fades and its height closes, then it is gone
     <div data-getting-started={inline ? 'drawer' : 'sidebar'} data-leaving={w.leaving ? '' : undefined}

@@ -49,7 +49,7 @@ function dataItems() {
     }
     if (!changes.length) continue
     const href = `${s.href}${s.href.includes('?') ? '&' : '?'}changes=scan`
-    const base = { kind: 'data', type: s.type, at, page: s.config.title, href, action: 'What changed' }
+    const base = { kind: 'data', type: s.type, at, page: s.config.title, href, action: 'Summary' }
     if (changes.length === 1) out.push({ ...base, ...changes[0], id: `data:${s.config.page}:${d.latestIso}` })
     else {
       out.push({
@@ -76,7 +76,7 @@ function dataItems() {
     }
     if (!flips.length) continue
     flips.sort((a, b) => b.weight - a.weight)
-    const base = { id: `data:sentiment:${runs[i].date}`, kind: 'data', type: 'sentiment', at: `${runs[i].date}T09:00:00Z`, page: 'Sentiment', href: '/sentiment?changes=scan', action: 'What changed' }
+    const base = { id: `data:sentiment:${runs[i].date}`, kind: 'data', type: 'sentiment', at: `${runs[i].date}T09:00:00Z`, page: 'Sentiment', href: '/sentiment?changes=scan', action: 'Summary' }
     out.push(flips.length === 1 ? { ...base, ...flips[0], id: base.id } : {
       ...base, mark: flips[0].mark, delta: flips[0].delta, children: flips, weight: flips[0].weight + flips.length,
       text: [B(`Scan ${fmtDay(runs[i].date)}`), ` · ${plural(flips.length, 'change')} on Sentiment`],

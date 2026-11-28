@@ -1172,3 +1172,8 @@ html[data-theme="dark"] { --connected-bg: color-mix(in srgb, var(--connected) 14
   border-radius: 12px; padding: 8px 12px; font-size: 12px; line-height: 16px; font-weight: 500; max-width: 320px;
 }
 .tip-dark .tip-muted { color: var(--hc-muted); }
+
+/* Page gutters (as the app, #203): from 1024px, equal left and right padding of clamp(24px, 3vw, 48px) in real
+   pixels (the --real-* name keeps the UI scale off it), content at most 1440px wide and centred (App.jsx <main>). */
+:root { --real-gutter: clamp(24px, 3vw, 48px); }
+@media (min-width: 1024px) { .page-gutters { padding-left: var(--real-gutter); padding-right: var(--real-gutter); } }

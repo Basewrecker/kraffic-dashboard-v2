@@ -97,9 +97,9 @@ const TrackingPage = () => <LlmSettingsPage {...(krafficBackend ? krafficTrackin
 
 export default function App() {
   const path = usePath()
-  const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/benchmarking': BenchmarkingPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/team': TeamPage, '/reports': ReportsRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter, '/opportunities': ContentRouter, '/website-facts': WebsiteFactsPage }
+  const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/benchmarking': BenchmarkingPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/billing': BillingRouter, '/plans': BillingRouter, '/team': TeamPage, '/reports': ReportsRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter, '/opportunities': ContentRouter, '/website-facts': WebsiteFactsPage }
   // /trends/:runId and /more-tools/<tool>[/…] are one page each (they read the rest of the path)
-  const route = path.startsWith('/opportunities/') ? '/opportunities' : path.startsWith('/reports/') ? '/reports' : path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/billing/') ? '/billing' : path
+  const route = path.startsWith('/opportunities/') ? '/opportunities' : path.startsWith('/reports/') ? '/reports' : path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/billing/') ? '/billing' : path.startsWith('/plans/') ? '/plans' : path
   // tool pages light up Toolkit; Reports: /reports/all and /reports/scheduled are themselves, writing a report is New report,
   // and a report (/reports/<id>, /reports/view) lights up All reports
   const navPath = route === '/opportunities' ? '/opportunities/content' : route.startsWith('/more-tools') ? '/more-tools'
@@ -108,7 +108,7 @@ export default function App() {
   const setupNav = route === '/first-setup' ? setupGroups : undefined // setup mode: First-time setup, Prompt Hub, Trends
   const Page = PAGES[route] ?? DashboardPage
   // a brand with no data yet: data pages show the empty state (Brand Setup, Tracking and Billing still work)
-  const empty = currentBrand.data === 'empty' && !['/first-setup', '/brands', '/tracking', '/billing', '/team', '/reports'].includes(route)
+  const empty = currentBrand.data === 'empty' && !['/first-setup', '/brands', '/tracking', '/billing', '/plans', '/team', '/reports'].includes(route)
   // ?state= previews the states the app shows around a page (components/ui/PageState.jsx, ui/CookieBanner.jsx):
   // app-loading (before the sidebar draws) · loading · error · notfound · cookies
   const state = new URLSearchParams(window.location.search).get('state')
@@ -124,9 +124,11 @@ export default function App() {
         <Sidebar path={PAGES[route] ? navPath : '/overview'} nav={setupNav} />
         <div className="min-w-0 flex-1">
           <MobileNav path={PAGES[route] ? navPath : '/overview'} nav={setupNav} />
-          {/* same content container on every page (16px gutters on phones, 24px from md) */}
+          {/* same content container on every page (16px gutters on phones, 24px from md). From 1024px, one rule (as
+              the app, #203): equal left and right padding of clamp(24px, 3vw, 48px) in real pixels (.page-gutters in
+              index.css), content at most 1440px wide and centred */}
           {/* Site Audit ends 64px under its last card (pb-16 alone, no spacer) */}
-          <main className={`mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 ${route === '/audit' ? 'pb-16' : 'pb-10'} pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8`}>
+          <main className={`page-gutters mx-auto flex w-full max-w-[1440px] flex-col gap-3 px-4 ${route === '/audit' ? 'pb-16' : 'pb-10'} pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8`}>
             {body}
           </main>
         </div>

@@ -14,9 +14,9 @@ const m = (id) => missedPrompts[id].prompt
 export const SAMPLE_ITEMS = [
   // ---- data
   { id: 'sample:rival-pass:gemini', type: 'rival-pass', kind: 'data', at: '2026-11-03T09:00:00Z', page: 'Benchmarking', mark: { engine: 'gemini', domain: 'cerave.com' },
-    text: [B('CeraVe'), ' passed you on ', B('Gemini'), ', now ', B('#1')], delta: { text: '−1 place', good: false }, href: '/benchmarking?changes=scan', action: 'What changed', weight: 60 },
+    text: [B('CeraVe'), ' passed you on ', B('Gemini'), ', now ', B('#1')], delta: { text: '−1 place', good: false }, href: '/benchmarking?changes=scan', action: 'Summary', weight: 60 },
   { id: 'sample:you-pass:chatgpt', type: 'rival-pass', kind: 'data', at: '2026-10-20T09:00:00Z', page: 'Benchmarking', mark: { engine: 'chatgpt', domain: 'theordinary.com' },
-    text: ['You passed ', B('The Ordinary'), ' on ', B('ChatGPT'), ', now ', B('#2')], delta: { text: '+1 place', good: true }, href: '/benchmarking?changes=scan', action: 'What changed', weight: 30 },
+    text: ['You passed ', B('The Ordinary'), ' on ', B('ChatGPT'), ', now ', B('#2')], delta: { text: '+1 place', good: true }, href: '/benchmarking?changes=scan', action: 'Summary', weight: 30 },
   { id: 'sample:named:chatgpt', type: 'prompt-named', kind: 'data', at: '2026-11-02T09:00:00Z', page: 'Prompt Hub', mark: { engine: 'chatgpt' },
     text: [B('ChatGPT'), ' started naming you for ', B(`“${p(0)}”`)], delta: { text: 'Named', good: true }, href: '/tracker', weight: 25 },
   { id: 'sample:dropped:gemini', type: 'prompt-named', kind: 'data', at: '2026-11-02T09:00:00Z', page: 'Prompt Hub', mark: { engine: 'gemini' },

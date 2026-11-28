@@ -5,14 +5,14 @@ import Logo from '../ui/Logo'
 import SiteLogo from '../ui/SiteLogo'
 import Sheet, { SheetItem } from '../ui/Sheet'
 import ThemeToggle from './ThemeToggle'
-import { HOME, NavLinks, NotificationsRow, WorkspaceList, WorkspaceSwitcher } from './Sidebar'
+import { HOME, NavLinks, PlanMeterRow, WorkspaceList, WorkspaceSwitcher } from './Sidebar'
 import { account, agencyClients } from '../../data/mock'
 import { useBackClose } from '../../hooks/useOverlay'
 import { useIsCompact } from '../../hooks/useMedia'
 import GettingStarted from '../../walkthrough/GettingStarted'
 import { TOURS } from '../../walkthrough/tour'
 import { endTour, useWalkthrough } from '../../walkthrough/store'
-import { useNotificationsEntry } from '../../notifications/Notifications'
+import { NotificationsBell } from '../../notifications/NotificationsBell'
 
 // Below lg: a sticky top bar (menu · Auden AI mark ······ workspace logo) instead of the sidebar.
 // The menu opens the nav as a left drawer (288px): same groups and items, theme + workspace at the bottom.
@@ -77,8 +77,8 @@ function NavDrawer({ open, onClose, path, nav, plain = false }) {
           <NavLinks path={path} nav={nav} onNavigate={() => { release(); onClose() }} />
         </div>
         <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-          {/* Notifications (its card opens across the bottom of the screen), then Getting started (its list opens above it) */}
-          <NotificationsRow />
+          {/* the plan meter row, then Getting started (its list opens above it). Notifications: the top bar's bell */}
+          <PlanMeterRow onNavigate={() => { release(); onClose() }} />
           <GettingStarted inline />
           <ThemeToggle />
           <WorkspaceSwitcher />
@@ -108,19 +108,18 @@ export default function MobileNav({ path, nav }) {
   // a step started from the board (its page's pointers, or its page): the menu gets out of the way
   useEffect(() => { if (w.tour && !TOURS[w.tour].nav) setMenu(false) }, [w.tour])
   useEffect(() => { setMenu(false) }, [path])
-  const unreadCount = useNotificationsEntry().unread
   return (
     <>
       <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-[var(--div)] bg-[color-mix(in_srgb,var(--color-page)_90%,transparent)] px-4 pt-[env(safe-area-inset-top)] backdrop-blur lg:hidden">
         <button type="button" onClick={() => setMenu(true)} aria-label="Open menu" aria-expanded={menu}
           className="relative -ml-2 grid h-10 w-10 place-items-center rounded-md text-stone-700 outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
           <Menu size={20} aria-hidden />
-          {/* unread notifications (their row is the menu's first): a small red dot on the corner */}
-          {unreadCount > 0 && <span aria-hidden className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[var(--nc-badge)] ring-2 ring-[var(--color-page)]" />}
         </button>
         <a href={HOME} aria-label="Auden AI — Home" className="grid h-10 w-10 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus"><Logo size={24} /></a>
+        {/* notifications: the bell, as on desktop's page headers (its card opens across the bottom of the screen) */}
+        <NotificationsBell className="ml-auto h-10 w-10" />
         <button type="button" onClick={() => setWorkspace(true)} aria-label={`Workspace: ${account.name}`}
-          className="ml-auto grid h-10 w-10 place-items-center rounded-md outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
+          className="grid h-10 w-10 place-items-center rounded-md outline-none hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus">
           <SiteLogo domain={account.domain} name={account.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
         </button>
       </header>

@@ -10,6 +10,7 @@ import { PlatformIcon } from '../components/dashboard/icons'
 import { openAnswer } from '../components/answer/AnswerDrawer'
 import { navigate } from '../router'
 import { PERIOD_OPTIONS, PERIODS } from './util'
+import HeaderBell from '../notifications/NotificationsBell'
 
 // "What changed", one component for every page: a button in the page header and a pull-out from the right
 // (?changes=scan|30d|90d), the drawers' sheet (scrim, focus trap, Esc, focus back to the button, a bottom sheet on
@@ -37,7 +38,7 @@ function Text({ parts }) {
 // wipe from the left, timing and easing; dark mode inverts as it does there); the change swaps to --wc-fill-up / -down;
 // a → grows in at the end (width and opacity, 200ms), so at rest there's no empty space. Press .97 (.k-reach). While
 // the panel is open the fill stays (.wc-open).
-export function WhatChangedButton({ config, size = 'sm', className = '' }) {
+export function WhatChangedButton({ config, size = 'sm', className = '', bell = true }) {
   const data = useMemo(() => config.build('scan'), [config])
   const q = useParams()
   const isOpen = PERIODS.includes(q.get(KEY))
@@ -50,17 +51,22 @@ export function WhatChangedButton({ config, size = 'sm', className = '' }) {
   const d = data.trigger?.delta ?? null
   const fresh = d != null && seen !== data.latestIso
   const shape = size === 'md' ? 'h-9 rounded-lg' : 'h-8 rounded-md'
-  const label = `What changed${d ? `: ${d.up ? 'up' : 'down'} ${d.text}` : data.trigger?.flatText ? `: ${data.trigger.flatText.toLowerCase()}` : ''}${fresh ? ' (new)' : ''}`
-  const tone = d?.good === true ? 'wc-change-up' : d?.good === false ? 'wc-change-down' : 'wc-change-none'
+  const label = `Summary${d ? `: ${d.up ? 'up' : 'down'} ${d.text}` : data.trigger?.flatText ? `: ${data.trigger.flatText.toLowerCase()}` : ''}${fresh ? ' (new)' : ''}`
+  // on the ink fill the change reads in the light green / red (--wc-fill-*); no change: nothing after the word
+  const tone = d?.good === true ? 'text-[var(--wc-fill-up)]' : d?.good === false ? 'text-[var(--wc-fill-down)]' : 'text-[color-mix(in_srgb,var(--on-ink)_70%,transparent)]'
+  // as the app (#203 / #216 / #223): renamed Summary and ink-filled on every page (light text, the change in light
+  // green / red, a light dot when new). Hover lifts the fill one shade; press .97. Every page header ends the same
+  // way: page controls · Summary · 12px · a 20px hairline · 12px · the bell (HeaderBell; `bell={false}` leaves it out).
   return (
-    <button type="button" onClick={() => openDrawer(KEY, 'scan')} data-what-changed data-open={isOpen || undefined} aria-label={label} aria-expanded={isOpen}
-      className={`k-reach group inline-flex ${shape} shrink-0 items-center whitespace-nowrap border border-line bg-raised px-3.5 text-[13px] leading-[18px] text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus ${isOpen ? 'wc-open' : ''} ${className}`}>
-      <span aria-hidden className="k-reach-fill" />
-      {fresh && <span aria-hidden data-new-dot className="wc-dot mr-2 h-1.5 w-1.5 shrink-0 rounded-full" />}
-      <span className="k-reach-label font-medium">What changed</span>
-      <span aria-hidden className={`ml-2 font-semibold tabular-nums ${tone}`}>{d ? `${d.up ? '↑' : '↓'} ${d.text}` : 'No change'}</span>
-      <span aria-hidden className="wc-arrow"><span className="k-reach-label inline-block pl-1.5">→</span></span>
-    </button>
+    <span className={`inline-flex shrink-0 items-center gap-3 ${className}`}>
+      <button type="button" onClick={() => openDrawer(KEY, 'scan')} data-what-changed data-open={isOpen || undefined} aria-label={label} aria-expanded={isOpen}
+        className={`inline-flex ${shape} shrink-0 items-center whitespace-nowrap bg-ink px-3.5 text-[13px] leading-[18px] text-on-ink outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-ink-hover active:scale-[.97] focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transform-none max-lg:h-10`}>
+        {fresh && <span aria-hidden data-new-dot className="mr-2 h-1.5 w-1.5 shrink-0 rounded-full bg-on-ink" />}
+        <span className="font-semibold">Summary</span>
+        {d && <span aria-hidden className={`ml-2 font-semibold tabular-nums ${tone}`}>{d.up ? '↑' : '↓'} {d.text}</span>}
+      </button>
+      {bell && <HeaderBell />}
+    </span>
   )
 }
 
@@ -100,7 +106,7 @@ export function WhatChangedPanel({ config }) {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[12.5px] leading-[18px] text-stone-500">{config.title}</p>
-                  <h2 id="wc-title" className="mt-0.5 text-[20px] leading-7 font-semibold tracking-[-0.01em] text-stone-900">What changed</h2>
+                  <h2 id="wc-title" className="mt-0.5 text-[20px] leading-7 font-semibold tracking-[-0.01em] text-stone-900">Summary</h2>
                 </div>
                 <button type="button" onClick={close} aria-label="Close"
                   className="-mr-1.5 -mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-md text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus md:h-8 md:w-8">

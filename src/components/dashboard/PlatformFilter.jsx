@@ -31,7 +31,9 @@ export function usePlatformFilter() {
 // "[logo] Gemini only ×" — the filter chip in the prompt tables' toolbars and the KPI row
 export function PlatformFilterPill({ className = '' }) {
   const { engine, setEngine } = useDashboardView()
-  if (engine === 'all') return null
+  // as the app (#223): the chip is gone everywhere; the header's engine dropdown shows the choice. Kept as a
+  // component (it draws nothing) so its callers don't change.
+  if (engine === 'all' || engine !== '__chip__') return null
   const name = engineName(engine)
   return (
     <button

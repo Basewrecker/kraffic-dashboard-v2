@@ -5,7 +5,9 @@ import { account } from '../../data/mock'
 import { ENGINES, OWN, TRACKED_BRANDS, getBrandView, hasResult } from '../../data/brandViews'
 import { NO_SCORE, fmtScore } from '../../utils/score'
 import { PlatformIcon } from './icons'
-import { PlatformFilterPill } from './PlatformFilter'
+import { Info } from 'lucide-react'
+import SiteLogo from '../ui/SiteLogo'
+import HeaderBell from '../../notifications/NotificationsBell'
 import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
 import { WhatChangedButton } from '../../whatChanged/WhatChanged'
@@ -33,7 +35,8 @@ const score = (domain, engine) => fmtScore(getBrandView(domain, engine).kpis.sco
 const brandGroups = (engine) => [
   { label: 'Your brand', items: TRACKED_BRANDS.filter((b) => b.you) },
   { label: 'View as a competitor', items: TRACKED_BRANDS.filter((b) => !b.you) },
-].map((g) => ({ ...g, items: g.items.map((b) => ({ id: b.domain, label: b.name, meta: score(b.domain, engine) })) }))
+  // as the app (#216 / #223 / #235): each brand's logo in the trigger and the list (SiteLogo's globe only as the last fallback)
+].map((g) => ({ ...g, items: g.items.map((b) => ({ id: b.domain, label: b.name, meta: score(b.domain, engine), icon: <SiteLogo domain={b.domain} name={b.name} className="h-4 w-4 rounded" initialClass="text-[9px]" /> })) }))
 
 export default function PageHeader() {
   const tracking = useTracking()
@@ -53,13 +56,23 @@ export default function PageHeader() {
       {/* phones / tablets: title, subtitle, then the two filters full width (one row each) */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div className="min-w-0">
-          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Visibility Overview</h1>
-          {/* owner, 2026-11-20: the subtitle shows at every width and ends with the last update, plain grey ("… · Updated
-              Oct 5"); it replaced the desktop ⓘ and the dotted "Updated" in the controls row. Competitor view: the
-              read-only line, then the update */}
+          {/* as the app (#216 / #223): the title's ⓘ sits on the cap height, 8px from the title; its words are the old
+              long subtitle, in the dark tip (hover and keyboard focus) */}
+          <h1 className="flex items-start gap-2 text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">
+            Visibility Overview
+            <span tabIndex={0} aria-label={`About this page: how often ${account.name} appears in AI answers across ${ENGINES.length} engines`}
+              className="group/ti relative mt-[5px] hidden shrink-0 rounded-full text-stone-500 outline-none transition-colors duration-150 hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus lg:inline-grid lg:mt-[9px]">
+              <Info size={16} strokeWidth={1.75} aria-hidden />
+              <span role="tooltip" className="tip-dark pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-max -translate-x-1/2 text-left tracking-normal opacity-0 transition-opacity duration-150 group-hover/ti:opacity-100 group-focus-visible/ti:opacity-100">
+                Track how often {account.name} appears in AI answers across {ENGINES.length} engines.
+              </span>
+            </span>
+          </h1>
+          {/* the subtitle shows at every width and ends with the last update, plain grey ("… · Updated Oct 5").
+              Competitor view: the read-only line, then the update */}
           <p className="mt-1 text-body font-normal text-stone-600">
             {isOwnBrand ? (
-              <>Track how often {account.name} appears in AI answers across {ENGINES.length} engines</>
+              <>How often AI names {account.name}</>
             ) : (
               <>
                 {focal.name}’s view · read-only ·{' '}
@@ -73,26 +86,24 @@ export default function PageHeader() {
         </div>
         <div className="relative flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:justify-end lg:gap-3 lg:pt-1">
           <div data-tour="overview-engine" className="max-lg:w-full">
-            <MenuSelect prefix="Engine" value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" footer="Filters every card to answers from this engine."
+            {/* as the app (#216 / #223): no "Engine" label ("All engines", or the engine with its logo) */}
+            <MenuSelect value={engine} onChange={setEngine} groups={engineGroups} listLabel="Engine" showIcon footer="Filters every card to answers from this engine."
               className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER} />
           </div>
+          {/* no "Viewing as": the brand's logo and name */}
           <MenuSelect
             className="max-lg:w-full" triggerClassName={MOBILE_TRIGGER}
-            prefix="Viewing as"
             value={focal.domain}
             onChange={setView}
             groups={brandGroups(engine)}
             listLabel="View the dashboard as"
-            title="See the dashboard from a competitor’s point of view"
+            showIcon
           />
-          {/* What changed: the row's right end (own brand); phones / tablets: under the filters, left */}
-          {isOwnBrand && <WhatChangedButton config={overviewChanges} className="max-lg:h-10 max-lg:self-start" />}
-          {/* What changed (own brand): a quiet line next to the date, opens the pull-out */}
+          {/* the row ends the same way on every page: Summary (own brand) · 12px · hairline · 12px · bell */}
+          {isOwnBrand ? <WhatChangedButton config={overviewChanges} className="max-lg:self-start" /> : <HeaderBell />}
         </div>
       </div>
-      {/* as the app (owner, 2026-11-12): the engine filter chip on its own right-aligned row under the filters, pushing the
-          cards down (it was absolute at lg+ and covered the KPI row's top-right card) */}
-      {engine !== 'all' && <div className="mt-2 flex justify-end"><PlatformFilterPill /></div>}
+      {/* as the app (#223): the "<engine> only ×" chip is gone everywhere; the engine dropdown shows the choice */}
     </div>
   )
 }

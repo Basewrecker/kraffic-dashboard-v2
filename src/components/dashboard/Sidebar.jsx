@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BarChart3, Bell, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, Compass, PenLine, Trophy, Globe } from 'lucide-react'
+import { BarChart3, Bell, CalendarClock, Check, ChevronsUpDown, FileText, Sparkles, CreditCard, House, LogOut, Search, Gauge, UserRound, Users, MessageSquareText, TrendingUp, Settings2, Cpu, Puzzle, ScanSearch, Code2, Compass, PenLine, Trophy, Globe } from 'lucide-react'
 import { account } from '../../data/mock'
 import ThemeToggle from './ThemeToggle'
 import { linkClick } from '../../router'
@@ -10,6 +10,8 @@ import BetaTag from '../ui/BetaTag'
 import { agency, brand, recentBrands, role, switchBrand, visibleDirectory } from '../../store/workspace'
 import GettingStarted from '../../walkthrough/GettingStarted'
 import { UnreadPill, useNotificationsEntry } from '../../notifications/Notifications'
+import UsageRing from '../../plan/UsageRing'
+import { PLANS_HREF, isSuperadmin, promptUsage } from '../../plan/plan.js'
 
 // grouped nav (same items and order as production); items without an href have no page yet.
 // Old routes redirect (see router.js REDIRECTS).
@@ -21,10 +23,10 @@ export const groups = [
     { label: 'Trends', icon: TrendingUp, href: '/trends', beta: true }, // owner, 2026-11-20: Beta (was Soon)
   ] },
   { label: 'Reports', items: [
-    { label: 'New report', icon: Sparkles, href: '/reports', beta: true },
+    { label: 'New report', icon: Sparkles, href: '/reports', isNew: true }, // as the app: an ink "New" tag
     { label: 'All reports', icon: FileText, href: '/reports/all' },
     { label: 'Scheduled', icon: CalendarClock, href: '/reports/scheduled' },
-    { label: 'Benchmarking', icon: Trophy, href: '/benchmarking' }, // mock only (owner, 2026-11-18: in Reports, after Scheduled)
+    { label: 'Benchmark', icon: Trophy, href: '/benchmarking', beta: true }, // as the app's sidebar (2026-11-27): "Benchmark", Beta. The page's design differs on purpose
   ] },
   { label: 'Opportunities', items: [
     { label: 'Content', icon: PenLine, href: '/opportunities/content', beta: true }, // the app's icon (synced 2026-11-15)
@@ -80,9 +82,12 @@ export function WorkspaceList({ onDone, autoFocus = true }) {
   }
   const foot = [
     ['Team', Users, '/team'],
-    ['Billing', CreditCard, '/billing'],
+    // as the app (#235): Plans is reached from here and from the sidebar's plan row; there is no Plans item in the
+    // page list. Then Sign out.
+    ['Plans', CreditCard, PLANS_HREF],
     ['Settings', Settings2, '/brands'],
     ['Profile', UserRound, null],
+    ['Sign out', LogOut, null, () => {}],
   ]
   return (
     <div ref={list} onKeyDown={onKey} className="flex max-h-[440px] min-h-0 flex-col">
@@ -259,6 +264,24 @@ export function NotificationsRow({ compact = false }) {
   )
 }
 
+// The plan meter (as the app, #216): one 40px row at the bottom of the sidebar, a link to Plans. Card icon,
+// "Prompts", "152/200" in grey, and a small usage ring. The ring's arc is ink, amber from 80% used, red from 95%;
+// the number is always grey; no tints. A client never sees a count above the limit; a superadmin sees how far over.
+export function PlanMeterRow({ onNavigate }) {
+  const u = promptUsage()
+  const over = u.over > 0 && isSuperadmin()
+  return (
+    <a href={PLANS_HREF} onClick={(e) => { onNavigate?.(); linkClick(PLANS_HREF)(e) }} data-plan-meter
+      aria-label={`Plan: ${u.used} of ${u.limit} prompts used. Open Plans`}
+      className="flex h-10 w-full items-center gap-2.5 rounded-md px-2 text-[14px] leading-5 font-medium text-ink outline-none transition-colors duration-150 hover:bg-nav-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
+      <CreditCard size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-stone-500" />
+      <span className="min-w-0 truncate">Prompts</span>
+      <span className="ml-auto shrink-0 text-[13px] leading-[18px] font-normal text-stone-500 tabular-nums">{over ? `${u.real}/${u.limit}` : `${u.used}/${u.limit}`}</span>
+      <UsageRing pct={u.pct} size={16} stroke={2} />
+    </a>
+  )
+}
+
 // the grouped nav links (sidebar on desktop, the drawer on phones); onNavigate runs before an in-app link navigates.
 // nav: another set of groups (First-time setup's setup mode)
 export function NavLinks({ path, onNavigate, nav = groups }) {
@@ -284,7 +307,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
         {g.label}
       </button>
       <div id={id}>
-      {g.items.map(({ label, icon: Icon, href, beta, soon }, i) => {
+      {g.items.map(({ label, icon: Icon, href, beta, soon, isNew }, i) => {
         const active = href === path
         return (
         <Fold key={label} open={open || active}>
@@ -297,6 +320,7 @@ export function NavLinks({ path, onNavigate, nav = groups }) {
           <Icon size={16} strokeWidth={1.5} aria-hidden className={navIcon(active)} />
           <span className="min-w-0 truncate">{label}</span>
           {beta && <BetaTag className="ml-auto" />}
+          {isNew && <span className="ml-auto inline-flex h-[18px] shrink-0 items-center rounded-full bg-ink px-1.5 text-[11px] leading-none font-semibold text-on-ink">New</span>}
           {soon && <BetaTag variant="soon" className="ml-auto" />}
         </a>
         </Fold>
@@ -322,9 +346,10 @@ export default function Sidebar({ path = '/overview', nav }) {
         <a href={HOME} title="Home" aria-label="Auden AI — Home" className="flex h-10 items-center rounded-lg px-3 outline-none transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-focus"><Wordmark /></a>
       </div>
       <div className="nav-scroll mt-6 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 pb-2"><NavLinks path={path} nav={nav} /></div>
-      {/* footer: Notifications, Getting started (while it is on), theme, then the workspace (its menu holds Home) */}
-      <div className="flex shrink-0 flex-col gap-2 px-3 pb-3 pt-1">
-        <NotificationsRow />
+      {/* footer (as the app, #216): the plan meter row, Getting started (a row, while it is on), the theme switch,
+          then the workspace (its menu holds Plans and Sign out). Notifications moved to the page header's bell */}
+      <div className="flex shrink-0 flex-col gap-1 px-3 pb-3 pt-1">
+        <PlanMeterRow />
         <GettingStarted />
         <ThemeToggle />
         <WorkspaceSwitcher />

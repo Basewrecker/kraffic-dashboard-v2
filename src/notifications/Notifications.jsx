@@ -212,8 +212,8 @@ export function NotificationCard() {
       const wide = window.innerWidth >= 1024
       if (!a || !wide) { setPos({ phone: true }); return }
       const r = a.getBoundingClientRect()
-      const edge = a.closest('aside')?.getBoundingClientRect().right ?? r.right // 8px past the sidebar's edge
-      setPos({ left: edge + 8, bottom: Math.max(8, window.innerHeight - r.bottom) })
+      // as the app (#216): a dropdown under the header's bell, right edges aligned, 8px below it
+      setPos({ right: Math.max(8, window.innerWidth - r.right), top: r.bottom + 8 })
     }
     place()
     window.addEventListener('resize', place)
@@ -236,13 +236,13 @@ export function NotificationCard() {
   const go = (item) => { markRead([item.id]); close(); navigate(item.href) }
   const where = pos.phone
     ? { left: 8, right: 8, bottom: 8, maxHeight: '70vh' }
-    : { left: pos.left, bottom: pos.bottom, width: 'min(440px, calc(100vw - 24px))', maxHeight: '70vh' }
+    : { right: pos.right, top: pos.top, width: 'min(440px, calc(100vw - 24px))', maxHeight: `min(70vh, calc(100vh - ${Math.round(pos.top)}px - 16px))` }
   const tabCls = (on) => `relative -mb-px inline-flex h-11 items-center gap-2 border-b-2 text-[14.5px] leading-5 outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-focus ${on ? 'border-ink font-medium text-stone-900' : 'border-transparent text-stone-500 hover:text-stone-900'}`
 
   return createPortal(
     <div ref={card} role="dialog" aria-modal="false" aria-labelledby="nc-title" tabIndex={-1} style={where}
       className={`fixed z-[80] flex flex-col overflow-hidden rounded-2xl border border-line bg-raised shadow-[0_16px_48px_-12px_rgba(0,0,0,.28)] outline-none transition-[opacity,transform] duration-[220ms] ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transform-none ${
-        pos.phone ? 'origin-bottom' : 'origin-bottom-left'
+        pos.phone ? 'origin-bottom' : 'origin-top-right'
       } ${shown ? 'scale-100 opacity-100' : 'scale-[.98] opacity-0'}`}>
       {view === 'settings' ? (
         <div className="min-h-0 overflow-y-auto px-6 py-5">

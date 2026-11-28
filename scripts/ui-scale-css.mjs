@@ -90,7 +90,8 @@ function scaleContainerQueries(root) {
 function skipScale(decl) {
   // Page column width stays 1280px real (gap after the sidebar). Scaling it with --ui-scale (0.8 on
   // laptops → 1024) collapsed that gap / made gutters look wrong.
-  if (decl.prop === 'max-width' && /\.max-w-page|max-w-\\\[1280px\\\]/.test(String(decl.parent?.selector || ''))) return true; // mock: its page column's class
+  if (decl.prop === 'max-width' && /\.max-w-page|max-w-\\\[(1280|1440)px\\\]/.test(String(decl.parent?.selector || ''))) return true; // mock: its page column's class (1440px real since the 2026-11-27 app sync)
+  if (decl.prop.startsWith('--real-')) return true; // a length that must stay in real pixels (the page gutters: clamp(24px, 3vw, 48px))
   if (decl.parent?.type === 'atrule' && /^(media|container|supports)$/i.test(decl.parent.name)) return true;
   return false;
 }
