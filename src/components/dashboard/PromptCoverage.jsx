@@ -9,6 +9,7 @@ import { OWN, TRACKED_BRANDS, appearances, brandByDomain, enginePid, getBrandVie
 import { NO_SCORE } from '../../utils/score'
 import NoResult from '../ui/NoResult'
 import { getHistory, trackedPrompts } from '../../data/mock'
+import { HistoryButton } from './HistoryPanel'
 import { chart } from '../../theme/chart'
 import { useCardInsight } from './cardInsights'
 import { useBrandView } from '../../hooks/useBrandView'
@@ -153,10 +154,14 @@ export default function PromptCoverage() {
 
   return (
     <Card ref={explain.cardRef} id="share-of-voice" className="flex h-full min-w-0 scroll-mt-6 flex-col px-5 pt-5">
-      <div className="min-w-0">
-        <h2 className="whitespace-nowrap text-[15px] leading-5 font-semibold text-stone-900">Share of voice</h2>
-        {/* wraps, never cut */}
-        <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600">Share of all brand mentions in AI answers</p>
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="whitespace-nowrap text-[15px] leading-5 font-semibold text-stone-900">Share of voice</h2>
+          {/* wraps, never cut */}
+          <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600">Share of all brand mentions in AI answers</p>
+        </div>
+        {/* as the app: the History button, top right (week by week) */}
+        <HistoryButton kind="share" />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">

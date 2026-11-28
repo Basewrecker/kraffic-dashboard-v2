@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { HistoryButton } from './HistoryPanel'
 import { Download, FileText, Loader, X } from 'lucide-react'
 import PromptTable, { GhostButton, TopicTag } from './PromptTable'
 import StatusControl, { STATUSES } from './StatusControl'
@@ -219,6 +220,7 @@ export default function MissedPrompts({ statusColumn, onOpen, bulkExtra, rowFilt
         rows={rows}
         columns={shownColumns}
         csvName="missed-prompts.csv"
+        headerButtons={title ? null : <HistoryButton kind="missed" tipAlign="center" className="!h-9 !w-9 !rounded-lg" />}
         loading={loading}
         sort={sort}
         onSortChange={setSort}

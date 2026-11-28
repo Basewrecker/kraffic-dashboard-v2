@@ -22,9 +22,9 @@ import StructuredDataPage from './components/structured/StructuredDataPage'
 import TrendsPage from './pages/trends/TrendsPage'
 import ToolkitPage from './pages/toolkit/ToolkitPage'
 import ToolRouter from './pages/toolkit/ToolRouter'
-// Plans (as the app's /plans; the old /billing address redirects to it, router.js). The mock's earlier Billing and
-// "Choose a plan" pages (pages/billing/*) are no longer routed: billing is being redesigned as this page's Billing tab
+// Plans (as the app's /plans; the old /billing address redirects to it, router.js), with billing as its Billing tab
 import PlansRouter from './pages/plans/PlansRouter'
+import HistoryPanel from './components/dashboard/HistoryPanel'
 import BillingStates from './pages/plans/BillingStates'
 import { AccessEnded, ReducedShell, ShellNotices, isReduced } from './billing/Shell'
 import { billingState } from './billing/state.js'
@@ -93,6 +93,7 @@ function DashboardPage() {
           <SyncDrawer />
           <CitationsDrawer />
           <FolderDrawer />
+          <HistoryPanel />
           <MarketplaceDrawer />
           <WhatChangedPanel config={overviewChanges} />
           <InsightsPanel />

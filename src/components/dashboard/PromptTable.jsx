@@ -81,6 +81,7 @@ function Table({
   pagination = true, // false: every row on one page, no footer (short lists)
   mobileRowClick = null,
   searchable = true, // false: no search box (a short list of dated rows: Sync history)
+  headerButtons = null, // icon buttons before the search box (Missed prompts: History)
   query: controlledQuery, // optional controlled search text (with onQuery), e.g. when the page's own filters count it
   onQuery,
 }) {
@@ -288,6 +289,7 @@ function Table({
           <div className="flex h-9 shrink-0 items-center gap-1">{bulkBar(selectedCount)}</div>
         ) : (
         <div className="flex shrink-0 items-center gap-2">
+          {headerButtons}
           {searchInput}
           {exportButton}
         </div>

@@ -130,8 +130,10 @@ export function RenewalTerms({ price, className = '' }) {
     <section aria-labelledby="terms-title" className={`rounded-xl border border-line bg-surface px-4 py-3.5 ${className}`}>
       <h3 id="terms-title" className="text-[13px] leading-[18px] font-semibold text-stone-900">Before you pay: renewal terms</h3>
       <ul className="mt-2 flex flex-col gap-1.5 text-[13px] leading-[18px] text-stone-600 text-pretty">
-        {/* on the Plans page no plan is picked yet, so the line names no amount; the review step fills it in */}
-        <li>Your subscription renews automatically for {price == null ? <>your plan’s price</> : <B>{money(price)}</B>} every month, until you cancel.</li>
+        {/* on the Plans page no plan is picked yet, so the line names no amount (owner, 2026-11-28); the review step states it */}
+        {price == null
+          ? <li>Plans renew every month until you cancel. You’ll see the exact price before you pay.</li>
+          : <li>Your subscription renews automatically for <B>{money(price)}</B> every month, until you cancel.</li>}
         <li>Cancel any time from Billing in your account, or email <Pending n="conflict 4">{WORKSPACE.support}</Pending>. Cancellation stops the next renewal; the current period stays active until it ends.</li>
         <li>You will receive a renewal reminder by email before each charge when required by law.</li>
       </ul>

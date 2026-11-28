@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { HistoryButton } from './HistoryPanel'
 import { ArrowRight } from 'lucide-react'
 import Card from './Card'
 import SectionHeader from './SectionHeader'
@@ -109,10 +110,14 @@ export default function CitedFolders() {
         title="Cited pages by folder"
         subtitle={`${isOwnBrand ? 'Your' : `${focal.name}’s`} URLs that AI answers cite · ${noResult ? '—' : total} citations`}
         right={(
+          <span className="flex shrink-0 items-center gap-3">
           <button type="button" onClick={(e) => open(null, e)} aria-label={`All ${pages} cited pages`}
             className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded text-[13px] leading-[18px] font-medium text-stone-600 outline-none transition-colors duration-150 hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">
             All {pages} <ArrowRight size={14} aria-hidden />
           </button>
+          {/* as the app: the History button, top right (week by week) */}
+          <HistoryButton kind="folders" />
+          </span>
         )}
       />
 
