@@ -13,6 +13,7 @@ import { TEAM_STATES, firstName, initialState, initials, isEmail, lastActive, se
 
 // /team (Settings → Team): who can open the current brand. Graphite only: no pills, no hues, no uppercase.
 //   Invite      one block: title · Name | Email | Send invite · helper. Enter sends; the button waits for a valid email.
+//   Pending     a pending row also has "Copy invite link" (as the app, 3653edbd): the way in when the email didn't arrive.
 //   Members     "Members 2 · 1 pending" + an avatar stack (max 4, +N, and a dashed + that jumps to the Email field).
 //               Rows: initials · name + email · last active (or the pending status + Resend) · Owner (plain text) or ⋯.
 //               ⋯ = Remove from team (the app's Confirm) on members, Revoke invite (Undo toast) on pending rows.
@@ -72,6 +73,12 @@ export default function TeamPage() {
       setBusy(({ [m.id]: _done, ...rest }) => rest)
       toast(`Invite resent to ${m.email}`)
     })
+  }
+
+  // the invite's link, for when the email didn't arrive (the mock's link is a sample)
+  const copyLink = (m) => {
+    try { navigator.clipboard?.writeText(`${window.location.origin}/invite/${encodeURIComponent(m.id)}`) } catch { /* no clipboard: the toast still says what happened */ }
+    toast(`Invite link for ${m.email} copied`)
   }
 
   // collapse the row (200ms), then drop it
@@ -138,7 +145,7 @@ export default function TeamPage() {
             <ul className="divide-y divide-[var(--div)]">
               {members.map((m) => (
                 <MemberRow key={m.id} m={m} fresh={m.id === fresh} leaving={leaving[m.id]} busy={busy[m.id]}
-                  onResend={() => resend(m)} onRevoke={() => revoke(m)} onRemove={() => remove(m)} />
+                  onResend={() => resend(m)} onCopyLink={() => copyLink(m)} onRevoke={() => revoke(m)} onRemove={() => remove(m)} />
               ))}
             </ul>
             {members.length === 1 && <EmptyState onInvite={focusInvite} />}
@@ -212,7 +219,7 @@ function InviteCard({ members, disabled, onInvited, emailRef }) {
             </PrimaryButton>
           </div>
         </div>
-        <p id={ids.help} className={`mt-2 ${meta}`}>They’ll get an email to set their own password.</p>
+        <p id={ids.help} className={`mt-2 ${meta} text-pretty`}>They’ll get an email to set their own password. If it doesn’t arrive, use Copy invite link on their row.</p>
       </form>
     </section>
   )
@@ -256,7 +263,7 @@ const Pending = ({ sentAt }) => (
   </span>
 )
 
-function MemberRow({ m, fresh, leaving, busy, onResend, onRevoke, onRemove }) {
+function MemberRow({ m, fresh, leaving, busy, onResend, onCopyLink, onRevoke, onRemove }) {
   const pending = m.status === 'pending'
   const owner = m.role === 'owner'
   const who = m.name || m.email
@@ -268,6 +275,7 @@ function MemberRow({ m, fresh, leaving, busy, onResend, onRevoke, onRemove }) {
       {busy === 'resend' ? <><Spinner size={12} aria-hidden />Sending…</> : 'Resend'}
     </button>
   )
+  const copyBtn = pending && <button type="button" onClick={onCopyLink} aria-label={`Copy invite link for ${m.email}`} className={textBtn}>Copy invite link</button>
   const anim = leaving ? 'team-row-out' : fresh ? 'team-row-in' : ''
   // the collapse starts from the row's own height (rows are taller on phones)
   const ref = useRef(null)
@@ -287,7 +295,7 @@ function MemberRow({ m, fresh, leaving, busy, onResend, onRevoke, onRemove }) {
       <div className="flex shrink-0 items-center gap-4">
         {/* desktop: last active, or the invite's status + Resend, right-aligned before the ⋯ column */}
         {seen && <span className={`hidden md:inline ${meta}`}>{seen}</span>}
-        {pending && <span className="hidden items-center gap-4 md:flex"><Pending sentAt={m.sentAt} />{resendBtn}</span>}
+        {pending && <span className="hidden items-center gap-4 md:flex"><Pending sentAt={m.sentAt} />{resendBtn}{copyBtn}</span>}
         {/* one column for "Owner" and every ⋯, so they line up */}
         <span className="flex w-12 justify-end [&>div]:-mr-2">
           {owner ? <span className={`text-[13px] leading-[18px] ${t3}`}>Owner</span>
@@ -303,6 +311,7 @@ function MemberRow({ m, fresh, leaving, busy, onResend, onRevoke, onRemove }) {
         <div className="mt-1 flex basis-full flex-wrap items-center gap-x-4 gap-y-1 pl-12 md:hidden">
           <Pending sentAt={m.sentAt} />
           {resendBtn}
+          {copyBtn}
         </div>
       )}
     </li>

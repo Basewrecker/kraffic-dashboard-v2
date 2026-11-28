@@ -13,7 +13,7 @@ import HeaderBell from '../../notifications/NotificationsBell'
 import { pageFit } from '../../data/composer'
 import { DotAssemble } from './DotField'
 import { Block, Thumb, blockName, explainFor } from './blocks'
-import { BetaTag, brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
+import { brandOf, fromQuery, inkBtn, lineBtn, t2, t3, toQuery } from './parts'
 import { ContentsRail, FollowUps } from './library'
 import ReportFrame, { FrameSkeleton } from './frame'
 import { buildLiveReport, pointsIn } from '../../data/live-report'
@@ -382,12 +382,15 @@ function Thread({ rest, mock, greeting, inter }) {
       className={`thread-motion relative flex w-full flex-col ${thread ? '' : 'min-h-[calc(100dvh-88px)] lg:min-h-[calc(100dvh-72px)]'}`}>
       {/* no page header here: the bell sits alone at the page's top right corner (as the app, #216) */}
       <HeaderBell hairline={false} className="absolute right-0 top-0 z-10" />
+      {/* as the app: where a report's numbers come from, top left of the empty New report page */}
+      {!thread && <p className="absolute left-0 top-0 text-[13px] leading-[18px] text-stone-600 max-lg:hidden">Written from {brandOf(opts.brand)?.name ?? 'your brand'}’s own scans.</p>}
       {!thread && (
         <div key="hello" className="flex flex-1 flex-col items-center justify-end pb-6">
           {/* the H1 runs inline so, when the greeting wraps on a phone, the tag follows its last word */}
           <div className="text-center text-[24px] leading-[1.3] [text-wrap:balance] md:text-[28px]" style={greetIn ? { animation: `greet-in 220ms ${EASE} 120ms both` } : undefined}>
             <h1 ref={greetRef} className="inline font-medium tracking-normal text-stone-900">{greeting}</h1>
-            <BetaTag tipAlign="center" className="ml-2.5 -translate-y-[3.5px] md:-translate-y-[5px]" />
+            {/* as the app: the sidebar's ink "New" tag beside the greeting (was the Beta tag) */}
+            <span className="ml-2.5 inline-flex h-[18px] -translate-y-[3.5px] items-center rounded-full bg-ink px-2 align-middle text-[11px] leading-none font-semibold tracking-normal text-on-ink md:-translate-y-[5px]">New</span>
           </div>
         </div>
       )}

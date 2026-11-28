@@ -1,3 +1,4 @@
+import { useMenuMotion } from '../../hooks/useMenuMotion'
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowUp, AlignLeft, Calendar, Check, ChevronLeft, ChevronRight, Plus, Square, UserRound, X } from 'lucide-react'
 import SiteLogo from '../../components/ui/SiteLogo'
@@ -193,6 +194,7 @@ export default PillComposer
 function PlusMenu({ opts, set, rivals, up = false }) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState(null)
+  const m = useMenuMotion(open, { align: 'left', side: up ? 'top' : 'bottom' }) // the shared menu motion (as the app, #234)
   const wrap = useRef(null)
   const btn = useRef(null)
   const menu = useRef(null)
@@ -202,7 +204,7 @@ function PlusMenu({ opts, set, rivals, up = false }) {
     const out = (e) => { if (!wrap.current?.contains(e.target)) { setOpen(false); setView(null) } }
     document.addEventListener('mousedown', out)
     return () => document.removeEventListener('mousedown', out)
-  }, [open, view])
+  }, [open, view, m.mounted])
   const close = () => { setOpen(false); setView(null); btn.current?.focus() }
   const onKey = (e) => {
     const els = [...(menu.current?.querySelectorAll('[role^=menuitem]') ?? [])]
@@ -231,9 +233,9 @@ function PlusMenu({ opts, set, rivals, up = false }) {
         className={`grid h-9 w-9 place-items-center rounded-full text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus ${open ? 'bg-tint text-stone-900' : ''}`}>
         <Plus size={20} strokeWidth={1.75} className={`transition-transform duration-200 ${open ? 'rotate-45' : ''}`} aria-hidden />
       </button>
-      {open && (
-        <div ref={menu} role="menu" aria-label={view ? rows.find((r) => r.id === view).label : 'Options'} style={{ width: 'min(288px, calc(100vw - 32px))' }}
-          className={`absolute left-0 z-40 rounded-xl border border-line bg-raised p-1 shadow-md motion-safe:animate-[fade-in_120ms_ease-out] ${up ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
+      {m.mounted && (
+        <div ref={menu} role="menu" aria-label={view ? rows.find((r) => r.id === view).label : 'Options'} {...m.props} style={{ ...m.style, width: 'min(288px, calc(100vw - 32px))' }}
+          className={`absolute left-0 z-40 rounded-xl border border-line bg-raised p-1 shadow-md ${up ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
           {!view && rows.map((r) => (
             <button key={r.id} type="button" role="menuitem" onClick={() => setView(r.id)} className={`${menuItem} text-stone-900`}>
               <span className="min-w-0 flex-1"><span className="block font-medium">{r.label}</span><span className={`block truncate text-[12px] leading-4 ${t3}`}>{r.value}</span></span>

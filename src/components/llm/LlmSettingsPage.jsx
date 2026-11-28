@@ -12,6 +12,7 @@ import { role } from '../../store/workspace'
 import { linkClick } from '../../router'
 import { fmtAvailable, fmtDay, useTracking } from '../../store/trackingSettings'
 import HeaderBell from '../../notifications/NotificationsBell'
+import AdminOnlyReason from '../../plan/AdminOnlyReason'
 
 const selectWidth = 'min-w-[140px] sm:min-w-[200px]'
 const EVERY = { daily: 'every day', weekly: 'every week', monthly: 'every month' }
@@ -38,9 +39,9 @@ const Saved = ({ show }) => (
   </span>
 )
 // a save that failed: said beside the control (its value is already back), with Retry
-const Failed = ({ onRetry }) => (
+const Failed = ({ onRetry, text = 'Couldn’t save' }) => (
   <span role="alert" className="inline-flex items-center gap-1.5 text-[12px] leading-4">
-    <span className="text-negative">Couldn’t save</span>
+    <span className="text-negative">{text}</span>
     <button type="button" onClick={onRetry} className="rounded font-medium text-stone-900 underline underline-offset-4 outline-none hover:opacity-75 focus-visible:ring-2 focus-visible:ring-focus">Retry</button>
   </span>
 )
@@ -97,7 +98,9 @@ export default function LlmSettingsPage({
   const [savedKey, flash] = useSaved()
   const [toastNode, toast] = useToast({ position: 'center' })
   const [confirm, setConfirm] = useState(null) // { kind: 'pause', platform, anchor } | { kind: 'market', field, patch, anchor }
-  const [failed, setFailed] = useState(null) // { key, retry }: the row whose save failed
+  // ?sync=failed (preview only): a sync that didn't finish
+  const syncFailPreview = new URLSearchParams(window.location.search).get('sync') === 'failed'
+  const [failed, setFailed] = useState(() => (syncFailPreview ? { key: 'sync', reason: null, retry: () => setFailed(null) } : null)) // { key, retry }: the row whose save failed
 
   const toggles = Boolean(onSetEngine)
   const engines = t.platforms.filter((p) => (toggles ? p.enabled : p.ready)).length
@@ -120,7 +123,7 @@ export default function LlmSettingsPage({
     setFailed(null)
     setSyncSheet(false)
     t.syncNow(onSyncNow, { mode, onAccepted: () => toast('Sync started'), onDone: () => toast('Sync finished') })
-      .then((res) => res?.status === 'complete' && toast('Sync finished'), () => setFailed({ key: 'sync', retry: () => syncNow(mode) }))
+      .then((res) => res?.status === 'complete' && toast('Sync finished'), (err) => setFailed({ key: 'sync', reason: err?.message ?? null, retry: () => syncNow(mode) }))
   }
   // client users don't start syncs (their agency or Auden AI runs them): no button, a line saying so
   const canSync = Boolean(onSyncNow) && role() !== 'client'
@@ -170,7 +173,9 @@ export default function LlmSettingsPage({
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">How Auden AI checks AI answers for {account.domain}<span className="tabular-nums text-stone-500"> · {updated}</span></p>
         </div>
         <div className="flex flex-wrap items-center gap-3 md:pt-1">
-          {failed?.key === 'sync' && <Failed onRetry={failed.retry} />}
+          {/* as the app (#226): a failed sync never shows a client the engine's raw error ("gemini: Not logged in…"), in
+              the line, the toast or the Sync sheet: a plain line and Retry; the reason is a superadmin's small muted line */}
+          {failed?.key === 'sync' && <span className="flex flex-col items-end gap-0.5"><Failed text="Sync didn’t finish" onRetry={failed.retry} /><AdminOnlyReason>{failed.reason ?? (syncFailPreview ? 'gemini: Not logged in. Sign in to the engine account, then sync again.' : null)}</AdminOnlyReason></span>}
           {/* too soon for another sync: when it's possible again */}
           {canSync && tooSoon && !t.syncing && <span className="text-[13px] leading-[18px] text-stone-500 tabular-nums max-md:order-last max-md:w-full">Available {fmtAvailable(t.schedule.nextScanAt)}</span>}
           {onSyncNow && !canSync && <span className="text-[13px] leading-[18px] text-stone-500">Your agency runs syncs</span>}

@@ -1,3 +1,4 @@
+import { useMenuMotion } from '../../hooks/useMenuMotion'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import BetaTag from '../../components/ui/BetaTag'
 export { BetaTag }
@@ -50,6 +51,7 @@ export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256
   const [open, setOpen] = useState(false)
   const [place, setPlace] = useState({ left: true, shift: 0 })
   const [up, setUp] = useState(false) // no room below (a box docked at the bottom): the menu opens upward
+  const m = useMenuMotion(open, { align: place.left ? 'left' : 'right', side: up ? 'top' : 'bottom' }) // the shared menu motion (as the app, #234)
   const wrap = useRef(null)
   const btn = useRef(null)
   const menu = useRef(null)
@@ -64,14 +66,14 @@ export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256
     else if (b.left + w <= vw - 16) setPlace({ left: true, shift: 0 })
     else if (b.right - w >= 16) setPlace({ left: false, shift: 0 })
     else setPlace({ left: true, shift: Math.min(0, vw - 16 - (b.left + w)) })
-  }, [open])
+  }, [open, m.mounted])
   useEffect(() => {
     if (!open) return
     menu.current?.querySelector('[aria-checked=true],[role^=menuitem],input')?.focus()
     const out = (e) => { if (!wrap.current?.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', out)
     return () => document.removeEventListener('mousedown', out)
-  }, [open])
+  }, [open, m.mounted])
   const close = () => { setOpen(false); btn.current?.focus() }
   const onKey = (e) => {
     const els = [...(menu.current?.querySelectorAll('[role^=menuitem]') ?? [])]
@@ -94,9 +96,9 @@ export function ChipMenu({ icon: Icon, logo, label, value, inferred, width = 256
         <span className="truncate">{value ?? label}</span>
         <ChevronDown size={ghost ? 14 : 13} className={`${ghost ? 'ml-1' : ''} shrink-0 text-stone-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} aria-hidden />
       </button>
-      {open && (
-        <div ref={menu} role="menu" aria-label={label} style={{ width: `min(${width}px, calc(100vw - 32px))`, ...(place.shift ? { left: `${place.shift}px` } : {}) }}
-          className={`absolute ${place.left ? 'left-0' : 'right-0'} ${up ? 'bottom-full mb-1.5' : 'top-full mt-1.5'} z-40 rounded-lg border border-line bg-raised p-1 shadow-md motion-safe:animate-[fade-in_120ms_ease-out]`}>
+      {m.mounted && (
+        <div ref={menu} role="menu" aria-label={label} {...m.props} style={{ ...m.style, width: `min(${width}px, calc(100vw - 32px))`, ...(place.shift ? { left: `${place.shift}px` } : {}) }}
+          className={`absolute ${place.left ? 'left-0' : 'right-0'} ${up ? 'bottom-full mb-1.5' : 'top-full mt-1.5'} z-40 rounded-lg border border-line bg-raised p-1 shadow-md`}>
           {children(close)}
         </div>
       )}

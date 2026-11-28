@@ -1,3 +1,4 @@
+import { useMenuMotion } from '../../hooks/useMenuMotion'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowRight, ArrowUp, Calendar, Check, ChevronDown, ChevronsUpDown, Loader2, MoreHorizontal, Search } from 'lucide-react'
 import ActionMenu from '../../components/audit/ActionMenu'
@@ -78,6 +79,7 @@ function Tip({ x, y, title, rows }) {
 // an outline button (44px, 10px radius) with a menu: a radio list of options (value / onChange), or a list of actions (items)
 function FrameMenu({ icon: Icon, label, value, options, onChange, items, align = 'right' }) {
   const [open, setOpen] = useState(false)
+  const m = useMenuMotion(open, { align }) // the shared menu motion (as the app, #234)
   const wrap = useRef(null)
   const btn = useRef(null)
   useEffect(() => {
@@ -95,8 +97,8 @@ function FrameMenu({ icon: Icon, label, value, options, onChange, items, align =
       <button ref={btn} type="button" aria-haspopup="menu" aria-expanded={open} aria-label={items ? label : `${label}: ${text}`} onClick={() => setOpen((o) => !o)} className={OUTLINE}>
         {Icon && <Icon size={16} className="text-stone-600" aria-hidden />}{text}<ChevronDown size={16} className={`text-stone-500 transition-transform duration-100 ${open ? 'rotate-180' : ''}`} aria-hidden />
       </button>
-      {open && (
-        <div role="menu" aria-label={label} className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full z-40 mt-1.5 w-56 rounded-[10px] border border-[var(--rep-line)] bg-raised p-1 motion-safe:animate-[fade-in_120ms_ease-out]`}>
+      {m.mounted && (
+        <div role="menu" aria-label={label} {...m.props} style={m.style} className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full z-40 mt-1.5 w-56 rounded-[10px] border border-[var(--rep-line)] bg-raised p-1`}>
           {items
             ? items.map((it) => (
               <button key={it.label} type="button" role="menuitem" onClick={() => { setOpen(false); it.onClick(); btn.current?.focus() }} className={`${menuItem} text-stone-900`}>
