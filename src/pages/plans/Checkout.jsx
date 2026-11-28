@@ -150,7 +150,7 @@ function CardPicture({ card }) {
   const brand = brandOf(n)
   const full = n.length >= (brand === 'amex' ? 15 : 16)
   return (
-    <div aria-hidden className="relative aspect-[1.586] w-full max-w-[340px] overflow-hidden rounded-2xl bg-[var(--moment-bg)] p-5 text-[var(--moment-fg)] shadow-[0_18px_36px_-18px_rgb(0_0_0/0.45)]">
+    <div aria-hidden className="relative aspect-[1.586] w-full max-w-[340px] overflow-hidden rounded-2xl border border-[var(--moment-edge)] bg-[var(--moment-bg)] p-5 text-[var(--moment-fg)] shadow-[0_18px_36px_-18px_rgb(0_0_0/0.45)]">
       <div className="flex items-start justify-between">
         <span className="relative block h-7 w-10 rounded-md bg-[rgb(255_255_255/0.22)]"><span className="absolute inset-x-2 top-1/2 h-px bg-[rgb(255_255_255/0.35)]" /><span className="absolute inset-y-1.5 left-1/2 w-px bg-[rgb(255_255_255/0.35)]" /></span>
         <span key={brand ?? 'none'} className="mo-fade">{brand && <BrandMark brand={brand} light />}</span>
@@ -256,7 +256,7 @@ function DoneStep({ plan, from, onDashboard, onPlan }) {
   return (
     // ~2.5s; a click anywhere skips to the end
     <div role="status" data-skip={skip ? '' : undefined} onClick={() => setSkip(true)}
-      className="moment relative flex min-h-[520px] flex-col items-center justify-center overflow-hidden rounded-2xl bg-[var(--moment-bg)] px-6 py-12 text-center text-[var(--moment-fg)]">
+      className="moment relative flex min-h-[520px] flex-col items-center justify-center overflow-hidden rounded-2xl border border-[var(--moment-edge)] bg-[var(--moment-bg)] px-6 py-12 text-center text-[var(--moment-fg)]">
       <span aria-hidden className="mo-pulse pointer-events-none absolute left-1/2 top-[calc(50%-92px)] h-[88px] w-[88px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--moment-faint)]" style={{ '--mo-reach': 16 }} />
       <svg viewBox="0 0 40 40" width="88" height="88" aria-hidden className="relative">
         <circle cx="20" cy="20" r="17" fill="none" stroke="var(--moment-faint)" strokeWidth="3" />

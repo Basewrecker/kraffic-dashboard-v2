@@ -1345,3 +1345,7 @@ html[data-theme="dark"] { --moment-bg: #0B0B0B; }
 @keyframes ck-in { from { opacity: 0; transform: translateX(calc(var(--ck-dir, 1) * var(--motion-step-slide) * 2)); } }
 .ck-reveal { animation: mo-rise 240ms var(--motion-ease-out) both; }
 @media (prefers-reduced-motion: reduce) { .ck-step { animation: mo-in 200ms linear both; } .ck-reveal { animation: mo-in 200ms linear both; } }
+/* the dark surfaces (card picture, the moment) get a hairline in dark mode, so they don't vanish on the black page */
+:root { --moment-edge: transparent; }
+html[data-theme="dark"] { --moment-edge: rgb(255 255 255 / 0.12); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --moment-edge: rgb(255 255 255 / 0.12); } }
