@@ -1200,3 +1200,21 @@ html[data-notes] [data-pending]::after {
 /* Connect → Connected: the pill grows in from the button it replaces (250ms; reduced motion: it just shows) */
 @media (prefers-reduced-motion: no-preference) { .bill-morph { animation: bill-morph var(--motion-morph) var(--motion-ease-out) both; } }
 @keyframes bill-morph { from { opacity: 0; transform: scale(0.9); } }
+/* Trends (as the app, #203 / #207): one colour per term, by its place in the term chips. The same hues as Share of
+   voice and the Visibility history lines (you = ink, then --line-1..4), so they already have their dark values. */
+:root { --trend-1: var(--line-you); --trend-2: var(--line-1); --trend-3: var(--line-2); --trend-4: var(--line-3); --trend-5: var(--line-4); }
+/* The chart hover card (ui/ChartHoverCard.jsx) is the same dark card in light and dark, so its colours are fixed:
+   an ink series reads white on it, and a change is the light green / red. */
+:root { --hc-up: #6EE7B7; --hc-down: #F27370; }
+.chart-hover-card { --trend-1: var(--hc-ink); --line-you: var(--hc-ink); }
+/* Trends lines draw in once (and again when the range or terms change); the dotted, incomplete end fades in after.
+   Reduced motion: a fade only. Timing from the shared motion tokens. */
+@keyframes trend-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes trend-fade { from { opacity: 0; } }
+.trend-fade { animation: trend-fade var(--motion-step) var(--motion-ease-out) both; }
+.trend-tail { animation: trend-fade var(--motion-step) var(--motion-ease-out) both; }
+@media (prefers-reduced-motion: no-preference) {
+  .trend-draw { stroke-dasharray: 1; animation: trend-draw calc(var(--motion-morph) * 3) var(--motion-ease-out) both; }
+  .trend-tail { animation-delay: calc(var(--motion-morph) * 2); }
+}
+@media (prefers-reduced-motion: reduce) { .trend-draw { animation: trend-fade var(--motion-step) var(--motion-ease-out) both; } }
