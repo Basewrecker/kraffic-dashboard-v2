@@ -20,7 +20,7 @@ export function NotificationsBell({ className = '' }) {
       className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-lg text-stone-700 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus ${open ? 'bg-tint text-stone-900' : ''} ${className}`}>
       <Bell size={18} strokeWidth={1.75} aria-hidden />
       {unread > 0 && (
-        <span aria-hidden className={`absolute -right-0.5 -top-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--nc-badge)] px-1 text-[11px] leading-none font-semibold text-white tabular-nums ring-2 ring-[var(--color-page)] transition-transform duration-200 ease-out motion-reduce:transition-none ${pop ? 'scale-[1.2]' : 'scale-100'}`}>
+        <span aria-hidden className={`absolute -right-1.5 -top-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--nc-badge)] px-1 text-[11px] leading-none font-semibold text-white tabular-nums ring-2 ring-[var(--color-page)] transition-transform duration-200 ease-out motion-reduce:transition-none ${pop ? 'scale-[1.2]' : 'scale-100'}`}>
           {unread > 99 ? '99+' : unread}
         </span>
       )}

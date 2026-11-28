@@ -6,6 +6,9 @@ import MobileActions, { exportTable } from '../ui/MobileActions'
 import Segmented from '../dashboard/Segmented'
 import { brandName } from '../../utils/brand'
 import { PrimaryButton, SecondaryButton, useToast } from '../dashboard/overlays'
+import PlanPill from '../../plan/PlanPill'
+import LimitTip from '../../plan/LimitTip'
+import { LIMIT_REASON, isSuperadmin, promptUsage } from '../../plan/plan.js'
 import { PlatformIcon } from '../dashboard/icons'
 import { MenuSelect } from '../dashboard/PageHeader'
 import LogoStack from '../dashboard/LogoStack'
@@ -619,15 +622,23 @@ function PromptHub() {
     }, 500)
   }
   const empty = prompts.length === 0 && !adding
+  // plan room (as the app, #231): at the limit, adding is off with the reason; counts never read above the limit
+  const room = promptUsage()
+  const full = room.atLimit
+  const limitWhy = full ? LIMIT_REASON.prompts(room) : null
   return (
     <>
       {/* header: title + domain on the left, actions on the right (one row, like the dashboard) */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
         <div>
-          <div className="flex items-center gap-1.5">
+          {/* as the app (#231): the plan pill on the title line, 12px after the title */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Prompt Hub</h1>
+            <PlanPill className="lg:mt-0.5" />
           </div>
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Manage the prompts tracked for {brandName(account.domain)}</p>
+          {/* a superadmin sees how far over the plan an account is; a client never sees a count above the limit */}
+          {room.over > 0 && isSuperadmin() && <p className="mt-1 text-[12px] leading-4 text-stone-500 tabular-nums">{room.real} of {room.limit} · {room.over} over plan</p>}
         </div>
         <div className="flex shrink-0 items-center gap-2 lg:pt-1">
           <span className="hidden items-center gap-2 lg:flex">
@@ -638,16 +649,22 @@ function PromptHub() {
               {sync ? `Syncing… ${sync.done}/${sync.total}` : pendingCount > 0 ? `Sync ${pendingCount}` : 'Sync'}
             </SecondaryButton>
             {/* data-tour: the walkthrough pointer lights Research and Import (not Sync) */}
+            {/* at the plan's limit (as the app, #231): Research, Import and Add prompt are off and say why, instead
+                of failing. ?usage=limit previews it */}
             <span data-tour="prompts-find" className="flex items-center gap-2">
-              <SecondaryButton size="sm" icon={FlaskConical} onClick={() => setModal('research')}>Research</SecondaryButton>
-              <SecondaryButton size="sm" icon={Upload} onClick={() => setModal('import')}>Import</SecondaryButton>
+              <LimitTip reason={limitWhy} align="center"><SecondaryButton size="sm" icon={FlaskConical} disabled={full} onClick={() => setModal('research')}>Research</SecondaryButton></LimitTip>
+              <LimitTip reason={limitWhy} align="center"><SecondaryButton size="sm" icon={Upload} disabled={full} onClick={() => setModal('import')}>Import</SecondaryButton></LimitTip>
             </span>
           </span>
-          {/* a second click closes the open row (span: the button doesn't forward refs) */}
-          <span ref={addBtnRef} data-tour="prompts-add" className="inline-flex max-lg:flex-1 max-lg:[&>button]:h-10 max-lg:[&>button]:w-full max-lg:[&>button]:justify-center">
-            <PrimaryButton size="sm" icon={Plus} aria-expanded={isAdding} onClick={() => (isAdding ? closeAdd() : startAdd())}>Add prompt</PrimaryButton>
+          {/* a second click closes the open row (span: the button doesn't forward refs). As the app (#223): hover
+              lifts the fill one shade and turns the plus 90°; press scales to 0.97; reduced motion keeps the colour
+              change only */}
+          <LimitTip reason={limitWhy} className="max-lg:flex-1">
+          <span ref={addBtnRef} data-tour="prompts-add" className="inline-flex max-lg:flex-1 max-lg:[&>button]:h-10 max-lg:[&>button]:w-full max-lg:[&>button]:justify-center [&>button]:transition-[background-color,transform] [&>button:active]:scale-[.97] [&>button:disabled]:opacity-50 [&>button:disabled]:pointer-events-none [&>button>svg]:transition-transform [&>button>svg]:duration-200 [&>button>svg]:ease-out [&>button:hover>svg]:rotate-90 motion-reduce:[&>button]:transform-none motion-reduce:[&>button>svg]:transform-none">
+            <PrimaryButton size="sm" icon={Plus} disabled={full} aria-expanded={isAdding} onClick={() => (isAdding ? closeAdd() : startAdd())}>Add prompt</PrimaryButton>
           </span>
-          {/* What changed: the header row's right end, the buttons' height (h-9) */}
+          </LimitTip>
+          {/* Summary: the header row's right end, the buttons' height (h-9), then the hairline and the bell */}
           <WhatChangedButton config={promptsChanges} size="md" />
           <MobileActions items={[
             { label: 'Research prompts', icon: FlaskConical, onClick: () => setModal('research') },
