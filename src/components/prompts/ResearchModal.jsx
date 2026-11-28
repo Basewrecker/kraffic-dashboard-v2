@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import Select from '../ui/Select'
 import { Loader2, Search } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Segmented from '../dashboard/Segmented'
@@ -98,15 +99,7 @@ export default function ResearchModal({ open, onClose, trackedTexts, onAdd, topi
           ]}
         />
         <div className="flex w-full items-center gap-2 sm:w-auto">
-          <select
-            aria-label="Category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="h-8 rounded-lg border border-line bg-raised px-2 text-small font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus"
-          >
-            <option value="all">All categories</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <Select label="Category" value={category} onChange={setCategory} options={[['all', 'All categories'], ...categories.map((c) => [c, c])]} className="w-auto shrink-0" />
           <label className="relative min-w-0 flex-1 sm:flex-none">
             <span className="sr-only">Search suggestions</span>
             <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-500" aria-hidden />

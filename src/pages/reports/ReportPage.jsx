@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import Select from '../../components/ui/Select'
 import { AlertCircle, ArrowDown, ArrowUp, CalendarClock, Check, Copy, Crosshair, Download, HelpCircle, Link2, Loader2, Minimize2, MoreHorizontal, Plus, Printer, UserRound, X } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import Segmented from '../../components/dashboard/Segmented'
@@ -691,11 +692,11 @@ function ScheduleModal({ open, onClose, onSave, title, brand }) {
         <div className="grid grid-cols-2 gap-3">
           {every !== 'month' && (
             <label className="text-[13px] font-medium text-stone-900">Day
-              <select value={day} onChange={(e) => setDay(e.target.value)} className={field}>{['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((d) => <option key={d}>{d}</option>)}</select>
+              <Select label="Day" value={day} onChange={setDay} options={['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((d) => [d, d])} size="md" className="mt-1 flex w-full" />
             </label>
           )}
           <label className="text-[13px] font-medium text-stone-900">Time
-            <select value={time} onChange={(e) => setTime(e.target.value)} className={field}>{['8am', '9am', '10am', '12pm', '4pm'].map((d) => <option key={d}>{d}</option>)}</select>
+            <Select label="Time" value={time} onChange={setTime} options={['8am', '9am', '10am', '12pm', '4pm'].map((d) => [d, d])} size="md" className="mt-1 flex w-full" />
           </label>
         </div>
         <label className="text-[13px] font-medium text-stone-900">Send to

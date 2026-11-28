@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import Select from '../ui/Select'
 import { AlertCircle, Check, Download, FileText, UploadCloud } from 'lucide-react'
 import Modal from '../ui/Modal'
 import { PrimaryButton } from '../dashboard/overlays'
@@ -174,9 +175,7 @@ export default function ImportModal({ open, onClose, trackedTexts, onImport, onV
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block">
                   <span className="mb-1 block text-[13px] leading-[18px] font-medium text-stone-700">Default category</span>
-                  <select value={defaultCategory} onChange={(e) => setDefaultCategory(e.target.value)} className={fieldCls}>
-                    {promptCategories.map((c) => <option key={c}>{c}</option>)}
-                  </select>
+                  <Select label="Default category" value={defaultCategory} onChange={setDefaultCategory} options={promptCategories.map((c) => [c, c])} size="md" className="w-full" />
                   <span className="mt-1 block text-[12px] leading-4 text-stone-500">Used when a row has no category</span>
                 </label>
               </div>

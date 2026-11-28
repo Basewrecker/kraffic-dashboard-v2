@@ -1,32 +1,58 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import SheetHandle, { SHEET_FOOTER_PAD } from './SheetHandle'
 import { useBackClose, useDialogFocus } from '../../hooks/useOverlay'
+import { motionMs, reducedMotion } from '../../lib/motionTokens'
 
-const SIZE = { md: 'md:max-w-[520px]', lg: 'md:max-w-[760px]' }
+// 520 / 760 / 980px (billing's review step, plan picker and wide tables)
+const SIZE = { md: 'md:max-w-[520px]', lg: 'md:max-w-[760px]', xl: 'md:max-w-[980px]' }
 
-// Mount on open, unmount after the exit animation (150ms).
+// Mount on open, unmount after the close has played (the shared tokens: index.css, --motion-dialog-*).
+// state: 'enter' (mounted, about to show) → 'shown' → 'exit' (closing) → unmounted
 function usePresence(open) {
   const [mounted, setMounted] = useState(open)
-  const [shown, setShown] = useState(false)
+  const [state, setState] = useState('enter')
   useEffect(() => {
     if (open) {
       setMounted(true)
-      const raf = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)))
+      setState('enter')
+      const raf = requestAnimationFrame(() => requestAnimationFrame(() => setState('shown')))
       return () => cancelAnimationFrame(raf)
     }
-    setShown(false)
-    const t = setTimeout(() => setMounted(false), 150)
+    setState('exit')
+    // phones: the sheet slides all the way down, so it gets the open's time
+    const t = setTimeout(() => setMounted(false), window.matchMedia('(min-width: 768px)').matches ? motionMs('--motion-dialog-out') : 240)
     return () => clearTimeout(t)
   }, [open])
-  return [mounted, shown]
+  return [mounted, state]
+}
+
+// A dialog with steps: the body cross-fades and slides 12px to the new step and the dialog's height follows it
+// (200ms). Reduced motion: the fade only (the .modal-step rule in index.css).
+function StepBody({ stepKey, children }) {
+  const inner = useRef(null)
+  const [h, setH] = useState(null)
+  useLayoutEffect(() => {
+    if (!inner.current) return
+    const ro = new ResizeObserver(() => setH(inner.current.offsetHeight))
+    ro.observe(inner.current)
+    return () => ro.disconnect()
+  }, [])
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 md:px-6" style={h == null || reducedMotion() ? undefined : { height: h, transition: 'height var(--motion-step) var(--motion-ease-out)' }}>
+      <div ref={inner} className="pb-4"><div key={stepKey} className="modal-step">{children}</div></div>
+    </div>
+  )
 }
 
 // Dialog: portal, focus trap (focus returns to the trigger), Esc / overlay / X to close, body scroll lock.
 //   header: title + subtitle (+ `meta` line) · `toolbar` (pinned, doesn't scroll) · body (scrolls) · footer (border-t)
-export default function Modal({ open, onClose, title, subtitle, meta, toolbar, footer, size = 'md', children }) {
-  const [mounted, shown] = usePresence(open)
+// Motion (as the app, #232 / #234; every dialog gets it by default): the scrim fades in 200ms; the panel rises 8px
+// from 0.98 scale in 240ms; it closes in 160ms sinking 4px, then unmounts. stepKey: a dialog with steps (see
+// StepBody). motion={false} keeps a plain fade. Reduced motion: fades only. Phones: a bottom sheet that slides up.
+export default function Modal({ open, onClose, title, subtitle, meta, toolbar, footer, size = 'md', stepKey, motion = true, children }) {
+  const [mounted, state] = usePresence(open)
   const panel = useRef(null)
   const close = useRef(onClose)
   close.current = onClose
@@ -40,26 +66,22 @@ export default function Modal({ open, onClose, title, subtitle, meta, toolbar, f
   return createPortal(
     // phones: a bottom sheet (grab handle, drag down to close); md+: the centred dialog
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-4">
-      <div
-        onClick={() => close.current()}
-        aria-hidden
-        className={`absolute inset-0 bg-[var(--modal-scrim)] backdrop-blur-[2px] transition-opacity duration-150 motion-reduce:transition-none ${shown ? 'opacity-100' : 'opacity-0'}`}
-      />
+      <div onClick={() => close.current()} aria-hidden data-state={state} className="modal-scrim absolute inset-0 bg-[var(--modal-scrim)] backdrop-blur-[2px]" />
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl border border-line bg-surface shadow-xl outline-none transition-[opacity,transform,translate,scale] motion-reduce:transition-none md:max-h-[85vh] md:rounded-2xl ${SIZE[size]} ${
-          shown ? 'translate-y-0 scale-100 opacity-100 duration-[280ms] ease-[cubic-bezier(.2,.8,.2,1)] md:duration-200 md:ease-out' : 'translate-y-full md:translate-y-1 md:scale-[.98] md:opacity-0 duration-150 ease-in'
-        }`}
+        data-state={state}
+        data-plain={motion ? undefined : ''}
+        className={`modal-panel relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl border border-line bg-surface shadow-xl outline-none md:max-h-[85vh] md:rounded-2xl ${SIZE[size]}`}
       >
         <SheetHandle panelRef={panel} onClose={() => close.current()} />
         <header className="flex items-start justify-between gap-4 px-4 pb-4 pt-2 md:px-6 md:pt-6">
           <div className="min-w-0">
             <h2 id={titleId} className="text-[20px] leading-7 font-semibold text-stone-900">{title}</h2>
-            {subtitle && <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600">{subtitle}</p>}
+            {subtitle && <p className="mt-0.5 text-[13px] leading-[18px] text-stone-600 text-pretty">{subtitle}</p>}
             {meta && <p className="mt-1 text-[12px] leading-4 text-stone-500">{meta}</p>}
           </div>
           <button
@@ -72,7 +94,9 @@ export default function Modal({ open, onClose, title, subtitle, meta, toolbar, f
           </button>
         </header>
         {toolbar && <div className="px-4 pb-3 md:px-6">{toolbar}</div>}
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 md:px-6">{children}</div>
+        {stepKey != null
+          ? <StepBody stepKey={stepKey}>{children}</StepBody>
+          : <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 md:px-6">{children}</div>}
         {footer && <footer className={`flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 pt-4 md:px-6 md:pb-4 ${SHEET_FOOTER_PAD}`}>{footer}</footer>}
       </div>
     </div>,

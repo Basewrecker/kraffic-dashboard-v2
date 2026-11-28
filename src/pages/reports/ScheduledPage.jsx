@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Select from '../../components/ui/Select'
 import { Check, MoreHorizontal, Plus, X } from 'lucide-react'
 import ActionMenu from '../../components/audit/ActionMenu'
 import Segmented from '../../components/dashboard/Segmented'
@@ -332,9 +333,7 @@ function ScheduleDrawer({ list, home, tpls, onSave, onPause, onDelete }) {
       </button>
 
       <SectionLabel>Brand</SectionLabel>
-      <select value={form.brand} onChange={(e) => set({ brand: e.target.value })} className="h-10 w-full rounded-lg border border-[var(--rep-line)] bg-surface px-3 text-[14px] text-stone-900 outline-none focus:border-[var(--color-line-strong)]">
-        {REPORT_BRANDS.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-      </select>
+      <Select label="Brand" value={form.brand} onChange={(v) => set({ brand: v })} options={REPORT_BRANDS.map((b) => [b.id, b.name])} size="md" className="flex w-full" />
 
       <SectionLabel>When</SectionLabel>
       <div className="flex flex-col gap-1">
@@ -348,13 +347,13 @@ function ScheduleDrawer({ list, home, tpls, onSave, onPause, onDelete }) {
       {(form.freq === 'week' || form.freq === 'biweek') && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="flex gap-1">{DAY_NAMES.map((d) => <button key={d} type="button" aria-pressed={form.day === d} onClick={() => set({ day: d })} className={`grid h-8 w-8 place-items-center rounded-lg text-[13px] font-medium ${form.day === d ? 'bg-ink text-[var(--color-surface)]' : 'bg-tint text-stone-700 hover:text-stone-900'}`}>{d[0]}</button>)}</span>
-          <select value={form.time} onChange={(e) => set({ time: e.target.value })} className="h-8 rounded-lg border border-[var(--rep-line)] bg-surface px-2 text-[13px] text-stone-900">{TIMES.map((x) => <option key={x}>{x}</option>)}</select>
+          <Select label="Time" value={form.time} onChange={(v) => set({ time: v })} options={TIMES.map((x) => [x, x])} className="w-24" />
         </div>
       )}
       {form.freq === 'month' && (
         <div className="mt-3 flex items-center gap-2 text-[13px] text-stone-700">Day
-          <select value={form.date} onChange={(e) => set({ date: Number(e.target.value) })} className="h-8 rounded-lg border border-[var(--rep-line)] bg-surface px-2 text-[13px] text-stone-900">{Array.from({ length: 28 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}</select>
-          at <select value={form.time} onChange={(e) => set({ time: e.target.value })} className="h-8 rounded-lg border border-[var(--rep-line)] bg-surface px-2 text-[13px] text-stone-900">{TIMES.map((x) => <option key={x}>{x}</option>)}</select>
+          <Select label="Day of the month" value={form.date} onChange={(v) => set({ date: Number(v) })} options={Array.from({ length: 28 }, (_, i) => [i + 1, String(i + 1)])} className="w-[68px]" />
+          at <Select label="Time" value={form.time} onChange={(v) => set({ time: v })} options={TIMES.map((x) => [x, x])} className="w-24" />
         </div>
       )}
       <p className="mt-2 text-[12px] text-stone-500">Times in Europe/London (GMT)</p>

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import Select from '../ui/Select'
 import { useIsMobile } from '../../hooks/useMedia'
 import { AlertCircle, AlertTriangle, ArrowRight, Braces, Check, ChevronDown, ChevronRight, CircleDashed, Copy, Download, FileText, Info, Plus, RefreshCw, Share2, X, XCircle } from 'lucide-react'
 import Card from '../dashboard/Card'
@@ -764,10 +765,7 @@ function SchemasTab({ r, type, set, status }) {
           <div className="max-md:order-first max-md:flex max-md:flex-1 md:contents">{search}</div>
           <div className="max-md:order-first md:contents">{sortButton}</div>
           <div className="no-scrollbar max-md:order-last max-md:-mx-4 max-md:mt-0 max-md:w-[calc(100%+32px)] max-md:overflow-x-auto max-md:px-4 md:contents">
-          <select aria-label="Status" value={st} onChange={(e) => setParams({ status: e.target.value === 'all' ? null : e.target.value })} className={selectCls}>
-            <option value="all">All statuses</option>
-            {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
+          <Select label="Status" value={st} onChange={(v) => setParams({ status: v === 'all' ? null : v })} options={[['all', 'All statuses'], ...Object.entries(STATUS)]} size="md" className="w-auto shrink-0" align="right" />
           </div>
         </div>
       )}

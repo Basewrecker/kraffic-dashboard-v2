@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import Select from '../ui/Select'
 import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
 import { ArrowUpRight, ChevronDown, ChevronRight, Search, X } from 'lucide-react'
 import { PlatformIcon } from '../dashboard/icons'
@@ -83,13 +84,7 @@ function MentionsTab({ rows, focalDomain, onOpen }) {
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search prompts" data-nav-start
             className={`${field} w-full pl-8 pr-3 placeholder:text-stone-500`} />
         </label>
-        <span className="relative inline-flex shrink-0">
-          <select aria-label="Category" value={cat} onChange={(e) => setCat(e.target.value)} className={`${field} cursor-pointer appearance-none pl-3 pr-8 font-medium`}>
-            <option value="all">All categories</option>
-            {cats.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-500" aria-hidden />
-        </span>
+        <Select label="Category" value={cat} onChange={setCat} options={[['all', 'All categories'], ...cats.map((c) => [c, c])]} className="w-auto shrink-0" />
       </div>
       {shown.length === 0 ? (
         <p className="px-6 py-12 text-center text-[14px] leading-5 text-stone-600">
@@ -157,14 +152,7 @@ function PagesTab({ pages, domain, onOpen }) {
     <>
       <div className="flex items-center justify-between gap-3 px-6 py-3">
         <span className="text-[13px] leading-[18px] text-stone-600 tabular-nums">{plural(pages.length, 'page')}</span>
-        <span className="relative inline-flex">
-          <select aria-label="Sort pages" value={sort} onChange={(e) => setSort(e.target.value)}
-            className="h-8 cursor-pointer appearance-none rounded-md border border-line bg-raised pl-3 pr-8 text-[13px] font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus">
-            <option value="prompts">Most prompts</option>
-            <option value="az">A–Z</option>
-          </select>
-          <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-500" aria-hidden />
-        </span>
+        <Select label="Sort pages" value={sort} onChange={setSort} options={[['prompts', 'Most prompts'], ['az', 'A–Z']]} className="w-auto" align="right" />
       </div>
       <ul className="divide-y divide-[var(--color-line-soft)] border-t border-[var(--color-line-soft)]">
         {sorted.map((p) => <PageRow key={p.path} page={p} domain={domain} onOpen={onOpen} />)}

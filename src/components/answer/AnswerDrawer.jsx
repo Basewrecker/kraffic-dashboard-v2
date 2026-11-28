@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import Select from '../ui/Select'
 import { useIsMobile } from '../../hooks/useMedia'
 import SheetHandle, { SHEET_BASE, SHEET_FOOTER_PAD, SHEET_IN, SHEET_OUT } from '../ui/SheetHandle'
 import { ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronUp, History, Hash, Minus, Plus, X } from 'lucide-react'
@@ -435,13 +436,7 @@ function ChangesView({ a, prevDate, earlier, setPrevDate, focalDomain, focalName
       <div className="flex min-h-9 flex-wrap items-center justify-between gap-3 pt-0">
         <div className="flex items-center gap-2 text-[13px] leading-[18px] text-stone-600">
           {short(a.date)} vs
-          <span className="relative inline-flex">
-            <select aria-label="Compare with sync" value={prevDate} onChange={(e) => setPrevDate(e.target.value)}
-              className="h-8 cursor-pointer appearance-none rounded-md border border-line bg-raised pl-3 pr-8 text-[13px] font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus">
-              {earlier.map((d) => <option key={d} value={d}>{short(d)}</option>)}
-            </select>
-            <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-500" aria-hidden />
-          </span>
+          <Select label="Compare with sync" value={prevDate} onChange={setPrevDate} options={earlier.map((d) => [d, short(d)])} className="w-auto" />
         </div>
         <Segmented label="What changed view" size="sm" value={state.view} onChange={(v) => setState((s) => ({ ...s, view: v }))}
           options={[{ value: 'summary', label: 'Summary' }, { value: 'answer', label: 'Answer' }]} />

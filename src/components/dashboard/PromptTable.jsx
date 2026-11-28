@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Select from '../ui/Select'
 import { SECTION_EVENT } from '../../utils/navigate'
 import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Search } from 'lucide-react'
 import Sheet, { SheetItem } from '../ui/Sheet'
@@ -367,13 +368,7 @@ function Table({
         <div className="flex items-center gap-4">
           <label className="flex items-center gap-2">
             Rows per page
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }}
-              className="h-8 rounded-md border border-line bg-raised px-2 text-[13px] font-medium text-stone-900 outline-none"
-            >
-              {pageSizes.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <Select label="Rows per page" value={pageSize} onChange={(v) => { setPageSize(Number(v)); setPage(1) }} options={pageSizes.map((n) => [n, String(n)])} className="w-[68px]" align="right" />
           </label>
           <span>Page {current} of {pages}</span>
           <div className="flex items-center gap-1.5">

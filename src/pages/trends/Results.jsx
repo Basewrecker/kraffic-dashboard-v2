@@ -537,9 +537,7 @@ function Mentions({ run, a, filters, set }) {
           <span>Showing {(cur - 1) * size + 1}–{(cur - 1) * size + shown.length} of {list.length}</span>
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2">Rows per page
-              <select value={size} onChange={(e) => { setSize(Number(e.target.value)); setPage(1) }} className="h-8 rounded-md border border-line bg-raised px-2 text-[13px] font-medium text-stone-900 outline-none">
-                {[10, 25, 50].map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
+              <Select label="Rows per page" value={size} onChange={(v) => { setSize(Number(v)); setPage(1) }} options={[10, 25, 50].map((n) => [n, String(n)])} className="w-[68px]" align="right" />
             </label>
             <span>Page {cur} of {pages}</span>
             <div className="flex items-center gap-1.5">

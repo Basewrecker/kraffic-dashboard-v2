@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { MenuSelect, MOBILE_TRIGGER, triggerClass } from '../ui/MenuSelect'
+// the header dropdown lives in ui/MenuSelect.jsx (shared with ui/Select); re-exported here for its older importers
+export { MenuSelect, MOBILE_TRIGGER, triggerClass }
 import { account } from '../../data/mock'
 import { ENGINES, OWN, TRACKED_BRANDS, getBrandView, hasResult } from '../../data/brandViews'
 import { NO_SCORE, fmtScore } from '../../utils/score'
@@ -9,10 +10,6 @@ import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
 import { WhatChangedButton } from '../../whatChanged/WhatChanged'
 import { overview as overviewChanges } from '../../whatChanged/overview'
-
-// size 'sm' = h-8 (header and page toolbars), 'md' = h-10; label optional
-export const triggerClass = (size) =>
-  `inline-flex ${size === 'sm' ? 'h-8 rounded-md px-3 text-[13px]' : 'h-10 rounded-lg px-3.5 text-small'} shrink-0 items-center gap-2 whitespace-nowrap border border-line bg-raised outline-none focus-visible:ring-2 focus-visible:ring-focus`
 
 // A card header's icon action, next to its dropdowns: the 'sm' trigger's height, border, radius, surface and focus
 // ring, square. Icon t2, ink on hover. The label is its aria-label and a small tooltip (hover after 300ms, or focus);
@@ -31,108 +28,6 @@ export function HeaderIconButton({ label, icon: Icon, onClick, children, tipAlig
 
 // each brand's score on the engine shown (the KPI ring's number); "—" when that engine's latest scan had no result
 const score = (domain, engine) => fmtScore(getBrandView(domain, engine).kpis.score, '%')
-// header selects: full width, 40px tall below lg; exactly the old h-8 trigger from lg
-export const MOBILE_TRIGGER = `${triggerClass('sm')} max-lg:h-10 max-lg:w-full max-lg:rounded-lg max-lg:text-[14px] [&>svg:last-child]:max-lg:ml-auto`
-
-// Header dropdown: trigger like the other selects ("Prefix  Value ▾"), grouped listbox, optional footer.
-// ↓ opens; ↑/↓ move, Enter/Space pick, Esc closes and returns focus to the trigger.
-// groups: [{ label?, items: [{ id, label, short?, icon?, meta }] }] (short: the trigger's text, if shorter); prefix optional (aria-label falls back to listLabel);
-// showIcon puts the current item's icon in the trigger; align 'left' opens the menu from the trigger's left edge.
-// triggerClassName replaces the trigger's size / shape classes (e.g. to match a toolbar's h-9 selects).
-export function MenuSelect({ prefix = '', value, onChange, groups, footer, title, listLabel, showIcon, align = 'right', triggerClassName, className = '' }) {
-  const [open, setOpen] = useState(false)
-  const [active, setActive] = useState(0)
-  const wrap = useRef(null)
-  const trigger = useRef(null)
-  const list = useRef(null)
-  const order = groups.flatMap((g) => g.items)
-  const current = order.find((x) => x.id === value) ?? order[0]
-  const uid = (prefix || listLabel).replace(/\W+/g, '-').toLowerCase()
-
-  useEffect(() => {
-    if (!open) return
-    setActive(Math.max(0, order.findIndex((x) => x.id === value)))
-    list.current?.focus()
-    const close = (e) => { if (!wrap.current?.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [open, value]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const pick = (x) => { onChange(x.id); setOpen(false); trigger.current?.focus() }
-  const onKey = (e) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault()
-      setActive((i) => (i + (e.key === 'ArrowDown' ? 1 : -1) + order.length) % order.length)
-    } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault(); pick(order[active])
-    } else if (e.key === 'Escape' || e.key === 'Tab') {
-      setOpen(false); if (e.key === 'Escape') trigger.current?.focus()
-    }
-  }
-
-  return (
-    <div ref={wrap} className={`relative ${className}`}>
-      <button
-        ref={trigger}
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={`${prefix || listLabel}: ${current.label}`}
-        title={title ?? current.label}
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={(e) => { if (e.key === 'ArrowDown' && !open) { e.preventDefault(); setOpen(true) } }}
-        className={triggerClassName ?? triggerClass('sm')}
-      >
-        {prefix && <span className="font-normal text-stone-500">{prefix}</span>}
-        {showIcon && current.icon}
-        {/* a narrow trigger ends the label with an ellipsis (the full name is the tooltip) */}
-        <span className={`${prefix ? '-ml-0.5 ' : ''}min-w-0 truncate font-medium text-stone-900`}>{current.short ?? current.label}</span>
-        <ChevronDown size={14} className="shrink-0 text-ink-3" />
-      </button>
-      {open && (
-        <div
-          ref={list}
-          role="listbox"
-          tabIndex={-1}
-          aria-label={listLabel}
-          aria-activedescendant={`${uid}-opt-${active}`}
-          onKeyDown={onKey}
-          className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full z-30 mt-1 w-72 max-lg:left-0 max-lg:right-0 max-lg:w-auto rounded-lg border border-line bg-raised p-1 shadow-md outline-none`}
-        >
-          {groups.map((g, gi) => (
-            <div key={g.label ?? gi} role="group" aria-label={g.label}>
-              {/* as the app (owner, 2026-11-14): an optional hairline above a group (Opportunities' "Custom range…") */}
-              {gi > 0 && g.divider && <div aria-hidden className="mx-1 my-1 h-px bg-line" />}
-              {g.label && <div className="px-2 pb-1 pt-1.5 text-[11px] leading-4 font-medium text-stone-500">{g.label}</div>}
-              {g.items.map((x) => {
-                const i = order.indexOf(x)
-                const selected = x.id === value
-                return (
-                  <div
-                    key={x.id}
-                    id={`${uid}-opt-${i}`}
-                    role="option"
-                    aria-selected={selected}
-                    onMouseEnter={() => setActive(i)}
-                    onClick={() => pick(x)}
-                    className={`flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] leading-[18px] text-stone-900 ${active === i ? 'bg-tint' : ''}`}
-                  >
-                    {selected ? <Check size={14} className="shrink-0 text-ink" aria-hidden /> : <span className="w-3.5 shrink-0" aria-hidden />}
-                    {x.icon}
-                    <span className={`flex-1 truncate ${selected ? 'font-medium' : ''}`}>{x.label}</span>
-                    {x.meta != null && <span className="shrink-0 text-[12px] leading-4 text-stone-500 tabular-nums">{x.meta}</span>}
-                  </div>
-                )
-              })}
-            </div>
-          ))}
-          {footer && <div className="mt-1 border-t border-line px-2 py-2 text-[12px] leading-4 text-stone-500">{footer}</div>}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // w-72: the longest engine ("Google AI Overview" + "111 prompts") fits without an ellipsis
 // built when the header draws (not when the module loads), so the scores are the current ones
 const brandGroups = (engine) => [

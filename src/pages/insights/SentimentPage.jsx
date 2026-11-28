@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import Select from '../../components/ui/Select'
 import { createPortal } from 'react-dom'
 import BetaTag from '../../components/ui/BetaTag'
 import { ArrowDown, ArrowRight, ArrowUp, ArrowUpRight, Download, ChevronDown, ChevronRight, Info, Loader2, RefreshCw, Search, SearchX, Smile, X } from 'lucide-react'
@@ -1111,9 +1112,7 @@ function MissedOpportunities({ pages, history, onBack, brandKey = '', engine = '
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2">
               Rows per page
-              <select value={size} onChange={(e) => setSize(Number(e.target.value))} className="h-8 rounded-md border border-line bg-raised px-2 text-[13px] font-medium text-stone-900 outline-none">
-                {MISSED_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
+              <Select label="Rows per page" value={size} onChange={(v) => setSize(Number(v))} options={MISSED_SIZES.map((n) => [n, String(n)])} className="w-[68px]" align="right" />
             </label>
             <span>Page {current} of {Math.max(1, pageList.length)}</span>
             <div className="flex items-center gap-1.5">
@@ -2643,13 +2642,7 @@ function Compare({ cols, L }) {
   const select = (value, onChange, label) => (
     <label className="flex min-w-0 flex-1 flex-col gap-1">
       <span className={SECOND}>{label}</span>
-      <span className="relative">
-        <select value={value} onChange={(e) => onChange(Number(e.target.value))}
-          className="h-9 w-full appearance-none rounded-lg border border-line bg-raised pl-3 pr-8 text-[14px] font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus">
-          {cols.map((c, i) => <option key={c.r.id} value={i}>{fmtDay(c.date)}</option>)}
-        </select>
-        <ChevronDown size={14} className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 ${t3}`} aria-hidden />
-      </span>
+      <Select label={label} value={value} onChange={(v) => onChange(Number(v))} options={cols.map((c, i) => [i, fmtDay(c.date)])} size="md" className="w-full" />
     </label>
   )
   return (

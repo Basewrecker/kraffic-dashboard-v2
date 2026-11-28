@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import Select from '../ui/Select'
 import { Check, Plus, X } from 'lucide-react'
 import Segmented from '../dashboard/Segmented'
 import Switch from '../ui/Switch'
@@ -125,13 +126,8 @@ export default function SettingsTab() {
                   <Segmented label="How often" size="sm" value={sched.freq}
                     onChange={(v) => set({ schedule: { ...sched, freq: v, day: 1 } }, 'schedule')}
                     options={[{ value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }]} />
-                  <select aria-label={sched.freq === 'weekly' ? 'Day of the week' : 'Day of the month'} value={sched.day}
-                    onChange={(e) => set({ schedule: { ...sched, day: Number(e.target.value) } }, 'schedule')}
-                    className="h-8 rounded-md border border-line bg-raised px-2 text-[13px] font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus">
-                    {sched.freq === 'weekly'
-                      ? [1, 2, 3, 4, 5, 6, 0].map((d) => <option key={d} value={d}>{WEEKDAYS[d]}</option>)
-                      : Array.from({ length: 28 }, (_, i) => <option key={i + 1} value={i + 1}>Day {i + 1}</option>)}
-                  </select>
+                  <Select label={sched.freq === 'weekly' ? 'Day of the week' : 'Day of the month'} value={sched.day} onChange={(v) => set({ schedule: { ...sched, day: Number(v) } }, 'schedule')} className="w-36"
+                    options={sched.freq === 'weekly' ? [1, 2, 3, 4, 5, 6, 0].map((d) => [d, WEEKDAYS[d]]) : Array.from({ length: 28 }, (_, i) => [i + 1, `Day ${i + 1}`])} />
                 </>
               )}
               <Switch size="sm" checked={sched.auto} onChange={(v) => set({ schedule: { ...sched, auto: v } }, 'schedule')} aria-label="Auto re-run" />

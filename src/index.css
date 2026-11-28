@@ -1105,3 +1105,70 @@ html[data-theme="dark"] { --nc-unread: #3CCB7F; }
   .nc-item { animation: wc-in 200ms ease-out both; animation-delay: calc(80ms + var(--i, 0) * 30ms); }
 }
 .nc-scroll { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); }
+
+/* ---------------------------------------------------------------------------
+   Shared motion tokens (as the app, #232). One set for CSS and script (lib/motionTokens.js reads them).
+   Rules: animate only transform and opacity; reduced motion = fades only; nothing loops except a spinner.
+   --------------------------------------------------------------------------- */
+:root {
+  --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease-in: ease-in;
+  --motion-backdrop-in: 200ms;
+  --motion-dialog-in: 240ms;
+  --motion-dialog-out: 160ms;
+  --motion-dialog-rise: 8px;
+  --motion-dialog-sink: 4px;
+  --motion-dialog-scale: 0.98;
+  --motion-menu-in: 150ms;
+  --motion-menu-out: 120ms;
+  --motion-menu-scale: 0.96;
+  --motion-step: 200ms;
+  --motion-step-slide: 12px;
+  --motion-morph: 250ms;
+  --motion-stagger: 30ms;
+}
+
+/* ui/Modal: the scrim fades in 200ms; the panel rises 8px from 0.98 scale in 240ms; closes in 160ms sinking 4px.
+   Phones: a bottom sheet that slides up. data-plain (motion={false}) and reduced motion: the fade only. */
+.modal-scrim { opacity: 0; transition: opacity var(--motion-dialog-out) var(--motion-ease-in); }
+.modal-scrim[data-state="shown"] { opacity: 1; transition: opacity var(--motion-backdrop-in) var(--motion-ease-out); }
+.modal-panel { transform: translateY(100%); transition: transform 240ms var(--motion-ease-in); }
+.modal-panel[data-state="shown"] { transform: none; transition: transform 280ms var(--motion-ease-out); }
+@media (min-width: 768px) {
+  .modal-panel { opacity: 0; transform: translateY(var(--motion-dialog-rise)) scale(var(--motion-dialog-scale)); transition: none; }
+  .modal-panel[data-state="shown"] { opacity: 1; transform: none; transition: opacity var(--motion-dialog-in) var(--motion-ease-out), transform var(--motion-dialog-in) var(--motion-ease-out); }
+  .modal-panel[data-state="exit"] { opacity: 0; transform: translateY(var(--motion-dialog-sink)); transition: opacity var(--motion-dialog-out) var(--motion-ease-in), transform var(--motion-dialog-out) var(--motion-ease-in); }
+  .modal-panel[data-plain]:not([data-state="shown"]) { transform: none; }
+}
+/* a dialog's step (Modal's stepKey): the new step fades in and slides 12px */
+.modal-step { animation: modal-step-in var(--motion-step) var(--motion-ease-out) both; }
+@keyframes modal-step-in { from { opacity: 0; transform: translateX(var(--motion-step-slide)); } }
+@media (prefers-reduced-motion: reduce) {
+  .modal-panel, .modal-panel[data-state="exit"] { transform: none !important; }
+  @keyframes modal-step-in { from { opacity: 0; } }
+}
+
+/* The dark tip (as the app, #225 / #230 / #231): a near-black card with light text in BOTH themes, for chart hovers,
+   the plan pill, the Fact Check button, the Plans footer note and info tips. .tip-dark sets its own ink, so the
+   page's ink never wins (dark text on dark in light mode). Same values as the chart hover card. */
+:root {
+  --hc-surface: #1E1E21;
+  --hc-line: rgb(255 255 255 / 0.08);
+  --hc-ink: #FFFFFF;
+  --hc-muted: #9A9AA0;
+  --hc-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+  /* green: the one status colour (connected / active). The dot token is never used for text */
+  --connected: #16A34A;
+  --connected-bg: color-mix(in srgb, var(--connected) 12%, transparent);
+  --connected-ink: #166534;
+  /* usage ring (sidebar plan meter, plan pill): amber from 80% used, red from 95% (an owner exception for the ring) */
+  --ring-warn: #D97706;
+  --ring-full: #DC2626;
+}
+html[data-theme="dark"] { --connected-bg: color-mix(in srgb, var(--connected) 14%, transparent); --connected-ink: #4ADE80; --ring-warn: #F59E0B; --ring-full: #F87171; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --connected-bg: color-mix(in srgb, var(--connected) 14%, transparent); --connected-ink: #4ADE80; --ring-warn: #F59E0B; --ring-full: #F87171; } }
+.tip-dark {
+  background: var(--hc-surface); color: var(--hc-ink); border: 1px solid var(--hc-line); box-shadow: var(--hc-shadow);
+  border-radius: 12px; padding: 8px 12px; font-size: 12px; line-height: 16px; font-weight: 500; max-width: 320px;
+}
+.tip-dark .tip-muted { color: var(--hc-muted); }
