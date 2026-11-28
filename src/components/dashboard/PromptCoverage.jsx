@@ -10,6 +10,7 @@ import { NO_SCORE } from '../../utils/score'
 import NoResult from '../ui/NoResult'
 import { getHistory, trackedPrompts } from '../../data/mock'
 import { chart } from '../../theme/chart'
+import { useCardInsight } from './cardInsights'
 import { useBrandView } from '../../hooks/useBrandView'
 import { navigate } from '../../router'
 import { useTracking } from '../../store/trackingSettings'
@@ -123,6 +124,8 @@ export default function PromptCoverage() {
     },
   }
 
+  useCardInsight('share', noResult ? null : { name: 'Share of voice', anchor: 'share-of-voice', text: insight.text, detail: insight.evidence.calc, metric: { value: Number(focalShare) || 0, note: placeBadge(rankOf(focal.domain), ranked)?.label ?? null } })
+
   // hero: the selected brand, or the hovered one (crossfades)
   const hero = (r) => {
     // its place beside the share (as the app, #216 / #225): 1st the gold medal and "Top share"; 2nd / 3rd the silver /
@@ -149,7 +152,7 @@ export default function PromptCoverage() {
   }
 
   return (
-    <Card ref={explain.cardRef} className="flex h-full min-w-0 flex-col px-5 pt-5">
+    <Card ref={explain.cardRef} id="share-of-voice" className="flex h-full min-w-0 scroll-mt-6 flex-col px-5 pt-5">
       <div className="min-w-0">
         <h2 className="whitespace-nowrap text-[15px] leading-5 font-semibold text-stone-900">Share of voice</h2>
         {/* wraps, never cut */}

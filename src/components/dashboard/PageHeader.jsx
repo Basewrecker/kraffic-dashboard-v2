@@ -12,6 +12,7 @@ import { useBrandView } from '../../hooks/useBrandView'
 import { fmtDay, useTracking } from '../../store/trackingSettings'
 import { WhatChangedButton } from '../../whatChanged/WhatChanged'
 import { overview as overviewChanges } from '../../whatChanged/overview'
+import { InsightsButton } from './InsightsPanel'
 
 // A card header's icon action, next to its dropdowns: the 'sm' trigger's height, border, radius, surface and focus
 // ring, square. Icon t2, ink on hover. The label is its aria-label and a small tooltip (hover after 300ms, or focus);
@@ -85,6 +86,8 @@ export default function PageHeader() {
           </p>
         </div>
         <div className="relative flex shrink-0 flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:justify-end lg:gap-3 lg:pt-1">
+          {/* as the app: Insights (a lightbulb and the count) is the first of the header controls; it opens the panel */}
+          <InsightsButton />
           <div data-tour="overview-engine" className="max-lg:w-full">
             {/* as the app (#216 / #223): no "Engine" label ("All engines", or the engine with its logo) */}
             <MenuSelect value={engine} onChange={setEngine} groups={engineGroups} listLabel="Engine" showIcon footer="Filters every card to answers from this engine."

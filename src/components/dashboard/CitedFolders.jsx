@@ -6,6 +6,7 @@ import Insight, { hl, hlOpacity, useExplain } from '../ui/Insight'
 import NoResult from '../ui/NoResult'
 import { useCountUp } from '../ui/motion'
 import { sourceLine } from './insights'
+import { useCardInsight } from './cardInsights'
 import { openFolderDrawer } from '../answer/FolderDrawer'
 import { FOLDER_WEEKS, folderWeeks } from '../../data/citedFolders'
 import { hasResult } from '../../data/brandViews'
@@ -96,6 +97,7 @@ export default function CitedFolders() {
       action: { label: `Open ${slices[0].label}`, onClick: () => open(slices[0].key) },
     },
   }
+  useCardInsight('folders', insight ? { name: 'Cited pages by folder', anchor: 'cited-folders', text: insight.text, detail: insight.evidence.calc, metric: slices[0]?.pct != null ? { value: slices[0].pct, note: 'of citations' } : null } : null)
   // the slices' angles (from 12 o'clock, clockwise)
   let at = 0
   const geo = slices.map((s) => { const a0 = at; at += (s.count / Math.max(1, total)) * Math.PI * 2; return { a0, a1: at, mid: (a0 + at) / 2 } })

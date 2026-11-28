@@ -3,6 +3,7 @@ import { HeaderIconButton } from './PageHeader'
 import Card from './Card'
 import Gauge from '../ui/Gauge'
 import InfoTip from './InfoTip'
+import { useCardInsight } from './cardInsights'
 import Insight, { hl, useExplain } from '../ui/Insight'
 import { platformEvidence } from './insights'
 import { useCardBrand } from './BrandSelect'
@@ -109,6 +110,8 @@ export default function CitationsMentions() {
   const insight = lead && !mentionsUnknown && platformEvidence(lead, insightRows, { view, tracking, setEngine: page.setEngine })
   // its "View prompts" acts on the page's tables, which only make sense for the brand the page is showing
   if (insight && domain !== page.focal.domain) delete insight.evidence.action
+  // in the Insights panel: the lead engine after the card's name, its share of prompts as the ring
+  useCardInsight('citations', insight ? { name: 'Citations and Mentions', anchor: 'platforms', text: insight.text, detail: insight.evidence?.calc, engine: { id: lead.id, name: lead.name }, metric: { value: Math.min(100, lead.mentionedPct ?? 0), note: 'of prompts' } } : null)
 
 
   return (

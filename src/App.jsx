@@ -51,6 +51,7 @@ import WebsiteFactsPage from './pages/facts/WebsiteFactsPage'
 import BenchmarkingPage from './pages/benchmarking/BenchmarkingPage'
 import Walkthrough from './walkthrough/Walkthrough'
 import { WhatChangedPanel } from './whatChanged/WhatChanged'
+import InsightsPanel from './components/dashboard/InsightsPanel'
 import { overview as overviewChanges } from './whatChanged/overview'
 import { NotificationCard } from './notifications/Notifications'
 
@@ -93,6 +94,7 @@ function DashboardPage() {
           <FolderDrawer />
           <MarketplaceDrawer />
           <WhatChangedPanel config={overviewChanges} />
+          <InsightsPanel />
           </PlatformFilterProvider>
           </DashboardViewProvider>
     </>

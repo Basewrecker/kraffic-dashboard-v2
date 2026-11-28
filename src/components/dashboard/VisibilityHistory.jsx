@@ -18,6 +18,7 @@ import { useTracking } from '../../store/trackingSettings'
 import { aiModeSplit, engineGaps, engineName, engineScale, hasResult, setupPreview } from '../../data/brandViews'
 import NoResult from '../ui/NoResult'
 import HistoryHoverCard from './HistoryHoverCard'
+import { useCardInsight } from './cardInsights'
 import { useBrandColors } from '../../hooks/useBrandColors' // one colour per brand, the same as Share of voice
 
 // colours follow the slots, set once per render by the card: the focal brand ("Viewing as") is ink; the 3 competitors
@@ -756,6 +757,9 @@ export default function VisibilityHistory({ dataset: given = null, syncUrl = tru
     ].filter(Boolean).join('. ')
     return { text: r.text, evidence: { keys: [`series:${YOU}`, ...(r.other ? [`series:${r.other.key}`] : [])], calc: `${calc}.`, source: sourceLine(tracking) } }
   })()
+
+  // the Overview's own card (not a report's): its line is in the Insights panel too, with the brand's share and move
+  useCardInsight('history', !given && !bare && insight ? { name: 'Visibility history', anchor: 'history', text: insight.text, detail: insight.evidence?.calc, metric: UNIT.pct && stats.current != null ? { value: stats.current, change: stats.change } : null } : null)
 
   // ---- one real Recharts chart per type
   const renderChart = () => {

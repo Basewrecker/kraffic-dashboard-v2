@@ -13,6 +13,8 @@ import { openSyncDrawer } from '../answer/SyncDrawer'
 import { useBrandView } from '../../hooks/useBrandView'
 import { NO_SCORE, isScore } from '../../utils/score'
 import { syncCounts, syncMatches, syncSentence } from '../../utils/syncSentence'
+import { syncEvidence } from './insights'
+import { useCardInsight } from './cardInsights'
 
 // "Sync history" (as the app, #223): a full-width table in Prompt mix's layout. One row per sync: a plain sentence
 // (utils/syncSentence.js) over its date, the Latest / Best tags and the engines that ran; the score with a small ↑ / ↓
@@ -89,6 +91,10 @@ export default function SyncHistory() {
   const rows = all.filter((r) => syncMatches(filter, r, r.below))
   const details = (r, el) => openSyncDrawer({ syncId: r.id, tab: r.changes?.lost?.length || !r.changes?.gained?.length ? 'lost' : 'gained', opener: el })
 
+  // the card's insight ("Best sync: Sep 16 (74%). You’re 1 below it.") lives in the Insights panel; the table has no footer line
+  const insight = syncEvidence(syncHistory, { view, tracking, openRows: () => {} })
+  useCardInsight('sync', insight ? { name: 'Sync history', anchor: 'sync-history', text: insight.text, detail: insight.evidence?.calc, metric: isScore(syncHistory[0]?.visibility) ? { value: syncHistory[0].visibility, change: syncHistory[0].delta } : null } : null)
+
   const tag = 'inline-flex h-[18px] items-center rounded bg-tint px-1.5 text-[12px] leading-none font-medium text-stone-700'
   const columns = [
     {
@@ -111,7 +117,8 @@ export default function SyncHistory() {
         </div>
       ),
     },
-    { key: 'date', label: 'Date', desktop: false, mobile: false, csv: (r) => r.date, cell: () => null },
+    // the date: its own CSV column, and the first fact on a phone's row (the desktop shows it under the sentence)
+    { key: 'date', label: 'Date', desktop: false, mobile: 'meta', mobileText: (r) => `${short(r.date)}${r.latest ? ' · Latest' : ''}${r.best ? ' · Best' : ''}`, csv: (r) => r.date, cell: () => null },
     {
       key: 'score',
       label: 'Score',
@@ -135,7 +142,7 @@ export default function SyncHistory() {
     {
       key: 'ranking',
       label: 'Brand ranking',
-      width: 216,
+      width: 190,
       mobile: 'extra',
       skeleton: '120px',
       csv: (r) => r.ranking.map((d) => TRACKED_BRANDS.find((b) => b.domain === d)?.name ?? d).join(' > '),
@@ -145,7 +152,7 @@ export default function SyncHistory() {
       key: 'action',
       label: '',
       mobile: false, // phones: the row tap opens it
-      width: 96,
+      width: 86,
       align: 'right',
       skeleton: '48px',
       csv: false,

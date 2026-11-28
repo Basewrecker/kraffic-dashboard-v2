@@ -13,6 +13,7 @@ import { marketMock, marketRows } from '../../data/marketplaceHistory'
 import { ArrowRight } from 'lucide-react'
 import { ENGINE_ORDER, TRACKED_BRANDS } from '../../data/brandViews'
 import { PlatformIcon } from './icons'
+import { useCardInsight } from './cardInsights'
 import SiteLogo from '../ui/SiteLogo'
 import { brandName, isDomain } from '../../utils/brand'
 import { OWN } from '../../data/brandViews'
@@ -142,9 +143,13 @@ function MarketplaceCard() {
   const enabled = ENGINE_ORDER.filter((e) => tracking.platforms.some((p) => p.id === e && p.enabled))
   const [thisWeek] = marketRows('all', enabled, 2, marketMock())
   const week = (e) => openMarketplaceDrawer({ metric: 'linking', opener: e.currentTarget })
+  // the Insights panel carries the line about the brand's own listings (the card's first segment)
+  const yours = segs.find((x) => x.key === 'yours')
+  const yoursInsight = yours ? marketplaceEvidence(yours, { tracking }) : null
+  useCardInsight('marketplace', yoursInsight ? { name: 'Marketplace visibility', anchor: 'marketplace-visibility', text: yoursInsight.text, detail: yoursInsight.evidence?.calc, metric: { value: pct(yours.count, m.total), note: `of ${m.total} prompts` } } : null)
 
   return (
-    <Card ref={explain.cardRef} className="flex h-full min-w-0 flex-col px-5 pt-5">
+    <Card ref={explain.cardRef} id="marketplace-visibility" className="flex h-full min-w-0 scroll-mt-6 flex-col px-5 pt-5">
       {/* header actions: icon buttons styled like the dropdowns (HeaderIconButton), centred on the 26px title line */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
