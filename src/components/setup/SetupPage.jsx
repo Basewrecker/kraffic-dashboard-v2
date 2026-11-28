@@ -5,6 +5,9 @@ import { PrimaryButton, useToast } from '../dashboard/overlays'
 import ConfirmPopover from '../prompts/ConfirmPopover'
 import SiteLogo from '../ui/SiteLogo'
 import BrandModal from './BrandModal'
+import LimitTip from '../../plan/LimitTip'
+import HeaderBell from '../../notifications/NotificationsBell'
+import { LIMIT_REASON, competitorRoom, isSuperadmin } from '../../plan/plan.js'
 import { useInlineEdit } from '../../hooks/useInlineEdit'
 import { useAnimatedList } from '../../hooks/useAnimatedList'
 import { linkClick, navigate } from '../../router'
@@ -105,10 +108,11 @@ export function SettingsCard({ title, count, description, action, footer, childr
 }
 
 // header "+ Add"; at the limit it's disabled and the wrapper carries the tooltip (disabled buttons don't)
+// (as the app, #231: the reason reads in the dark tip, on hover and keyboard focus; never the browser's tooltip)
 const AddButton = ({ onClick, disabled, disabledTitle }) => (
-  <span title={disabled ? disabledTitle : undefined}>
-    <button type="button" onClick={onClick} disabled={disabled} className={textBtn}><Plus size={14} aria-hidden /> Add</button>
-  </span>
+  <LimitTip reason={disabled ? disabledTitle : null}>
+    <button type="button" onClick={onClick} disabled={disabled} className={`${textBtn} disabled:cursor-not-allowed disabled:opacity-50`}><Plus size={14} aria-hidden /> Add</button>
+  </LimitTip>
 )
 
 // one read-only row: [logo] name / meta … quiet value + hover-only Edit / Remove. alwaysActions: a text "Edit" and the
@@ -528,7 +532,10 @@ function CompetitorsCard({ brand, update, toast }) {
   const sorted = useMemo(() => [...list].sort((a, b) => (shared(b) ?? -1) - (shared(a) ?? -1)), [list, brand.domain]) // eslint-disable-line react-hooks/exhaustive-deps
   const rows = useAnimatedList(sorted, (c) => c.id, 150)
   // a limit only when the app sets one (none while billing isn't live)
-  const full = MAX_COMPETITORS != null && list.length >= MAX_COMPETITORS
+  // the plan's competitor limit (as the app, #231): at or over it, adding is off with the reason; a client never sees a
+  // count above the limit (a superadmin sees how far over). ?competitors=limit previews it
+  const room = competitorRoom(list.length)
+  const full = MAX_COMPETITORS != null && room.atLimit
   const setList = (fn) => update((b) => ({ ...b, competitors: fn(b.competitors) }))
   const setSuggested = (fn) => update((b) => ({ ...b, suggested: fn(b.suggested ?? []) }))
   const validateNew = ({ name, domain }) => {
@@ -596,9 +603,9 @@ function CompetitorsCard({ brand, update, toast }) {
       id={`competitors-${brand.id}`}
       tour="setup-competitors"
       title="Competitors"
-      count={MAX_COMPETITORS != null ? `${list.length} of ${MAX_COMPETITORS}` : list.length}
+      count={MAX_COMPETITORS != null ? (room.over > 0 && isSuperadmin() ? `${room.real} of ${room.limit} · ${room.over} over plan` : `${room.used} of ${room.limit}`) : list.length}
       description="Brands AI answers compare you with"
-      action={<AddButton onClick={() => ed.open('new')} disabled={full} disabledTitle="Limit reached" />}
+      action={<AddButton onClick={() => ed.open('new')} disabled={full} disabledTitle={LIMIT_REASON.competitors(room)} />}
       footer={(
         <>
           <Suggested items={suggestions} label="Suggested from research" onPick={(sg) => accept(sg.value)} onDismiss={(sg) => dismiss(sg.value)} />
@@ -825,7 +832,7 @@ export default function SetupPage() {
   const brandColumns = [
     { key: 'name', label: 'Brand', sort: { value: (b) => b.name.toLowerCase(), first: 'asc' }, cell: (b) => <span className="font-medium text-stone-900">{b.name}</span> },
     { key: 'domain', label: 'Website', width: 220, cell: (b) => <span className="text-[13px] text-stone-600">{b.domain ?? '—'}</span> },
-    { key: 'competitors', label: 'Competitors', width: 140, cell: (b) => <span className="text-[13px] text-stone-600 tabular-nums">{MAX_COMPETITORS != null ? `${b.competitors.length} of ${MAX_COMPETITORS}` : b.competitors.length}</span> },
+    { key: 'competitors', label: 'Competitors', width: 140, cell: (b) => <span className="text-[13px] text-stone-600 tabular-nums">{MAX_COMPETITORS != null ? `${Math.min(b.competitors.length, MAX_COMPETITORS)} of ${MAX_COMPETITORS}` : b.competitors.length}</span> },
     { key: 'edit', label: '', width: 96, align: 'right', cell: (b) => <button type="button" onClick={() => setModal({ brand: b })} className="text-[13px] font-medium text-stone-600 hover:text-stone-900">Edit</button> },
   ]
 
@@ -839,8 +846,10 @@ export default function SetupPage() {
           </div>
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">What Auden AI tracks for your brand</p>
         </div>
-        <div className="md:pt-1 max-md:[&>button]:h-10 max-md:[&>button]:w-full max-md:[&>button]:justify-center">
+        <div className="flex items-center gap-3 md:pt-1 max-md:[&>button]:h-10 max-md:[&>button]:w-full max-md:[&>button]:justify-center">
           <PrimaryButton size="sm" icon={Plus} onClick={() => setModal({ brand: null })}>Add brand</PrimaryButton>
+          {/* every page header ends with the hairline and the bell */}
+          <HeaderBell />
         </div>
       </div>
 

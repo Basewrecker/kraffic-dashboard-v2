@@ -190,7 +190,7 @@ export default function BrandModal({ open, mode = 'add', brand, takenDomains, on
         <div>
           <Label
             htmlFor="brand-competitors"
-            right={MAX_COMPETITORS != null ? <span className={`text-[12px] leading-4 tabular-nums ${counterFull ? 'text-stone-900' : 'text-stone-500'}`}>{form.competitors.length} / {MAX_COMPETITORS}</span> : null}
+            right={MAX_COMPETITORS != null ? <span className={`text-[12px] leading-4 tabular-nums ${counterFull ? 'text-stone-900' : 'text-stone-500'}`}>{Math.min(form.competitors.length, MAX_COMPETITORS)} / {MAX_COMPETITORS}</span> : null}
           >
             Competitors
           </Label>
@@ -207,7 +207,7 @@ export default function BrandModal({ open, mode = 'add', brand, takenDomains, on
           />
           {show('competitors') && !form.competitors.length
             ? <Err>{errs.competitors}</Err>
-            : <p id="brand-competitors-help" className="mt-1.5 text-[12px] leading-4 text-stone-600">{counterFull ? 'Maximum reached' : 'Add the sites of brands you compete with, e.g. competitor.com.'}</p>}
+            : <p id="brand-competitors-help" className="mt-1.5 text-[12px] leading-4 text-stone-600">{counterFull ? `Your plan includes ${MAX_COMPETITORS} competitors. Remove one or upgrade to add more.` : 'Add the sites of brands you compete with, e.g. competitor.com.'}</p>}
         </div>
         {editing && (
           <div className="flex items-center justify-between gap-4 border-t border-line pt-4">
