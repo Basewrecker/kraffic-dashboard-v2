@@ -3,6 +3,7 @@ import { Sparkles } from 'lucide-react'
 import Card from './dashboard/Card'
 import { linkClick } from '../router'
 import { account } from '../data/mock'
+import HeaderBell from '../notifications/NotificationsBell'
 
 // A brand with no data yet (switched to from the workspace menu): every data page shows this instead of its content.
 const TITLES = { '/overview': 'Visibility Overview', '/tracker': 'Prompt Hub', '/trends': 'Trends', '/audit': 'Site Audit', '/structured-data': 'Structured Data', '/more-tools': 'Toolkit', '/more-tools/tool': 'Toolkit', '/citations': 'Citations', '/sentiment': 'Sentiment', '/fact-check': 'Fact Check', '/website-facts': 'Fact Check' }
@@ -16,7 +17,10 @@ export default function EmptyBrand({ route, onSetup, setUp = false, onPrompts })
   useEffect(() => { document.title = `${title} · ${account.name} · Auden AI` }, [title])
   return (
     <>
-      <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">{title}</h1>
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">{title}</h1>
+        <HeaderBell hairline={false} />
+      </div>
       <Card className="flex flex-col items-center px-5 py-14 text-center">
         <span className="grid h-10 w-10 place-items-center rounded-lg bg-tint text-ink" aria-hidden><Sparkles size={20} /></span>
         <h2 className="mt-4 text-[15px] leading-5 font-semibold text-stone-900">No data for {account.name} yet</h2>

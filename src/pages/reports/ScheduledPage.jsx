@@ -15,6 +15,7 @@ import { brand as workspaceBrand } from '../../store/workspace'
 import { Thumb } from './blocks'
 import { BetaTag, BrandLogo, brandOf, defaultBrand, inkBtn, t3 } from './parts'
 import { writeReport } from './ReportPage'
+import HeaderBell from '../../notifications/NotificationsBell'
 
 // Scheduled: reports that write themselves and arrive by email. The same frame as All reports (title + Beta, the brand
 // switcher, New schedule). Filled: the Upcoming strip (the next 14 days) above one list panel (When · Report · Last sent
@@ -192,6 +193,7 @@ export default function ScheduledPage() {
             <Segmented size="sm" label="Brands" value={scope} onChange={setScope} options={[{ value: 'brand', label: homeName }, { value: 'all', label: 'All brands' }]} />
           </span>
           <button type="button" onClick={() => openDrawer('schedule', 'new')} className={inkBtn}><Plus size={15} aria-hidden />New schedule</button>
+          <HeaderBell className="ml-1" />
         </div>
       </div>
 

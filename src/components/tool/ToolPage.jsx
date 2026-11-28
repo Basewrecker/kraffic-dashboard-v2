@@ -6,6 +6,7 @@ import BackLink from '../BackLink'
 import ActionMenu from '../audit/ActionMenu'
 import MobileActions from '../ui/MobileActions'
 import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
+import HeaderBell from '../../notifications/NotificationsBell'
 
 // One template for every Toolkit tool page:
 //   BackLink → H1 + subtitle | controls · primary action (ink) · ⋯ menu
@@ -28,15 +29,19 @@ export default function ToolPage({
   back = { to: '/more-tools', label: 'Toolkit' }, title, subtitle, controls = null, primary = null, menu = [],
   state = 'ready', connect = null, partial = false, empty = null, running = null, error = null, changes = null, children,
 }) {
+  // what the header's right side holds before the bell (a primary action isn't shown until the tool is connected)
+  const hasControls = Boolean(controls || (primary && state !== 'not-connected') || menu.length > 0 || changes)
   return (
     <>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
+      <div className={`flex flex-col gap-3 lg:flex-row lg:justify-between lg:gap-6 ${hasControls ? 'lg:items-end' : 'lg:items-start'}`}>
         <div className="min-w-0">
           <BackLink to={back.to}>{back.label}</BackLink>
           <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">{title}</h1>
           {subtitle && <p className={`mt-1 text-[13px] leading-[18px] ${t2}`}>{subtitle}</p>}
         </div>
-        {(controls || primary || menu.length > 0 || changes) && (
+        {/* the header ends like every page: controls · Summary · hairline · bell; with no controls the bell sits alone, top right */}
+        {!hasControls && <HeaderBell hairline={false} />}
+        {hasControls && (
           <div className="flex flex-wrap items-center gap-2">
             {controls}
             {primary && state !== 'not-connected' && (
@@ -54,7 +59,7 @@ export default function ToolPage({
                 <MobileActions items={menu} />
               </>
             )}
-            {changes && <WhatChangedButton config={changes} size="md" />}
+            {changes ? <WhatChangedButton config={changes} size="md" /> : <HeaderBell className="ml-1" />}
           </div>
         )}
       </div>

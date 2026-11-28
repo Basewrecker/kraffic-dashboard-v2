@@ -9,6 +9,7 @@ import { useToast } from '../../components/dashboard/overlays'
 import { linkClick, navigate } from '../../router'
 import { ENGINE_NAMES, addReport, buildReport, dataFor, followUpsFor, inferOpts, optsLine, periodLabel, refine, reportById, stepsFor, templatesFor, updateReport } from '../../data/reports'
 import PillComposer from './PillComposer'
+import HeaderBell from '../../notifications/NotificationsBell'
 import { pageFit } from '../../data/composer'
 import { DotAssemble } from './DotField'
 import { Block, Thumb, blockName, explainFor } from './blocks'
@@ -379,6 +380,8 @@ function Thread({ rest, mock, greeting, inter }) {
   return (
     <div ref={pageRef} style={inter ? { fontFamily: "'Inter', var(--font-sans)" } : undefined}
       className={`thread-motion relative flex w-full flex-col ${thread ? '' : 'min-h-[calc(100dvh-88px)] lg:min-h-[calc(100dvh-72px)]'}`}>
+      {/* no page header here: the bell sits alone at the page's top right corner (as the app, #216) */}
+      <HeaderBell hairline={false} className="absolute right-0 top-0 z-10" />
       {!thread && (
         <div key="hello" className="flex flex-1 flex-col items-center justify-end pb-6">
           {/* the H1 runs inline so, when the greeting wraps on a phone, the tag follows its last word */}

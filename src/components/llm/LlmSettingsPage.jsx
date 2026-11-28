@@ -11,6 +11,7 @@ import { account, missedPrompts, syncModes } from '../../data/mock'
 import { role } from '../../store/workspace'
 import { linkClick } from '../../router'
 import { fmtAvailable, fmtDay, useTracking } from '../../store/trackingSettings'
+import HeaderBell from '../../notifications/NotificationsBell'
 
 const selectWidth = 'min-w-[140px] sm:min-w-[200px]'
 const EVERY = { daily: 'every day', weekly: 'every week', monthly: 'every month' }
@@ -184,6 +185,8 @@ export default function LlmSettingsPage({
             Sync now
           </button>
           )}
+          {/* the header ends like every page: hairline · bell (alone when there is nothing before it) */}
+          <HeaderBell hairline={Boolean(failed?.key === 'sync' || (canSync && tooSoon && !t.syncing) || (onSyncNow && !canSync) || canSync)} />
         </div>
       </div>
 

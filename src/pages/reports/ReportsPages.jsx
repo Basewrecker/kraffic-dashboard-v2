@@ -11,6 +11,7 @@ import ReportThread from './ReportPage'
 import ScheduledPage from './ScheduledPage'
 import { Block, Thumb, VerdictDot } from './blocks'
 import { DotIllustration } from './DotField'
+import HeaderBell from '../../notifications/NotificationsBell'
 import { BetaTag, BrandLogo, ChipMenu, brandOf, defaultBrand, inkBtn, lineBtn, menuItem, t2, t3 } from './parts'
 
 // /reports → New report (the empty thread) · /reports/all → All reports · /reports/scheduled → Scheduled
@@ -116,7 +117,7 @@ function AllReports() {
           </h1>
           <BetaTag tipAlign="left" className="-translate-y-[3px] lg:-translate-y-[5px]" />
         </div>
-        {newBtn}
+        <div className="flex items-center gap-3">{newBtn}<HeaderBell /></div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

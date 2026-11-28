@@ -6,6 +6,7 @@ import ActionMenu from '../../components/audit/ActionMenu'
 import { CardError } from '../../components/ui/CardState'
 import SiteLogo from '../../components/ui/SiteLogo'
 import { Confirm } from '../../components/ui/Confirm'
+import HeaderBell from '../../notifications/NotificationsBell'
 import { fieldCls, t3, textBtn } from '../../components/firstSetup/ui'
 import { brand } from '../../store/workspace'
 import { TEAM_STATES, firstName, initialState, initials, isEmail, lastActive, seedMembers, sentAgo, teamApi } from './team'
@@ -99,16 +100,21 @@ export default function TeamPage() {
   const devBar = import.meta.env.DEV && new URLSearchParams(window.location.search).get('devbar') !== '0'
 
   return (
-    <div className="flex w-full max-w-[880px] flex-col gap-3 md:gap-4">
-      <header>
-        <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Team</h1>
-        <p className="mt-2 flex items-center gap-2.5 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">
-          {/* the brand switcher's tile (28px) */}
-          <SiteLogo domain={brand.domain} name={brand.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
-          People who can access {brand.name}.
-        </p>
+    <div className="flex w-full flex-col gap-3 md:gap-4">
+      {/* the header spans the page so the bell sits top right like every page (as the app, #216); the cards stay narrow */}
+      <header className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Team</h1>
+          <p className="mt-2 flex items-center gap-2.5 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">
+            {/* the brand switcher's tile (28px) */}
+            <SiteLogo domain={brand.domain} name={brand.name} className="h-7 w-7 rounded-md" initialClass="text-[12px]" />
+            People who can access {brand.name}.
+          </p>
+        </div>
+        <HeaderBell hairline={false} />
       </header>
 
+      <div className="flex w-full max-w-[880px] flex-col gap-3 md:gap-4">
       <InviteCard members={members} disabled={status !== 'ready'} onInvited={add} emailRef={emailRef} />
 
       <section aria-labelledby="members-title" aria-busy={status === 'loading' || undefined} className={card}>
@@ -139,6 +145,7 @@ export default function TeamPage() {
           </>
         )}
       </section>
+      </div>
 
       <Confirm ask={ask} onClose={() => setAsk(null)} />
       {toastNode}

@@ -11,6 +11,7 @@ import DrawerShell, { Dot, useDrawer } from '../../components/audit/DrawerShell'
 import { openAnswer } from '../../components/answer/AnswerDrawer'
 import { ENGINES, factCheckStates } from '../../data/insights'
 import { trackedPrompts } from '../../data/mock'
+import HeaderBell from '../../notifications/NotificationsBell'
 import { EngineMark, EngineMarks, NoData, PageHead, Quote, cardTitle, head, rowCls, scrollTo, subtitleCls, t2, t3, useInsightState } from './parts'
 
 // /fact-check — "Are AI engines getting your facts right?" (hidden from the sidebar). Also covers Toolkit →
@@ -26,7 +27,7 @@ export default function FactCheckPage() {
   const { key, st } = useInsightState(factCheckStates, 'Fact Check')
   const [filter, setFilter] = useState('all')
   const [toastNode, toast] = useToast({ position: 'center' })
-  const head1 = <PageHead title="Fact Check" subtitle="Whether AI engines get your facts right, checked against your Website facts" syncs={st?.syncs} />
+  const head1 = <div className="flex items-start justify-between gap-4"><PageHead title="Fact Check" subtitle="Whether AI engines get your facts right, checked against your Website facts" syncs={st?.syncs} /><HeaderBell hairline={false} /></div>
   if (!st) {
     return <>{head1}<NoData kind={key} icon={ListChecks} title="Your facts haven’t been checked yet"
       body="You’ve confirmed 5 Website facts. We’ll compare them with what each engine says about you in the latest scan; it takes a few minutes."

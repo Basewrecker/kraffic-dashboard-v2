@@ -4,6 +4,7 @@ import Card from '../../components/dashboard/Card'
 import { useToast } from '../../components/dashboard/overlays'
 import { useParams } from '../../components/audit/parts'
 import { useIsMobile } from '../../hooks/useMedia'
+import HeaderBell from '../../notifications/NotificationsBell'
 import { account } from '../../data/mock'
 import { navigate } from '../../router'
 import { SECTIONS, toolkitView } from './toolkit'
@@ -30,9 +31,13 @@ export default function ToolkitPage() {
   const open = (t) => (t.href ? navigate(t.href) : toast(t.movedTo ? `${t.name} is part of ${t.movedTo}, designed in Phase 7` : `${t.name} isn’t designed in the mock yet`))
   return (
     <>
-      <div>
-        <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Toolkit</h1>
-        <p className={`mt-1 text-[13px] leading-[18px] ${t2} lg:text-[14px] lg:leading-5`}>Tools that help AI engines find and trust {account.name}.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-[28px] lg:leading-9">Toolkit</h1>
+          <p className={`mt-1 text-[13px] leading-[18px] ${t2} lg:text-[14px] lg:leading-5`}>Tools that help AI engines find and trust {account.name}.</p>
+        </div>
+        {/* no page controls: the bell alone, top right */}
+        <HeaderBell hairline={false} />
       </div>
       {view.attention.length > 0 && <Attention rows={view.attention} open={open} />}
       <AllTools tools={view.tools} open={open} />

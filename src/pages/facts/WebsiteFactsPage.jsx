@@ -17,6 +17,7 @@
 // read is one blocking call, so its live progress isn't shown; Keep / Drop / Confirm / Dismiss are held 5 s with Undo,
 // then sent; a failed save or read shows one plain line with Retry; no "Rejected" bar; logos fall back to a line icon.
 'use client'
+import HeaderBell from '../../notifications/NotificationsBell'
 import { createPortal } from 'react-dom' // app: the page texts' popover is drawn in <body>
 import { Fragment, createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AlignLeft, AppWindow, ArrowUpRight, Award, BadgeCheck, Building2, CalendarDays, Check, ChevronDown, Heading1, Mail, MapPin, Phone, Plus, Quote, RefreshCw, Search, Star, StickyNote, X } from 'lucide-react'
@@ -154,6 +155,8 @@ function Hero({ b, groups, total, scan, hasRead, onRead, scanLine, failed, onGo,
           <button type="button" onClick={onRead} disabled={!!scan} className={primary}>
             <RefreshCw size={15} aria-hidden className={scan ? 'wf-anim wf-spin' : ''} />{scan ? 'Reading…' : hasRead ? 'Check facts again' : 'Read website'}
           </button>
+          {/* the header ends like every page: hairline · bell (12px from the button: the row's gap is 20px) */}
+          <HeaderBell className="-ml-2" />
         </div>
       </div>
       {hasRead ? (
