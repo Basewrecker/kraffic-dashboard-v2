@@ -24,7 +24,7 @@ import ToolkitPage from './pages/toolkit/ToolkitPage'
 import ToolRouter from './pages/toolkit/ToolRouter'
 // Plans (as the app's /plans; the old /billing address redirects to it, router.js). The mock's earlier Billing and
 // "Choose a plan" pages (pages/billing/*) are no longer routed: billing is being redesigned as this page's Billing tab
-import PlansPage from './pages/plans/PlansPage'
+import PlansRouter from './pages/plans/PlansRouter'
 import TeamPage from './pages/team/TeamPage'
 import ReportsRouter from './pages/reports/ReportsPages'
 import EmptyBrand from './components/EmptyBrand'
@@ -99,7 +99,7 @@ const TrackingPage = () => <LlmSettingsPage {...(krafficBackend ? krafficTrackin
 
 export default function App() {
   const path = usePath()
-  const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/benchmarking': BenchmarkingPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/plans': PlansPage, '/team': TeamPage, '/reports': ReportsRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter, '/opportunities': ContentRouter, '/website-facts': WebsiteFactsPage }
+  const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/benchmarking': BenchmarkingPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/plans': PlansRouter, '/team': TeamPage, '/reports': ReportsRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter, '/opportunities': ContentRouter, '/website-facts': WebsiteFactsPage }
   // /trends/:runId and /more-tools/<tool>[/…] are one page each (they read the rest of the path)
   const route = path.startsWith('/opportunities/') ? '/opportunities' : path.startsWith('/reports/') ? '/reports' : path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/plans/') ? '/plans' : path
   // tool pages light up Toolkit; Reports: /reports/all and /reports/scheduled are themselves, writing a report is New report,

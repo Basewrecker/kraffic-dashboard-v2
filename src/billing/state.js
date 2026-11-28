@@ -77,3 +77,6 @@ export const tabFor = (b) => {
 }
 // why a money action is off for this person, or null when they can act
 export const whyOff = (b) => (b.who === 'viewas' ? 'Can’t change plans from this view' : b.who === 'member' ? 'Only the account owner can change the plan.' : null)
+
+// review mode for the screenshots: ?notes=1 outlines every "pending decision" element (index.css, html[data-notes])
+if (typeof document !== 'undefined' && q().has('notes')) document.documentElement.dataset.notes = ''

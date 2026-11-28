@@ -1182,3 +1182,17 @@ html[data-theme="dark"] { --connected-bg: color-mix(in srgb, var(--connected) 14
    the Trusted by strip, the brand menus */
 html[data-theme="dark"] .logo-dark-tile { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.18); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .logo-dark-tile { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.18); } }
+
+/* Billing review mode (?notes=1 sets html[data-notes]): every element that follows an open decision's recommended
+   default (<Pending n>) is outlined with a small tag, so the owner sees what moves if a decision changes. */
+html[data-notes] [data-pending] { outline: 1px dashed var(--color-line-strong); outline-offset: 3px; position: relative; }
+html[data-notes] [data-pending]::after {
+  content: "pending " attr(data-pending); position: absolute; left: 0; top: calc(100% + 4px); z-index: 5; white-space: nowrap;
+  font-size: 11px; line-height: 12px; font-weight: 600; padding: 1px 5px; border-radius: 4px; background: var(--ink); color: var(--on-ink);
+}
+
+/* the paid tick on the return page draws in once (reduced motion: it shows at once) */
+@media (prefers-reduced-motion: no-preference) {
+  .bill-tick path, .bill-tick polyline { stroke-dasharray: 30; stroke-dashoffset: 30; animation: bill-tick 420ms var(--motion-ease-out) 120ms forwards; }
+}
+@keyframes bill-tick { to { stroke-dashoffset: 0; } }
