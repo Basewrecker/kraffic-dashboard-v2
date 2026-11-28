@@ -900,8 +900,21 @@ export const trackedPrompts = (() => {
     // lost = visible in the sync before, missed in the latest one
     id: `m${r.id}`, prompt: r.prompt, category: r.topic, list: pickList(), status: wasLostThisSync(r) ? 'lost' : 'missed', platforms: [], added: addedBefore(r.firstSeen),
   }))
-  return [...visible, ...missed]
+  // addedAt (ISO) and addedVia ('manual' | 'csv' | 'research'), as the API returns them. Its own seeded stream, so
+  // the draws above stay as they were. A few prompts that first showed in the latest sync were added that day or
+  // the day before (the Hub's "Today" / "Yesterday").
+  const arand = mulberry32(223)
+  const VIA = { 'Manual entry': 'manual', 'Q3 import': 'csv', 'Sunscreen launch': 'csv', 'Competitor gaps': 'research' }
+  const isoOn = (t) => { const d = new Date(t); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 8 + Math.floor(arand() * 10), Math.floor(arand() * 60))).toISOString() }
+  const fresh = [...visiblePrompts.filter((r) => r.firstVisible === account.lastSync).slice(0, 4).map((r) => `v${r.id}`), ...missedPrompts.filter((r) => r.firstSeen === account.lastSync).slice(0, 2).map((r) => `m${r.id}`)]
+  return [...visible, ...missed].map((r) => {
+    const at = fresh.indexOf(r.id)
+    const t = at === -1 ? Date.parse(r.added) : lastSync - (at % 2) * DAY
+    return { ...r, added: new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), addedAt: isoOn(t), addedVia: VIA[r.list] ?? 'manual' }
+  })
 })()
+// the mock's "today" for the Hub's Added column: the day of the latest sync (the app uses the real date)
+export const hubToday = (() => { const d = new Date(Date.parse(account.lastSync)); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 20)).toISOString() })()
 
 // Prompt Hub saves: every change on /prompts goes through one of these (the page updates first, then calls it; a
 // rejected promise rolls the row back with an inline error). Here they keep the change in memory and resolve.
@@ -917,7 +930,7 @@ export const promptActions = {
   // → { id } of the saved prompt
   async onAddPrompt({ text, category }) {
     await sleep(150)
-    const row = { id: `new${nextPromptId++}`, prompt: text, category, list: 'Manual entry', status: 'pending', platforms: [], added: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }
+    const row = { id: `new${nextPromptId++}`, prompt: text, category, list: 'Manual entry', status: 'pending', platforms: [], added: account.lastSync, addedAt: hubToday, addedVia: 'manual' }
     trackedPrompts.unshift(row)
     return { id: row.id }
   },

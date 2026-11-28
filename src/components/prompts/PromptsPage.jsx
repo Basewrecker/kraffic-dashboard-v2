@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Download, FlaskConical, Loader2, MessageSquarePlus, Pencil, Plus, RefreshCw, Upload, X } from 'lucide-react'
 import PromptTable from '../dashboard/PromptTable'
 import { useIsMobile } from '../../hooks/useMedia'
@@ -19,6 +19,8 @@ import { useInlineEdit } from '../../hooks/useInlineEdit'
 import ResearchModal from './ResearchModal'
 import ImportModal from './ImportModal'
 import CategorySelect from './CategorySelect'
+import EdgeTip from '../ui/EdgeTip'
+import { activeFilters, addedCsv, addedLabel, addedSortValue, addedTip, matchesSearch, showingLine, statusCounts, topicColumnWidth } from './hub-filters.js'
 import { WhatChangedButton, WhatChangedPanel } from '../../whatChanged/WhatChanged'
 import { prompts as promptsChanges } from '../../whatChanged/prompts'
 import { editProblem, editWarning } from '../firstSetup/promptEdits'
@@ -27,7 +29,7 @@ import { DashboardViewProvider, useDashboardView } from '../../hooks/useBrandVie
 import { ENGINES, OWN, TRACKED_BRANDS, appearances, engineName, enginePid, getBrandView } from '../../data/brandViews'
 import { slugOf, trackedKey } from '../../data/syncChanges'
 import { matchesTopic } from '../../data/topics'
-import { account, guessCategory, promptActions, trackedPrompts } from '../../data/mock'
+import { account, guessCategory, hubToday, promptActions, trackedPrompts } from '../../data/mock'
 
 // Prompt Hub (/prompts): every tracked prompt with its topic, the brands its AI answers name and miss, and its status
 // in the latest sync. Every change is shown at once and saved through promptActions; a failed save puts the row back
@@ -57,11 +59,44 @@ function StatusCell({ r, error }) {
   return <span className={`whitespace-nowrap text-[13px] leading-[18px] ${r.status === 'lost' ? 'text-negative' : 'text-stone-600'}`}>{STATUS_LABEL[r.status]}</span>
 }
 
+// Text that may be cut with "…" (a prompt, a topic pill): the full text shows in the shared tip, only while it is
+// actually cut. Never a browser tooltip.
+function CutText({ text, className }) {
+  const ref = useRef(null)
+  const [cut, setCut] = useState(false)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return undefined
+    const check = () => setCut(el.scrollWidth > el.clientWidth + 1)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [text, cut]) // cut: the span is drawn again inside the tip, so watch the new one
+  const body = <span ref={ref} className={className}>{text}</span>
+  return cut ? <EdgeTip tip={text} className="block min-w-0 max-w-full">{body}</EdgeTip> : body
+}
+const topicPill = 'inline-block h-6 rounded-md bg-tint px-2 align-middle text-[12px] leading-6 text-stone-700'
+
+// Added: "Today", "Yesterday", else "Nov 18"; the full date and how it was added in the dark tip. No date: a dash.
+function AddedCell({ r }) {
+  const tip = addedTip(r.addedAt, r.addedVia)
+  if (!tip) return <span className="text-small text-stone-400">—</span>
+  return (
+    <span tabIndex={0} className="group/ad relative inline-flex rounded outline-none focus-visible:ring-2 focus-visible:ring-focus">
+      <time dateTime={r.addedAt} className="whitespace-nowrap text-[13px] leading-[18px] text-stone-500 tabular-nums">{addedLabel(r.addedAt, hubToday)}</time>
+      <span role="tooltip" className="tip-dark pointer-events-none absolute left-0 top-full z-30 mt-2 w-max whitespace-nowrap text-left opacity-0 transition-opacity duration-150 group-hover/ad:opacity-100 group-focus-visible/ad:opacity-100">{tip}</span>
+    </span>
+  )
+}
+
 // Filters are remembered per brand (localStorage) and mirrored to the URL for sharing; the URL wins over storage.
 // Anything unreadable or no longer valid falls back to the default.
 const STATUSES = ['all', 'visible', 'missed', 'lost', 'pending']
 const PAGE_SIZES = [10, 25, 50]
-const SORT_KEYS = ['appearingFor', 'missedBy']
+const SORT_KEYS = ['addedAt', 'appearingFor', 'missedBy']
+// ?topics=none previews a brand with no topics: no Topic column, no "All topics" filter
+const NO_TOPICS = () => new URLSearchParams(window.location.search).get('topics') === 'none'
 const STORE_KEY = `kraffic:prompts:filters:${account.domain}`
 const catSlug = (c) => c.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 function initialFilters() {
@@ -75,7 +110,7 @@ function initialFilters() {
   const urlSort = SORT_KEYS.includes(q.get('sort')) ? { key: q.get('sort'), dir: q.get('dir') === 'asc' ? 'asc' : 'desc' } : null
   const savedSort = SORT_KEYS.includes(saved.hubSort?.key) ? { key: saved.hubSort.key, dir: saved.hubSort.dir === 'asc' ? 'asc' : 'desc' } : null
   return {
-    category: fromUrl ?? (known.includes(saved.category) ? saved.category : 'all'),
+    category: fromUrl ?? 'all', // a shared link's topic only: never restored from storage on a fresh visit
     status: STATUSES.includes(urlStatus) ? urlStatus : STATUSES.includes(saved.status) ? saved.status : 'all',
     engine: q.has('engine') ? null : ENGINES.some((e) => e.id === saved.engine) ? saved.engine : null, // null: the URL's (or all)
     sort: urlSort ?? savedSort,
@@ -98,10 +133,13 @@ export default function PromptsPage() {
 function PromptHub() {
   const mobile = useIsMobile()
   useEffect(() => { document.title = 'Prompt Hub · Auden AI' }, [])
-  const [prompts, setPrompts] = useState(() => [...trackedPrompts])
+  const [noTopicsPreview] = useState(NO_TOPICS)
+  const [prompts, setPrompts] = useState(() => (noTopicsPreview ? trackedPrompts.map((r) => ({ ...r, category: null })) : [...trackedPrompts]))
   const [initial] = useState(initialFilters)
   const [status, setStatus] = useState(initial.status)
-  const [category, setCategory] = useState(initial.category)
+  const [category, setCategory] = useState(noTopicsPreview ? 'all' : initial.category)
+  // the table's search lives here so the status tabs and the "Showing" line can count it (?q= seeds it)
+  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '')
   const [sort, setSort] = useState(initial.sort)
   const { engine, setEngine } = useDashboardView()
   useEffect(() => { if (initial.engine) setEngine(initial.engine) }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -148,9 +186,9 @@ function PromptHub() {
     try {
       // merge: the dashboard's Missed prompts keeps its sort (missedSort) under the same key
       const saved = JSON.parse(window.localStorage.getItem(STORE_KEY)) ?? {}
-      window.localStorage.setItem(STORE_KEY, JSON.stringify({ ...saved, category, status, engine, hubSort: sort, rowsPerPage: pageSize }))
+      window.localStorage.setItem(STORE_KEY, JSON.stringify({ ...saved, status, engine, hubSort: sort, rowsPerPage: pageSize }))
     } catch { /* storage unavailable: nothing to remember */ }
-  }, [category, status, engine, sort, pageSize])
+  }, [status, engine, sort, pageSize])
   useEffect(() => {
     const url = new URL(window.location.href)
     if (category === 'all') url.searchParams.delete('category'); else url.searchParams.set('category', catSlug(category))
@@ -215,12 +253,21 @@ function PromptHub() {
     return { ...r, status: shown, appearingFor, missedBy }
   }), [prompts, pid])
 
-  const counts = useMemo(() => Object.fromEntries(STATUSES.map((s) => [s, s === 'all' ? view.length : view.filter((r) => r.status === s).length])), [view])
+  // a brand with no topics has no Topic column and no topic filter
+  const hasTopics = !noTopicsPreview && (allCategories().length > 0 || prompts.some((r) => r.category))
+  const searchKeys = hasTopics ? ['prompt', 'category'] : ['prompt']
+  // whatever else narrows the list (a Setup topic, a brand, a sync)
+  const also = (r) => (!topic || matchesTopic(topic, r.prompt)) && (!brandFilter || mentionsBrand(r)) && (!syncFilter || syncFilter.ids.has(r.id))
+  // the status tabs count what the topic, engine and search filters leave (the engine is already in each row's status)
+  const counts = useMemo(
+    () => statusCounts(view, { category, query, also }, searchKeys),
+    [view, category, query, hasTopics, topic, brandFilter, syncFilter], // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   // every filter except category: what the category menu counts
   const inScope = useMemo(
-    () => view.filter((r) => (status === 'all' || r.status === status) && (!topic || matchesTopic(topic, r.prompt)) && (!brandFilter || mentionsBrand(r)) && (!syncFilter || syncFilter.ids.has(r.id))),
-    [view, status, topic, brandFilter, syncFilter], // eslint-disable-line react-hooks/exhaustive-deps
+    () => view.filter((r) => (status === 'all' || r.status === status) && matchesSearch(r, query, searchKeys) && also(r)),
+    [view, status, query, hasTopics, topic, brandFilter, syncFilter], // eslint-disable-line react-hooks/exhaustive-deps
   )
   const rows = useMemo(() => (category === 'all' ? inScope : inScope.filter((r) => r.category === category)), [inScope, category])
   const categoryCounts = useMemo(() => {
@@ -235,12 +282,34 @@ function PromptHub() {
   }, [prompts])
   // the project's most used topic (the add row's topic when the text doesn't suggest one)
   const usualTopic = Object.entries(totalCounts).filter(([c]) => c && c !== 'null').sort((a, b) => b[1] - a[1])[0]?.[0] ?? UNCATEGORIZED
-  const filtered = category !== 'all' || status !== 'all' || Boolean(topic) || Boolean(brandFilter) || Boolean(syncFilter)
-  const clearFilters = () => { setStatus('all'); setCategory('all'); if (topic) setTopic(null); if (brandFilter) setBrandFilter(null); if (syncFilter) setSyncFilter(null) }
+  const filtered = category !== 'all' || status !== 'all' || engine !== 'all' || Boolean(query.trim()) || Boolean(topic) || Boolean(brandFilter) || Boolean(syncFilter)
+  const clearFilters = () => { setStatus('all'); setCategory('all'); setEngine('all'); setQuery(''); if (topic) setTopic(null); if (brandFilter) setBrandFilter(null); if (syncFilter) setSyncFilter(null) }
+  // the chips on the "Showing 13 of 114 prompts" line: one per filter that is on (search, topic, engine)
+  const chips = activeFilters({ category, engineLabel: engine === 'all' ? null : engineName(engine), query })
+  const clearChip = { search: () => setQuery(''), topic: () => setCategory('all'), engine: () => setEngine('all') }
+
+  // the Topic column is as wide as its longest topic needs (measured as drawn, so it follows the UI scale)
+  const topicNames = useMemo(() => [...new Set(prompts.map((r) => r.category).filter(Boolean))], [prompts])
+  const measureRef = useRef(null)
+  const [topicWidth, setTopicWidth] = useState(140)
+  useLayoutEffect(() => {
+    const el = measureRef.current
+    if (!el) return undefined
+    let live = true
+    const measure = () => {
+      if (!live) return
+      const cs = window.getComputedStyle(el)
+      setTopicWidth(topicColumnWidth([...el.children].map((c) => c.getBoundingClientRect().width), { chrome: parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) }))
+    }
+    measure()
+    document.fonts?.ready.then(measure) // the web font arrives after the first paint
+    window.addEventListener('resize', measure) // the UI scale changes with the window
+    return () => { live = false; window.removeEventListener('resize', measure) }
+  }, [topicNames.join('|')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- new rows (add, import, research) arrive as Pending, dated today, and save one by one
-  const insert = (items, save) => {
-    const fresh = items.map((it) => ({ id: `tmp${nextId.current++}`, prompt: it.text, category: it.category, list: null, status: 'pending', platforms: [], added: today() }))
+  const insert = (items, save, via = 'manual') => {
+    const fresh = items.map((it) => ({ id: `tmp${nextId.current++}`, prompt: it.text, category: hasTopics ? it.category : null, list: null, status: 'pending', platforms: [], added: today(), addedAt: hubToday, addedVia: via }))
     setPrompts((ps) => [...fresh, ...ps])
     const results = save(items)
     fresh.forEach((row, i) => saveNew(row, () => results.then((res) => res[i])))
@@ -405,17 +474,29 @@ function PromptHub() {
         {!editDupe && editWarning(r) && <span className="mt-1 block text-[12px] leading-4 text-stone-500">{editWarning(r)}</span>}
         </div>
       ) : (
-        <span title={r.prompt} className="block truncate text-[14px] leading-5 text-stone-900">{r.prompt}</span>
+        <CutText text={r.prompt} className="block truncate text-[14px] leading-5 text-stone-900" />
       ),
+    },
+    {
+      // as the app (#223): when the prompt was added, between Prompt and Topic; newest first on the first click
+      key: 'addedAt',
+      label: 'Added',
+      width: 110,
+      colClass: 'max-xl:hidden', // below 1280px the Prompt column needs the room (still in Sort on phones and in the CSV)
+      skeleton: '48px',
+      csv: (r) => addedCsv(r.addedAt, r.addedVia),
+      sort: { value: (r) => addedSortValue(r.addedAt), first: 'desc', tie: byPrompt },
+      mobileText: (r) => addedLabel(r.addedAt, hubToday),
+      cell: (r) => <AddedCell r={r} />,
     },
     {
       key: 'category',
       label: 'Topic',
-      width: 140,
+      width: topicWidth,
       // wording can't change where the app has no save for it: the edit row is then the topic alone
       cell: (r) => (editing?.id === r.id
         ? <div ref={promptActions.canEditText ? undefined : editRef} onKeyDown={promptActions.canEditText ? undefined : editKeys}><CategorySelect value={editing.category} onChange={(c) => setEditing((e) => ({ ...e, category: c }))} counts={totalCounts} triggerClassName={cellTrigger} {...categoryEvents} /></div>
-        : r.category ? <span className="inline-flex h-6 max-w-full items-center truncate rounded-md bg-tint px-2 text-[12px] leading-none text-stone-700">{r.category}</span> : noData),
+        : r.category ? <CutText text={r.category} className={`${topicPill} max-w-full truncate`} /> : noData),
     },
     {
       key: 'appearingFor',
@@ -480,7 +561,9 @@ function PromptHub() {
   ]
 
   // one category picked: every row is that category, so its pill goes (same rule as the dashboard)
-  const shownColumns = category === 'all' ? columns : columns.filter((c) => c.key !== 'category')
+  // a brand with no topics has no Topic column at all
+  const showTopic = hasTopics && category === 'all'
+  const shownColumns = showTopic ? columns : columns.filter((c) => c.key !== 'category')
 
   // the editable row inserted above the data rows (checkbox | prompt | topic | appearing for | missed by | status | actions)
   const anim = adding?.leaving ? 'row-out' : 'row-in'
@@ -504,7 +587,8 @@ function PromptHub() {
           <span className="shrink-0 whitespace-nowrap text-[12px] leading-4 text-stone-500">Enter saves · Esc cancels</span>
         </div>
       </td>
-      {category === 'all' && (
+      <td className="px-3 max-xl:hidden"><div className={`${anim} flex h-[43px] items-center`}>{noData}</div></td>
+      {showTopic && (
         <td className="px-3">
           <div className={`${anim} flex h-[43px] items-center`}>
             <CategorySelect value={adding.category} onChange={(c) => setAdding((a) => ({ ...a, category: c, categoryTouched: true }))} counts={totalCounts} triggerClassName={cellTrigger} {...categoryEvents} />
@@ -539,9 +623,10 @@ function PromptHub() {
           {sortButton}
           <div className="no-scrollbar flex items-center gap-2 max-md:-mx-4 max-md:w-[calc(100%+32px)] max-md:overflow-x-auto max-md:px-4 md:contents">
           <Segmented label="Status" value={status} onChange={setStatus} options={statusOptions} />
-          <CategorySelect value={category} onChange={setCategory} allLabel="All topics" counts={categoryCounts} usage={totalCounts}
-            triggerClassName="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-line bg-raised px-2.5 text-small font-medium text-stone-900 outline-none focus-visible:ring-2 focus-visible:ring-focus" {...categoryEvents} />
-          <MenuSelect prefix="Engine" value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" showIcon align="left"
+          {/* an ink border while a topic is picked; no topic filter for a brand with no topics */}
+          {hasTopics && <CategorySelect value={category} onChange={setCategory} allLabel="All topics" counts={categoryCounts} usage={totalCounts}
+            triggerClassName={`inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border ${category === 'all' ? 'border-line' : 'border-ink'} bg-raised px-2.5 text-small font-medium text-stone-900 outline-none transition-[border-color] duration-150 focus-visible:ring-2 focus-visible:ring-focus`} {...categoryEvents} />}
+          <MenuSelect value={engine} onChange={setEngine} groups={engineGroups} listLabel="Filter by engine" showIcon align="left"
             triggerClassName="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-line bg-raised px-2.5 text-small outline-none focus-visible:ring-2 focus-visible:ring-focus" />
           {syncFilter && (
             <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-line bg-tint pl-2.5 pr-1 text-[13px] font-medium text-stone-900">
@@ -571,6 +656,19 @@ function PromptHub() {
           </div>
           </div>
         </div>
+        {/* while a topic, an engine or a search is on: what is left, and one removable chip per filter */}
+        {chips.length > 0 && (
+          <div className="[grid-area:2/1] mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px] leading-[18px] text-stone-500" aria-live="polite">
+            <span className="tabular-nums">{showingLine(rows.length, prompts.length)}</span>
+            <span aria-hidden>·</span>
+            {chips.map((c) => (
+              <span key={c.key} className="inline-flex h-6 min-w-0 max-w-full items-center gap-0.5 rounded-md bg-tint pl-2 pr-0.5 text-[12px] leading-none text-stone-700">
+                <span className="min-w-0 truncate">{c.label}</span>
+                <button type="button" aria-label={c.clear} onClick={clearChip[c.key]} className="grid h-5 w-5 shrink-0 place-items-center rounded text-stone-500 outline-none transition-colors duration-150 hover:bg-surface hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus"><X size={12} aria-hidden /></button>
+              </span>
+            ))}
+          </div>
+        )}
         <div inert={bulk ? undefined : ''} aria-hidden={!bulk} className={`[grid-area:1/1] flex items-center gap-1 transition-opacity duration-150 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:overflow-x-auto max-md:border-t max-md:border-line max-md:bg-surface max-md:px-4 max-md:pt-2 max-md:pb-[max(8px,env(safe-area-inset-bottom))] max-md:shadow-[0_-4px_12px_rgb(0_0_0/0.06)] ${bulk ? 'opacity-100' : 'pointer-events-none opacity-0 max-md:hidden'}`}>
           <span className="mr-2 text-[14px] leading-5 font-medium text-stone-900 tabular-nums">{selectedCount} selected</span>
           {promptActions.canRescan && (
@@ -586,7 +684,7 @@ function PromptHub() {
               Rescan
             </button>
           )}
-          {promptActions.canManageCategories && (
+          {promptActions.canManageCategories && hasTopics && (
             <CategorySelect value={null} placeholder="Set topic" label="Set topic" onChange={(c) => setTopicFor(ids, c)} counts={totalCounts}
               triggerClassName={`${ghostCls} text-stone-700 hover:bg-stone-100 hover:text-stone-900`} {...categoryEvents} />
           )}
@@ -690,14 +788,23 @@ function PromptHub() {
           </div>
         </div>
       ) : (
+        <>
+        {/* off-screen: each topic drawn as its pill, inside a cell's padding, to size the Topic column */}
+        {hasTopics && (
+          <div ref={measureRef} aria-hidden className="pointer-events-none invisible fixed -left-[9999px] top-0 flex flex-col items-start px-3">
+            {topicNames.map((t) => <span key={t} className={`${topicPill} whitespace-nowrap`}>{t}</span>)}
+          </div>
+        )}
         <PromptTable
           id="tracked-prompts"
           rows={rows}
           columns={shownColumns}
           pageSize={pageSize}
           onPageSize={setPageSize}
-          resetKey={`${status}|${category}|${engine}|${topic}|${brandFilter?.key}|${syncFilter?.label}`}
-          filterKeys={['prompt', 'category']}
+          resetKey={`${status}|${category}|${engine}|${query}|${topic}|${brandFilter?.key}|${syncFilter?.label}`}
+          filterKeys={searchKeys}
+          query={query}
+          onQuery={setQuery}
           csvName="prompts.csv"
           sort={sort}
           onSortChange={setSort}
@@ -710,6 +817,7 @@ function PromptHub() {
           emptyMessage={status === 'pending' ? 'No prompts waiting for a scan' : 'No prompts match these filters'}
           onClearFilters={filtered ? clearFilters : null}
         />
+        </>
       )}
 
       {confirm && (
@@ -732,7 +840,7 @@ function PromptHub() {
         topic={researchTopic}
         trackedTexts={trackedTexts}
         onAdd={(items) => {
-          const n = insert(items, (rows) => promptActions.onAddFromResearch(rows))
+          const n = insert(items, (rows) => promptActions.onAddFromResearch(rows), 'research')
           setModal(null)
           toast(`${plural(n, 'prompt')} added`, { duration: 5000, action: { label: 'View', onClick: () => setStatus('pending') } })
         }}
@@ -741,7 +849,7 @@ function PromptHub() {
         open={modal === 'import'}
         onClose={() => setModal(null)}
         trackedTexts={trackedTexts}
-        onImport={(rows) => insert(rows, (items) => promptActions.onImportPrompts(items))}
+        onImport={(rows) => insert(rows, (items) => promptActions.onImportPrompts(items), 'csv')}
         onView={() => { setModal(null); setStatus('all') }}
       />
       <AnswerDrawer />

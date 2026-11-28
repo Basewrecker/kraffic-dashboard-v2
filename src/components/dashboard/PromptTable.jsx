@@ -81,9 +81,13 @@ function Table({
   pagination = true, // false: every row on one page, no footer (short lists)
   mobileRowClick = null,
   searchable = true, // false: no search box (a short list of dated rows: Sync history)
+  query: controlledQuery, // optional controlled search text (with onQuery), e.g. when the page's own filters count it
+  onQuery,
 }) {
   const mobile = useIsMobile()
-  const [query, setQuery] = useState('')
+  const [ownQuery, setOwnQuery] = useState('')
+  const query = controlledQuery ?? ownQuery
+  const setQuery = (v) => { setOwnQuery(v); onQuery?.(v) }
   const [sortSheet, setSortSheet] = useState(false)
   const [ownSize, setOwnSize] = useState(pageSizes[0])
   const pageSize = pagination ? controlledSize ?? ownSize : Math.max(1, rows.length)
