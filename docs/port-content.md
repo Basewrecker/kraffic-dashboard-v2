@@ -50,6 +50,14 @@ don't port it until the line says approved.
 | 2ec8a3e | "+1 page" fixes: two-line hover (page path + format / "Also #rank on Google page 1" + path) on the winners table and the draft rail, dotted underline, page-1 strip lights both spots of a site (others dim to 40%), brand display names (tidied domain for untracked sites) | Owner fixes · port with 403ff49 |
 | de2f86d | Sentiment scatter tweak: 24px clear of the cross's two lines and the edges (dot edge + badge, from a line's far side; badge inside the dot's corner; `EDGE = 25`) | Owner tweak · port with 9416ecd |
 | ae4af9b | What changed (header button + pull-out on every page with data over time; `src/whatChanged/`), "Updated <date>" into the page subtitle, Notifications (sidebar footer row + card, settings; `src/notifications/`, not `samples.js`: mock data), Trends tag Beta | Owner asked to commit for the port · queued |
+| 254fbd1 … b86ad6d (branch `design/app-sync-nov27`) | **Synced FROM the app** (its `docs/design-handoff/SYNC.md`, 2026-11-27): shared motion / dialogs / menus / header dropdown, shell (Summary + bell, plan meter, Getting started row, theme switch), Prompt Hub (plan pill, table, dialogs), Plans, Brand Setup at its limit, Trends rebuild, Overview, Sentiment, Content, Fact Check, Structured Data, Site Audit, Toolkit, Tracking, Team, Reports. Comparisons: `docs/app-sync-nov27/`. Mock-only pieces the app has its own of: the Insights panel (`dashboard/cardInsights.js`), the week-by-week pull-out on Share of voice / Missed prompts / Cited pages (`dashboard/HistoryPanel.jsx`, sample data), wording the handoff did not give (listed to the owner, 2026-11-28). | Nothing to port: the app is the source · the owner passes the handoff on |
+| 87c34a5 … a674f7e (same branch) | **Billing design round**, the 8 screens of `BILLING-BRIEF.md` on its recommended defaults: `src/billing/`, `src/pages/plans/`, `src/pages/console/`; every state as an address in `src/billing/checklist.js` and at `/billing-states`; notes, pending decisions, the nine conflicts and port notes in `docs/billing-design.md`. | Owner review first · not queued |
+
+### For the app's to-do (seen during the 2026-11-27 sync, not fixed in the mock on purpose)
+
+- **Fact Check at 390 wide:** the "don't match / not checked" labels overlap.
+- **Reports → Scheduled at 390 wide:** the date strip overlaps.
+- Both were already so before the sync; the owner asked for them to be fixed in the app, not the mock (2026-11-28).
 
 ## 1. Routes and navigation
 - `/opportunities/content`: the list. `/opportunities/content/<id>`: one prompt's workspace (`<id>` = the missed
