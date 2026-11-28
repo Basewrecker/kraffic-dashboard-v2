@@ -25,6 +25,9 @@ import ToolRouter from './pages/toolkit/ToolRouter'
 // Plans (as the app's /plans; the old /billing address redirects to it, router.js). The mock's earlier Billing and
 // "Choose a plan" pages (pages/billing/*) are no longer routed: billing is being redesigned as this page's Billing tab
 import PlansRouter from './pages/plans/PlansRouter'
+import { AccessEnded, ReducedShell, ShellNotices, isReduced } from './billing/Shell'
+import { billingState } from './billing/state.js'
+import { useParams as useUrlParams } from './components/audit/parts'
 import TeamPage from './pages/team/TeamPage'
 import ReportsRouter from './pages/reports/ReportsPages'
 import EmptyBrand from './components/EmptyBrand'
@@ -99,6 +102,7 @@ const TrackingPage = () => <LlmSettingsPage {...(krafficBackend ? krafficTrackin
 
 export default function App() {
   const path = usePath()
+  useUrlParams() // billing previews live in the address: re-draw the shell when they change
   const PAGES = { '/first-setup': FirstSetupPage, '/overview': DashboardPage, '/tracker': PromptsPage, '/benchmarking': BenchmarkingPage, '/brands': SetupPage, '/tracking': TrackingPage, '/audit': AuditPage, '/structured-data': StructuredDataPage, '/trends': TrendsPage, '/more-tools': ToolkitPage, '/more-tools/tool': ToolRouter, '/plans': PlansRouter, '/team': TeamPage, '/reports': ReportsRouter, '/citations': InsightsRouter, '/sentiment': InsightsRouter, '/fact-check': InsightsRouter, '/opportunities': ContentRouter, '/website-facts': WebsiteFactsPage }
   // /trends/:runId and /more-tools/<tool>[/…] are one page each (they read the rest of the path)
   const route = path.startsWith('/opportunities/') ? '/opportunities' : path.startsWith('/reports/') ? '/reports' : path.startsWith('/trends/') ? '/trends' : path.startsWith('/more-tools/') ? '/more-tools/tool' : path.startsWith('/plans/') ? '/plans' : path
@@ -115,6 +119,11 @@ export default function App() {
   // app-loading (before the sidebar draws) · loading · error · notfound · cookies
   const state = new URLSearchParams(window.location.search).get('state')
   if (state === 'app-loading') return <AppLoading />
+  // billing (screen 6): an ended account signs in to the Plans page only, in a reduced shell; a demo that expired
+  // where billing isn't live keeps today's small card
+  const bill = billingState()
+  if (isReduced(bill)) return <TrackingProvider initial={krafficBackend ? initialTracking : appInitialTracking}><ReducedShell><PlansRouter /></ReducedShell></TrackingProvider>
+  if (bill.status === 'demo-ended' && !bill.live) return <AccessEnded />
   const body = state === 'loading' ? <PageLoading />
     : state === 'error' ? <PageError message="The server didn’t answer in time. Check your connection, then try again." onRetry={() => {}} />
       : state === 'notfound' ? <PageNotFound />
@@ -131,6 +140,8 @@ export default function App() {
               index.css), content at most 1440px wide and centred */}
           {/* Site Audit ends 64px under its last card (pb-16 alone, no spacer) */}
           <main className={`page-gutters mx-auto flex w-full max-w-[1440px] flex-col gap-3 px-4 ${route === '/audit' ? 'pb-16' : 'pb-10'} pt-4 motion-safe:animate-[fade-in_150ms_ease-out] md:gap-4 md:px-6 lg:pt-8`}>
+            {/* billing (screen 5): the past-due banner, the demo notice */}
+            <ShellNotices />
             {body}
           </main>
         </div>

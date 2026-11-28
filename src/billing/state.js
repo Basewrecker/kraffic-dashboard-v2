@@ -14,7 +14,25 @@ import { PLANS } from '../plan/catalog.js'
 import { PLAN } from '../plan/plan.js'
 import { TODAY, addDays, addMonths } from './format.js'
 
-const q = () => new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search)
+// The billing switches stick for the browser tab's session, so a state survives moving between pages (the past-due
+// banner on every page, the click-through). ?billing=off clears them. ?userId= (View as) is never sticky: the app
+// carries it in the address.
+const STICKY = ['billing', 'sub', 'ended', 'kept', 'who', 'seller', 'days', 'as']
+const KEY = 'auden:billing:preview'
+const q = () => {
+  if (typeof window === 'undefined') return new URLSearchParams('')
+  const url = new URLSearchParams(window.location.search)
+  try {
+    if (url.get('billing') === 'off') { sessionStorage.removeItem(KEY); return url }
+    const saved = JSON.parse(sessionStorage.getItem(KEY) ?? '{}')
+    const now = Object.fromEntries(STICKY.filter((k) => url.has(k)).map((k) => [k, url.get(k)]))
+    // a new ?sub= or ?billing= starts clean (an old ?who=, ?seller= or ?days= doesn't leak into it)
+    const merged = url.has('sub') || url.has('billing') ? { billing: saved.billing, ...now } : { ...saved, ...now }
+    if (Object.keys(now).length) sessionStorage.setItem(KEY, JSON.stringify(merged))
+    for (const [k, v] of Object.entries(merged)) if (v != null && !url.has(k)) url.set(k, v)
+  } catch { /* private window: the address alone */ }
+  return url
+}
 
 // the workspace (the seller on the invoice): product name, legal name and support address are data, never fixed copy
 export const WORKSPACE = { product: 'Auden AI', legalName: 'Auden Labs, Inc.', support: 'support@auden.ai', owner: 'maya@dermasuri.com' }
@@ -42,7 +60,7 @@ export function billingState() {
     live,
     // prices show to a client only where billing is live; in test mode only to the workspace's own admins
     pricesShown: live && seller !== 'paused' && (seller !== 'test' || admin),
-    canPay: live && seller === 'ok',
+    canPay: live && seller !== 'paused' && (seller !== 'test' || admin), // a test-mode workspace's admins try the whole flow
     seller, admin, who,
     canAct: who === 'owner', // the owner is the only one who can pay, change, cancel or resume
     status: sub, plan, price: priceOf(plan.id),
@@ -62,7 +80,7 @@ export function billingState() {
     case 'ended': {
       const why = p.get('ended') ?? 'nonpay'
       return withSub({ renews: null, card: null, endedOn, endedWhy: why, keptUntil: addDays(endedOn, 90), pastKept: p.get('kept') === 'past',
-        invoices: why === 'nonpay' ? [{ ...invoice(6, '2026-12-27'), status: 'Void' }, invoice(5, '2026-11-27'), ...HISTORY] : why === 'refund' ? [{ ...invoice(5, '2026-12-27'), status: 'Refunded' }, invoice(4, '2026-11-27'), ...HISTORY] : [invoice(5, '2026-12-10'), invoice(4, '2026-11-27'), ...HISTORY] })
+        invoices: why === 'nonpay' ? [{ ...invoice(5, '2026-12-27'), status: 'Void' }, invoice(4, '2026-11-27'), ...HISTORY] : why === 'refund' ? [{ ...invoice(5, '2026-12-27'), status: 'Refunded' }, invoice(4, '2026-11-27'), ...HISTORY] : [invoice(5, '2026-12-27'), invoice(4, '2026-11-27'), ...HISTORY] })
     }
     case 'demo-ended': return { ...base, hasSub: false, demoEndedOn: '2026-11-20', keptUntil: addDays('2026-11-20', 90) }
     default: return { ...base, status: 'none', hasSub: false }
@@ -80,3 +98,7 @@ export const whyOff = (b) => (b.who === 'viewas' ? 'Can’t change plans from th
 
 // review mode for the screenshots: ?notes=1 outlines every "pending decision" element (index.css, html[data-notes])
 if (typeof document !== 'undefined' && q().has('notes')) document.documentElement.dataset.notes = ''
+
+// past due (pending decision 10): the dashboard stays readable; scans, Sync now and adding prompts or brands are paused.
+// The controls stay visible and are disabled, with this reason in the dark tip
+export const pausedReason = () => { const b = billingState(); return b.live && b.status === 'pastdue' ? 'Paused until your payment goes through.' : null }

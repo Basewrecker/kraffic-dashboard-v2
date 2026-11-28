@@ -1,5 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Check, File, Info, Loader2, Mail, Server } from 'lucide-react'
+import { Check, File, Info, Mail, Server } from 'lucide-react'
+import { navigate } from '../../router'
+import { setParams, useParams } from '../../components/audit/parts'
+import ConfirmPopover from '../../components/prompts/ConfirmPopover'
+import { billingState, priceOf, tabFor, WORKSPACE } from '../../billing/state.js'
+import { money, shortDate } from '../../billing/format.js'
+import { B, Btn, DateTip, Pending, RenewalTerms, Skeleton, StatusPill, Tabs, TextLink } from '../../billing/ui.jsx'
+import BillingTab from './BillingTab'
+import ReviewModal from './ReviewModal'
 import SiteLogo from '../../components/ui/SiteLogo'
 import { PlatformIcon } from '../../components/dashboard/icons'
 import HeaderBell from '../../notifications/NotificationsBell'
@@ -13,8 +21,6 @@ import { FOOT_NOTE, GROUPS, PLANS, SECTIONS, TRUSTED, planAction, planNote } fro
 // button sends a request email; it never changes the plan.
 // Previews: ?plan=none (an account with no package of its own: every card reads "Talk to us") · ?request=sending|sent|
 // failed (the button's slot) · ?userId=… (an admin's View as: buttons off, with the reason) · ?group=self.
-const q = () => new URLSearchParams(window.location.search)
-const SUPPORT = 'support@auden.ai' // the workspace's support address (data in the app)
 
 // the small icon before a list item: an engine mark, a site's logo, or a plain file / server / mail glyph
 function Mark({ item, size = 14 }) {
@@ -56,59 +62,86 @@ function GroupSwitch({ value, onChange, counts, id }) {
   )
 }
 
-// The card's (and the compare footer's) button. Its slot also carries the request states: "Sending…" with a spinner;
-// "Request sent ✓" with "We'll reach out within one business day."; "Try again" with "Couldn't send your request."
-function PlanButton({ action, state, onClick, viewAs, compact = false }) {
-  const current = action === 'Current plan'
-  const base = `inline-flex ${compact ? 'h-9' : 'h-10'} w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 text-[14px] leading-5 font-medium outline-none transition-[background-color,border-color,transform] duration-150 focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 active:scale-[.98] motion-reduce:transform-none`
-  const ink = 'bg-ink text-on-ink hover:bg-ink-hover'
-  const soft = 'border border-line bg-tint text-stone-900 hover:border-[var(--color-line-strong)]'
-  if (current) return <button type="button" disabled className={`${base} ${ink} cursor-default opacity-60`}>Current plan</button>
-  if (viewAs) {
-    return (
-      <span tabIndex={0} aria-label={`${action}. Can’t change plans from this view`} className="group/va relative block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-focus">
-        <button type="button" disabled className={`${base} ${soft} cursor-not-allowed opacity-50`}>{action}</button>
-        <span role="tooltip" className="tip-dark pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover/va:opacity-100 group-focus-visible/va:opacity-100">Can’t change plans from this view</span>
-      </span>
-    )
+// ---------------------------------------------------------------- the card's button, by state
+// Billing NOT live: today's page. "Current plan" / "Upgrade" / "Switch" / "Talk to us"; a click sends a request email
+// and the button's slot carries "Sending…", "Request sent ✓", "Try again".
+// Billing live (the brief, screen 1): Subscribe · Finish payment · Manage subscription · Switch at renewal ·
+// Starts {date} + Withdraw · Resume · Pay now. A team member sees them disabled with one line; an admin viewing as a
+// client sees them disabled with the reason in the dark tip. A plan with no price (Enterprise, a custom plan) keeps
+// "Talk to us".
+// → { label, look, off (a tooltip: disabled), dead (disabled, no tooltip), helper, act, tag, link }
+function cardAction(plan, b, current) {
+  const mine = current && plan.id === current.id
+  const date = (iso) => shortDate(iso)
+  if (!b.pricesShown || !b.canPay) {
+    const a = planAction(plan, b.status === 'ended' || b.status === 'none' && !current ? null : current)
+    return { label: a, look: a === 'Upgrade' ? 'ink' : 'soft', dead: a === 'Current plan', act: a === 'Current plan' ? null : 'request', legacy: true }
   }
-  if (state === 'sending') return <button type="button" disabled className={`${base} ${soft} cursor-default`}><Loader2 size={14} className="animate-spin" aria-hidden />Sending…</button>
-  if (state === 'sent') return <button type="button" disabled className={`${base} ${soft} cursor-default`}>Request sent<Check size={14} aria-hidden /></button>
-  if (state === 'failed') return <button type="button" onClick={onClick} className={`${base} ${soft}`}>Try again</button>
-  return <button type="button" onClick={onClick} className={`${base} ${action === 'Upgrade' ? ink : soft}`}>{action}</button>
+  if (plan.custom || priceOf(plan.id) == null) return { label: 'Talk to us', look: 'soft', act: 'request', legacy: true }
+  const guard = (x) => (b.who === 'viewas' ? { ...x, off: 'Can’t change plans from this view', helper: null } : b.who === 'member' ? { ...x, dead: true, helper: 'Only the account owner can change the plan.' } : x)
+  switch (b.status) {
+    case 'demo': return guard({ label: 'Subscribe', look: 'ink', act: 'review', tag: mine ? 'Your demo plan' : null })
+    case 'pending': return b.pending.plan.id === plan.id
+      ? guard({ label: 'Finish payment', look: 'ink', act: 'pay', helper: <>You started a payment for {plan.name}. <Pending n="decision 13">It’s held until <B>{date(b.pending.heldUntil)}</B>, {b.pending.heldTime}.</Pending></> })
+      : { label: 'Subscribe', look: 'soft', dead: true }
+    case 'active':
+      if (mine) return guard({ label: 'Manage subscription', look: 'line', act: 'manage' })
+      if (b.scheduled?.plan.id === plan.id) return guard({ label: <>Starts {date(b.scheduled.starts)}</>, look: 'soft', dead: true, link: 'Withdraw', helper: <>{plan.name} starts <B>{date(b.scheduled.starts)}</B>.</> })
+      return guard({ label: 'Switch at renewal', look: 'soft', act: 'change', helper: <Pending n="decision 9">Starts <B>{date(b.renews)}</B>. No charge today.</Pending> })
+    case 'cancelling': return mine
+      ? guard({ label: 'Resume', look: 'ink', act: 'resume', helper: <>Your plan ends <B>{date(b.paidThrough)}</B>.</> })
+      : { label: 'Switch at renewal', look: 'soft', off: b.who === 'viewas' ? 'Can’t change plans from this view' : 'Resume your plan to switch.' }
+    case 'pastdue': return mine
+      ? guard({ label: 'Pay now', look: 'ink', act: 'payinvoice' })
+      : { label: 'Switch at renewal', look: 'soft', off: b.who === 'viewas' ? 'Can’t change plans from this view' : 'Pay the overdue invoice to switch plans.' }
+    default: return guard({ label: 'Subscribe', look: 'ink', act: 'review' }) // no plan / hand-set, ended, demo ended
+  }
 }
-const helperOf = (state) => (state === 'sent' ? 'We’ll reach out within one business day.' : state === 'failed' ? `Couldn’t send your request. Email us at ${SUPPORT}.` : null)
 
-function PlanCard({ plan, current, state, onRequest, viewAs }) {
-  const action = planAction(plan, current)
-  const note = planNote(plan, current)
-  const helper = helperOf(state)
-  const yours = current && plan.id === current.id
+function PlanCard({ plan, b, current, req, onAct }) {
+  const a = cardAction(plan, b, current)
+  const priced = b.pricesShown && b.canPay && priceOf(plan.id) != null
+  // which plan the "+100 prompts" note compares with: yours; none marked for an ended or plan-less account
+  const marked = b.status === 'ended' || b.status === 'demo-ended' ? null : current
+  const note = planNote(plan, marked)
+  const yours = marked && plan.id === marked.id
+  const reqHelp = req === 'sent' ? 'We’ll reach out within one business day.' : req === 'failed' ? `Couldn’t send your request. Email us at ${WORKSPACE.support}.` : null
   const rows = [
+    // where billing is live the price takes the big-number slot, so the prompt count leads this list (never said twice)
+    ...(priced ? [[`${plan.prompts}${plan.promptsPlus ? '+' : ''}`, ' prompts']] : []),
     plan.competitors == null ? ['Custom', ' competitors'] : [String(plan.competitors), ' competitors'],
     plan.logins == null ? ['Custom', ' logins'] : [String(plan.logins), ` login${plan.logins === 1 ? '' : 's'}`],
     [plan.refresh.split(' ')[0], ` ${plan.refresh.split(' ').slice(1).join(' ')}`],
   ]
+  const button = a.legacy && req === 'sending' ? <Btn look="soft" size="lg" full busy busyLabel="Sending…">{a.label}</Btn>
+    : a.legacy && req === 'sent' ? <Btn look="soft" size="lg" full disabled className="!opacity-100">Request sent<Check size={14} aria-hidden /></Btn>
+      : a.legacy && req === 'failed' ? <Btn look="soft" size="lg" full onClick={() => onAct('request', plan)}>Try again</Btn>
+        : a.legacy && b.who === 'viewas' && !a.dead ? <Btn look="soft" size="lg" full off="Can’t change plans from this view">{a.label}</Btn>
+          : <Btn look={a.look} size="lg" full off={a.off} disabled={a.dead} busy={req === 'opening'} onClick={a.act ? (e) => onAct(a.act, plan, e.currentTarget) : undefined}>{a.label}</Btn>
   return (
     // border: light at rest, ink only on hover or focus; the "Most chosen" card is not raised
-    <article aria-label={`${plan.name} plan`} className="flex min-w-[240px] flex-1 snap-start flex-col rounded-2xl border border-line bg-surface p-5 transition-[border-color] duration-150 hover:border-ink focus-within:border-ink">
+    <article aria-label={`${plan.name} plan`} data-plan={plan.id} className="flex min-w-[240px] flex-1 snap-start flex-col rounded-2xl border border-line bg-surface p-5 transition-[border-color] duration-150 hover:border-ink focus-within:border-ink">
       <div className="flex items-center gap-2">
         <h3 className="truncate text-title font-medium text-stone-900">{plan.name}</h3>
-        {plan.tag && <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-tint px-2 text-[12px] leading-4 font-medium text-stone-600">{plan.tag}</span>}
+        {(a.tag ?? plan.tag) && <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-tint px-2 text-[12px] leading-4 font-medium text-stone-600">{a.tag ?? plan.tag}</span>}
       </div>
-      {/* the plan's prompts as the big number; the number stays with its word */}
-      <p className="mt-2.5 whitespace-nowrap"><span className="text-kpi font-bold tabular-nums text-stone-900">{plan.prompts}{plan.promptsPlus ? '+' : ''}</span> <span className="text-[13px] leading-[18px] text-stone-500">prompts</span></p>
+      {/* the big number: the plan's prompts; where billing is live, the workspace's price with a small muted "/mo"
+          (the one place "/mo" is used). The number stays with its unit */}
+      {priced
+        ? <Pending as="p" n="decision 6" className="mt-2.5 whitespace-nowrap"><span className="text-kpi font-bold tabular-nums text-stone-900">{money(priceOf(plan.id))}</span> <span className="text-[13px] leading-[18px] text-stone-500">/mo</span></Pending>
+        : <p className="mt-2.5 whitespace-nowrap"><span className="text-kpi font-bold tabular-nums text-stone-900">{plan.prompts}{plan.promptsPlus ? '+' : ''}</span> <span className="text-[13px] leading-[18px] text-stone-500">prompts</span></p>}
       <div aria-hidden className="mt-3 h-px bg-line" />
-      {/* how it differs from yours, or "Your plan": two lines at most, the space is always there */}
       <p className={`mt-3 line-clamp-2 min-h-[44px] text-[13px] leading-[18px] text-pretty tabular-nums ${yours ? 'font-medium text-stone-700' : 'text-stone-500'}`}>{note}</p>
       <div className="mt-3">
-        <PlanButton action={action} state={state} onClick={onRequest} viewAs={viewAs} />
-        <p role="status" className="mt-1.5 min-h-[18px] text-[12px] leading-[18px] text-stone-500 text-pretty">{helper}</p>
+        {button}
+        <p role="status" className="mt-1.5 min-h-[18px] text-[12px] leading-[18px] text-stone-500 text-pretty">
+          {reqHelp ?? a.helper}{a.link && !a.off && b.canAct && <> <TextLink className="!text-[12px]" onClick={(e) => onAct('withdraw', plan, e.currentTarget)}>{a.link}</TextLink></>}
+        </p>
       </div>
       <p className="mt-3 text-[13px] leading-[18px] text-stone-500">This includes:</p>
       <ul className="mt-3 flex flex-col gap-3">
-        {rows.map(([b, rest]) => (
-          <li key={b + rest} className="flex items-center gap-2.5 text-[14px] leading-5 text-stone-600"><Check size={14} className="shrink-0 text-stone-500" aria-hidden /><span><span className="font-medium text-stone-900">{b}</span>{rest}</span></li>
+        {rows.map(([bold, rest]) => (
+          <li key={bold + rest} className="flex items-center gap-2.5 text-[14px] leading-5 text-stone-600"><Check size={14} className="shrink-0 text-stone-500" aria-hidden /><span><span className="font-medium text-stone-900 tabular-nums">{bold}</span>{rest}</span></li>
         ))}
         <li className="flex items-center gap-2.5 text-[14px] leading-5 text-stone-600">
           <Check size={14} className="shrink-0 text-stone-500" aria-hidden />
@@ -147,23 +180,48 @@ function FootNote() {
   )
 }
 
+// what the page says once after an action (?msg=…), announced once
+const MESSAGES = {
+  resumed: (b) => <>Your plan is back on. It renews <B>{shortDate(b.renews)}</B>.</>,
+  withdrawn: (b) => <>You’re staying on {b.plan.name}.</>,
+  scheduled: (b) => <>{b.scheduled?.plan.name} starts <B>{shortDate(b.scheduled?.starts)}</B>.</>,
+  cancelled: (b) => <>Your plan ends <B>{shortDate(b.paidThrough)}</B>. You can resume before then.</>,
+  paid: () => <>Payment received. Thank you.</>,
+  card: () => <>Your card was updated.</>,
+}
+
 export default function PlansPage() {
-  const params = q()
-  const none = params.get('plan') === 'none'
+  const params = useParams() // re-draws when the address changes (states and actions live in the address)
+  const b = billingState()
+  const none = params.get('plan') === 'none' || (b.live && ['none', 'ended', 'demo-ended'].includes(b.status))
   const current = none ? null : PLANS.find((p) => p.id === PLAN.id)
-  const viewAs = params.has('userId')
+  const viewAs = b.who === 'viewas'
   const u = promptUsage()
+  const show = params.get('show')
+  const tab = tabFor(b)
   const [group, setGroup] = useState(params.get('group') === 'self' ? 'self' : current?.group ?? 'dfy')
-  const shown = PLANS.filter((p) => p.group === group)
+  const empty = show === 'empty'
+  const shown = empty ? [] : PLANS.filter((p) => p.group === group)
   const counts = Object.fromEntries(GROUPS.map((g) => [g.id, PLANS.filter((p) => p.group === g.id).length]))
-  // request state per plan; ?request= previews it on the first plan with an action
+  // request / opening state per plan; ?request= previews it on the first plan with an action
   const preview = params.get('request')
   const [req, setReq] = useState({})
-  const firstAsk = shown.find((p) => planAction(p, current) !== 'Current plan')
+  const [confirm, setConfirm] = useState(null) // { kind: 'withdraw' | 'resume', anchor, plan }
+  const firstAsk = shown.find((p) => cardAction(p, b, current).act === 'request')
   const stateOf = (p) => req[p.id] ?? (preview && p.id === firstAsk?.id ? preview : null)
-  const send = (p) => {
-    setReq((r) => ({ ...r, [p.id]: 'sending' }))
-    setTimeout(() => setReq((r) => ({ ...r, [p.id]: preview === 'failed' ? 'failed' : 'sent' })), 900)
+  const onAct = (act, plan, anchor) => {
+    if (act === 'request') {
+      setReq((r) => ({ ...r, [plan.id]: 'sending' }))
+      setTimeout(() => setReq((r) => ({ ...r, [plan.id]: preview === 'failed' ? 'failed' : 'sent' })), 900)
+    } else if (act === 'review') setParams({ review: plan.id, rshow: null }, { push: true })
+    else if (act === 'manage') { setParams({ tab: 'billing', msg: null }); requestAnimationFrame(() => document.getElementById('billing-first')?.focus()) }
+    else if (act === 'change') setParams({ tab: 'billing', change: plan.id, msg: null })
+    else if (act === 'withdraw' || act === 'resume') setConfirm({ kind: act, anchor, plan })
+    else if (act === 'pay' || act === 'payinvoice') {
+      // anything that leaves for the payment page waits for the server: "Opening…", then the page (same tab)
+      setReq((r) => ({ ...r, [plan.id]: 'opening' }))
+      setTimeout(() => navigate(`/plans/pay?kind=${act === 'pay' ? 'checkout' : 'invoice'}&plan=${plan.id}&back=${encodeURIComponent('/plans' + window.location.search)}`), 700)
+    }
   }
   // the card row: whole, equal cards (at least 240px each); when they don't fit it scrolls with snap and edge fades
   const row = useRef(null)
@@ -176,88 +234,161 @@ export default function PlansPage() {
     el.addEventListener('scroll', on, { passive: true })
     const ro = new ResizeObserver(on); ro.observe(el)
     return () => { el.removeEventListener('scroll', on); ro.disconnect() }
-  }, [group])
+  }, [group, tab])
   const mask = fade.l || fade.r ? `linear-gradient(to right, ${fade.l ? 'transparent, #000 32px' : '#000, #000'}, ${fade.r ? '#000 calc(100% - 32px), transparent' : '#000'})` : undefined
-  const cols = { gridTemplateColumns: `minmax(160px, 1.05fr) repeat(${shown.length}, minmax(0, 1fr))` }
+  const cols = { gridTemplateColumns: `minmax(160px, 1.05fr) repeat(${Math.max(1, shown.length)}, minmax(0, 1fr))` }
+  // the renewal terms show under the card row only when a pay action shows (Subscribe, Finish payment)
+  const payShown = b.pricesShown && b.canPay && b.who === 'owner' && ['none', 'demo', 'pending', 'ended', 'demo-ended'].includes(b.status)
+  const msg = MESSAGES[params.get('msg')]
+  const testMode = b.live && b.seller === 'test' && b.admin
+  const ended = b.status === 'ended'
 
-  return (
+  const header = (
+    <div className="flex items-start justify-between gap-6">
+      <div className="min-w-0">
+        <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">
+          Plans
+          {/* a workspace in test mode shows prices only to its own admins, each page marked with the pill */}
+          {testMode && (
+            <span tabIndex={0} className="group/tm relative inline-flex rounded-full tracking-normal outline-none focus-visible:ring-2 focus-visible:ring-focus">
+              <StatusPill>Test mode</StatusPill>
+              <span role="tooltip" className="tip-dark pointer-events-none absolute left-0 top-full z-30 mt-2 w-max opacity-0 transition-opacity duration-150 group-hover/tm:opacity-100 group-focus-visible/tm:opacity-100">Test mode. No real payments are taken.</span>
+            </span>
+          )}
+        </h1>
+        {/* one grey line: the account's limits (and the client-view note on the same line) */}
+        <p className="mt-1 text-[13px] leading-[18px] text-stone-500 tabular-nums text-pretty lg:text-[14px] lg:leading-5">
+          {current
+            ? <>You’re on <span className="font-semibold text-stone-900">{current.name}</span> · {current.prompts} prompts · {current.competitors} competitors · {current.logins} logins</>
+            : <>Your limits: {u.limit} prompts · {PLAN.competitors} competitors{isSuperadmin() ? ' · No plan assigned' : ''}</>}
+          {u.over > 0 && isSuperadmin() && <> · {u.real} of {u.limit} · {u.over} over plan</>}
+          {viewAs && <> · Viewing as a client, so the plan can’t be changed here.</>}
+        </p>
+        {/* demo only: when it ends (the date is said here once, not on the cards) */}
+        {b.status === 'demo' && <p className="mt-1 text-[13px] leading-[18px] text-stone-600 lg:text-[14px] lg:leading-5">Demo ends <DateTip iso={b.demoEnds} bold /></p>}
+      </div>
+      {!ended && <HeaderBell hairline={false} className="lg:pt-1" />}
+    </div>
+  )
+  const billingTab = b.hasSub && tab === 'billing' // the Billing tab has its own loading and error states
+  if (show === 'loading' && !billingTab) return <>{header}<div aria-busy="true" aria-label="Loading plans" className="flex flex-col gap-4"><Skeleton className="h-9 w-56" /><div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[420px] !rounded-2xl" />)}</div><Skeleton className="h-64 !rounded-2xl" /></div></>
+  if (show === 'error' && !billingTab) return <>{header}<div role="alert" className="flex flex-col items-start gap-3 rounded-2xl border border-line bg-surface px-5 py-6"><p className="text-[14px] leading-5 text-stone-700">The plans couldn’t be loaded. Reload the page to try again.</p><Btn look="line" onClick={() => setParams({ show: null })}>Reload</Btn></div></>
+
+  const plansTab = (
     <>
-      <div className="flex items-start justify-between gap-6">
-        <div className="min-w-0">
-          <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em] text-stone-900 lg:text-h1">Plans</h1>
-          {/* one grey line: the account's limits (and the client-view note on the same line) */}
-          <p className="mt-1 text-[13px] leading-[18px] text-stone-500 tabular-nums lg:text-[14px] lg:leading-5">
-            {current
-              ? <>You’re on <span className="font-semibold text-stone-900">{current.name}</span> · {current.prompts} prompts · {current.competitors} competitors · {current.logins} logins</>
-              : <>Your limits: {u.limit} prompts · {PLAN.competitors} competitors{isSuperadmin() ? ' · No plan assigned' : ''}</>}
-            {u.over > 0 && isSuperadmin() && <> · {u.real} of {u.limit} · {u.over} over plan</>}
-            {viewAs && <> · Viewing as a client, so the plan can’t be changed here.</>}
-          </p>
+      {/* a demo that ended where billing is live: it never had a subscription, so no tabs; this card sits above the cards */}
+      {b.status === 'demo-ended' && b.live && (
+        <section className="rounded-2xl border border-line bg-surface px-5 py-5">
+          <h2 className="text-title font-semibold text-stone-900">Your demo has ended</h2>
+          <p className="mt-1 text-[14px] leading-5 text-stone-600 text-pretty">Pick a plan to keep going. <Pending n="decision 12">Your dashboard is kept until <DateTip iso={b.keptUntil} bold />.</Pending></p>
+        </section>
+      )}
+      {!ended && b.status !== 'demo-ended' && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <span className="text-[13px] leading-[18px] text-stone-500">Trusted by</span>
+          {TRUSTED.filter((t) => t.domain !== account.domain).map((t) => (
+            <span key={t.domain} className="inline-flex items-center gap-2 text-[15px] leading-[22px] text-stone-700">
+              <SiteLogo domain={t.domain} name={t.name} className={`h-5 w-5 rounded-[5px] ${t.darkTile ? 'logo-dark-tile' : ''}`} initialClass="text-[10px]" />{t.name}
+            </span>
+          ))}
         </div>
-        <HeaderBell hairline={false} className="lg:pt-1" />
-      </div>
+      )}
+      {/* the seller can't take payments (restricted or disconnected): the page shows as "billing not live" */}
+      {b.live && b.seller === 'paused' && <p className="text-[13px] leading-[18px] text-stone-500 text-pretty">Online payment isn’t available right now. Talk to us and we’ll set up your plan.</p>}
+      {b.live && b.who === 'member' && !b.hasSub && <p className="text-[13px] leading-[18px] text-stone-500">Only the account owner can change the plan.</p>}
 
-      {/* Trusted by: one compact row (20px tiles, 15px names); the brand being viewed is left out */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-        <span className="text-[13px] leading-[18px] text-stone-500">Trusted by</span>
-        {TRUSTED.filter((t) => t.domain !== account.domain).map((t) => (
-          <span key={t.domain} className="inline-flex items-center gap-2 text-[15px] leading-[22px] text-stone-700">
-            <SiteLogo domain={t.domain} name={t.name} className={`h-5 w-5 rounded-[5px] ${t.darkTile ? 'logo-dark-tile' : ''}`} initialClass="text-[10px]" />{t.name}
-          </span>
-        ))}
-      </div>
+      {empty ? (
+        <section className="flex flex-col items-center gap-2 rounded-2xl border border-line bg-surface px-6 py-14 text-center">
+          <h2 className="text-title font-semibold text-stone-900">No plans to show yet.</h2>
+          <p className="text-[14px] leading-5 text-stone-600">Talk to us and we’ll set one up.</p>
+          <Btn look="ink" className="mt-2">Talk to us</Btn>
+        </section>
+      ) : (
+        <>
+          <div className="mt-2"><GroupSwitch id="plans-top" value={group} onChange={setGroup} counts={counts} /></div>
+          <div ref={row} className="no-scrollbar -mx-1 flex snap-x snap-mandatory scroll-px-1 items-stretch gap-3 overflow-x-auto px-1 py-1" style={{ maskImage: mask, WebkitMaskImage: mask }}>
+            {shown.map((p) => <PlanCard key={p.id} plan={p} b={b} current={current} req={stateOf(p)} onAct={onAct} />)}
+          </div>
+          {payShown && <RenewalTerms price={b.pending ? priceOf(b.pending.plan.id) : null} />}
 
-      <div className="mt-2"><GroupSwitch id="plans-top" value={group} onChange={setGroup} counts={counts} /></div>
-
-      <div ref={row} className="no-scrollbar -mx-1 flex snap-x snap-mandatory scroll-px-1 items-stretch gap-3 overflow-x-auto px-1 py-1" style={{ maskImage: mask, WebkitMaskImage: mask }}>
-        {shown.map((p) => <PlanCard key={p.id} plan={p} current={current} state={stateOf(p)} onRequest={() => send(p)} viewAs={viewAs} />)}
-      </div>
-
-      <section aria-labelledby="compare-title" className="mt-6">
-        <h2 id="compare-title" className="text-title font-semibold text-stone-900">Compare plans</h2>
-        {/* never scrolls sideways from 1024px; below that the table scrolls and the first column stays */}
-        <div className="mt-4 max-lg:overflow-x-auto">
-          <div className="max-lg:min-w-[760px]">
-            <div className="sticky top-0 z-10 grid items-end gap-x-4 border-b border-line bg-page pb-3 pt-4 max-lg:top-14" style={cols}>
-              <div className="max-lg:sticky max-lg:left-0 max-lg:bg-page"><GroupSwitch id="plans-compare" value={group} onChange={setGroup} counts={counts} /></div>
-              {shown.map((p) => (
-                <div key={p.id} className="text-center">
-                  <div className="text-[13px] leading-[18px] font-semibold text-stone-900">{p.name}</div>
-                  <div className="text-[12px] leading-4 text-stone-500 tabular-nums">{p.prompts}{p.promptsPlus ? '+' : ''} prompts</div>
-                </div>
-              ))}
-            </div>
-            {SECTIONS.map((s) => {
-              // rows no plan in this group has are hidden; a section with no rows left isn't drawn
-              const rows = s.rows.filter((r) => shown.some((p) => r.values[p.id] != null))
-              if (!rows.length) return null
-              return (
-                <div key={s.title} role="table" aria-label={s.title}>
-                  <h3 className="border-b border-line pb-3 pt-7 text-[16px] leading-6 font-semibold text-stone-900">{s.title}</h3>
-                  {rows.map((r) => (
-                    <div key={r.label} role="row" className="grid items-start gap-x-4 border-b border-line py-3.5 text-[13px] leading-[18px]" style={cols}>
-                      <div role="rowheader" className="max-lg:sticky max-lg:left-0 max-lg:bg-page">
-                        <div className="font-semibold text-stone-900 text-pretty">{r.label}</div>
-                        {r.sub && <div className="mt-0.5 text-[12px] leading-4 text-stone-500 text-pretty">{r.sub}</div>}
-                      </div>
-                      {shown.map((p) => <div key={p.id} role="cell" className="flex justify-center text-center tabular-nums"><Value v={r.values[p.id] ?? null} /></div>)}
+          <section aria-labelledby="compare-title" className="mt-6">
+            <h2 id="compare-title" className="text-title font-semibold text-stone-900">Compare plans</h2>
+            {/* never scrolls sideways from 1024px; below that the table scrolls and the first column stays */}
+            <div className="mt-4 max-lg:overflow-x-auto">
+              <div className="max-lg:min-w-[760px]">
+                <div className="sticky top-0 z-10 grid items-end gap-x-4 border-b border-line bg-page pb-3 pt-4 max-lg:top-14" style={cols}>
+                  <div className="max-lg:sticky max-lg:left-0 max-lg:bg-page"><GroupSwitch id="plans-compare" value={group} onChange={setGroup} counts={counts} /></div>
+                  {/* the price is not repeated here: the header keeps the prompts, as today */}
+                  {shown.map((p) => (
+                    <div key={p.id} className="text-center">
+                      <div className="text-[13px] leading-[18px] font-semibold text-stone-900">{p.name}</div>
+                      <div className="text-[12px] leading-4 text-stone-500 tabular-nums">{p.prompts}{p.promptsPlus ? '+' : ''} prompts</div>
                     </div>
                   ))}
                 </div>
-              )
-            })}
-            {/* the buttons again in the last row, the note at its left */}
-            <div className="grid items-center gap-x-4 py-3" style={cols}>
-              <FootNote />
-              {shown.map((p) => (
-                <div key={p.id}>
-                  <PlanButton action={planAction(p, current)} state={stateOf(p)} onClick={() => send(p)} viewAs={viewAs} compact />
+                {SECTIONS.map((s) => {
+                  // rows no plan in this group has are hidden; a section with no rows left isn't drawn
+                  const rows = s.rows.filter((r) => shown.some((p) => r.values[p.id] != null))
+                  if (!rows.length) return null
+                  return (
+                    <div key={s.title} role="table" aria-label={s.title}>
+                      <h3 className="border-b border-line pb-3 pt-7 text-[16px] leading-6 font-semibold text-stone-900">{s.title}</h3>
+                      {rows.map((r) => (
+                        <div key={r.label} role="row" className="grid items-start gap-x-4 border-b border-line py-3.5 text-[13px] leading-[18px]" style={cols}>
+                          <div role="rowheader" className="max-lg:sticky max-lg:left-0 max-lg:bg-page">
+                            <div className="font-semibold text-stone-900 text-pretty">{r.label}</div>
+                            {r.sub && <div className="mt-0.5 text-[12px] leading-4 text-stone-500 text-pretty">{r.sub}</div>}
+                          </div>
+                          {shown.map((p) => <div key={p.id} role="cell" className="flex justify-center text-center tabular-nums"><Value v={r.values[p.id] ?? null} /></div>)}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+                {/* the buttons again in the last row, the note at its left */}
+                <div className="grid items-center gap-x-4 py-3" style={cols}>
+                  <FootNote />
+                  {shown.map((p) => {
+                    const a = cardAction(p, b, current)
+                    const r = stateOf(p)
+                    return (
+                      <div key={p.id}>
+                        {a.legacy && r === 'sent' ? <Btn look="soft" full disabled className="!opacity-100">Request sent<Check size={14} aria-hidden /></Btn>
+                          : a.legacy && r === 'sending' ? <Btn look="soft" full busy busyLabel="Sending…">{a.label}</Btn>
+                            : <Btn look={a.look} full off={a.off ?? (a.legacy && viewAs && !a.dead ? 'Can’t change plans from this view' : null)} disabled={a.dead} busy={r === 'opening'} onClick={a.act ? (e) => onAct(a.act, p, e.currentTarget) : undefined}>{a.legacy && r === 'failed' ? 'Try again' : a.label}</Btn>}
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        </>
+      )}
+    </>
+  )
+
+  return (
+    <>
+      {header}
+      {/* one page, two tabs: once the client has a subscription, "Plans" and "Billing" (manage subscription and
+          invoices). No plan, a hand-set plan, a demo or a pending payment: no tabs, the page is the plan cards */}
+      {b.hasSub && <Tabs id="plans" label="Plans" value={tab} onChange={(t) => setParams({ tab: t, msg: null, change: null })} tabs={[['plans', 'Plans'], ['billing', 'Billing']]} />}
+      {msg && <p role="status" className="flex items-center gap-2 text-[13px] leading-[18px] text-stone-700"><Check size={14} className="shrink-0 text-stone-500" aria-hidden /><span>{msg(b)}</span></p>}
+      {/* the tab's content moves with the step motion (200ms, 12px; a fade with reduced motion) */}
+      <div key={tab} id="plans-panel" role={b.hasSub ? 'tabpanel' : undefined} aria-labelledby={b.hasSub ? `plans-tab-${tab}` : undefined} className={`flex flex-col gap-3 md:gap-4 ${b.hasSub ? 'modal-step' : ''}`}>
+        {b.hasSub && tab === 'billing' ? <BillingTab b={b} /> : plansTab}
+      </div>
+
+      <ReviewModal b={b} />
+      {confirm?.kind === 'withdraw' && (
+        <ConfirmPopover anchor={confirm.anchor} title={`Stay on ${b.plan.name}?`} body={`The switch to ${confirm.plan.name} on ${shortDate(b.scheduled?.starts)} is withdrawn.`} confirmLabel="Withdraw change" cancelLabel="Keep it"
+          onConfirm={() => { setConfirm(null); setParams({ sub: 'active', msg: 'withdrawn' }) }} onCancel={() => setConfirm(null)} />
+      )}
+      {confirm?.kind === 'resume' && (
+        <ConfirmPopover anchor={confirm.anchor} title={`Resume ${b.plan.name}?`} body={`It renews ${shortDate(b.paidThrough)} at ${money(b.price)} per month.`} confirmLabel="Resume plan" cancelLabel="Not now"
+          onConfirm={() => { setConfirm(null); setParams({ sub: 'active', msg: 'resumed' }) }} onCancel={() => setConfirm(null)} />
+      )}
     </>
   )
 }

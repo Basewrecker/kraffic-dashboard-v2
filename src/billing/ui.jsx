@@ -130,7 +130,8 @@ export function RenewalTerms({ price, className = '' }) {
     <section aria-labelledby="terms-title" className={`rounded-xl border border-line bg-surface px-4 py-3.5 ${className}`}>
       <h3 id="terms-title" className="text-[13px] leading-[18px] font-semibold text-stone-900">Before you pay: renewal terms</h3>
       <ul className="mt-2 flex flex-col gap-1.5 text-[13px] leading-[18px] text-stone-600 text-pretty">
-        <li>Your subscription renews automatically for <B>{money(price)}</B> every month, until you cancel.</li>
+        {/* on the Plans page no plan is picked yet, so the line names no amount; the review step fills it in */}
+        <li>Your subscription renews automatically for {price == null ? <>your plan’s price</> : <B>{money(price)}</B>} every month, until you cancel.</li>
         <li>Cancel any time from Billing in your account, or email <Pending n="conflict 4">{WORKSPACE.support}</Pending>. Cancellation stops the next renewal; the current period stays active until it ends.</li>
         <li>You will receive a renewal reminder by email before each charge when required by law.</li>
       </ul>
@@ -139,3 +140,20 @@ export function RenewalTerms({ price, className = '' }) {
 }
 // the skeleton block: a pulsing surface card
 export const Skeleton = ({ className = '' }) => <div aria-hidden className={`animate-pulse rounded-lg bg-tint motion-reduce:animate-none ${className}`} />
+
+// The split button (as in Connect your data): the main action and a caret that opens the app's menu, two halves that
+// share one border. items: ActionMenu's.
+import { ChevronDown } from 'lucide-react'
+import ActionMenu from '../components/audit/ActionMenu'
+export function SplitBtn({ children, onClick, items, busy = false, off = null, menuLabel = 'More ways' }) {
+  if (off) return <Btn look="ink" off={off}>{children}</Btn>
+  return (
+    <span className="inline-flex max-md:w-full">
+      <Btn look="ink" busy={busy} onClick={onClick} className="rounded-r-none max-md:flex-1">{children}</Btn>
+      <ActionMenu label={menuLabel} items={items} portal disabled={busy}
+        className="grid h-9 w-8 place-items-center rounded-r-lg border-l border-[color-mix(in_srgb,var(--on-ink)_25%,transparent)] bg-ink text-on-ink outline-none transition-colors duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 aria-expanded:bg-ink-hover disabled:opacity-50">
+        <ChevronDown size={15} aria-hidden />
+      </ActionMenu>
+    </span>
+  )
+}

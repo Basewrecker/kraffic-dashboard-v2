@@ -6,6 +6,7 @@ import ConfirmPopover from '../prompts/ConfirmPopover'
 import SiteLogo from '../ui/SiteLogo'
 import BrandModal from './BrandModal'
 import LimitTip from '../../plan/LimitTip'
+import { pausedReason } from '../../billing/state.js'
 import HeaderBell from '../../notifications/NotificationsBell'
 import { LIMIT_REASON, competitorRoom, isSuperadmin } from '../../plan/plan.js'
 import { useInlineEdit } from '../../hooks/useInlineEdit'
@@ -847,7 +848,8 @@ export default function SetupPage() {
           <p className="mt-1 text-[13px] leading-[18px] text-stone-600 md:text-[14px] md:leading-5">What Auden AI tracks for your brand</p>
         </div>
         <div className="flex items-center gap-3 md:pt-1 max-md:[&>button]:h-10 max-md:[&>button]:w-full max-md:[&>button]:justify-center">
-          <PrimaryButton size="sm" icon={Plus} onClick={() => setModal({ brand: null })}>Add brand</PrimaryButton>
+          {/* past due (billing): adding a brand is paused, with the reason */}
+          <LimitTip reason={pausedReason()}><PrimaryButton size="sm" icon={Plus} disabled={Boolean(pausedReason())} onClick={() => setModal({ brand: null })}>Add brand</PrimaryButton></LimitTip>
           {/* every page header ends with the hairline and the bell */}
           <HeaderBell />
         </div>

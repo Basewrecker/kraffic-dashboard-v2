@@ -8,6 +8,7 @@ import { brandName } from '../../utils/brand'
 import { PrimaryButton, SecondaryButton, useToast } from '../dashboard/overlays'
 import PlanPill from '../../plan/PlanPill'
 import LimitTip from '../../plan/LimitTip'
+import { pausedReason } from '../../billing/state.js'
 import { LIMIT_REASON, isSuperadmin, promptUsage } from '../../plan/plan.js'
 import { PlatformIcon } from '../dashboard/icons'
 import { MenuSelect } from '../dashboard/PageHeader'
@@ -624,8 +625,10 @@ function PromptHub() {
   const empty = prompts.length === 0 && !adding
   // plan room (as the app, #231): at the limit, adding is off with the reason; counts never read above the limit
   const room = promptUsage()
-  const full = room.atLimit
-  const limitWhy = full ? LIMIT_REASON.prompts(room) : null
+  // past due (billing, pending decision 10): Sync, Research, Import and Add prompt are paused, with the reason
+  const pausedWhy = pausedReason()
+  const full = room.atLimit || Boolean(pausedWhy)
+  const limitWhy = pausedWhy ?? (room.atLimit ? LIMIT_REASON.prompts(room) : null)
   return (
     <>
       {/* header: title + domain on the left, actions on the right (one row, like the dashboard) */}
@@ -644,10 +647,10 @@ function PromptHub() {
           <span className="hidden items-center gap-2 lg:flex">
             {/* as the app: Sync first (pending prompts: "Sync 3"; running: "Syncing… 40/152"). Mock: the sync is a
                 3-second stand-in that counts up and ends with a toast */}
-            <SecondaryButton size="sm" icon={sync ? SyncSpinner : RefreshCw} disabled={Boolean(sync)} onClick={runSync}
+            <LimitTip reason={pausedWhy} align="center"><SecondaryButton size="sm" icon={sync ? SyncSpinner : RefreshCw} disabled={Boolean(sync) || Boolean(pausedWhy)} onClick={runSync}
               title={sync ? `Syncing… ${sync.done} of ${sync.total} done` : pendingCount > 0 ? `Sync ${pendingCount} pending prompt${pendingCount === 1 ? '' : 's'}` : 'Re-run sync for all prompts'}>
               {sync ? `Syncing… ${sync.done}/${sync.total}` : pendingCount > 0 ? `Sync ${pendingCount}` : 'Sync'}
-            </SecondaryButton>
+            </SecondaryButton></LimitTip>
             {/* data-tour: the walkthrough pointer lights Research and Import (not Sync) */}
             {/* at the plan's limit (as the app, #231): Research, Import and Add prompt are off and say why, instead
                 of failing. ?usage=limit previews it */}
