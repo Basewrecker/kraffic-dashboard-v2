@@ -1230,3 +1230,13 @@ html[data-notes] [data-pending]::after {
 :root { --medal-silver-text: #5B6472; --medal-bronze-text: #8A5326; }
 html[data-theme="dark"] { --medal-silver-text: #C4CAD4; --medal-bronze-text: #DDA273; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --medal-silver-text: #C4CAD4; --medal-bronze-text: #DDA273; } }
+/* Content, the Brand Guidelines control (as the app, #233): after a first save in the visit the green check draws in
+   and the eye button slides out from the button's edge. Reduced motion: both fade. */
+.gl-check-in path { stroke-dasharray: 1; animation: gl-check var(--motion-morph) var(--motion-ease-out) 120ms both; }
+@keyframes gl-check { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.gl-eye-in { overflow: hidden; animation: gl-eye var(--motion-morph) var(--motion-ease-out) both; }
+@keyframes gl-eye { from { max-width: 0; opacity: 0; } to { max-width: 36px; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .gl-check-in path { stroke-dashoffset: 0; animation: fade-in var(--motion-morph) ease-out both; }
+  .gl-eye-in { animation: fade-in var(--motion-morph) ease-out both; }
+}

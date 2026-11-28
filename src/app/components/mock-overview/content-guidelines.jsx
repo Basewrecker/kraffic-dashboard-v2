@@ -1,11 +1,14 @@
 // Copied from the app (components/mock-overview/content-guidelines.jsx, develop, synced 2026-11-15); only the paths to
-// the mock's own components changed.
+// the mock's own components changed. The grouped control and its preview (app #233) were ported from the handoff of
+// 2026-11-27 (visuals only).
 'use client'
 // Brand guidelines in the app (lib/mock-adapter-guidelines.ts): a failed save, skip or remove, shown inline with Retry
 // (CLAUDE.md §2 Saves: the page already shows the change; this says it didn't reach the server). The server's message
 // for a 400 (e.g. a phrase over 200 characters), a plain one otherwise. Nothing when the last write went through.
 import { useEffect, useId, useRef, useState } from 'react'
-import { EMPTY_GUIDELINES, guidelinesStamp, guidelinesStateOf, hasGuidelines, loadGuidelines, removeGuidelines, saveGuidelines, useBrandGuidelines } from '@/lib/mock-adapter-guidelines'
+import { Eye } from 'lucide-react'
+import GuidelinesPreview, { openGuidelinesPreview } from './guidelines-preview'
+import { EMPTY_GUIDELINES, guidelinesStateOf, hasGuidelines, loadGuidelines, removeGuidelines, saveGuidelines, useBrandGuidelines } from '@/lib/mock-adapter-guidelines'
 import { lineBtn } from '../../../components/tool/ToolPage'
 import Modal from '../../../components/ui/Modal'
 import SiteLogo from '../../../components/ui/SiteLogo'
@@ -76,35 +79,54 @@ export function HowWeUseThis({ brand }) {
   )
 }
 
-// The Content list's brand guidelines button (owner, 2026-11-05), top-right of the page header, level with the title:
-// an outline button with the brand's logo (owner, 2026-11-07; was a document icon), the height of Export CSV.
-//   none, skipped or removed  "Add Brand guidelines" (owner, 2026-11-09: capital B)
-//   saved                     "Brand guidelines · Added Nov 5" (or "· Updated Nov 7" after an edit), the uploaded
-//                             file's name small and muted under it
-// It opens the same form as the prompt's guidelines screen, pre-filled: Save / Cancel, and Remove when saved. Saving
-// updates the brand's guidelines for the drafts written from now on; written drafts don't change. Hidden until the
-// route has answered.
+// The Content list's Brand Guidelines control (as the app, #233), top-right of the page header, level with the title.
+//   none, skipped or removed  one outline button, "Add Brand Guidelines", with the brand's logo
+//   saved                     a grouped control: the button (logo · "Brand Guidelines" · a green check) joined to a
+//                             36px eye button ("Preview guidelines" in the dark tip) that opens the preview pull-out
+// After a first save in this visit the check draws in and the eye slides out (--motion-morph; reduced motion: a fade).
+// The button opens the same form as the prompt's guidelines screen, pre-filled: Save / Cancel, and Remove when saved.
+// Saving updates the brand's guidelines for the drafts written from now on; written drafts don't change.
 export function GuidelinesButton({ domain, brand, className = '' }) {
   useBrandGuidelines(domain)
   const state = guidelinesStateOf(domain)
   const [form, setForm] = useState(null) // the form while the dialog is open
+  const [fresh, setFresh] = useState(false) // saved for the first time in this visit: the check and the eye animate in
+  const [tip, setTip] = useState(false)
   if (!state) return null
   const g = loadGuidelines(domain)
   const open = () => setForm(g ?? EMPTY_GUIDELINES)
-  const save = () => { saveGuidelines(domain, form); setForm(null) }
-  const remove = () => { removeGuidelines(domain); setForm(null) }
+  const save = () => { if (!g) setFresh(true); saveGuidelines(domain, form); setForm(null) }
+  const remove = () => { removeGuidelines(domain); setFresh(false); setForm(null) }
   // saved guidelines with every field now empty: the button removes them (owner, 2026-11-05)
   const clearedAll = Boolean(g) && Boolean(form) && !hasGuidelines(form)
   return (
     <div className={`flex shrink-0 flex-col items-end gap-1 ${className}`}>
-      <button type="button" onClick={open} className={lineBtn} data-guidelines-button={g ? 'saved' : 'add'}>
-        {/* app (owner, 2026-11-07): the brand's own logo, 16px, the account switcher's loader (letter tile only if every
-            source fails) */}
-        <span aria-hidden className="inline-flex"><SiteLogo domain={domain} name={brand} className="h-4 w-4 rounded-[4px]" initialClass="text-[9px]" /></span>
-        {g ? <span>Brand Guidelines <span aria-hidden className="text-stone-400">·</span> <span className="tabular-nums">{guidelinesStamp(g)}</span></span> : 'Add Brand Guidelines'}
-      </button>
-      {g?.file?.name && <span className="max-w-[260px] truncate text-[12px] leading-4 text-stone-500" title={g.file.name}>{g.file.name}</span>}
+      <div className="relative inline-flex" data-guidelines-control={g ? 'saved' : 'add'}>
+        <button type="button" onClick={open} className={`${lineBtn} ${g ? 'relative rounded-r-none focus-visible:z-10' : ''}`} data-guidelines-button={g ? 'saved' : 'add'}>
+          {/* app (owner, 2026-11-07): the brand's own logo, 16px, the account switcher's loader (letter tile only if every
+              source fails) */}
+          <span aria-hidden className="inline-flex"><SiteLogo domain={domain} name={brand} className="h-4 w-4 rounded-[4px]" initialClass="text-[9px]" /></span>
+          {g ? 'Brand Guidelines' : 'Add Brand Guidelines'}
+          {g && (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--connected)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`-ml-0.5 shrink-0 ${fresh ? 'gl-check-in' : ''}`}>
+              <path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1" />
+            </svg>
+          )}
+          {g && <span className="sr-only">saved</span>}
+        </button>
+        {g && (
+          <span className={`inline-flex ${fresh ? 'gl-eye-in' : ''}`}>
+            <button type="button" onClick={openGuidelinesPreview} aria-label="Preview guidelines" data-guidelines-eye
+              onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)} onFocus={(e) => setTip(e.currentTarget.matches(':focus-visible'))} onBlur={() => setTip(false)}
+              className="relative -ml-px grid h-9 w-9 shrink-0 place-items-center rounded-r-lg border border-line bg-surface text-stone-600 outline-none transition-colors duration-150 hover:bg-tint hover:text-stone-900 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-focus">
+              <Eye size={16} aria-hidden />
+            </button>
+          </span>
+        )}
+        {g && <span role="tooltip" className={`tip-dark pointer-events-none absolute right-0 top-full z-40 mt-2 w-max transition-opacity duration-150 ${tip ? 'opacity-100' : 'opacity-0'}`}>Preview guidelines</span>}
+      </div>
       <GuidelinesError domain={domain} className="" />
+      <GuidelinesPreview domain={domain} onReplace={open} />
       <Modal open={Boolean(form)} onClose={() => setForm(null)} title={<span className="flex flex-wrap items-baseline gap-x-3">Your Brand Guidelines <HowWeUseThis brand={brand} /></span>} subtitle={`Every new draft for ${brand} follows them. Drafts already written don’t change.`} size="lg"
         footer={<div className="flex w-full items-center gap-2">
           {g && <button type="button" onClick={remove} data-remove-guidelines className="mr-auto rounded text-[13px] leading-[18px] font-medium text-stone-600 underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-focus">Remove guidelines</button>}

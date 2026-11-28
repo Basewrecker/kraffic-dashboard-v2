@@ -32,7 +32,10 @@ import { ANSWER_MAX, LABEL_MAX, VALUE_MAX } from '../data/userFacts'
 import { textBtn } from '../../../components/firstSetup/ui'
 import { UPLOAD_MS, factsFound } from '../../../data/contentOpportunities-proposed'
 import { FLAG_RULES } from '../../../data/contentRecommend'
-import { updatedLabel } from '../../../data/brandGuidelines' // as the app
+import GuidelinesPreview, { openGuidelinesPreview } from '@/components/mock-overview/guidelines-preview'
+import { guidelinesReadState } from '@/lib/mock-adapter-guidelines'
+import SiteLogo from '../../../components/ui/SiteLogo'
+import { CO_BRAND } from '@/lib/mock-adapter-content'
 import { CONTENT_HIDDEN } from '../../../data/contentApp' // as the app: ② and ③ hidden for now (owner, 2026-11-05); the code stays
 import { fileKind, fileSize, suggestionsFor, uploadState } from './flow'
 import { Collapse, DashedRing, GreenTick } from './ui'
@@ -108,21 +111,29 @@ export default function DataStep({ data, update, v1 = false, cap = null, guideli
     <div>
       <p className="text-[15px] leading-[22px] text-stone-500">Give the draft what only you know. Everything here is optional.</p>
       {v1 && <p className="mt-1 text-[13px] leading-[18px] text-stone-500">Your files aren’t stored. The draft you save, including any facts it uses, is kept for your team.</p>}
-      {guidelines?.none && (
-        <p className="mt-3 flex items-center gap-1.5 text-[13px] leading-[18px] text-stone-600" data-guidelines-used="none">
-          <span>No brand guidelines</span><span aria-hidden className="text-stone-400">·</span>
-          <button type="button" onClick={guidelines.onEdit} className={LINK}>Add</button>
-        </p>
-      )}
-      {guidelines && !guidelines.none && (
-        <p className="mt-3 flex items-center gap-1.5 text-[13px] leading-[18px] text-stone-600" data-guidelines-used>
-          <Check size={14} className="text-[var(--rep-up-fg)]" aria-hidden />
-          <span>Using {guidelines.brand}’s guidelines</span><span aria-hidden className="text-stone-400">·</span>
-          {/* app (owner, 2026-11-05): when they were last updated */}
-          {guidelines.updated && <><span className="tabular-nums">Updated {updatedLabel(guidelines.updated)}</span><span aria-hidden className="text-stone-400">·</span></>}
-          <button type="button" onClick={guidelines.onEdit} className={LINK}>Edit</button>
-        </p>
-      )}
+      {/* as the app (#203): the Brand Guidelines row. Logo · "Brand Guidelines applied" · View (the preview pull-out) ·
+          Edit; none: "No Brand Guidelines yet" · Add. While a guide is being read, and when it couldn't be read, the
+          row says so in normal text (no red). ?guidelines=reading | failed previews those two. */}
+      {guidelines && (() => {
+        const read = guidelinesReadState()
+        const text = read === 'reading' ? 'Reading Brand Guidelines…' : read === 'failed' ? 'Couldn’t read Brand Guidelines' : guidelines.none ? 'No Brand Guidelines yet' : 'Brand Guidelines applied'
+        const dot = <span aria-hidden className="text-stone-400">·</span>
+        return (
+          <p className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] leading-[18px] text-stone-600" data-guidelines-used={guidelines.none ? 'none' : read ?? ''}>
+            <span aria-hidden className="mr-0.5 inline-flex"><SiteLogo domain={CO_BRAND.domain} name={CO_BRAND.name} className="h-4 w-4 rounded-[4px]" initialClass="text-[9px]" /></span>
+            <span className="text-stone-900" role={read ? 'status' : undefined}>{text}</span>
+            {read === 'reading' ? null : guidelines.none || read === 'failed' ? (
+              <>{dot}<button type="button" onClick={guidelines.onEdit} className={LINK}>{read === 'failed' ? 'Edit' : 'Add'}</button></>
+            ) : (
+              <>
+                {dot}<button type="button" onClick={openGuidelinesPreview} className={LINK}>View</button>
+                {dot}<button type="button" onClick={guidelines.onEdit} className={LINK}>Edit</button>
+              </>
+            )}
+          </p>
+        )
+      })()}
+      {guidelines && !guidelines.none && <GuidelinesPreview domain={CO_BRAND.domain} onReplace={guidelines.onEdit} />}
       <ol className="mt-6 divide-y divide-[var(--div)]">
         <Task n={1} plain={solo} title="Upload documents" why="Studies, spec sheets or price lists the draft can quote." status={nFiles ? `${nFiles} ${nFiles === 1 ? 'file' : 'files'}` : null}>
           <DropZone slim={!solo && nRows > 0} large={solo} v1={v1} onFiles={addFiles} onPaste={() => { setDraftText(pasted); setPasting(true) }} />

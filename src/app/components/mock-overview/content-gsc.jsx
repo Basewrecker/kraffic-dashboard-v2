@@ -1,8 +1,11 @@
 // Mock stand-in for the app's components/mock-overview/content-gsc.jsx (synced 2026-11-15): Search Console around the
-// Content pages. The picker and the "Publishing on …" line are the app's code, unchanged. The hooks, which in the app
+// Content pages. The "Publishing on …" line is the app's code, unchanged; the picker follows the app's rebuilt one
+// (on the shared Modal, sentence-case labels; ported from the handoff of 2026-11-27). The hooks, which in the app
 // talk to its server and Google, keep the mock's behaviour: Connect takes 900ms, the properties are samples, nothing
 // fails.
 import { useEffect, useRef, useState } from 'react'
+import { Check } from 'lucide-react'
+import Modal from '../../../components/ui/Modal'
 import MockSearchMatch, { ConnectSearchConsole as MockConnectSearchConsole, SkippedRow as MockSkippedRow } from '../../../pages/opportunities/workspace/SearchMatch'
 import { CO_BRAND, brandScState, pageSourceLabel, sampleProperties, setBrandScState } from '@/lib/mock-adapter-content'
 
@@ -47,77 +50,65 @@ export function useBrandSearchConsole() {
   }
 }
 
-export function GscPropertyPicker({ open, loading, saving, error, data, onClose, onSave, onReconnect, onDisconnect = null, disconnecting = false, domain }) {
-  if (!open) return null
+// The property picker (as the app's preview of 2026-11-27, branch fix/gsc-picker-modal): the same content and copy on
+// the shared Modal, so it opens and closes with the shared motion. Group labels in sentence case. The property saved
+// on the server shows a check and "Saved" in muted text before its permission. Footer: Disconnect (link) left; Cancel
+// and "Use another Google account" right.
+const pickerLink = 'rounded text-[14px] leading-5 font-medium text-stone-600 underline decoration-[var(--color-line-strong)] underline-offset-[3px] outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60'
+export function GscPropertyPicker({ open, loading, saving, error, data, onClose, onSave, onReconnect, onDisconnect = null, disconnecting = false, domain, savedUrl = null }) {
   const matched = data?.matched || []
   const other = data?.other || []
   const host = String(domain || '').replace(/^www\./, '')
+  const group = (title, rows) => (
+    <div>
+      <p className="mb-2 text-[13px] leading-[18px] text-stone-600">{title}</p>
+      <ul className="flex flex-col gap-1.5">{rows.map((s) => (
+        <li key={s.siteUrl}>
+          <button type="button" disabled={saving} onClick={() => onSave(s.siteUrl)} aria-current={s.siteUrl === savedUrl || undefined}
+            className="flex min-h-[42px] w-full items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5 text-left text-[14px] leading-5 text-stone-900 outline-none transition-colors duration-150 hover:border-ink hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60">
+            <span className="min-w-0 break-all">{s.siteUrl}</span>
+            <span className="flex shrink-0 items-center gap-3 text-[13px] leading-[18px] text-stone-500">
+              {s.siteUrl === savedUrl && <span className="inline-flex items-center gap-1.5" data-gsc-saved><Check size={13} aria-hidden />Saved</span>}
+              <span>{s.permissionLevel?.replace(/^site/, '') || ''}</span>
+            </span>
+          </button>
+        </li>
+      ))}</ul>
+    </div>
+  )
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="gsc-prop-h" data-gsc-property-picker
-      className="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/40 p-4 sm:items-center" onClick={onClose}>
-      <div className="max-h-[min(80vh,560px)] w-full max-w-lg overflow-auto rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 id="gsc-prop-h" className="text-[17px] font-semibold leading-6 text-stone-900">Choose a Search Console property</h2>
-        <p className="mt-1 text-[14px] leading-5 text-stone-600">
-          Pick the property to use for <span className="font-medium text-stone-900">{host}</span>. If this Google account doesn’t include that site, connect with another account.
-        </p>
-        {loading && <p className="mt-4 text-[14px] text-stone-500" aria-busy>Loading properties…</p>}
-        {error && <p role="alert" className="mt-3 text-[14px] text-stone-700"><span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-negative" aria-hidden />{error}</p>}
-        {!loading && data && (
-          <div className="mt-4 space-y-4">
-            {matched.length > 0 && (
-              <div>
-                <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-stone-500">Matches {host}</p>
-                <ul className="space-y-1">{matched.map((s) => (
-                  <li key={s.siteUrl}>
-                    <button type="button" disabled={saving} onClick={() => onSave(s.siteUrl)}
-                      className="flex w-full items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5 text-left text-[14px] text-stone-800 outline-none hover:border-ink hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60">
-                      <span className="min-w-0 break-all">{s.siteUrl}</span>
-                      <span className="shrink-0 text-[12px] text-stone-500">{s.permissionLevel?.replace(/^site/, '') || ''}</span>
-                    </button>
-                  </li>
-                ))}</ul>
-              </div>
-            )}
-            {other.length > 0 && (
-              <div>
-                <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-stone-500">
-                  {matched.length ? 'Other properties on this Google account' : `No property for ${host} — other sites on this account`}
-                </p>
-                <ul className="space-y-1">{other.map((s) => (
-                  <li key={s.siteUrl}>
-                    <button type="button" disabled={saving} onClick={() => onSave(s.siteUrl)}
-                      className="flex w-full items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5 text-left text-[14px] text-stone-800 outline-none hover:border-ink hover:bg-tint focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60">
-                      <span className="min-w-0 break-all">{s.siteUrl}</span>
-                      <span className="shrink-0 text-[12px] text-stone-500">{s.permissionLevel?.replace(/^site/, '') || ''}</span>
-                    </button>
-                  </li>
-                ))}</ul>
-              </div>
-            )}
-            {!matched.length && !other.length && (
-              <p className="text-[14px] text-stone-700">This Google account has no Search Console properties. Add {host} in Search Console, or connect with another Google account.</p>
-            )}
-          </div>
-        )}
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          {onDisconnect ? (
-            <button type="button" onClick={onDisconnect} disabled={saving || disconnecting}
-              className="rounded text-[14px] font-medium text-stone-600 underline decoration-[var(--color-line-strong)] underline-offset-2 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60">
-              {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-            </button>
-          ) : <span />}
-          <span className="flex flex-wrap items-center justify-end gap-3">
-            <button type="button" onClick={onClose} className="rounded text-[14px] font-medium text-stone-600 underline decoration-[var(--color-line-strong)] underline-offset-2 outline-none hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-focus">Cancel</button>
+    <Modal open={open} onClose={onClose} title="Choose a Search Console property"
+      subtitle={<>Pick the property to use for <span className="font-medium text-stone-900">{host}</span>. If this Google account doesn’t include that site, connect with another account.</>}
+      footer={(
+        <div className="flex w-full flex-wrap items-center justify-between gap-3">
+          {onDisconnect
+            ? <button type="button" onClick={onDisconnect} disabled={saving || disconnecting} className={pickerLink}>{disconnecting ? 'Disconnecting…' : 'Disconnect'}</button>
+            : <span />}
+          <span className="flex flex-wrap items-center justify-end gap-4">
+            <button type="button" onClick={onClose} className={pickerLink}>Cancel</button>
             {onReconnect && (
               <button type="button" onClick={onReconnect} disabled={saving || disconnecting}
-                className="inline-flex h-9 items-center rounded-lg bg-ink px-3.5 text-[14px] font-medium text-on-ink outline-none hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60">
+                className="inline-flex h-9 items-center rounded-lg bg-ink px-3.5 text-[14px] font-medium text-on-ink outline-none transition-colors duration-150 hover:bg-ink-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-60">
                 Use another Google account
               </button>
             )}
           </span>
         </div>
+      )}>
+      <div data-gsc-property-picker className="flex flex-col gap-4 pt-1">
+        {loading && <p className="text-[14px] leading-5 text-stone-500" aria-busy>Loading properties…</p>}
+        {error && <p role="alert" className="text-[14px] leading-5 text-stone-700"><span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-negative" aria-hidden />{error}</p>}
+        {!loading && data && (
+          <>
+            {matched.length > 0 && group(`Matches ${host}`, matched)}
+            {other.length > 0 && group(matched.length ? 'Other properties on this Google account' : `No property for ${host}. Other sites on this account`, other)}
+            {!matched.length && !other.length && (
+              <p className="text-[14px] leading-5 text-stone-700 text-pretty">This Google account has no Search Console properties. Add {host} in Search Console, or connect with another Google account.</p>
+            )}
+          </>
+        )}
       </div>
-    </div>
+    </Modal>
   )
 }
 

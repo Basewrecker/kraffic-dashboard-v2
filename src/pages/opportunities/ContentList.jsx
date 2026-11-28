@@ -247,6 +247,7 @@ export default function ContentList() {
         error={scPicker.error}
         data={scPicker.data}
         domain={domainLabel}
+        savedUrl={scSiteUrl}
         onClose={scPicker.closePicker}
         onSave={scPicker.save}
         onReconnect={() => { scPicker.closePicker(); connectSc() }}

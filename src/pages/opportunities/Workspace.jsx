@@ -39,7 +39,7 @@ import { Engines, LIST_PATH, OWN_DOMAIN, brandLabels, coBrandName, goTo, pathOf,
 import ConnectStep from './workspace/ConnectStep'
 import DataStep from './workspace/DataStep'
 import GuidelinesForm from './workspace/Guidelines'
-import { EMPTY_GUIDELINES, guidelinesStamp, hasGuidelines, loadGuidelines, needsGuidelines, removeGuidelines, saveGuidelines, skipGuidelines } from '../../data/brandGuidelines'
+import { EMPTY_GUIDELINES, guidelinesStamp, hasGuidelines, loadGuidelines, needsGuidelines, removeGuidelines, saveGuidelines, skipGuidelines } from '@/lib/mock-adapter-guidelines' // ?guidelines=saved previews a saved guide
 import SearchConsolePanel from './workspace/SearchConsolePanel'
 import ActionDock from './workspace/ActionDock'
 import PayoffBar, { HeadFacts } from './workspace/PayoffBar'

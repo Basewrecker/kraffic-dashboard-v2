@@ -233,7 +233,8 @@ export function WhatChangedPanel({ config }) {
 // The pull-out shell, shared by What changed and Notifications: in <body> (a page view that stays mounted but hidden
 // can still open it), the drawers' scrim and sheet (a bottom sheet on phones), 440px, 28px padding, a 260ms slide,
 // focus trapped inside, Esc closes, focus back to the opener (useDrawer).
-export function PullOut({ drawer, labelledBy, children }) {
+// wide: 560px (a document to read: the Brand Guidelines preview)
+export function PullOut({ drawer, labelledBy, wide = false, children }) {
   const { shown, close, panel } = drawer
   const onKeyDown = (e) => {
     if (e.key === 'Escape') { e.preventDefault(); close() }
@@ -253,7 +254,7 @@ export function PullOut({ drawer, labelledBy, children }) {
     <div className="fixed inset-0 z-50" onKeyDown={onKeyDown}>
       <div className={`absolute inset-0 bg-black/30 transition-opacity duration-[250ms] ease-out motion-reduce:transition-none ${shown ? 'opacity-100' : 'opacity-0'}`} onClick={close} aria-hidden />
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1}
-        className={`${base} ${motion} md:w-[min(440px,100vw)] motion-reduce:!translate-x-0 motion-reduce:!translate-y-0 ${shown ? 'translate-y-0 md:translate-x-0 opacity-100' : 'translate-y-full md:translate-y-0 md:translate-x-full motion-reduce:opacity-0'}`}>
+        className={`${base} ${motion} ${wide ? 'md:w-[min(560px,100vw)]' : 'md:w-[min(440px,100vw)]'} motion-reduce:!translate-x-0 motion-reduce:!translate-y-0 ${shown ? 'translate-y-0 md:translate-x-0 opacity-100' : 'translate-y-full md:translate-y-0 md:translate-x-full motion-reduce:opacity-0'}`}>
         <SheetHandle panelRef={panel} onClose={close} />
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-3 md:p-7">{children}</div>
       </div>
