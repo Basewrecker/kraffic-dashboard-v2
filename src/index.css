@@ -1196,3 +1196,7 @@ html[data-notes] [data-pending]::after {
   .bill-tick path, .bill-tick polyline { stroke-dasharray: 30; stroke-dashoffset: 30; animation: bill-tick 420ms var(--motion-ease-out) 120ms forwards; }
 }
 @keyframes bill-tick { to { stroke-dashoffset: 0; } }
+
+/* Connect → Connected: the pill grows in from the button it replaces (250ms; reduced motion: it just shows) */
+@media (prefers-reduced-motion: no-preference) { .bill-morph { animation: bill-morph var(--motion-morph) var(--motion-ease-out) both; } }
+@keyframes bill-morph { from { opacity: 0; transform: scale(0.9); } }

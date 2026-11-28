@@ -27,6 +27,7 @@ import ToolRouter from './pages/toolkit/ToolRouter'
 import PlansRouter from './pages/plans/PlansRouter'
 import { AccessEnded, ReducedShell, ShellNotices, isReduced } from './billing/Shell'
 import { billingState } from './billing/state.js'
+import ConsoleRouter from './pages/console/ConsoleRouter'
 import { useParams as useUrlParams } from './components/audit/parts'
 import TeamPage from './pages/team/TeamPage'
 import ReportsRouter from './pages/reports/ReportsPages'
@@ -121,6 +122,8 @@ export default function App() {
   if (state === 'app-loading') return <AppLoading />
   // billing (screen 6): an ended account signs in to the Plans page only, in a reduced shell; a demo that expired
   // where billing isn't live keeps today's small card
+  // billing's two superadmin console pages (screens 7 and 8) sit outside the dashboard's shell
+  if (path.startsWith('/console')) return <TrackingProvider initial={krafficBackend ? initialTracking : appInitialTracking}><ConsoleRouter /></TrackingProvider>
   const bill = billingState()
   if (isReduced(bill)) return <TrackingProvider initial={krafficBackend ? initialTracking : appInitialTracking}><ReducedShell><PlansRouter /></ReducedShell></TrackingProvider>
   if (bill.status === 'demo-ended' && !bill.live) return <AccessEnded />
