@@ -66,7 +66,9 @@ export function billingState() {
     status: sub, plan, price: priceOf(plan.id),
     show: p.get('show'),
   }
-  const withSub = (extra) => ({ ...base, hasSub: true, renews, card: { brand: 'Visa', last4: '4242', exp: '2028-04' }, invoices: p.get('invoices') === 'none' ? [] : p.get('invoices') === 'many' ? MANY : HISTORY, ...extra })
+  // usage the Billing tab's meters show beside the prompts (promptUsage()): competitors and logins in use are samples
+  // here; the app must supply them (the account's competitor count on its busiest brand, and its active logins)
+  const withSub = (extra) => ({ ...base, hasSub: true, renews, usage: { competitors: 4, logins: 2 }, card: { brand: 'Visa', last4: '4242', exp: '2028-04' }, invoices: p.get('invoices') === 'none' ? [] : p.get('invoices') === 'many' ? MANY : HISTORY, ...extra })
   switch (sub) {
     case 'demo': return { ...base, hasSub: false, demoEnds: renews, demoDays: 30 }
     case 'pending': return { ...base, hasSub: false, pending: { plan: PLANS.find((x) => x.id === 'authority'), heldUntil: addDays(TODAY, 1), heldTime: '2:14 PM' } }
